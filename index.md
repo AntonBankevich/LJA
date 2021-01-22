@@ -1,37 +1,9 @@
-## Welcome to GitHub Pages
+## La Jolla Assembler LJA
 
-You can use the [editor on GitHub](https://github.com/AntonBankevich/LJA/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+La Jolla Assembler (LJA) is a genome assembler designed for PacBio HiFi reads based on de Bruijn graph. LJA uses jumboDB algorithm to construct de Bruijn graphs for large values of k. De Bruijn graph is then used for error correction and repeat resolution. For details see https://www.biorxiv.org/content/10.1101/2020.12.10.420448v1.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+LJA is under development now but will be available in the near future.
 
-### Markdown
-
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
-
-```markdown
-Syntax highlighted code block
-
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/AntonBankevich/LJA/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+#Code contributors:
+- Anton Bankevich
+- Andrey Bzikadze
