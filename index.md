@@ -4,6 +4,6 @@ La Jolla Assembler (LJA) is a genome assembler designed for PacBio HiFi reads ba
 
 LJA is under development now but will be available in the near future.
 
-#Code contributors:
+### Code contributors:
 - Anton Bankevich
 - Andrey Bzikadze
