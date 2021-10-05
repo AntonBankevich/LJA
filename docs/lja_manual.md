@@ -70,14 +70,14 @@ Value of k (vertex size) to be used for the final error correction and initializ
 `--diploid`
 Use this option for diploid genome. By default, LJA assumes that the genome is haploid or inbred.
 
-Output of de Bruijn graph construction
+Output of La Jolla Assembler
 =================
 
 All output files are stored in <output_dir> `, which is set by the user.
 
--   `<output_dir>/graph.fasta` sequences of all edges of de Bruijn graph in fasta format
--   `<output_dir>/graph.gfa` sequences of all edges of de Bruijn graph in gfa format. Note that gfa format is ill-suited for de Bruijn graph storage since it does not represent some vertices such as vertices with indegree 2 and outdegree 0. 
--   `<output_dir>/graph.dot` sequences of all edges of de Bruijn graph
+-   `<output_dir>/assembly.fasta` final assembly file in fasta format.
+-   `<output_dir>/k5001/compressed.fasta` sequences of final multiplex de Bruijn graph before homopolymer uncompression and cutting of overlaps.
+-   `<output_dir>/k5001/compressed.gfa` final multiplex de Bruijn graph in gfa format (with homopolymer compressed edge sequences).
 -   `<output_dir>/dbg.log` log file for the run
 
 Feedback and bug reports
