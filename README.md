@@ -1,4 +1,4 @@
-Tool for de Bruijn graph construction
+La Jolla Assembler
 ==============
 
 ### Version: 0.1
