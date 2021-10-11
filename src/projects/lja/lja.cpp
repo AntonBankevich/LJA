@@ -30,7 +30,16 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
     dbg.printFastaOld(dir / (stage_name + ".fasta"));
     if(!small)
         readStorage.printFullAlignments(logger, dir / (stage_name + ".als"));
-    std::vector<Contig> paths = io::SeqReader(paths_lib).readAllContigs();
+    std::vector<Contig> paths;
+    for(StringContig sc : io::SeqReader(paths_lib)) {
+        Contig contig = sc.makeContig();
+        if(contig.size() > 100000) {
+            paths.emplace_back(contig.seq.Subseq(0, 50000), contig.id + "_start");
+            paths.emplace_back(contig.seq.Subseq(contig.size() - 50000), contig.id + "_end");
+        } else {
+            paths.emplace_back(std::move(contig));
+        }
+    }
     GraphAlignmentStorage storage(dbg);
     for(Contig &contig : paths) {
         storage.fill(contig);
