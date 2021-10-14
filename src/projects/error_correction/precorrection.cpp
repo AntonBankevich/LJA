@@ -87,13 +87,10 @@ size_t Precorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, 
                 correction = PrecorrectTip(initial_path[i], reliable_threshold);
             } else {
                 correction = PrecorrectBulge(initial_path[i].contig(), reliable_threshold);
-                VERIFY(correction.start() == initial_path.getVertex(i));
-                VERIFY(correction.finish() == initial_path.getVertex(i + 1));
             }
             if(correction.size() != 1 || correction[0].contig() != initial_path[i].contig())
                 ncor += 1;
             corrected_path += correction;
-            VERIFY(i == initial_path.size() - 1 || initial_path.getVertex(i + 1) == corrected_path.finish());
         }
         if(ncor > 0) {
             reads_storage.reroute(alignedRead, corrected_path, "Precorrection_" + itos(ncor));
