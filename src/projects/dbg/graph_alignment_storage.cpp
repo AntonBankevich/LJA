@@ -366,9 +366,11 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const
 void RecordStorage::addSubpath(const CompactPath &cpath) {
     if(!cpath.valid())
         return;
-    std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
-        data.find(&v)->second.addPath(s);
-    };
+    std::function<void(Vertex &, const Sequence &)> vertex_task = [](Vertex &v, const Sequence &s) {};
+    if(track_suffixes)
+        vertex_task = [this](Vertex &v, const Sequence &s) {
+            data.find(&v)->second.addPath(s);
+        };
     std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
     if(track_cov)
         edge_task = [](Segment<Edge> seg){
@@ -380,9 +382,11 @@ void RecordStorage::addSubpath(const CompactPath &cpath) {
 void RecordStorage::removeSubpath(const CompactPath &cpath) {
     if(!cpath.valid())
         return;
-    std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
-        data.find(&v)->second.removePath(s);
-    };
+    std::function<void(Vertex &, const Sequence &)> vertex_task = [](Vertex &v, const Sequence &s) {};
+    if(track_suffixes)
+        vertex_task = [this](Vertex &v, const Sequence &s) {
+            data.find(&v)->second.removePath(s);
+        };
     std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
     if(track_cov)
         edge_task = [](Segment<Edge> seg) {
@@ -394,15 +398,11 @@ void RecordStorage::removeSubpath(const CompactPath &cpath) {
 bool RecordStorage::apply(AlignedRead &alignedRead) {
     if(!alignedRead.checkCorrected())
         return false;
-    if(track_suffixes) {
-        this->removeSubpath(alignedRead.path);
-        this->removeSubpath(alignedRead.path.RC());
-    }
+    this->removeSubpath(alignedRead.path);
+    this->removeSubpath(alignedRead.path.RC());
     alignedRead.applyCorrection();
-    if(track_suffixes) {
-        this->addSubpath(alignedRead.path);
-        this->addSubpath(alignedRead.path.RC());
-    }
+    this->addSubpath(alignedRead.path);
+    this->addSubpath(alignedRead.path.RC());
     return true;
 }
 
@@ -500,14 +500,21 @@ const VertexRecord &RecordStorage::getRecord(const Vertex &v) const {
     return data.find(&v)->second;
 }
 
-void RecordStorage::trackSuffixes(size_t threads) {
+void RecordStorage::trackSuffixes(logging::Logger &logger, size_t threads) {
+    logger.info() << "Collecting and storing read suffixes" << std::endl;
     VERIFY(!track_suffixes);
     track_suffixes = true;
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none)
+    std::function<void(Vertex &, const Sequence &)> vertex_task  = [this](Vertex &v, const Sequence &s) {
+        data.find(&v)->second.addPath(s);
+    };
+    std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
+#pragma omp parallel for default(none) shared(vertex_task, edge_task)
     for(size_t i = 0; i < reads.size(); i++) {
-        addSubpath(reads[i].path);
-        addSubpath(reads[i].path.RC());
+        if(reads[i].valid()) {
+            processPath(reads[i].path, vertex_task, edge_task);
+            processPath(reads[i].path.RC(), vertex_task, edge_task);
+        }
     }
 }
 

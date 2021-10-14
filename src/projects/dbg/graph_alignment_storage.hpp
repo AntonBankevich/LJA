@@ -165,7 +165,7 @@ public:
 
     template<class I>
     void fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads);
-    void trackSuffixes(size_t threads);
+    void trackSuffixes(logging::Logger &logger, size_t threads);
     void untrackSuffixes();
 
     //    void updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension);
@@ -199,12 +199,10 @@ void RecordStorage::fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_si
         }
         dbg::GraphAlignment path = dbg::GraphAligner(dbg).align(contig.seq);
         dbg::CompactPath cpath(path);
-        if(track_suffixes) {
-            dbg::GraphAlignment rcPath = path.RC();
-            dbg::CompactPath crcPath(rcPath);
-            addSubpath(cpath);
-            addSubpath(crcPath);
-        }
+        dbg::GraphAlignment rcPath = path.RC();
+        dbg::CompactPath crcPath(rcPath);
+        addSubpath(cpath);
+        addSubpath(crcPath);
         cnt += cpath.size();
         tmpReads.emplace_back(pos, contig.id, cpath);
     };

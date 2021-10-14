@@ -93,7 +93,8 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
         }
         Precorrect(logger, threads, dbg, readStorage, reliable_coverage);
-        readStorage.trackSuffixes(threads);
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 5 / 2, 3000));
+        readStorage.trackSuffixes(logger, threads);
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);

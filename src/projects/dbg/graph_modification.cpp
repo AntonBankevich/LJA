@@ -143,7 +143,8 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
         if(new_extension_size == 0)
             new_extension_size = storage.getMaxLen();
         RecordStorage new_storage(subgraph, storage.getMinLen(), new_extension_size, threads, storage.getLogger(),
-                                  storage.isTrackingCov(), false);
+                                  storage.isTrackingCov(), false, storage.isTrackingSuffixes());
+        storage.untrackSuffixes();
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
         }

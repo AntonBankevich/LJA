@@ -549,14 +549,14 @@ struct AssemblyInfo {
         } else {
             compressed_read = compressRead(uncompressed_read_seq.str(), compressed_read_coords);
         }
-        logger.trace() << aln.read_id << " "<<  aln.alignment_start << " " << aln.alignment_end << endl;
+        logger.debug() << aln.read_id << " "<<  aln.alignment_start << " " << aln.alignment_end << endl;
         ContigInfo& current_contig = contigs[aln.contig_id];
 //        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         string read_seq = compressed_read.substr(aln.read_start, aln.read_end - aln.read_start);
         auto cigars = getFastAln(logger, aln, contig_seq.c_str(), read_seq.c_str());
         if (matchedLength(cigars) < 50) {
-            logger.trace()<< "Read " << aln.read_id << " not aligned " << endl;
+            logger.debug()<< "Read " << aln.read_id << " not aligned " << endl;
             return;
         }
         int cur_ind = 0;
@@ -644,7 +644,7 @@ struct AssemblyInfo {
             }
         }
         if (matches < mismatches * 3)
-            logger.debug()<<"For read too much mismatches " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
+            logger.debug()<< "Too many mismatches in a read " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
     }
 
     void processBatch(logging::Logger &logger, vector<string>& batch, vector<AlignmentInfo>& alignments){
