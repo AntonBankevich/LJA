@@ -140,8 +140,8 @@ public:
             if(deg[rec.from] == 1 && deg[rec.to] == 1) {
                 Sequence seq1 = tips[rec.from]->suffix(tips[rec.from]->size() - rec.match_size_from);
                 Sequence seq2 = tips[rec.to]->kmerSeq(tips[rec.to]->size() - rec.match_size_to);
-                EdgePosition p1(*tips[rec.from], tips[rec.from]->size() - rec.match_size_from);
-                EdgePosition p2(tips[rec.to]->rc(), rec.match_size_to);
+                dbg::EdgePosition p1(*tips[rec.from], tips[rec.from]->size() - rec.match_size_from);
+                dbg::EdgePosition p2(tips[rec.to]->rc(), rec.match_size_to);
                 Sequence seq = seq1 + !seq2;
                 StringContig sc(seq.str(), "new");
                 seq = sc.makeSequence();
@@ -161,15 +161,15 @@ public:
     }
 };
 
-void MarkUnreliableTips(SparseDBG &dbg, const std::vector<Connection> &patches) {
+void MarkUnreliableTips(dbg::SparseDBG &dbg, const std::vector<Connection> &patches) {
     size_t k = dbg.hasher().getK();
-    for(Edge &edge : dbg.edges()) {
+    for(dbg::Edge &edge : dbg.edges()) {
         edge.is_reliable = edge.getCoverage() >= 2;
     }
     for(const Connection &connection : patches) {
-        Vertex &v1 = dbg.getVertex(connection.connection.Subseq(0, k));
-        Vertex &v2 = dbg.getVertex((!connection.connection).Subseq(0, k));
-        for(Edge &edge : v1) {
+        dbg::Vertex &v1 = dbg.getVertex(connection.connection.Subseq(0, k));
+        dbg::Vertex &v2 = dbg.getVertex((!connection.connection).Subseq(0, k));
+        for(dbg::Edge &edge : v1) {
             if(edge.getCoverage() > 0) {
                 edge.is_reliable = false;
                 edge.rc().is_reliable = false;
@@ -178,7 +178,7 @@ void MarkUnreliableTips(SparseDBG &dbg, const std::vector<Connection> &patches) 
                 edge.rc().is_reliable = true;
             }
         }
-        for(Edge &edge : v2) {
+        for(dbg::Edge &edge : v2) {
             if(edge.getCoverage() > 0) {
                 edge.is_reliable = false;
                 edge.rc().is_reliable = false;

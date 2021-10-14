@@ -1,5 +1,6 @@
 #include "graph_alignment_storage.hpp"
 
+using namespace dbg;
 void AlignedRead::correct(CompactPath &&cpath) {
     VERIFY_MSG(!corrected_path.valid(), "Attempt to correct path while previous correction was not yet applied");
     corrected_path = std::move(cpath);
@@ -296,8 +297,8 @@ void RecordStorage::processPath(const CompactPath &cpath, const std::function<vo
 
 //TODO Remove threads parameter
 RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
-                             ReadLogger &readLogger, bool _track_cov, bool log_changes) :
-        min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(&readLogger), log_changes(log_changes) {
+                             ReadLogger &readLogger, bool _track_cov, bool log_changes, bool track_suffixes) :
+        min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(&readLogger), log_changes(log_changes), track_suffixes(track_suffixes) {
     for(auto &it : dbg) {
         data.emplace(&it.second, VertexRecord(it.second));
         data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
@@ -325,8 +326,10 @@ void RecordStorage::addRead(AlignedRead &&read) {
 void RecordStorage::invalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
     if(log_changes)
         readLogger->logInvalidate(read, message);
-    removeSubpath(read.path);
-    removeSubpath(read.path.RC());
+    if(track_cov) {
+        removeSubpath(read.path);
+        removeSubpath(read.path.RC());
+    }
     read.invalidate();
 }
 
@@ -391,11 +394,15 @@ void RecordStorage::removeSubpath(const CompactPath &cpath) {
 bool RecordStorage::apply(AlignedRead &alignedRead) {
     if(!alignedRead.checkCorrected())
         return false;
-    this->removeSubpath(alignedRead.path);
-    this->removeSubpath(alignedRead.path.RC());
+    if(track_suffixes) {
+        this->removeSubpath(alignedRead.path);
+        this->removeSubpath(alignedRead.path.RC());
+    }
     alignedRead.applyCorrection();
-    this->addSubpath(alignedRead.path);
-    this->addSubpath(alignedRead.path.RC());
+    if(track_suffixes) {
+        this->addSubpath(alignedRead.path);
+        this->addSubpath(alignedRead.path.RC());
+    }
     return true;
 }
 
@@ -425,7 +432,7 @@ void RecordStorage::applyCorrections(logging::Logger &logger, size_t threads) {
         logger.info() << "Applied correction to " << cnt.get() << " reads" << std::endl;
 }
 
-void RecordStorage::printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
+void RecordStorage::printReadAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
     logger.info() << "Printing read to graph alignenments to file " << path << std::endl;
     std::string acgt = "ACGT";
     std::ofstream os;
@@ -443,7 +450,7 @@ void RecordStorage::printAlignments(logging::Logger &logger, const std::experime
     os.close();
 }
 
-void RecordStorage::printFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
+void RecordStorage::printReadFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
     logger.info() << "Printing reads to fasta file " << path << std::endl;
     std::string acgt = "ACGT";
     std::ofstream os;
@@ -472,18 +479,43 @@ void RecordStorage::printFullAlignments(logging::Logger &logger, const std::expe
     os.close();
 }
 
-void RecordStorage::updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension) {
-    logger << "Updating stored read subpaths size" << std::endl;
-    for(auto &it : this->data) {
-        it.second.clear();
-    }
-    this->max_len = new_max_extension;
-    bool tmp_track_cov = track_cov;
-    track_cov = false;
-#pragma omp parallel for default(none) schedule(dynamic, 100)
-    for(size_t i = 0; i < size(); i++) {
+//void RecordStorage::updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension) {
+//    logger << "Updating stored read subpaths size" << std::endl;
+//    for(auto &it : this->data) {
+//        it.second.clear();
+//    }
+//    this->max_len = new_max_extension;
+//    bool tmp_track_cov = track_cov;
+//    track_cov = false;
+//#pragma omp parallel for default(none) schedule(dynamic, 100)
+//    for(size_t i = 0; i < size(); i++) {
+//        addSubpath(reads[i].path);
+//        addSubpath(reads[i].path.RC());
+//    }
+//    track_cov = tmp_track_cov;
+//}
+
+const VertexRecord &RecordStorage::getRecord(const Vertex &v) const {
+    VERIFY(track_suffixes);
+    return data.find(&v)->second;
+}
+
+void RecordStorage::trackSuffixes(size_t threads) {
+    VERIFY(!track_suffixes);
+    track_suffixes = true;
+    omp_set_num_threads(threads);
+#pragma omp parallel for default(none)
+    for(size_t i = 0; i < reads.size(); i++) {
         addSubpath(reads[i].path);
         addSubpath(reads[i].path.RC());
     }
-    track_cov = tmp_track_cov;
+}
+
+void RecordStorage::untrackSuffixes() {
+    if(track_suffixes) {
+        track_suffixes = false;
+        for (auto &it: this->data) {
+            it.second.clear();
+        }
+    }
 }

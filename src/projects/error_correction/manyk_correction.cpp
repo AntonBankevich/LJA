@@ -1,6 +1,6 @@
 #include "manyk_correction.hpp"
 #include "correction_utils.hpp"
-
+using namespace dbg;
 void ManyKCorrector::calculateReliable(const GraphAlignment &read_path, std::vector<size_t> &last_reliable,
                                        std::vector<size_t> &next_reliable) const {
     for(size_t i = 0; i < read_path.size(); i++) {
@@ -348,10 +348,9 @@ size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &read
     FillReliableWithConnections(logger, dbg, reliable_threshold);
     logger.info() << "Correcting low covered regions in reads with K = " << K << std::endl;
     ManyKCorrector corrector(dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold);
-    ParallelRecordCollector<std::string> results(threads);
     ParallelCounter cnt(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, corrector, reads_storage, results, threshold, logger, reliable_threshold, cnt)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, corrector, reads_storage, threshold, logger, reliable_threshold, cnt)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         std::stringstream ss;
         std::vector<std::string> messages;

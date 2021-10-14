@@ -2,6 +2,7 @@
 #include "graph_stats.hpp"
 
 using namespace hashing;
+using namespace dbg;
 Sequence buildDisjointig(Path &path) {
     Sequence disjointig = path.Seq();
     const Vertex &last = path.finish().rc();
@@ -160,7 +161,7 @@ std::vector<Sequence> constructDisjointigs(const RollingHash &hasher, size_t w, 
     printStats(logger, sdbg);
 //    std::ofstream os;
 //    os.open("sdbg.fasta");
-//    sdbg.printFasta(os);
+//    sdbg.printReadFasta(os);
 //    os.close();
 
     disjointigs = extractDisjointigs(logger, sdbg, threads);

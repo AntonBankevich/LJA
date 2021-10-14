@@ -4,32 +4,31 @@
 #include <unordered_map>
 #include <utility>
 #include "component.hpp"
-using namespace dbg;
 
 class GraphAlignmentStorage {
 private:
-    std::unordered_map<const Edge *, std::vector<PerfectAlignment<Contig, Edge>>> alignments;
+    std::unordered_map<const dbg::Edge *, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>> alignments;
     std::vector<Contig*> stored_contigs;
-    SparseDBG & dbg;
+    dbg::SparseDBG & dbg;
 
     void innerFill(const Contig &old_contig) {
         stored_contigs.emplace_back(new Contig(old_contig));
         Contig &contig = *stored_contigs.back();
-        std::vector<PerfectAlignment<Contig, Edge>> path = GraphAligner(dbg).carefulAlign(contig);
-        for(PerfectAlignment<Contig, Edge> &al : path) {
+        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> path = dbg::GraphAligner(dbg).carefulAlign(contig);
+        for(dbg::PerfectAlignment<Contig, dbg::Edge> &al : path) {
             alignments[&al.seg_to.contig()].emplace_back(al);
         }
     }
 
-    void printEdge(std::ostream &os, Vertex & start, Edge &edge) {
-        Vertex &end = *edge.end();
+    void printEdge(std::ostream &os, dbg::Vertex & start, dbg::Edge &edge) {
+        dbg::Vertex &end = *edge.end();
         if (!start.isCanonical())
             os << "-";
         os << start.hash() % 100000 << " -> ";
         if (!end.isCanonical())
             os << "-";
         os << end.hash() % 100000 << "\n";
-        std::vector<PerfectAlignment<Contig, Edge>> &als = alignments[&edge];
+        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments[&edge];
         for(auto & al : als) {
             os << "\n" << al.seg_from << "->" << al.seg_to;
         }
@@ -37,7 +36,7 @@ private:
     }
 
 public:
-    explicit GraphAlignmentStorage(SparseDBG & dbg_) : dbg(dbg_) {
+    explicit GraphAlignmentStorage(dbg::SparseDBG & dbg_) : dbg(dbg_) {
     }
 
     GraphAlignmentStorage(const GraphAlignmentStorage &) = delete;
@@ -60,35 +59,35 @@ public:
 
     void print(std::ostream &os) {
         for(auto &it : alignments) {
-            const Edge &edge = *it.first;
+            const dbg::Edge &edge = *it.first;
             os << edge.getId() << "\n";
             if (alignments.find(&edge) == alignments.end())
                 return;
-            const std::vector<PerfectAlignment<Contig, Edge>> &als = alignments.find(&edge)->second;
+            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(&edge)->second;
             if (als.empty()) {
                 return;
             }
             os << als[0].seg_from << "->" << als[0].seg_to;
             for (size_t i = 1; i < als.size(); i++) {
-                const PerfectAlignment<Contig, Edge> &al = als[i];
+                const dbg::PerfectAlignment<Contig, dbg::Edge> &al = als[i];
                 os << "\n" << al.seg_from << "->" << al.seg_to;
             }
         }
     }
 
-    std::function<std::string(const Edge &edge)> labeler() const {
-        std::function<std::string(const Edge &edge)> res = [this](const Edge &edge) {
+    std::function<std::string(const dbg::Edge &edge)> labeler() const {
+        std::function<std::string(const dbg::Edge &edge)> res = [this](const dbg::Edge &edge) {
             if (alignments.find(&edge) == alignments.end())
                 return std::string("");
             std::stringstream ss;
-            const std::vector<PerfectAlignment<Contig, Edge>> &als = alignments.find(&edge)->second;
+            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(&edge)->second;
             if (als.empty()) {
                 return std::string("");
             }
             size_t num = std::min<size_t>(10, als.size());
             ss << als[0].seg_from << "->" << als[0].seg_to.coordinaresStr();
             for (size_t i = 1; i < num; i++) {
-                const PerfectAlignment<Contig, Edge> &al = als[i];
+                const dbg::PerfectAlignment<Contig, dbg::Edge> &al = als[i];
                 ss << "\\n" << al.seg_from << "->" << al.seg_to.coordinaresStr() << "\n";
             }
             return ss.str();
@@ -97,9 +96,9 @@ public:
     }
 };
 
-inline void printEdge(std::ostream &os, Edge &edge, const std::string &extra_label = "",
+inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extra_label = "",
                const std::string &color = "black") {
-    Vertex &end = *edge.end();
+    dbg:: Vertex &end = *edge.end();
     os << "\"" << edge.start()->getShortId() << "\" -> \"" << end.getShortId() <<
        "\" [label=\"" << "ACGT"[edge.seq[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")";
     if(!extra_label.empty()) {
@@ -109,48 +108,48 @@ inline void printEdge(std::ostream &os, Edge &edge, const std::string &extra_lab
 }
 
 namespace std {
-    inline std::function<std::string(Edge &)> operator+(const std::function<std::string(Edge &)> &l1, const std::function<std::string(Edge &)> &l2) {
-        return [l1, l2](Edge &edge) ->std::string {
+    inline std::function<std::string(dbg::Edge &)> operator+(const std::function<std::string(dbg::Edge &)> &l1, const std::function<std::string(dbg::Edge &)> &l2) {
+        return [l1, l2](dbg::Edge &edge) ->std::string {
             return l1(edge) + "\n" + l2(edge);
         };
     }
 }
 
-inline void printDot(std::ostream &os, const Component &component, const std::function<std::string(Edge &)> &labeler,
-              const std::function<std::string(Edge &)> &edge_colorer) {
+inline void printDot(std::ostream &os, const dbg::Component &component, const std::function<std::string(dbg::Edge &)> &labeler,
+              const std::function<std::string(dbg::Edge &)> &edge_colorer) {
     os << "digraph {\nnodesep = 0.5;\n";
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> extended;
-    for(Edge &edge : component.edgesUnique()) {
+    for(dbg::Edge &edge : component.edgesUnique()) {
         extended.emplace(edge.end()->hash());
         extended.emplace(edge.start()->hash());
     }
     for(hashing::htype vid : extended) {
-        for(Vertex * vit : component.graph().getVertices(vid)) {
-            Vertex &vert = *vit;
+        for(dbg::Vertex * vit : component.graph().getVertices(vid)) {
+            dbg::Vertex &vert = *vit;
             std::string color = component.covers(vert) ? "white" : "yellow";
             os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
         }
     }
-    for(Edge &edge : component.edges()) {
+    for(dbg::Edge &edge : component.edges()) {
         printEdge(os, edge, labeler(edge), edge_colorer(edge));
     }
     os << "}\n";
 }
 
 
-inline void printDot(std::ostream &os, const Component &component) {
-    const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
-    const std::function<std::string(Edge &)> colorer = [](Edge &) {return "black";};
+inline void printDot(std::ostream &os, const dbg::Component &component) {
+    const std::function<std::string(dbg::Edge &)> labeler = [](dbg::Edge &) {return "";};
+    const std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &) {return "black";};
     printDot(os, component, labeler, colorer);
 }
 
-inline void printDot(std::ostream &os, const Component &component, const std::function<std::string(Edge &)> &labeler) {
-    const std::function<std::string(Edge &)> colorer = [](Edge &) {return "black";};
+inline void printDot(std::ostream &os, const dbg::Component &component, const std::function<std::string(dbg::Edge &)> &labeler) {
+    const std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &) {return "black";};
     printDot(os, component, labeler, colorer);
 }
 
-inline void printDot(const std::experimental::filesystem::path &f, const Component &component, const std::function<std::string(Edge &)> &labeler,
-                     const std::function<std::string(Edge &)> &edge_colorer) {
+inline void printDot(const std::experimental::filesystem::path &f, const dbg::Component &component, const std::function<std::string(dbg::Edge &)> &labeler,
+                     const std::function<std::string(dbg::Edge &)> &edge_colorer) {
     std::ofstream os;
     os.open(f);
     printDot(os, component, labeler, edge_colorer);
@@ -158,25 +157,25 @@ inline void printDot(const std::experimental::filesystem::path &f, const Compone
 }
 
 
-inline void printDot(const std::experimental::filesystem::path &f, const Component &component) {
+inline void printDot(const std::experimental::filesystem::path &f, const dbg::Component &component) {
     std::ofstream os;
     os.open(f);
     printDot(os, component);
     os.close();
 }
 
-inline void printDot(const std::experimental::filesystem::path &f, const Component &component, const std::function<std::string(Edge &)> &labeler) {
+inline void printDot(const std::experimental::filesystem::path &f, const dbg::Component &component, const std::function<std::string(dbg::Edge &)> &labeler) {
     std::ofstream os;
     os.open(f);
     printDot(os, component, labeler);
     os.close();
 }
 
-inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
-               const std::function<std::string(Edge &)> &labeler, const std::function<std::string(Edge &)> &colorer,
+inline void DrawSplit(const dbg::Component &component, const std::experimental::filesystem::path &dir,
+               const std::function<std::string(dbg::Edge &)> &labeler, const std::function<std::string(dbg::Edge &)> &colorer,
                size_t len = 100000) {
     ensure_dir_existance(dir);
-    std::vector<Component> split = LengthSplitter(len).split(component);
+    std::vector<dbg::Component> split = dbg::LengthSplitter(len).split(component);
     for(size_t i = 0; i < split.size(); i++) {
         std::experimental::filesystem::path f = dir / (std::to_string(i) + ".dot");
         std::ofstream os;
@@ -186,13 +185,13 @@ inline void DrawSplit(const Component &component, const std::experimental::files
     }
 }
 
-inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir,
-                      const std::function<std::string(Edge &)> &labeler, size_t len = 100000) {
-    std::function<std::string(Edge &)> colorer = [](Edge &){return "black";};
+inline void DrawSplit(const dbg::Component &component, const std::experimental::filesystem::path &dir,
+                      const std::function<std::string(dbg::Edge &)> &labeler, size_t len = 100000) {
+    std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &){return "black";};
     DrawSplit(component, dir, labeler, colorer, len);
 }
-inline void DrawSplit(const Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
-    std::function<std::string(Edge &)> labeler = [](Edge &){return "";};
-    std::function<std::string(Edge &)> colorer = [](Edge &){return "black";};
+inline void DrawSplit(const dbg::Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
+    std::function<std::string(dbg::Edge &)> labeler = [](dbg::Edge &){return "";};
+    std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &){return "black";};
     DrawSplit(component, dir, labeler, colorer, len);
 }

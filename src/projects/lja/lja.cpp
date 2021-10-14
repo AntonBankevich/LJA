@@ -5,6 +5,7 @@
 #include "error_correction/mitochondria_rescue.hpp"
 #include "error_correction/initial_correction.hpp"
 #include "error_correction/manyk_correction.hpp"
+#include "error_correction/precorrection.hpp"
 #include "sequences/seqio.hpp"
 #include "dbg/dbg_construction.hpp"
 #include "common/rolling_hash.hpp"
@@ -16,6 +17,7 @@
 #include <wait.h>
 #include <error_correction/dimer_correction.hpp>
 #include <polishing/homopolish.hpp>
+using namespace dbg;
 
 static size_t stage_num = 0;
 std::vector<Contig> ref;
@@ -82,7 +84,7 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ReadLogger readLogger(threads, dir/"read_log.txt");
-        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
+        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug, false);
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
@@ -90,6 +92,8 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
             coverageStats(logger, dbg);
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
         }
+        Precorrect(logger, threads, dbg, readStorage, reliable_coverage);
+        readStorage.trackSuffixes(threads);
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, readStorage, k, threads);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
@@ -107,7 +111,7 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
-        readStorage.printFasta(logger, dir / "corrected.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected.fasta");
         if(debug)
             DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");
@@ -194,7 +198,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         mmg.printCutEdges(dir / "compressed.fasta");
         std::vector<Contig> contigs = mmg.getCutEdges();
         PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
-        readStorage.printFasta(logger, dir / "corrected.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected.fasta");
     };
     if(!skip)
         runInFork(ic_task);

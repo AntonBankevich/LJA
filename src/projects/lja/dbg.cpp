@@ -294,11 +294,11 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("print-alignments") || parser.getCheck("mult-correct")) {
-        readStorage.printAlignments(logger, dir/"alignments.txt");
+        readStorage.printReadAlignments(logger, dir / "alignments.txt");
     }
 
     if(parser.getCheck("mult-correct") || parser.getCheck("initial-correct")) {
-        readStorage.printFasta(logger, dir/"corrected.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected.fasta");
     }
 
     if(parser.getCheck("print-all")) {

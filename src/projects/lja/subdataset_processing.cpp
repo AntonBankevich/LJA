@@ -3,7 +3,7 @@
 #include <utility>
 #include <cstdio>
 #include "multi_graph.hpp"
-
+using namespace dbg;
 std::string RepeatResolver::COMMAND = "{} {} -i {} -o {} > {}";
 
 std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
@@ -34,7 +34,7 @@ std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::
 
 void RepeatResolver::prepareDataset(const RepeatResolver::Subdataset &subdataset) {
     recreate_dir(subdataset.dir);
-//    printFasta(subdataset.dir / "graph.fasta", subdataset.component);
+//    printReadFasta(subdataset.dir / "graph.fasta", subdataset.component);
     printFasta(subdataset.dir / "graph.fasta", subdataset.component);
     std::ofstream log;
     log.open(subdataset.dir / "dbg.log");
