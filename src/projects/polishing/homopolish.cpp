@@ -73,9 +73,9 @@ inline uint8_t GetTunedMedian(array<uint8_t, VOTES_STORED + 1> &mult, Logger& lo
         }
         if (change != 0) {
             std::stringstream debug_l;
-            debug_l << "Changed from median " << real_mult << " by " << change << ", lengths: " <<endl;
+            debug_l << "Changed from median " << int(real_mult) << " by " << change << ", lengths: " <<endl;
             for (size_t j = 1; j < real_len + 1; j++) {
-                debug_l << mult[j] << " ";
+                debug_l << int(mult[j]) << " ";
             }
             logger.info() << debug_l.str();
         }
@@ -251,6 +251,11 @@ struct ContigInfo {
 
         vector<uint32_t > coverages;
         string consensus = graph.GenerateConsensus(&coverages);
+        auto msa = graph.GenerateMultipleSequenceAlignment();
+
+        for (const auto& it : msa) {
+            logger.trace() << it;
+        }
         size_t pref_remove = 0;
         int suf_remove = int(coverages.size()) - 1;
         while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
