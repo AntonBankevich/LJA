@@ -16,6 +16,7 @@
 #include <wait.h>
 #include <error_correction/dimer_correction.hpp>
 #include <polishing/homopolish.hpp>
+#include "repeat_resolution/repeat_resolution.hpp"
 
 static size_t stage_num = 0;
 std::vector<Contig> ref;
@@ -166,26 +167,34 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
             PrintPaths(logger, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
             DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
         }
-        RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "split", py_path, debug);
         std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const Edge &edge) {
             return edge.size() > unique_threshold;
         };
         dbg.printFastaOld(dir / "graph.fasta");
         printDot(dir / "graph.dot", Component(dbg), readStorage.labeler());
-        std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
-        logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
-        PrintFasta(partial_contigs, dir / "partial.fasta");
-//        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
-        multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
-        mg.printEdgeGFA(dir / "partial.gfa");
-        mg.printDot(dir / "partial.dot");
-        multigraph::MultiGraph mmg = mg.Merge();
-        mmg.printEdgeGFA(dir / "compressed.gfa");
-        mmg.printDot(dir / "compressed.dot");
-        mmg.printCutEdges(dir / "compressed.fasta");
-        std::vector<Contig> contigs = mmg.getCutEdges();
-        PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
-        readStorage.printFasta(logger, dir / "corrected.fasta");
+
+        /*  Original  repeat resolution code that calls py script
+         *
+         *  RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "split", py_path, debug);
+         *  std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
+         *  logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
+         *  PrintFasta(partial_contigs, dir / "partial.fasta");
+    //   *    std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
+         *  multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
+         *  mg.printEdgeGFA(dir / "partial.gfa");
+         *  mg.printDot(dir / "partial.dot");
+         *  multigraph::MultiGraph mmg = mg.Merge();
+         *  mmg.printEdgeGFA(dir / "compressed.gfa");
+         *  mmg.printDot(dir / "compressed.dot");
+         *  mmg.printCutEdges(dir / "compressed.fasta");
+         *  std::vector<Contig> contigs = mmg.getCutEdges();
+         *  PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
+         *  readStorage.printFasta(logger, dir / "corrected.fasta");
+         */
+
+        // Modified version
+        repeat_resolution::RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "repeat_resolution", debug);
+        rr.resolve_repeats(logger);
     };
     if(!skip)
         runInFork(ic_task);
