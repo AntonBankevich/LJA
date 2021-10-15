@@ -31,5 +31,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path alignments_file(parser.getValue("alignments"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     std::experimental::filesystem::path res(dir / "corrected_contigs.fasta");
-    Polish(logger, threads, res, contigs_file, alignments_file, reads_lib, dicompress);
+    std::experimental::filesystem::path debug_prefix(parser.getValue("debug"));
+    Polish(logger, threads, res, contigs_file, alignments_file, reads_lib, dicompress, debug_prefix);
+
 }

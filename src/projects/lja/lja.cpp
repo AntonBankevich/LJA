@@ -202,7 +202,7 @@ std::experimental::filesystem::path PolishingPhase(
         const io::Library &reads, size_t dicompress, bool skip) {
     logger.info() << "Performing polishing and homopolymer uncompression" << std::endl;
     std::function<void()> ic_task = [&logger, threads, &output_file, &contigs_file, &alignments, &reads, dicompress] {
-        Polish(logger, threads, output_file, contigs_file, alignments, reads, dicompress);
+        Polish(logger, threads, output_file, contigs_file, alignments, reads, dicompress, "none");
     };
     if(!skip)
         runInFork(ic_task);

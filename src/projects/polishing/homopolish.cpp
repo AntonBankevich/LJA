@@ -245,10 +245,15 @@ struct ContigInfo {
         } */
     }
 
-    string GenerateConsensus(Logger & logger){
+    string GenerateConsensus(Logger & logger, const std::experimental::filesystem::path &debug_prefix){
         std::stringstream ss;
         vector<int> quantities(256);
         std::ofstream debug;
+        bool need_debug = (debug_prefix.string() =="none");
+        if (need_debug) {
+            debug.open(debug_prefix.string() + name);
+        }
+
         size_t total_count = 0 ;
         size_t cur_complex_ind = 0;
 #pragma omp parallel for default(none) shared(logger)
@@ -283,6 +288,12 @@ struct ContigInfo {
                     logger.debug() << endl;
                     logger.debug() << consensus << endl;
                 }
+                if (need_debug) {
+                    for (size_t j = 0; j < consensus.length(); j++) {
+                        debug << total_count + 1 << " 0 "<< complex_strings[i].size() - 1 <<" 0 " << consensus[j] << endl;
+                        total_count ++;
+                    }
+                }
                 i += complex_regions[cur_complex_ind].second;
                 if (cur_complex_ind + 1< complex_regions.size())
                     cur_complex_ind ++;
@@ -306,6 +317,16 @@ struct ContigInfo {
                 for (size_t j = 0; j < cov; j++) {
                     ss << sequence[i];
                     total_count++;
+                }
+                if (need_debug) {
+                    for (size_t j = 0; j < cov; j++) {
+                        debug << total_count - cov + j + 1 << " " << sum[i] << " " << int(quantity[i]) << " " << cov << " "
+                              << sequence[i];
+                        debug << "    ";
+                        for (auto jj = 0; jj < amounts[i][0]; jj++)
+                            debug << int(amounts[i][jj + 1]) << " ";
+                        debug << endl;
+                    }
                 }
                 i++;
             }
@@ -656,10 +677,12 @@ struct AssemblyInfo {
     }
 
     vector<Contig> process(logging::Logger &logger, const io::Library &lib,
-                           const std::experimental::filesystem::path &alignmens_file) {
+                           const std::experimental::filesystem::path &alignments_file,
+                           const std::experimental::filesystem::path &debug_prefix) {
+
         std::ifstream compressed_reads;
         std::ofstream corrected_contigs;
-        compressed_reads.open(alignmens_file);
+        compressed_reads.open(alignments_file);
         io::SeqReader reader(lib);
         logger.trace() << "Initialized\n";
         if (compressed_reads.eof()) {
@@ -724,7 +747,7 @@ struct AssemblyInfo {
         logger.info() << "Uncompressing homopolymers in contigs" << endl;
         for (auto& contig: contigs){
             logger.trace() << "Generating consensus for contig " << contig.first << endl;
-            res.emplace_back(Sequence(contig.second.GenerateConsensus(logger)), contig.first);
+            res.emplace_back(Sequence(contig.second.GenerateConsensus(logger, debug_prefix)), contig.first);
         }
         size_t total_zero_covered = 0;
         for (auto & contig: contigs) {
@@ -740,10 +763,12 @@ std::experimental::filesystem::path Polish(logging::Logger &logger, size_t threa
                                            const std::experimental::filesystem::path &output_file,
                                            const std::experimental::filesystem::path &contigs_file,
                                            const std::experimental::filesystem::path &alignments,
-                                           const io::Library &reads, size_t dicompress) {
+                                           const io::Library &reads, size_t dicompress,
+                                           const std::experimental::filesystem::path &debug_prefix) {
+
     omp_set_num_threads(threads);
     AssemblyInfo assemblyInfo(logger, contigs_file, dicompress);
-    std::vector<Contig> res = assemblyInfo.process(logger, reads, alignments);
+    std::vector<Contig> res = assemblyInfo.process(logger, reads, alignments, debug_prefix);
     std::ofstream os;
     os.open(output_file);
     for(Contig &contig : res) {
