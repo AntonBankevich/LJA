@@ -19,6 +19,7 @@ using std::array;
 using std::sort;
 using logging::Logger;
 
+static const size_t VOTES_STORED = 21;
 
 struct AlignmentInfo {
     string read_id;
@@ -40,6 +41,47 @@ struct AlignmentInfo {
     }
 };
 
+
+inline uint8_t count_delta (uint8_t median){
+    return std::min(uint8_t(median * 0.2), uint8_t(3));
+}
+inline uint8_t GetTunedMedian(array<uint8_t, VOTES_STORED + 1> &mult, Logger& logger ){
+    size_t real_len =  mult[0];
+    sort(mult.begin() + 1, mult.begin() + 1 + real_len);
+    uint8_t real_mult = mult[(1 + real_len)/2];
+    if (real_mult >= 10) {
+        uint8_t delta = count_delta(real_mult);
+        size_t equals = 0;
+        size_t less = 0;
+        size_t more = 0;
+        for (size_t i = 1; i < real_len + 1; i++) {
+            if (real_mult == mult[i]) {
+                equals ++;
+            } else if (mult[i] < real_mult && mult[i] + delta >= real_mult) {
+                less ++;
+            } else if (mult[i] > real_mult && real_mult + delta >= mult[i]) {
+                more ++;
+            }
+
+        }
+        int change = 0;
+        if (less + equals <= more) {
+            change = 1;
+
+        } else if (more + equals <= less) {
+            change = -1;
+        }
+        if (change != 0) {
+            std::stringstream debug_l;
+            debug_l << "Changed from median " << real_mult << " by " << change << ", lengths: " <<endl;
+            for (size_t j = 1; j < real_len + 1; j++) {
+                debug_l << mult[j] << " ";
+            }
+            logger.info() << debug_l.str();
+        }
+    }
+    return real_mult;
+}
 
 struct dinucleotide {
     size_t start, multiplicity;
@@ -90,7 +132,6 @@ struct ContigInfo {
     size_t len = 0;
     vector<uint8_t > quantity;
 //array size. possibly switch to []
-    static const size_t VOTES_STORED = 21;
     //To avoid multiple resizes real length stored in first element of each vector
     vector<array<uint8_t, VOTES_STORED + 1>> amounts;
     vector<uint16_t> sum;
@@ -303,6 +344,8 @@ struct ContigInfo {
                 if (quantity[i] == 0) {
                     zero_covered++;
                 } else {
+                    cov = GetTunedMedian(amounts[i], logger);
+/*
                     size_t real_len =  amounts[i][0];
                     sort(amounts[i].begin() + 1, amounts[i].begin() + 1 + real_len);
                     real_cov = amounts[i][(1 + real_len)/2];
@@ -311,6 +354,7 @@ struct ContigInfo {
                     if (real_cov != cov) {
                         cov = real_cov;
                     }
+*/
                 }
 
                 quantities[quantity[i]]++;
@@ -629,7 +673,7 @@ struct AssemblyInfo {
                         {
                             current_contig.quantity[coord]++;
                             current_contig.sum[coord] += quantities[read_coords + i];
-                            if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
+                            if (current_contig.amounts[coord][0] < VOTES_STORED)
 //#pragma omp critical
                                 current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[
                                         read_coords + i];
