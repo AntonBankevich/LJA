@@ -67,9 +67,11 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                 len += seg.size();
                 if (seg.contig() < seg.contig().rc())
                     seg = seg.RC();
-                if(seg.size() < seg.contig().size())
+                if(seg.size() < seg.contig().size()) {
                     segmentStorage.emplace_back(seg);
-                else {
+                    if(seg.contig() == seg.contig().rc())
+                        segmentStorage.emplace_back(seg.RC());
+                } else {
                     seg.contig().start()->lock();
                     seg.contig().extraInfo = 1;
                     seg.contig().start()->unlock();
@@ -80,6 +82,8 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
         }
     }
     for(Edge &edge : dbg.edges()) {
+        if(edge < edge.rc())
+            continue;
         if(edge.extraInfo == 1 || (edge.getCoverage() > 2 && edge.size() > k * 2 + 5000)) {
             segmentStorage.emplace_back(edge, 0, edge.size());
         }
@@ -101,6 +105,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             if(seg.right > segs.back().right)
                 segs.back() = segs.back().unite(seg);
         } else {
+            if(seg.contig() != seg.contig().rc() || seg.left * 2 < seg.contig().size())
             segs.emplace_back(seg);
         }
     }
