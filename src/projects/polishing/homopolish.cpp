@@ -146,6 +146,9 @@ struct ContigInfo {
     std::map<size_t, vector<string>> complex_strings;
 //TODO more efficient data structure
 
+//debug only
+    std::map<size_t, vector<string>> MSA_saved;
+
 /*    vector <dinucleotide> dinucleotide_coords;
     vector <int> num_dinucleotide;
     vector<vector<size_t>> dinucleotide_read_voting;
@@ -206,7 +209,7 @@ struct ContigInfo {
         return (med_len < some *MAX_ALLOWED_MSA_LENGTH_VARIATION && med_len * MAX_ALLOWED_MSA_LENGTH_VARIATION > some);
     }
 
-    string MSAConsensus(vector<string> &s, Logger & logger) {
+    string MSAConsensus(vector<string> &s, Logger & logger, size_t position) {
 //Magic consts from spoa default settings
         auto alignment_engine = spoa::AlignmentEngine::Create(
 // -8 in default for third parameter(gap) opening, -6 for forth(gap extension)
@@ -252,10 +255,8 @@ struct ContigInfo {
         vector<uint32_t > coverages;
         string consensus = graph.GenerateConsensus(&coverages);
         auto msa = graph.GenerateMultipleSequenceAlignment();
+        MSA_saved[position] = msa;
 
-        for (const auto& it : msa) {
-            logger.trace() << it;
-        }
         size_t pref_remove = 0;
         int suf_remove = int(coverages.size()) - 1;
         while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
@@ -302,10 +303,16 @@ struct ContigInfo {
 
         size_t total_count = 0 ;
         size_t cur_complex_ind = 0;
+
+//Debug structure
+        for (size_t i = 0; i < complex_regions.size(); i++) {
+            size_t start_pos = complex_regions[i].first;
+            MSA_saved[start_pos] = vector<string>();
+        }
 #pragma omp parallel for default(none) shared(logger)
         for (size_t i = 0; i < complex_regions.size(); i++) {
             size_t start_pos = complex_regions[i].first;
-            auto consensus = MSAConsensus(complex_strings[start_pos], logger);
+            auto consensus = MSAConsensus(complex_strings[start_pos], logger, start_pos);
             complex_strings[start_pos].push_back(consensus);
         }
         logger.debug() << " Consenus for contig " << name << " calculated "<< endl;
@@ -333,6 +340,9 @@ struct ContigInfo {
                     }
                     logger.debug() << endl;
                     logger.debug() << consensus << endl;
+                    logger.debug() << "MSA: \n";
+                    for (auto &ms: MSA_saved[i])
+                        logger.debug() << ms << endl;
                 }
                 if (need_debug) {
                     for (size_t j = 0; j < consensus.length(); j++) {
