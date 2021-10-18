@@ -65,20 +65,21 @@ inline uint8_t GetTunedMedian(array<uint8_t, VOTES_STORED + 1> &mult, Logger& lo
 
         }
         int change = 0;
-        if (less + equals <= more) {
+        if (less + equals < more) {
             change = 1;
 
-        } else if (more + equals <= less) {
+        } else if (more + equals < less) {
             change = -1;
         }
         if (change != 0) {
             std::stringstream debug_l;
-            debug_l << "Changed from median " << int(real_mult) << " by " << change << ", lengths: " <<endl;
+            debug_l << "Changed from median " << int(real_mult) << " by " << change << ",total " << real_len<< " used "<<more+equals+less <<  " lengths: " <<endl;
             for (size_t j = 1; j < real_len + 1; j++) {
                 debug_l << int(mult[j]) << " ";
             }
-            logger.info() << debug_l.str();
-        }
+            logger.info() << debug_l.str() << endl;
+            real_mult += change;
+        } 
     }
     return real_mult;
 }
@@ -257,6 +258,15 @@ struct ContigInfo {
         auto msa = graph.GenerateMultipleSequenceAlignment();
         MSA_saved[position] = msa;
 
+        size_t ind = 0;
+        string res = "";
+        while (ind < coverages.size()) {
+            if (coverages[ind] >= cov/2)
+                res +=consensus[ind];
+            ind++;
+        }
+        return res;
+/*
         size_t pref_remove = 0;
         int suf_remove = int(coverages.size()) - 1;
         while (pref_remove < coverages.size() && coverages[pref_remove] < cov / 2 )
@@ -267,7 +277,7 @@ struct ContigInfo {
             return "";
         }
         return consensus.substr(pref_remove, suf_remove - pref_remove + 1);
-
+*/
     }
 
     string checkMSAConsensus(string s, vector<string> &all) {
@@ -296,11 +306,10 @@ struct ContigInfo {
         std::stringstream ss;
         vector<int> quantities(256);
         std::ofstream debug;
-        bool need_debug = (debug_prefix.string() =="none");
+        bool need_debug = (debug_prefix.string() != "none");
         if (need_debug) {
             debug.open(debug_prefix.string() + name);
         }
-
         size_t total_count = 0 ;
         size_t cur_complex_ind = 0;
 
