@@ -642,6 +642,10 @@ struct AssemblyInfo {
         ContigInfo& current_contig = contigs[aln.contig_id];
 //        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
+        if (compressed_read.length() <= aln.read_start) {
+            logger.info() << "Read " << aln.read_id << " alignment outside the read bounds" <<endl;
+            return;
+        }
         string read_seq = compressed_read.substr(aln.read_start, aln.read_end - aln.read_start);
         auto cigars = getFastAln(logger, aln, contig_seq.c_str(), read_seq.c_str());
         if (matchedLength(cigars) < 50) {
