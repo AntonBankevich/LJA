@@ -395,7 +395,7 @@ SparseDBG SparseDBG::Subgraph(std::vector<Segment<Edge>> &pieces) {
         if (rcSeg.left == 0) {
             right = &res.getVertex(rcSeg.contig().start()->seq);
         } else if(seg == rcSeg) {
-            right = &left->rc();
+            right = left;
         } else {
             right = &res.addVertex(rcSeg.contig().kmerSeq(rcSeg.left));
         }

@@ -242,8 +242,13 @@ GraphAlignment ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, 
 
 GraphAlignment ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bulge) const {
     VERIFY(bulge.bulge.len() < K);
-    std::vector<GraphAlignment> alternatives = reads.getRecord(bulge.bulge.start()).
+    std::vector<GraphAlignment> alternatives1= reads.getRecord(bulge.bulge.start()).
             getBulgeAlternatives(bulge.bulge.finish(), 4);
+    std::vector<GraphAlignment> alternatives;
+    for(GraphAlignment &al : alternatives1) {
+        if(al.len() + 100 < bulge.bulge.len() && bulge.bulge.len() < al.len() + 100)
+            alternatives.emplace_back(std::move(al));
+    }
     if(alternatives.empty())
         return bulge.bulge;
     if(alternatives.size() == 1)

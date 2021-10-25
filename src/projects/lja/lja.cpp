@@ -84,7 +84,7 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ReadLogger readLogger(threads, dir/"read_log.txt");
-        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug, false);
+        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);

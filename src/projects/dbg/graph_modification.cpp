@@ -1,4 +1,5 @@
 #include "graph_modification.hpp"
+#include "visualization.hpp"
 
 using namespace dbg;
 GraphAlignment realignRead(const GraphAlignment &al,
@@ -106,7 +107,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                 segs.back() = segs.back().unite(seg);
         } else {
             if(seg.contig() != seg.contig().rc() || seg.left * 2 < seg.contig().size())
-            segs.emplace_back(seg);
+                segs.emplace_back(seg);
         }
     }
     logger.trace() << "Extracted " << segs.size() << " covered segments" << std::endl;
@@ -142,7 +143,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             VERIFY(embedding.find(&edge) != embedding.end());
         }
     }
-    logger.trace() << "Realigning sequences to the new graph" << std::endl;
+
     for(RecordStorage *sit : storages){
         RecordStorage &storage = *sit;
         if(new_extension_size == 0)
