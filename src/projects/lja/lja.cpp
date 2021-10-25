@@ -88,8 +88,8 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        coverageStats(logger, dbg);
         if(debug) {
-            coverageStats(logger, dbg);
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
         }
         Precorrect(logger, threads, dbg, readStorage, reliable_coverage);
@@ -110,6 +110,7 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
         correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, false);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
+        coverageStats(logger, dbg);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
         readStorage.printReadFasta(logger, dir / "corrected.fasta");
@@ -145,7 +146,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
+        size_t extension_size = 100000;
         ReadLogger readLogger(threads, dir/"read_log.txt");
         RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);

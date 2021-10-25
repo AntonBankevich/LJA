@@ -306,14 +306,18 @@ RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, s
 }
 
 std::function<std::string(Edge &)> RecordStorage::labeler() const {
-    return [this](Edge &edge) {
-        const VertexRecord &rec = getRecord(*edge.start());
-        std::stringstream ss;
-        for (const auto &ext : rec) {
-            if (ext.first[0] == edge.seq[0])
-                ss << ext.first << "(" << ext.second << ")\\n";
-        }
-        return ss.str();
+    if(track_suffixes)
+        return [this](Edge &edge) {
+            const VertexRecord &rec = getRecord(*edge.start());
+            std::stringstream ss;
+            for (const auto &ext : rec) {
+                if (ext.first[0] == edge.seq[0])
+                    ss << ext.first << "(" << ext.second << ")\\n";
+            }
+            return ss.str();
+        };
+    else return [](Edge &) {
+        return "";
     };
 }
 

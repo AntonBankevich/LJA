@@ -68,6 +68,17 @@ public:
         return {l1, l2};
     }
 
+    bool HasInnerDuplications(const Sequence &seq, const hashing::RollingHash &hasher) {
+        std::vector<hashing::htype> hashs;
+        for(hashing::KWH kwh(hasher, seq, 0);; kwh = kwh.next()) {
+            hashs.emplace_back(kwh.hash());
+            if(!kwh.hasNext())
+                break;
+        }
+        std::sort(hashs.begin(), hashs.end());
+        return std::unique(hashs.begin(), hashs.end()) != hashs.end();
+    }
+
     std::vector<Connection> GapPatches(logging::Logger &logger, dbg::SparseDBG &dbg, size_t threads) {
         logger.info() << "Started gap closing procedure" << std::endl;
         size_t k = dbg.hasher().getK();
@@ -123,8 +134,8 @@ public:
             m2 = d2;
             if(m1 >= 2 && m2 >= 2)
                 continue;
-            Sequence s1 = tips[pairs[i].first]->seq;
-            Sequence s2 = tips[pairs[i].second]->seq;
+            Sequence s1 = tips[pairs[i].first]->start()->seq + tips[pairs[i].first]->seq;
+            Sequence s2 = tips[pairs[i].second]->start()->seq + tips[pairs[i].second]->seq;
             std::pair<size_t, size_t> overlap = CheckOverlap(s1, !s2);
             if (overlap.first > 0) {
 #pragma omp atomic update
@@ -138,16 +149,23 @@ public:
         std::vector<Connection> res;
         for(OverlapRecord &rec : filtered_pairs) {
             if(deg[rec.from] == 1 && deg[rec.to] == 1) {
-                Sequence seq1 = tips[rec.from]->suffix(tips[rec.from]->size() - rec.match_size_from);
-                Sequence seq2 = tips[rec.to]->kmerSeq(tips[rec.to]->size() - rec.match_size_to);
-                dbg::EdgePosition p1(*tips[rec.from], tips[rec.from]->size() - rec.match_size_from);
-                dbg::EdgePosition p2(tips[rec.to]->rc(), rec.match_size_to);
-                Sequence seq = seq1 + !seq2;
-                StringContig sc(seq.str(), "new");
-                seq = sc.makeSequence();
-                VERIFY(seq.startsWith(seq1));
-                VERIFY((!seq).startsWith(seq2));
-                Connection gap(p1, p2, seq);
+                Sequence new_seq = tips[rec.from]->kmerSeq(0);
+                new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(tips[rec.to]->kmerSeq(0));
+                new_seq = tips[rec.from]->start()->seq + new_seq.Subseq(k);
+                new_seq = StringContig(new_seq.str(), "new").makeSequence();
+                if(!new_seq.endsWith(!tips[rec.to]->start()->seq) || !new_seq.startsWith(tips[rec.from]->start()->seq) ||
+                        HasInnerDuplications(new_seq, dbg.hasher()))
+                    continue;
+                size_t left_match = 0;
+                size_t right_match = 0;
+                while(left_match < tips[rec.from]->size() && new_seq[k + left_match] == tips[rec.from]->seq[left_match])
+                    left_match++;
+                while(right_match < tips[rec.to]->size() && (!new_seq)[k + right_match] == tips[rec.to]->seq[right_match])
+                    right_match++;
+                dbg::EdgePosition p1(*tips[rec.from], left_match);
+                dbg::EdgePosition p2(*tips[rec.to], right_match);
+                VERIFY(left_match + right_match + k < new_seq.size());
+                Connection gap(p1, p2.RC(), new_seq.Subseq(left_match, new_seq.size() - right_match));
                 gap = gap.shrink();
                 res.emplace_back(gap);
                 logger.trace() << "New connection " << gap.connection.size() << std::endl;
