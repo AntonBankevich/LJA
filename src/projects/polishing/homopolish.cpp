@@ -293,7 +293,7 @@ struct ContigInfo {
         if (cons_len != all_len[all_len.size()/2]) {
             return "CONSENSUS LENGTH DIFFER FROM MEDIAN";
         }
-        return "";
+        return "no problem";
 //What are other suspicious cases? Since we can glue two dimeric regions, commented case is  actually OK
 /*        size_t len = s.length();
         for (size_t i = COMPLEX_EPS + 2; i < len - COMPLEX_EPS; i++) {
