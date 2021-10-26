@@ -139,7 +139,7 @@ struct ContigInfo {
     size_t zero_covered = 0;
 //neighbourhoud for complex regions;
     static const size_t COMPLEX_EPS = 5;
-    static const size_t MAX_CONSENSUS_COVERAGE = 25;
+    static const size_t MAX_CONSENSUS_COVERAGE = 255;
     static constexpr double MAX_ALLOWED_MSA_LENGTH_VARIATION = 1.1;
     //Complex_regions: map from start to length;
 
@@ -210,6 +210,26 @@ struct ContigInfo {
         return (med_len < some *MAX_ALLOWED_MSA_LENGTH_VARIATION && med_len * MAX_ALLOWED_MSA_LENGTH_VARIATION > some);
     }
 
+    void compressAT(string &s){
+        size_t index = 0;
+        while (true){
+            index = s.find("AT", index);
+            if (index == std::string::npos) break;
+            s.replace(index,2,"R");
+        }
+    }
+
+    void decompressAT(string &s){
+        size_t index = 0;
+        cout << s << endl;
+        while (true){
+            index = s.find("R", index);
+            if (index == std::string::npos) break;
+            s.replace(index,1,"AT");
+        }
+        cout << s<<endl;
+    }
+    
     string MSAConsensus(vector<string> &s, Logger & logger, size_t position) {
 //Magic consts from spoa default settings
         auto alignment_engine = spoa::AlignmentEngine::Create(
@@ -220,6 +240,9 @@ struct ContigInfo {
 #pragma OMP critical
             logger.trace() << "WARNING: zero strings were provided for consensus counting" << endl;
             return "";
+        }
+        for (size_t i = 0; i < s.size(); i++){
+            compressAT(s[i]);
         }
         size_t cov = 0;
         vector<size_t> all_len;
@@ -256,6 +279,7 @@ struct ContigInfo {
         vector<uint32_t > coverages;
         string consensus = graph.GenerateConsensus(&coverages);
         auto msa = graph.GenerateMultipleSequenceAlignment();
+        
         MSA_saved[position] = msa;
 
         size_t ind = 0;
@@ -265,6 +289,7 @@ struct ContigInfo {
                 res +=consensus[ind];
             ind++;
         }
+        decompressAT(res);
         return res;
 /*
         size_t pref_remove = 0;
@@ -293,7 +318,7 @@ struct ContigInfo {
         if (cons_len != all_len[all_len.size()/2]) {
             return "CONSENSUS LENGTH DIFFER FROM MEDIAN";
         }
-        return "";
+        return "no problem";
 //What are other suspicious cases? Since we can glue two dimeric regions, commented case is  actually OK
 /*        size_t len = s.length();
         for (size_t i = COMPLEX_EPS + 2; i < len - COMPLEX_EPS; i++) {
