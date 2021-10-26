@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile(), logging::debug);
     logger << join(" ", argv, argv + argc);
+    logging::logGit(logger, dir / "version.txt");
     omp_set_num_threads(stoi(parser.getValue("threads")));
     size_t dicompress = std::stoull(parser.getValue("compress"));
     size_t threads = std::stoull(parser.getValue("threads"));
