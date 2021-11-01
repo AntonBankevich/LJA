@@ -125,6 +125,8 @@ public:
         ParallelRecordCollector<OverlapRecord> filtered_pairs(threads);
 #pragma omp parallel for default(none) shared(pairs, tips, filtered_pairs, deg)
         for(size_t i = 0; i < pairs.size(); i++) {
+            if(*tips[pairs[i].first] == tips[pairs[i].second]->rc())
+                continue;
             size_t m1, m2;
             size_t &d1 = deg[pairs[i].first];
             size_t &d2 = deg[pairs[i].second];
