@@ -149,8 +149,8 @@ public:
         std::vector<Connection> res;
         for(OverlapRecord &rec : filtered_pairs) {
             if(deg[rec.from] == 1 && deg[rec.to] == 1) {
-                Sequence new_seq = tips[rec.from]->kmerSeq(0);
-                new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(tips[rec.to]->kmerSeq(0));
+                Sequence new_seq = tips[rec.from]->suffix(0);
+                new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(tips[rec.to]->suffix(0));
                 new_seq = tips[rec.from]->start()->seq + new_seq.Subseq(k);
                 new_seq = StringContig(new_seq.str(), "new").makeSequence();
                 if(!new_seq.endsWith(!tips[rec.to]->start()->seq) || !new_seq.startsWith(tips[rec.from]->start()->seq) ||
