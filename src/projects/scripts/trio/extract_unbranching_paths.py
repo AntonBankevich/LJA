@@ -137,7 +137,19 @@ class Graph:
         for vid in to_compress:
             self.compress_vertex_if_needed(vid)
 
+    def get_internal_length(self, eid):
+        edge = self.edges[eid]
+        res = len(edge.seq) - self.vertices[edge.start_vertex].k -self.vertices[edge.end_vertex].k
+        return res
 
+    def print_to_fasta(self, outfile):
+        used = set()
+        out_f = open(outfile, 'w')
+        for e in self.edges.keys():
+            if not(self.edges[e].get_external_id() in used):
+                out_f.write(">" + self.edges[e].label + '\n')
+                out_f.write(self.edges[e].seq + '\n')
+                used.add(self.edges[e].get_external_id())
 def rc(seq):
     seqS = Seq(seq)
 
@@ -204,8 +216,8 @@ def get_header_id(header):
     pos = header.find("edge_")
     return header[:pos]
 
-
-def construct_graph(edge_component, segments, links, forbidden):
+#awful but working, just as me
+def construct_graph(edge_component, segments, links):
     vertices = {}
     equivalents = {}
     canonic_ids = {}
@@ -214,8 +226,6 @@ def construct_graph(edge_component, segments, links, forbidden):
     edges_to_id = {}
     edges = {}
     for e in edge_component:
-        if e in forbidden:
-            continue
         e_str = e
         e = int(e)
         # starts, end, rc_start, rc_end   0,1,2,3, rc_id = 3 - id
@@ -309,7 +319,7 @@ def construct_graph(edge_component, segments, links, forbidden):
     G = Graph(canonic_vertices, edges)
     return G
 
-
+#deprecated
 def get_unbranching_paths(graph):
     used_edges = set()
     for e_id in graph.edges.keys():
@@ -331,12 +341,13 @@ def get_unbranching_paths(graph):
             print(f'PATH {label}')
 
 
-def print_bulges(graph):
+def get_bulges(graph):
     used = set()
+    bulges = {}
+    b_file = open("bulges.txt", "w")
     for vid in graph.vertices.keys():
         v = graph.vertices[vid]
         if len(v.outgoing) == 2:
-
             e1 = graph.edges[v.outgoing[0]]
             e2 = graph.edges[v.outgoing[1]]
             if e1.end_vertex == e2.end_vertex:
@@ -348,8 +359,38 @@ def print_bulges(graph):
                     v_len = v.k + graph.vertices[e2.end_vertex].k
                     l1 -= v_len
                     l2 -= v_len
-                    print(f'{e1.get_external_id()} {e2.get_external_id()} {l1} {l2} ')
+                    b_file.write(f'{e1.get_external_id()} {e2.get_external_id()} {l1} {l2} \n')
+                    bulges[e1] = e2
+                    bulges[e2] = e1
+    return bulges
 
+#update only fixable bulges
+def update_fixable_haplotypes(bulges, haplotypes):
+    for h in haplotypes.keys():
+        if haplotypes[h] == "0" or haplotypes[h] == "a":
+            if h in bulges:
+                if haplotypes[bulges[h]] == "m":
+                    haplotypes[h] = "p"
+                elif haplotypes[bulges[h]] == "p":
+                    haplotypes[h] = "m"
+
+def assign_short_haplotypes(bulges, haplotypes, graph):
+    short_length = 10
+    for h in haplotypes.keys():
+        #should be any difference here?
+        if haplotypes[h] == "0" or haplotypes[h] == "a":
+            if h in bulges:
+                if haplotypes[bulges[h]] == "0" or haplotypes[bulges[h]] == "a":
+                    #*2  because of internal and big id, dirty
+                    l1 = graph.get_internal_length(2*h)
+                    l2 = graph.get_internal_length(2*bulges[h])
+                    if l1 < short_length and l2 < short_length:
+                        if random.randint(0, 1) == 0:
+                            haplotypes[h] = "m"
+                            haplotypes[bulges[h]] = "p"
+                        else:
+                            haplotypes[h] = "p"
+                            haplotypes[bulges[h]] = "m"
 
 def get_start_end_vertex(edge_component, segments, edges_to_id):
     max_l = 0
@@ -363,7 +404,7 @@ def get_start_end_vertex(edge_component, segments, edges_to_id):
     return [edges_to_id[max_e] * 4 + 1, edges_to_id[max_e] * 4]
 
 
-def run_extraction(graph_f, forbidden_f):
+def run_extraction(graph_f, haplotypes_f):
     neighbours = {}
     segments = {}
     links = {}
@@ -391,27 +432,38 @@ def run_extraction(graph_f, forbidden_f):
             cov = 1
             segments[arr[1]] = node_stat(length, cov, arr[2])
             neighbours[arr[1]] = set()
+    haplotypes = {}
+    for line in open(haplotypes_f, 'r'):
+        arr = line.split()
+        haplotypes[arr[0]] = arr[1]
+
     unique = set()
     total = 0
-    forbidden = set()
-    for line in open(forbidden_f, 'r'):
-        forbidden.add(line.strip())
     print("Constructing graph...")
 
-    graph = construct_graph(segments.keys(), segments, links, forbidden)
-    get_unbranching_paths(graph)
-    print_bulges(graph)
-    print("Constructed")
-
+    graph = construct_graph(segments.keys(), segments, links)
+#    get_unbranching_paths(graph)
+    bulges = get_bulges(graph)
+    update_fixable_haplotypes(bulges, haplotypes)
+    assign_short_haplotypes(bulges, haplotypes, graph)
+    removed = 0
+    for f in haplotypes.keys():
+        #TODO parameter
+        if haplotypes[f] == "p":
+            graph.remove_edge_gfa_id(f)
+            removed +=1
+    print (f'Removed {removed} paternal edges')
+    graph.print_to_fasta("maternal.fasta")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print(f'Script for gfa compression after removal of forbidden edges')
-        print(f'Usage: {sys.argv[0]} <graph.gfa> <forbidden.list>')
+        print(f'Script for gfa compression after removal of one haplotype')
+        print(f'Usage: {sys.argv[0]} <graph.gfa> <haplotype.bin>')
         exit(0)
     graph = sys.argv[1]
-    forbidden_list = sys.argv[2]
-    run_extraction(graph, forbidden_list)
+    haplotypes_list = sys.argv[2]
+    random.seed(239)
+    run_extraction(graph, haplotypes_list)
 # print (total)
 # for f in unique:
 #    print (f)
