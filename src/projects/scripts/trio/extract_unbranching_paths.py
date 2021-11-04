@@ -98,9 +98,11 @@ class Graph:
     def InternalRemoveEdge (self, eid):
         incident = [self.edges[eid].start_vertex, self.edges[eid].end_vertex]
         for vid in incident:
-            self.vertices[vid].incoming.remove(eid)
-            self.vertices[vid].outgoing.remove(eid)
-        self.edge.remove(eid)
+            if eid in self.vertices[vid].incoming:
+                self.vertices[vid].incoming.remove(eid)
+            if eid in self.vertices[vid].outgoing:
+                self.vertices[vid].outgoing.remove(eid)
+        del self.edges[eid]
 
     def compress_vertex_if_needed(self, vid):
         if vid in self.vertices.keys():
@@ -121,16 +123,18 @@ class Graph:
                             return
                         new_seq = start_e.seq[:-k] + end_e.seq
                         new_label = start_e.label + end_e.label
+#                        print (f'{new_label} {start_e.label} {end_e.label}')
+                      
                         self.AddEdge(start_e.start_vertex, end_e.end_vertex, new_seq, new_label)
                     for eid in to_remove:
                         self.InternalRemoveEdge(eid)
 
     def remove_edge_gfa_id(self, gfa_id):
-        to_compress = ()
+        to_compress = set()
         for eid in range(gfa_id * 2, gfa_id * 2 + 2):
             if eid in self.edges.keys():
-                to_compress.insert(self.edges[eid].start_vertex)
-                to_compress.insert(self.edges[eid].end_vertex)
+                to_compress.add(self.edges[eid].start_vertex)
+                to_compress.add(self.edges[eid].end_vertex)
                 # special function, to get used in vertices
                 self.InternalRemoveEdge(eid)
 
@@ -246,16 +250,12 @@ def construct_graph(edge_component, segments, links):
     for e in edge_component:
         if e not in links:
             continue
-        if e in forbidden:
-            continue
         for l in links[e]:
             arr = l.split()
             # L	edge_43116	-	edge_6653	+	0M
 
             edge_start = e
             edge_end = arr[3]
-            if edge_end in forbidden:
-                continue
             first_edge = int(edge_start) * 2
             second_edge = int(edge_end) * 2
             overlap = int(arr[5][:-1])
@@ -360,21 +360,27 @@ def get_bulges(graph):
                     l1 -= v_len
                     l2 -= v_len
                     b_file.write(f'{e1.get_external_id()} {e2.get_external_id()} {l1} {l2} \n')
-                    bulges[e1] = e2
-                    bulges[e2] = e1
+                    bulges[e1.get_external_id()] = e2.get_external_id()
+                    bulges[e2.get_external_id()] = e1.get_external_id()
     return bulges
 
 #update only fixable bulges
 def update_fixable_haplotypes(bulges, haplotypes):
+    count = 0
     for h in haplotypes.keys():
         if haplotypes[h] == "0" or haplotypes[h] == "a":
             if h in bulges:
                 if haplotypes[bulges[h]] == "m":
                     haplotypes[h] = "p"
+                    count += 1
                 elif haplotypes[bulges[h]] == "p":
                     haplotypes[h] = "m"
+                    count += 1
+    print (f'Updated {count} fixable bulge haplotypes')
+
 
 def assign_short_haplotypes(bulges, haplotypes, graph):
+    count = 0
     short_length = 10
     for h in haplotypes.keys():
         #should be any difference here?
@@ -385,12 +391,15 @@ def assign_short_haplotypes(bulges, haplotypes, graph):
                     l1 = graph.get_internal_length(2*h)
                     l2 = graph.get_internal_length(2*bulges[h])
                     if l1 < short_length and l2 < short_length:
+                        count += 1
                         if random.randint(0, 1) == 0:
                             haplotypes[h] = "m"
                             haplotypes[bulges[h]] = "p"
                         else:
                             haplotypes[h] = "p"
                             haplotypes[bulges[h]] = "m"
+    print (f'Updated {count} unfixable short bulges')
+
 
 def get_start_end_vertex(edge_component, segments, edges_to_id):
     max_l = 0
@@ -435,7 +444,7 @@ def run_extraction(graph_f, haplotypes_f):
     haplotypes = {}
     for line in open(haplotypes_f, 'r'):
         arr = line.split()
-        haplotypes[arr[0]] = arr[1]
+        haplotypes[int(arr[0])] = arr[1]
 
     unique = set()
     total = 0
@@ -450,7 +459,7 @@ def run_extraction(graph_f, haplotypes_f):
     for f in haplotypes.keys():
         #TODO parameter
         if haplotypes[f] == "p":
-            graph.remove_edge_gfa_id(f)
+            graph.remove_edge_gfa_id(int(f))
             removed +=1
     print (f'Removed {removed} paternal edges')
     graph.print_to_fasta("maternal.fasta")
