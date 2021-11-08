@@ -4,7 +4,7 @@ import os
 import random
 import logging
 from Bio.Seq import Seq
-
+import networkx as nx
 inf = 1e8
 
 
@@ -71,6 +71,18 @@ class node_stat:
         self.length = int(length)
         self.cov = float(cov)
         self.seq = seq
+
+class HaplotypeStats:
+    def __init__(self, triobin_str):
+        #32      m       0       273     28      390     22      24      112906  17
+        #s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],c[0<<2|2], c[2<<2|0], c[0<<2|1], c[1<<2|0], s->cnt[i].nk, c[0])
+        arr = triobin_str.split()
+        haplotype  = arr[1]
+        id = int(arr[0])
+        decisive_strips = [int(arr[2]), int(arr[3])]
+        decisive_counts = [int(arr[4]), int(arr[5])]
+        total_kmers = int(arr[8])
+        #TODO: arr 6, 7, 9
 
 
 # vertices with variable k, edges: gfa_id-> gfa_id*2, gfa_id*2 +1
@@ -154,6 +166,24 @@ class Graph:
                 out_f.write(">" + self.edges[e].label + '\n')
                 out_f.write(self.edges[e].seq + '\n')
                 used.add(self.edges[e].get_external_id())
+
+    def print_to_dot(self, outfile, colors):
+        dot_graph = nx.MultiDiGraph()
+        vertices_to_dot = {}
+        count = 0
+        for vid in self.vertices.keys():
+            dot_graph.add_node(vid, label=self.vertices[vid].k)
+        for eid in self.edges.keys():
+            e_color = "black"
+            ext_id = self.edges[eid].get_external_id()
+            if ext_id in colors.keys():
+                e_color = colors[ext_id]
+            dot_graph.add_edge(self.edges[eid].start_vertex, self.edges[eid].end_vertex, label=self.edges[eid].label, color=e_color)
+        pos = nx.nx_agraph.graphviz_layout(dot_graph)
+        nx.draw(dot_graph, pos=pos)
+        nx.drawing.nx_agraph.write_dot(dot_graph, outfile)
+
+
 def rc(seq):
     seqS = Seq(seq)
 
@@ -451,6 +481,8 @@ def run_extraction(graph_f, haplotypes_f):
     print("Constructing graph...")
 
     graph = construct_graph(segments.keys(), segments, links)
+    graph.print_to_dot("tst.dot", {})
+    exit()
 #    get_unbranching_paths(graph)
     bulges = get_bulges(graph)
     update_fixable_haplotypes(bulges, haplotypes)
