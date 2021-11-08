@@ -455,7 +455,8 @@ void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
                     }
                     if(this->isAnchor(kwh.hash())) {
                         EdgePosition ep = getAnchor(kwh);
-                        VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.pos, "Anchor kmer index corruption");
+                        VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.pos, "Anchor kmer index corruption " + itos(ep.pos) + " " +
+                                itos(ep.edge->size()));
                     }
                     if(!kwh.hasNext())
                         break;

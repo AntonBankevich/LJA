@@ -113,8 +113,8 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     logger.trace() << "Extracted " << segs.size() << " covered segments" << std::endl;
     logger.trace() << "Constructing subgraph" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
-    dbg.checkConsistency(threads, logger);
-    dbg.checkDBGConsistency(threads, logger);
+    subgraph.checkConsistency(threads, logger);
+    subgraph.checkDBGConsistency(threads, logger);
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
     for(const auto & vit : subgraph){
         if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
@@ -127,6 +127,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     mergeAll(logger, subgraph, threads);
     printStats(logger, subgraph);
     subgraph.fillAnchors(min_len, logger, threads, anchors);
+    subgraph.checkDBGConsistency(threads, logger);
     logger.trace() << "Constructing embedding of old graph into new" << std::endl;
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
@@ -192,8 +193,8 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     logger.trace() << "Splitting graph edges" << std::endl;
     SparseDBG subgraph = dbg.SplitGraph(break_positions);
     subgraph.checkConsistency(threads, logger);
-    subgraph.checkDBGConsistency(threads, logger);
     subgraph.fillAnchors(500, logger, threads);
+    subgraph.checkDBGConsistency(threads, logger);
     logger.trace() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {
         RecordStorage &storage = *sit;
