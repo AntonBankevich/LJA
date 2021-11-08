@@ -187,6 +187,7 @@ namespace dbg {
         size_t size() const {return v.size();}
 
         void checkConsistency(size_t threads, logging::Logger &logger);
+        void checkDBGConsistency(size_t threads, logging::Logger &logger);
         void checkSeqFilled(size_t threads, logging::Logger &logger);
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads);
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> &to_add);

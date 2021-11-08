@@ -114,6 +114,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     logger.trace() << "Constructing subgraph" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
     dbg.checkConsistency(threads, logger);
+    dbg.checkDBGConsistency(threads, logger);
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
     for(const auto & vit : subgraph){
         if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
@@ -191,6 +192,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     logger.trace() << "Splitting graph edges" << std::endl;
     SparseDBG subgraph = dbg.SplitGraph(break_positions);
     subgraph.checkConsistency(threads, logger);
+    subgraph.checkDBGConsistency(threads, logger);
     subgraph.fillAnchors(500, logger, threads);
     logger.trace() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {

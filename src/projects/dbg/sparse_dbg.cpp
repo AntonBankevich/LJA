@@ -444,6 +444,66 @@ void SparseDBG::checkConsistency(size_t threads, logging::Logger &logger) {
     logger.trace() << "Consistency check success" << std::endl;
 }
 
+void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
+    logger.trace() << "Checking kmer index" << std::endl;
+    std::function<void(size_t, Edge &)> task =
+            [this](size_t pos, Edge &edge) {
+                hashing::KWH kwh(hasher(), edge.start()->seq + edge.seq, 0);
+                while (true) {
+                    if(this->containsVertex(kwh.hash())) {
+                        VERIFY_OMP((kwh.pos == 0 && this->getVertex(kwh) == *edge.start()) || (kwh.pos == edge.size() && this->getVertex(kwh) == *edge.end()), "Vertex kmer index corruption");
+                    }
+                    if(this->isAnchor(kwh.hash())) {
+                        EdgePosition ep = getAnchor(kwh);
+                        VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.pos, "Anchor kmer index corruption");
+                    }
+                    if(!kwh.hasNext())
+                        break;
+                    kwh = kwh.next();
+                }
+            };
+    processObjects(edges().begin(), edges().end(), logger, threads, task);
+    logger.trace() << "Index check success" << std::endl;
+    size_t sz = 0;
+    for(Edge &edge : edgesUnique()) {
+        sz += edge.size();
+    }
+    for(Vertex &vertex: vertices()) {
+        std::vector<char> out;
+        for(Edge &edge : vertex) {
+            out.emplace_back(edge.seq[0]);
+        }
+        std::sort(out.begin(), out.end());
+        for(size_t i = 0; i + 1 < out.size(); i++) {
+            VERIFY(out[i] != out[i + 1]);
+        }
+    }
+    if(sz > 10000000)
+        return;
+    ParallelRecordCollector<hashing::htype> hashs(threads);
+    std::function<void(size_t, Edge &)> task1 =
+            [this, &hashs](size_t pos, Edge &edge) {
+                hashing::KWH kwh(hasher(), edge.start()->seq + edge.seq, 1);
+                for(size_t i = 1; i < edge.size(); i++) {
+                    hashs.emplace_back(kwh.hash());
+                    kwh = kwh.next();
+                }
+            };
+    processObjects(edgesUnique().begin(), edgesUnique().end(), logger, threads, task1);
+    for(Vertex &vertex : verticesUnique()) {
+        hashs.emplace_back(vertex.hash());
+    }
+    std::vector<hashing::htype> res = hashs.collect();
+    __gnu_parallel::sort(res.begin(), res.end());
+    bool ok = true;
+    for(size_t i = 0; i + 1 < res.size(); i++) {
+        ok &= res[i] != res[i + 1];
+    }
+    if(!ok) {
+        logger.trace() << "Duplicated k-mers in the graph" << std::endl;
+    }
+}
+
 Vertex &SparseDBG::addVertex(const hashing::KWH &kwh) {
     Vertex &newVertex = innerAddVertex(kwh.hash());
     Vertex &res = kwh.isCanonical() ? newVertex : newVertex.rc();
