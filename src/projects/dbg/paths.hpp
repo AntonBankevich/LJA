@@ -139,7 +139,8 @@ namespace dbg {
     class GraphAligner {
     private:
         SparseDBG &dbg;
-
+        PerfectAlignment<Contig, dbg::Edge> extendLeft(const hashing::KWH &kwh, Contig &contig) const;
+        PerfectAlignment<Contig, dbg::Edge> extendRight(const hashing::KWH &kwh, Contig &contig) const;
     public:
         explicit GraphAligner(SparseDBG &dbg) : dbg(dbg) {
         }
@@ -149,6 +150,7 @@ namespace dbg {
         GraphAlignment align(const Sequence &seq) const;
         std::vector<PerfectAlignment<Contig, Edge>> carefulAlign(Contig &contig) const;
         std::vector<PerfectAlignment<Edge, Edge>> oldEdgeAlign(Edge &contig) const;
+        std::vector<PerfectAlignment<Contig, Edge>> sparseAlign(Contig &contig) const;
     };
 }
 

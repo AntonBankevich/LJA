@@ -190,7 +190,7 @@ public:
     }
 
     char operator[](size_t ind) const {
-        return nucl(seq[ind]);
+        return seq[ind];
     }
 
     string str() const {

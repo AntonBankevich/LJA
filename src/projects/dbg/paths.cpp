@@ -1,6 +1,6 @@
 #include "paths.hpp"
-
-dbg::Path dbg::Path::WalkForward(dbg::Edge &start) {
+using namespace dbg;
+Path Path::WalkForward(dbg::Edge &start) {
     Path res(*start.start());
     res += start;
     Vertex *next = start.end();
@@ -639,4 +639,86 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::careful
         kwh = kwh.next();
     }
     return std::move(res);
+}
+
+PerfectAlignment<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Segment<Contig> &seg) {
+    PerfectAlignment<Contig, dbg::Edge> best({seg.contig(), seg.left, seg.left}, {Edge::fake(), 0, 0});
+    for(Edge &edge : vertex) {
+        size_t len = 0;
+        while(len < edge.size()) {
+            if(seg.contig()[seg.left + vertex.seq.size() + len] != edge.seq[len])
+                break;
+            len++;
+        }
+//        std::cout << len << std::endl;
+//        std::cout << Segment<Contig>(seg.contig(), seg.left + vertex.seq.size(),
+//                                     std::min(seg.contig().size(), seg.left + vertex.seq.size() + 200)).seq() << std::endl;
+//        std::cout << edge.seq.Subseq(0, std::min<size_t>(edge.seq.size(), 200)) << std::endl;
+        if(len >= best.size()) {
+            best = {{seg.contig(), seg.left, seg.left + len}, {edge, 0, len}};
+        }
+    }
+    return best;
+}
+
+PerfectAlignment<Contig, dbg::Edge> bestExtension(Edge &edge, const Segment<Contig> &seg) {
+    size_t len = 0;
+    while(len < edge.size()) {
+        if(seg.contig()[seg.left + edge.start()->seq.size() + len] != edge.seq[len])
+            break;
+        len++;
+    }
+    return {Segment<Contig>(seg.contig(), seg.left, seg.left + len), Segment<Edge>(edge, 0, len)};
+}
+
+PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendLeft(const hashing::KWH &kwh, Contig &contig) const {
+    size_t k = dbg.hasher().getK();
+    PerfectAlignment<Contig, dbg::Edge> best({contig, kwh.pos, kwh.pos}, {Edge::fake(), 0, 0});
+    if(kwh.pos == 0) {
+        return best;
+    }
+    Vertex &start = dbg.getVertex(kwh);
+    Contig rc_contig = contig.RC();
+    if(start.inDeg() == 0) {
+        return best;
+    }
+    PerfectAlignment<Contig, Edge> start_al = bestExtension(start.rc(), Segment<Contig>(rc_contig, contig.size() - k - kwh.pos, contig.size() - k));
+    return {Segment<Contig>(contig, contig.size() - k - start_al.seg_from.right, contig.size() - k - start_al.seg_from.left),
+            start_al.seg_to};
+}
+
+PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendRight(const hashing::KWH &kwh, Contig &contig) const {
+    size_t k = dbg.hasher().getK();
+    PerfectAlignment<Contig, dbg::Edge> best({contig, kwh.pos, kwh.pos}, {Edge::fake(), 0, 0});
+    if(kwh.pos + k == contig.size()) {
+        return best;
+    }
+    Vertex &start = dbg.getVertex(kwh);
+    if(start.outDeg() == 0) {
+        return best;
+    }
+    return bestExtension(start, Segment<Contig>(contig, kwh.pos, contig.size() - k));
+}
+
+std::vector<PerfectAlignment<Contig, dbg::Edge>> GraphAligner::sparseAlign(Contig &contig) const {
+    std::vector<hashing::KWH> vlist = dbg.extractVertexPositions(contig.seq);
+    std::vector<PerfectAlignment<Contig, dbg::Edge>> result;
+    size_t k = dbg.hasher().getK();
+    if(vlist.empty())
+        return result;
+    for(hashing::KWH &kwh : vlist) {
+        if(result.empty() || result.back().seg_from.right != kwh.pos) {
+            PerfectAlignment<Contig, Edge> new_al = extendLeft(kwh, contig);
+            if(new_al.size() > 0) {
+                result.emplace_back(new_al);
+            }
+        }
+        {
+            PerfectAlignment<Contig, Edge> new_al = extendRight(kwh, contig);
+            if(new_al.size() > 0) {
+                result.emplace_back(new_al);
+            }
+        }
+    }
+    return std::move(result);
 }

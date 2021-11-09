@@ -157,7 +157,6 @@ std::vector<Sequence> constructDisjointigs(const RollingHash &hasher, size_t w, 
 
     tieTips(logger, sdbg, w, threads);
     sdbg.checkSeqFilled(threads, logger);
-    logger.info() << "Statistics for sparse de Bruijn graph:" << std::endl;
     printStats(logger, sdbg);
 //    std::ofstream os;
 //    os.open("sdbg.fasta");

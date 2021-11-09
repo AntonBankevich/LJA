@@ -1,6 +1,8 @@
 #include "sparse_dbg.hpp"
 using namespace dbg;
 
+Edge Edge::_fake = Edge(nullptr, nullptr, Sequence());
+
 size_t Edge::updateTipSize() const {
     size_t new_val = 0;
     if(extraInfo == size_t(-1) && end_->inDeg() == 1) {

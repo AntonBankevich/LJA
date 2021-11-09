@@ -26,6 +26,7 @@ namespace dbg {
         Vertex *start_;
         Vertex *end_;
         mutable size_t cov;
+        static Edge _fake;
     public:
         mutable size_t extraInfo;
         Sequence seq;
@@ -35,6 +36,7 @@ namespace dbg {
         Edge(Vertex *_start, Vertex *_end, const Sequence &_seq) :
                 start_(_start), end_(_end), cov(0), extraInfo(-1), seq(_seq) {
         }
+        static Edge &fake() {return _fake;}
         std::string getId() const;
         std::string oldId() const;
         std::string getShortId() const;
