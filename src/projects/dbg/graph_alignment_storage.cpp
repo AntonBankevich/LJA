@@ -360,6 +360,18 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const
     logger.info() << "Uncorrected reads were removed." << std::endl;
 }
 
+void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) {
+    for(AlignedRead &alignedRead : reads) {
+        const VertexRecord &rec = this->getRecord(alignedRead.path.start());
+        size_t cnt = rec.countStartsWith(alignedRead.path.cpath());
+        VERIFY_MSG(cnt >= 1, "This function assumes that suffixes are stored for complete reads")
+        if(rec.countStartsWith(alignedRead.path.cpath()) >= 2) {
+            invalidateRead(alignedRead, "Subread");
+        }
+    }
+    logger.info() << "Uncorrected reads were removed." << std::endl;
+}
+
 void RecordStorage::addSubpath(const CompactPath &cpath) {
     if(!cpath.valid())
         return;

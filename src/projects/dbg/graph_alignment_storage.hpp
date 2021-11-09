@@ -161,7 +161,8 @@ public:
     bool apply(AlignedRead &alignedRead);
 
     void invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
-    void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad, const std::string &message);
+    void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const dbg::Edge &)> &is_bad, const std::string &message);
+    void invalidateSubreads(logging::Logger &logger, size_t threads);
 
     template<class I>
     void fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads);
