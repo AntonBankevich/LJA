@@ -434,6 +434,35 @@ SparseDBG SparseDBG::SplitGraph(const std::vector<EdgePosition> &breaks) {
     return std::move(res);
 }
 
+SparseDBG SparseDBG::AddNewSequences(logging::Logger &logger, size_t threads, const std::vector<Sequence> &new_seqs) {
+    SparseDBG res(hasher_);
+    for(Vertex &it : verticesUnique()) {
+        res.addVertex(it);
+    }
+    for(const Sequence &seq: new_seqs) {
+        hashing::KWH kwh(hasher_, seq, 0);
+        while(true) {
+            if(!res.containsVertex(kwh.hash())) {
+                res.addVertex(kwh);
+            }
+            if(!kwh.hasNext())
+                break;
+            kwh = kwh.next();
+        }
+    }
+    std::function<void(size_t, Edge &)> task = [&res](size_t num, Edge &edge) {
+        res.processEdge(edge);
+    };
+    omp_set_num_threads(threads);
+    processObjects(this->edgesUnique().begin(), this->edgesUnique().end(), logger, threads, task);
+    std::function<void(size_t, const Sequence &)> task1 = [&res](size_t num, const Sequence &seq) {
+        res.processRead(seq);
+    };
+    ParallelProcessor<const Sequence>(task1, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
+//    processObjects<std::vector<Sequence>::const_iterator>(new_seqs.begin(), new_seqs.end(), logger, threads, task1);
+    return std::move(res);
+}
+
 void SparseDBG::checkConsistency(size_t threads, logging::Logger &logger) {
     logger.trace() << "Checking consistency" << std::endl;
     std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
@@ -685,6 +714,7 @@ void SparseDBG::processRead(const Sequence &seq) {
     }
 }
 
+//This method does not add rc edges so should be run for both edge and its rc
 void SparseDBG::processEdge(Vertex &vertex, Sequence old_seq) {
     Sequence seq = vertex.seq + old_seq;
     std::vector<hashing::KWH> kmers = extractVertexPositions(seq);
@@ -703,6 +733,28 @@ void SparseDBG::processEdge(Vertex &vertex, Sequence old_seq) {
         }
         vertices[i]->addEdge(
                 Edge(vertices[i], vertices[i + 1], old_seq.Subseq(kmers[i].pos, kmers[i + 1].pos)));
+    }
+}
+
+void SparseDBG::processEdge(Edge &other_graph_edge) {
+    Sequence seq = other_graph_edge.start()->seq + other_graph_edge.seq;
+    std::vector<hashing::KWH> kmers = extractVertexPositions(seq);
+    VERIFY(kmers.front().pos == 0 && kmers.back().pos == other_graph_edge.size());
+    std::vector<Vertex *> vertices;
+    for (size_t i = 0; i < kmers.size(); i++) {
+        vertices.emplace_back(&getVertex(kmers[i]));
+    }
+    for (size_t i = 0; i + 1 < vertices.size(); i++) {
+//            TODO: if too memory heavy save only some of the labels
+        VERIFY(kmers[i].pos + hasher_.getK() <= seq.size())
+        if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
+            (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
+            kmers[i + 1].pos - kmers[i].pos < hasher_.getK()) {
+            continue;
+        }
+        vertices[i]->addEdge(Edge(vertices[i], vertices[i + 1], other_graph_edge.seq.Subseq(kmers[i].pos, kmers[i + 1].pos)));
+        vertices[i + 1]->rc().addEdge(Edge(&vertices[i + 1]->rc(), &vertices[i]->rc(),
+                  other_graph_edge.rc().seq.Subseq(other_graph_edge.size() - kmers[i + 1].pos, other_graph_edge.size() - kmers[i].pos)));
     }
 }
 

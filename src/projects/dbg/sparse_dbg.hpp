@@ -175,6 +175,7 @@ namespace dbg {
 
         SparseDBG Subgraph(std::vector<Segment<Edge>> &pieces);
         SparseDBG SplitGraph(const std::vector<EdgePosition> &breaks);
+        SparseDBG AddNewSequences(logging::Logger &logger, size_t threads, const std::vector<Sequence> &new_seqs);
 
         const hashing::RollingHash &hasher() const {return hasher_;}
         bool containsVertex(const hashing::htype &hash) const {return v.find(hash) != v.end();}
@@ -195,6 +196,7 @@ namespace dbg {
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> &to_add);
         void processRead(const Sequence &seq);
         void processEdge(Vertex &vertex, Sequence old_seq);
+        void processEdge(Edge &other_graph_edge);
         Vertex &bindTip(Vertex &start, Edge &tip);
         void removeIsolated();
         void removeMarked();

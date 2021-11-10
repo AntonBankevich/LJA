@@ -177,24 +177,23 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     logger.info() << "Adding new connections to the graph" << std::endl;
     size_t k = dbg.hasher().getK();
     std::vector<EdgePosition> break_positions;
-    std::unordered_set<Edge *> broken_edges;
-    for(const Connection &connection : connections) {
-        VERIFY(connection.connection.startsWith(connection.pos1.kmerSeq()));
-        VERIFY(connection.pos1.pos == connection.pos1.edge->size() || connection.pos1.edge->seq[connection.pos1.pos] != connection.connection[k])
-        VERIFY((!connection.connection).startsWith(connection.pos2.RC().kmerSeq()));
-        VERIFY(connection.pos2.RC().pos == connection.pos2.edge->size() || connection.pos2.RC().edge->seq[connection.pos2.RC().pos] != (!connection.connection)[k])
-        break_positions.emplace_back(connection.pos1);
-        break_positions.emplace_back(connection.pos2);
-        broken_edges.emplace(connection.pos1.edge);
-        broken_edges.emplace(connection.pos2.edge);
-        broken_edges.emplace(&connection.pos1.edge->rc());
-        broken_edges.emplace(&connection.pos2.edge->rc());
-    }
     logger.trace() << "Splitting graph edges" << std::endl;
-    SparseDBG subgraph = dbg.SplitGraph(break_positions);
-    subgraph.checkConsistency(threads, logger);
+    std::vector<Sequence> seqs;
+    for(const Connection &connection : connections)
+        seqs.emplace_back(connection.connection);
+    SparseDBG subgraph = dbg.AddNewSequences(logger, threads, seqs);
+    mergeAll(logger, subgraph, threads);
     subgraph.fillAnchors(500, logger, threads);
+    subgraph.checkConsistency(threads, logger);
     subgraph.checkDBGConsistency(threads, logger);
+    GraphAligner aligner(subgraph);
+    std::function<void(size_t, Edge &)> task = [&aligner](size_t num, Edge &edge) {
+        GraphAlignment al = aligner.align(edge.start()->seq + edge.seq);
+        VERIFY(al.len() == edge.size());
+        edge.is_reliable = (al.size() == 1 && al[0].left == 0 && al[0].right == al[0].contig().size());
+        edge.rc().is_reliable = edge.is_reliable;
+    };
+    processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task);
     logger.trace() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {
         RecordStorage &storage = *sit;
@@ -204,7 +203,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
             new_storage.addRead(AlignedRead(al.id));
         }
         omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage, new_storage, broken_edges, subgraph)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage, new_storage, subgraph)
         for(size_t i = 0; i < storage.size(); i++) {
             AlignedRead &old_read = storage[i];
             if(!old_read.valid())
@@ -213,7 +212,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
             GraphAlignment al = old_read.path.getAlignment();
             bool good = true;
             for(Segment<Edge> &seg : al) {
-                if(broken_edges.find(&seg.contig()) != broken_edges.end()) {
+                if(!seg.contig().is_reliable) {
                     good = false;
                     break;
                 }
@@ -230,21 +229,6 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
         }
         new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);
-    }
-    logger.trace() << "Adding new edges" << std::endl;
-    for(const Connection &connection : connections) {
-        logger.trace() << "Processing connection" << std::endl;
-        std::vector<hashing::KWH> kmers = subgraph.extractVertexPositions(connection.connection);
-        logger << connection.connection.size() << std::endl;
-        for(hashing::KWH &kmer :kmers) {
-            logger << kmer.pos << " " << subgraph.getVertex(kmer).getId() << std::endl;
-        }
-        Vertex &from = subgraph.getVertex(connection.connection.Subseq(0, k));
-        Vertex &to = subgraph.getVertex((!connection.connection).Subseq(0, k));
-        Edge newEdge(&from, &to.rc(), connection.connection.Subseq(k));
-        Edge rcEdge(&to, &from.rc(), (!connection.connection).Subseq(k));
-        from.addEdge(newEdge);
-        to.addEdge(rcEdge);
     }
     dbg = std::move(subgraph);
 }

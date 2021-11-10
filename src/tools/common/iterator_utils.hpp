@@ -52,6 +52,7 @@ template<class Iterator, typename V, size_t MAX_SIZE = 8>
 class ApplyingIterator {
 public:
     typedef V value_type;
+    typedef V &reference;
 private:
     typedef typename Iterator::reference old_value_type;
 
@@ -85,7 +86,7 @@ public:
         seek();
     }
 
-    value_type &operator*() const {
+    reference operator*() const {
         VERIFY(cur < MAX_SIZE);
         VERIFY(values[cur] != nullptr);
         return *values[cur];
