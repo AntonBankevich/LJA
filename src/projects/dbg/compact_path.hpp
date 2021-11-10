@@ -69,7 +69,7 @@ public:
         return {_start, std::move(path)};
     }
 
-    Path getPath() {
+    Path getPath() const {
         std::vector<Edge *> path;
         Vertex *cur = _start;
         for(size_t i = 0; i < _edges.size(); i++) {
