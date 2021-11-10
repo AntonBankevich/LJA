@@ -645,7 +645,7 @@ PerfectAlignment<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Se
     PerfectAlignment<Contig, dbg::Edge> best({seg.contig(), seg.left, seg.left}, {Edge::fake(), 0, 0});
     for(Edge &edge : vertex) {
         size_t len = 0;
-        while(len < edge.size()) {
+        while(len < edge.size() && seg.left + vertex.seq.size() + len < seg.contig().size()) {
             if(seg.contig()[seg.left + vertex.seq.size() + len] != edge.seq[len])
                 break;
             len++;
@@ -663,7 +663,7 @@ PerfectAlignment<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Se
 
 PerfectAlignment<Contig, dbg::Edge> bestExtension(Edge &edge, const Segment<Contig> &seg) {
     size_t len = 0;
-    while(len < edge.size()) {
+    while(len < edge.size() && seg.left + edge.start()->seq.size() + len < seg.contig().size()) {
         if(seg.contig()[seg.left + edge.start()->seq.size() + len] != edge.seq[len])
             break;
         len++;
@@ -683,8 +683,10 @@ PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendLeft(const hashing::KWH 
         return best;
     }
     PerfectAlignment<Contig, Edge> start_al = bestExtension(start.rc(), Segment<Contig>(rc_contig, contig.size() - k - kwh.pos, contig.size() - k));
+    if(start_al.seg_to.contig().end() == nullptr) return best;
     return {Segment<Contig>(contig, contig.size() - k - start_al.seg_from.right, contig.size() - k - start_al.seg_from.left),
-            start_al.seg_to};
+            Segment<Edge>(start_al.seg_to.contig().sparseRcEdge(),
+                          start_al.seg_to.contig().size() - start_al.seg_to.right, start_al.seg_to.contig().size() - start_al.seg_to.left)};
 }
 
 PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendRight(const hashing::KWH &kwh, Contig &contig) const {

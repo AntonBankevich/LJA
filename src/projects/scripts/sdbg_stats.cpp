@@ -13,7 +13,7 @@
 
 using namespace dbg;
 int main(int argc, char **argv) {
-    CLParser parser({"output-dir=", "ref=", "k-mer-size=", "window=", "threads=8", "base=239"}, {"reads"},{"o=output-dir", "k=k-mer-size", "w=window", "t=threads"});
+    CLParser parser({"output-dir=", "ref=", "k-mer-size=", "window=", "add-ends", "threads=8", "base=239"}, {"reads"},{"o=output-dir", "k=k-mer-size", "w=window", "t=threads"});
     parser.parseCL(argc, argv);
     if (!parser.check().empty()) {
         std::cout << "Incorrect parameters" << std::endl;
@@ -39,10 +39,9 @@ int main(int argc, char **argv) {
     SparseDBG sdbg = constructSparseDBGFromReads(logger, reads_lib, threads, hasher, hash_list, w);
 //    sdbg.printStats(logger);
     sdbg.checkSeqFilled(threads, logger);
-
-    tieTips(logger, sdbg, w, threads);
-    sdbg.checkSeqFilled(threads, logger);
-    printStats(logger, sdbg);
+    if(parser.getCheck("add-ends"))
+        tieTips(logger, sdbg, w, threads);
+    simpleStats(logger, sdbg);
     io::SeqReader reader(ref);
     GraphAligner aligner(sdbg);
     size_t cnt = 0;
