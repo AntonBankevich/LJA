@@ -366,7 +366,7 @@ void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) 
             continue;
         const VertexRecord &rec = this->getRecord(alignedRead.path.start());
         size_t cnt = rec.countStartsWith(alignedRead.path.cpath());
-        VERIFY_MSG(cnt >= 1, "This function assumes that suffixes are stored for complete reads")
+        // VERIFY_MSG(cnt >= 1, "This function assumes that suffixes are stored for complete reads")
         if(rec.countStartsWith(alignedRead.path.cpath()) >= 2) {
             invalidateRead(alignedRead, "Subread");
         }
