@@ -88,8 +88,11 @@ namespace dbg {
     inline void printGFA(std::ostream &out, const Component &component, bool calculate_coverage) {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
+        std::unordered_map<const Edge *, std::string> eids;
         for (Edge &edge : component.edges()) {
             if (edge.start()->isCanonical(edge)) {
+                eids[&edge] = edge.oldId();
+                eids[&edge.rc()] = edge.oldId();
                 if (calculate_coverage)
                     out << "S\t" << edge.oldId() << "\t" << edge.start()->seq << edge.seq
                         << "\tKC:i:" << edge.intCov() << "\n";
@@ -99,10 +102,10 @@ namespace dbg {
         }
         for (Vertex &vertex : component.verticesUnique()) {
             for (const Edge &out_edge : vertex) {
-                std::string outid = out_edge.oldId();
+                std::string outid = eids[&out_edge];
                 bool outsign = vertex.isCanonical(out_edge);
                 for (const Edge &inc_edge : vertex.rc()) {
-                    std::string incid = inc_edge.oldId();
+                    std::string incid = eids[&inc_edge];
                     bool incsign = !vertex.rc().isCanonical(inc_edge);
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
                         << (outsign ? "+" : "-") << "\t" << component.graph().hasher().getK() << "M" << "\n";
