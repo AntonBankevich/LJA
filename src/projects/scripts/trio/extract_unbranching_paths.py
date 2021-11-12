@@ -85,7 +85,8 @@ class HaplotypeStats:
         self.decisive_counts = [int(arr[4]), int(arr[5])]
         self.total_kmers = int(arr[8])
         #TODO: arr 6, 7, 9
-
+    def is_undefined(self):
+        return self.haplotype != "m" and self.haplotype != "p"
 
 # vertices with variable k, edges: gfa_id-> gfa_id*2, gfa_id*2 +1
 class Graph:
@@ -399,38 +400,60 @@ def get_bulges(graph):
 #update only fixable bulges
 def update_fixable_haplotypes(bulges, haplotypes):
     count = 0
-    for h in haplotypes.keys():
-        if haplotypes[h] == "0" or haplotypes[h] == "a":
-            if h in bulges:
-                if haplotypes[bulges[h].get_external_id()] == "m":
-                    haplotypes[h] = "p"
-                    count += 1
-                elif haplotypes[bulges[h].get_external_id()] == "p":
-                    haplotypes[h] = "m"
-                    count += 1
+    for e in bulges.keys():
+        h = e.get_external_id()
+        if haplotypes[h].is_undefined():
+            if haplotypes[bulges[e].get_external_id()].haplotype == "m":
+                haplotypes[h].haplotype = "p"
+                count += 1
+            elif haplotypes[bulges[e].get_external_id()].haplotype == "p":
+                haplotypes[h].haplotype = "m"
+                count += 1
+    print (f'Updated {count} fixable bulges')
+
+    return count
 
 
-def assign_short_haplotypes(bulges, haplotypes, graph):
+def assign_ambiguous_haplotypes(bulges, haplotypes, graph):
     count = 0
-    short_length = 10
-    for h in haplotypes.keys():
-
+    short_length = 100
+    for e in bulges.keys():
+        h = e.get_external_id()
         #should be any difference here?
-        if haplotypes[h] == "0" or haplotypes[h] == "a":
-            if h in bulges:
-                if haplotypes[bulges[h]] == "0" or haplotypes[bulges[h]] == "a":
-                    #*2  because of internal and big id, dirty
-                    l1 = graph.get_internal_length(2*h)
-                    l2 = graph.get_internal_length(2*bulges[h])
+        if haplotypes[h].is_undefined():
+            if haplotypes[bulges[e].get_external_id()].is_undefined():
+                l1 = graph.get_internal_length(e.edge_id)
+                l2 = graph.get_internal_length(bulges[e].edge_id)
+                top = haplotypes[h]
+                bottom = haplotypes[bulges[e].get_external_id()]
+                paternal_count = top.decisive_counts[0] * bottom.decisive_counts[1]
+                maternal_count = top.decisive_counts[1] * bottom.decisive_counts[0]
+                top_total = top.decisive_counts[0] + top.decisive_counts[1]
+                bottom_total = bottom.decisive_counts[0] + bottom.decisive_counts[1]
+                decision = 'a'
+
+                if maternal_count > paternal_count or (top_total == 0 and bottom.decisive_counts[0] > bottom.decisive_counts[1]) or (bottom_total == 0 and top.decisive_counts[1] > top.decisive_counts[0]):
+                    decision = "m"
+                elif paternal_count < maternal_count or (top_total == 0 and bottom.decisive_counts[1] > bottom.decisive_counts[0]) or (bottom_total == 0 and top.decisive_counts[0] > top.decisive_counts[1]):
+                    decision = "p"
+                else:
                     if l1 < short_length and l2 < short_length:
-                        count += 1
                         if random.randint(0, 1) == 0:
-                            haplotypes[h] = "m"
-                            haplotypes[bulges[h]] = "p"
+                            decision = "m"
                         else:
-                            haplotypes[h] = "p"
-                            haplotypes[bulges[h]] = "m"
+                            decision = "p"
+                if decision == "m":
+                    haplotypes[h].haplotype = "m"
+                    haplotypes[bulges[e].get_external_id()].haplotype = "p"
+                    count +=1
+                elif decision == "p":
+                    haplotypes[h].haplotype = "p"
+                    haplotypes[bulges[e].get_external_id()].haplotype = "m"
+                    count +=1
+                    #others left unfixed. Looks like this is case
+
     print (f'Updated {count} unfixable short bulges')
+
 
 
 def get_start_end_vertex(edge_component, segments, edges_to_id):
@@ -510,9 +533,13 @@ def run_extraction(graph_f, haplotypes_f):
     for line in open(graph_f, 'r'):
         if line[0] == "L":
             arr = get_ids(line)
-            if len(arr) == 0:
+            if len(arr) <= 1:
                 print(line)
                 exit()
+            if not (arr[0] in neighbours.keys()):
+                neighbours[arr[0]] = set()
+            if not (arr[1] in neighbours.keys()):
+                neighbours[arr[1]] = set()
             neighbours[arr[0]].add(arr[1])
             neighbours[arr[1]].add(arr[0])
             if not arr[0] in links:
@@ -540,14 +567,13 @@ def run_extraction(graph_f, haplotypes_f):
     graph = construct_graph(segments.keys(), segments, links)
 #    graph.print_to_dot("tst.dot", {})
     bulges = get_bulges(graph)
-    print_table(bulges, haplotypes, graph)
-    exit()
+#    print_table(bulges, haplotypes, graph)
     update_fixable_haplotypes(bulges, haplotypes)
-    assign_short_haplotypes(bulges, haplotypes, graph)
+    assign_ambiguous_haplotypes(bulges, haplotypes, graph)
     removed = 0
     for f in haplotypes.keys():
         #TODO parameter
-        if haplotypes[f] == "p":
+        if haplotypes[f].haplotype == "p":
             graph.remove_edge_gfa_id(int(f))
             removed +=1
     print (f'Removed {removed} paternal edges')
