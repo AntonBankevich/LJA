@@ -37,6 +37,11 @@ class Vertex:
                 return True
         return False
 
+    def indegree(self):
+        return len(self.incoming)
+
+    def outdegree(self):
+        return len(self.outgoing)
 
 class Edge:
     def __init__(self, edge_id, start_vertex, end_vertex, seq):
@@ -169,6 +174,62 @@ class Graph:
                 out_f.write(self.edges[e].seq + '\n')
                 used.add(self.edges[e].get_external_id())
 
+    def print_to_gfa(self, outfile):
+        labels = {}
+        canonic = {}
+        out_f = open(outfile, 'w')
+
+        for e in self.edges.keys():
+            if not(e in labels):
+                dirty_label = self.edges[e].label.replace("+", "P").replace("-", "M")
+                out_f.write(f'S\t{dirty_label}\t{self.edges[e].seq}\n')
+                labels[e] = dirty_label
+                canonic[e] = True
+                labels[self.edges[e].get_rc_id()] = dirty_label
+                canonic[self.edges[e].get_rc_id()] = False
+        for vid in self.vertices.keys():
+            if self.vertices[vid].rc_id < vid:
+                continue
+            for eid in self.vertices[vid].incoming:
+                inc_label = "+"
+                if canonic[eid] == False:
+                    inc_label = "-"
+                for out_eid in self.vertices[vid].outgoing:
+                    out_label = "+"
+                    if canonic[out_eid] == False:
+                        out_label = "-"
+                    out_f.write(f'L\t{labels[eid]}\t{inc_label}\t{labels[out_eid]}\t{out_label}\t{self.vertices[vid].k}M\n')
+
+    def primitive_clean(self):
+        changed = True
+        max_deletion_length = 1000000
+        tips = 0
+        bulges = 0
+        while changed:
+            changed = False
+            eids = list(self.edges.keys())
+            for eid in eids:
+                if not(eid in self.edges.keys()):
+                    continue
+                v_start_id = self.edges[eid].start_vertex
+                v_start = self.vertices[v_start_id]
+                if v_start.outdegree() == 2:
+                    tid = v_start.outgoing[0]
+                    bid = v_start.outgoing[1]
+                    if self.edges[tid].end_vertex == self.edges[bid].end_vertex and self.edges[tid].get_external_id()!= self.edges[bid].get_external_id():
+                        self.remove_edge_gfa_id(self.edges[tid].get_external_id())
+                        changed = True
+                        bulges += 1
+                if v_start.indegree() == 0 and v_start.outdegree() == 1:
+                    v_end_id = self.edges[eid].end_vertex
+                    v_end = self.vertices[v_end_id]
+                    eid = v_start.outgoing[0]
+                    if v_end.indegree() >= 2 and v_end.outdegree() >= 1 and self.edges[eid].length() < max_deletion_length:
+                        self.remove_edge_gfa_id(self.edges[eid].get_external_id())
+                        changed = True
+                        tips += 1
+        print (f'Removed {tips} tips and {bulges} bulges in primitive simplification')
+
     def print_to_dot(self, outfile, colors):
         dot_graph = nx.MultiDiGraph()
         vertices_to_dot = {}
@@ -183,7 +244,7 @@ class Graph:
             dot_graph.add_edge(self.edges[eid].start_vertex, self.edges[eid].end_vertex, label=self.edges[eid].label, color=e_color)
         pos = nx.nx_agraph.graphviz_layout(dot_graph)
         nx.draw(dot_graph, pos=pos)
-#        nx.draw(dot_graph)
+        nx.draw(dot_graph)
         nx.drawing.nx_agraph.write_dot(dot_graph, outfile)
 
 
@@ -565,6 +626,8 @@ def run_extraction(graph_f, haplotypes_f):
     print("Constructing graph...")
 
     graph = construct_graph(segments.keys(), segments, links)
+    graph.print_to_gfa("check.gfa")
+#    graph.print_to_dot("tst.dot", {})
 #    graph.print_to_dot("tst.dot", {})
     bulges = get_bulges(graph)
 #    print_table(bulges, haplotypes, graph)
@@ -573,12 +636,16 @@ def run_extraction(graph_f, haplotypes_f):
     removed = 0
     for f in haplotypes.keys():
         #TODO parameter
-        if haplotypes[f].haplotype == "p":
+        if haplotypes[f].haplotype == "m":
             graph.remove_edge_gfa_id(int(f))
             removed +=1
     print (f'Removed {removed} paternal edges')
     graph.print_to_fasta("maternal.fasta")
+    graph.print_to_gfa("maternal.gfa")
 
+    graph.primitive_clean()
+    graph.print_to_fasta("additional_cleaning.fasta")
+    graph.print_to_gfa("additional_cleaning.gfa")
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print(f'Script for gfa compression after removal of one haplotype')
