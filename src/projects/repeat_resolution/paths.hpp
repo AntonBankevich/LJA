@@ -2,7 +2,9 @@
 // Created by Andrey Bzikadze on 11/09/21.
 //
 
-#include "rr_graph.hpp"
+#pragma once
+
+#include "multiplex_dbg_topology.hpp"
 #include <cctype>
 #include <dbg/graph_alignment_storage.hpp>
 #include <list>
@@ -75,6 +77,12 @@ public:
     assert_validity();
   }
 
+  RRPaths() = default;
+  RRPaths(const RRPaths &) = delete;
+  RRPaths(RRPaths &&) = default;
+  RRPaths &operator=(const RRPaths &) = delete;
+  RRPaths &operator=(RRPaths &&) = default;
+
   void add(EdgeIndexType left_index, EdgeIndexType right_index,
            EdgeIndexType new_index);
 
@@ -122,6 +130,19 @@ public:
       }
     }
     return FromPathVector(std::move(paths));
+  }
+
+  static RRPaths FromDBGStorages(dbg::SparseDBG &dbg,
+                                 const std::vector<RecordStorage *> &storages) {
+    std::unordered_map<std::string, size_t> edgeid2ind;
+    size_t i = 0;
+    for (auto it = dbg.edges().begin(); it != dbg.edges().end(); ++it) {
+      const Edge &edge = *it;
+      // TODO use it - dbg.edges.begin()
+      edgeid2ind[edge.getId()] = i;
+      ++i;
+    }
+    return PathsBuilder::FromStorages(storages, edgeid2ind);
   }
 };
 

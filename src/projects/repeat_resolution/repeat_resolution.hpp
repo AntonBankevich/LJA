@@ -6,63 +6,55 @@
 
 #include "../dbg/graph_alignment_storage.hpp"
 #include "../dbg/sparse_dbg.hpp"
-#include "rr_graph.hpp"
+#include "multiplex_dbg.hpp"
+#include "paths.hpp"
 #include <graphlite/serialize.hpp>
 #include <vector>
-#include "paths.hpp"
 
 namespace repeat_resolution {
 
 class RepeatResolver {
   dbg::SparseDBG &dbg;
-  std::vector<RecordStorage *> storages;
+  RecordStorage *reads_storage;
+  std::vector<RecordStorage *> extra_storages;
+  std::uint64_t start_k{1};
   std::experimental::filesystem::path dir;
-  bool debug;
+  uint64_t unique_threshold;
+  bool diploid{false};
+  bool debug{false};
 
-  [[nodiscard]] std::vector<const Sequence *> get_edgeid2seq() const {
-    std::vector<const Sequence *> edgeid2seq;
-    for (const Edge &edge : dbg.edges()) {
-      edgeid2seq.emplace_back(&edge.seq);
-    }
-    return edgeid2seq;
-  }
-
-  [[nodiscard]] std::unordered_map<std::string, size_t> get_edgeid2ind() const {
-    std::unordered_map<std::string, size_t> edgeid2ind;
-    size_t i = 0;
-    for (auto it = dbg.edges().begin(); it != dbg.edges().end(); ++it) {
-      const Edge& edge = *it;
-      // TODO use it - dbg.edges.begin()
-      edgeid2ind[edge.getId()] = i;
-      ++i;
-    }
-    return edgeid2ind;
+  [[nodiscard]] std::vector<RecordStorage *> get_storages() const {
+    std::vector<RecordStorage *> storages = extra_storages;
+    storages.push_back(reads_storage);
+    return storages;
   }
 
 public:
-  RepeatResolver(dbg::SparseDBG &dbg, std::vector<RecordStorage *> storages,
-                 std::experimental::filesystem::path dir, bool debug)
-      : dbg{dbg}, storages{std::move(storages)}, dir{std::move(dir)},
-        debug{debug} {
+  RepeatResolver(dbg::SparseDBG &dbg, RecordStorage *reads_storage,
+                 std::vector<RecordStorage *> extra_storages, uint64_t start_k,
+                 std::experimental::filesystem::path dir,
+                 uint64_t unique_threshold, bool diploid, bool debug)
+      : dbg{dbg}, reads_storage{reads_storage}, extra_storages{std::move(
+                                                    extra_storages)},
+        start_k{start_k}, dir{std::move(dir)},
+        unique_threshold{unique_threshold}, diploid{diploid}, debug{debug} {
     std::experimental::filesystem::create_directory(this->dir);
   }
 
   void resolve_repeats(logging::Logger &logger) {
     logger.info() << "Resolving repeats" << std::endl;
-    for (RecordStorage *const storage : storages) {
-      std::cout << "!\n";
+    for (RecordStorage *const storage : get_storages()) {
       storage->invalidateSubreads(logger, 1);
     }
-    for (RecordStorage *const storage : storages) {
-      std::cout << storage->size() << std::endl;
-    }
-    const std::unordered_map<std::string, size_t> edgeid2ind = get_edgeid2ind();
-    RRPaths rrpaths = PathsBuilder::FromStorages(storages, edgeid2ind);
-    // std::vector<const Sequence*> edge2seq { get_edgeid2seq() };
-          // RRGraph rr_graph { dbg };
-          // rr_graph.serialize_to_dot(dir / "init_graph.dot");
-          // rr_graph.resolve_graph();
-          // rr_graph.serialize_to_dot(dir / "resolved_graph.dot");
+    RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
+
+    UniqueClassificator classificator(dbg, *reads_storage, diploid, debug);
+    classificator.classify(logger, unique_threshold, dir/"mult_dir");
+    MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator, debug, dir,
+                      logger);
+    mdbg.serialize_to_dot(dir / "init_graph.dot");
+    // rr_graph.resolve_graph();
+    // rr_graph.serialize_to_dot(dir / "resolved_graph.dot");
   }
 };
 
