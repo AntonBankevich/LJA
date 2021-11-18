@@ -118,13 +118,15 @@ class Graph:
     def IsBridge(self, eid):
         start_vid = self.edges[eid].start_vertex
         end_vid = self.edges[eid].end_vertex
-        bridge = self.IsTip(eid)
+        bridge = not self.IsTip(eid)
         for alt in self.vertices[start_vid].outgoing:
-            if alt != eid or not self.IsTip(alt):
+            if alt != eid and not self.IsTip(alt):
                 bridge = False
+
         for alt in self.vertices[end_vid].incoming:
-            if alt != eid or not self.IsTip(alt):
+            if alt != eid and not self.IsTip(alt):
                 bridge = False
+
         return bridge
 
     def AddEdge(self, start_vertex, end_vertex, new_seq, new_label):
@@ -547,6 +549,7 @@ def remove_haplotype(haplotypes, graph, to_remove):
             if eid not in graph.edges:
                 continue
             f = graph.edges[eid].get_external_id()
+
             if f in haplotypes:
                 if haplotypes[f].haplotype == to_remove:
                     if graph.IsBridge(eid):
