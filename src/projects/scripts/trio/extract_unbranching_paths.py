@@ -106,6 +106,27 @@ class Graph:
     def outdegree(self, vid):
         return len(self.vertices[vid].outgoing)
 
+    def IsTip(self, eid):
+        start_vid = self.edges[eid].start_vertex
+        end_vid = self.edges[eid].end_vertex
+        if self.indegree(start_vid) == 0 or self.outdegree(end_vid) == 0:
+            return True
+        else:
+            return False
+
+    #simplified check, works only for trivial cases
+    def IsBridge(self, eid):
+        start_vid = self.edges[eid].start_vertex
+        end_vid = self.edges[eid].end_vertex
+        bridge = self.IsTip(eid)
+        for alt in self.vertices[start_vid].outgoing:
+            if alt != eid or not self.IsTip(alt):
+                bridge = False
+        for alt in self.vertices[end_vid].incoming:
+            if alt != eid or not self.IsTip(alt):
+                bridge = False
+        return bridge
+
     def AddEdge(self, start_vertex, end_vertex, new_seq, new_label):
         eid = self.edge_next_id
         self.edges[eid] = Edge(eid, start_vertex, end_vertex, new_seq)
@@ -220,7 +241,7 @@ class Graph:
                         self.remove_edge_gfa_id(self.edges[tid].get_external_id())
                         changed = True
                         bulges += 1
-                if v_start.indegree() == 0 and v_start.outdegree() == 1:
+                elif v_start.indegree() == 0 and v_start.outdegree() == 1:
                     v_end_id = self.edges[eid].end_vertex
                     v_end = self.vertices[v_end_id]
                     eid = v_start.outgoing[0]
@@ -515,7 +536,30 @@ def assign_ambiguous_haplotypes(bulges, haplotypes, graph):
 
     print (f'Updated {count} unfixable short bulges')
 
+def remove_haplotype(haplotypes, graph, to_remove):
+    removed = 0
+    bridges = 0
+    changed = True
 
+    while changed:
+        changed = False
+        for eid in list(graph.edges):
+            if eid not in graph.edges:
+                continue
+            f = graph.edges[eid].get_external_id()
+            if f in haplotypes:
+                if haplotypes[f].haplotype == to_remove:
+                    if graph.IsBridge(eid):
+                        bridges += 1
+                        print(f'Bridge {eid}')
+                        continue
+                    graph.remove_edge_gfa_id(f)
+                    removed += 1
+                    changed = True
+    print (f'Skipped {bridges} bridges')
+    print (f'Removed {removed} paternal edges')
+
+    return removed
 
 def get_start_end_vertex(edge_component, segments, edges_to_id):
     max_l = 0
@@ -633,13 +677,16 @@ def run_extraction(graph_f, haplotypes_f):
 #    print_table(bulges, haplotypes, graph)
     update_fixable_haplotypes(bulges, haplotypes)
     assign_ambiguous_haplotypes(bulges, haplotypes, graph)
+    remove_haplotype(haplotypes,graph,"m")
+    '''
     removed = 0
     for f in haplotypes.keys():
         #TODO parameter
         if haplotypes[f].haplotype == "m":
             graph.remove_edge_gfa_id(int(f))
-            removed +=1
+            removed += 1
     print (f'Removed {removed} paternal edges')
+    '''
     graph.print_to_fasta("maternal.fasta")
     graph.print_to_gfa("maternal.gfa")
 
