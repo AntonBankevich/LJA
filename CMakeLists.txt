@@ -27,7 +27,7 @@ set(CMAKE_SHARED_LINKER_FLAGS "-Wall -Wc++-compat -O2 -msse4.1 -DHAVE_KALLOC -DK
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/tools)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/lib)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/projects)
-#add_subdirectory(src/tests)
+add_subdirectory(src/tests)
 add_subdirectory(src/tools)
 add_subdirectory(src/lib/spoa)
 add_subdirectory(src/lib/ksw2)

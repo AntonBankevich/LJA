@@ -67,8 +67,6 @@ class RRPaths {
   EdgeIndex2PosMap edge2pos;
   EdgeIndexPair2PosMap edgepair2pos;
 
-  void assert_validity() const;
-
 public:
   RRPaths(std::vector<RRPath> paths, EdgeIndex2PosMap edge2pos,
           EdgeIndexPair2PosMap edgepair2pos)
@@ -76,6 +74,12 @@ public:
         edgepair2pos{std::move(edgepair2pos)} {
     assert_validity();
   }
+
+  void assert_validity() const;
+
+  const std::vector<RRPath> &GetPaths() const;
+  const EdgeIndex2PosMap &GetEdge2Pos() const;
+  const EdgeIndexPair2PosMap &GetEdgepair2Pos() const;
 
   RRPaths() = default;
   RRPaths(const RRPaths &) = delete;
@@ -92,7 +96,7 @@ public:
 };
 
 class PathsBuilder {
-private:
+public:
   static RRPaths FromPathVector(std::vector<RRPath> path_vec) {
     EdgeIndex2PosMap edge2pos;
     EdgeIndexPair2PosMap edgepair2pos;
@@ -110,7 +114,6 @@ private:
     return {std::move(path_vec), std::move(edge2pos), std::move(edgepair2pos)};
   }
 
-public:
   static RRPaths
   FromStorages(const std::vector<RecordStorage *> &storages,
                const std::unordered_map<std::string, size_t> &edgeid2ind) {

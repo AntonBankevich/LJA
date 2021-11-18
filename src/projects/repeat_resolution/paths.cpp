@@ -137,3 +137,9 @@ void RRPaths::merge(EdgeIndexType left_index, EdgeIndexType right_index) {
   }
   remove(right_index);
 }
+
+const std::vector<RRPath> &RRPaths::GetPaths() const { return paths; }
+const EdgeIndex2PosMap &RRPaths::GetEdge2Pos() const { return edge2pos; }
+const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
+  return edgepair2pos;
+}

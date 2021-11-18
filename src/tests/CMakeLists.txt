@@ -7,5 +7,6 @@ add_subdirectory(googletest-master)
 set(gtest_SOURCE_DIR googletest-master/googletest)
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
-# add_executable(run_tests test_rr.cpp)
-target_link_libraries(run_tests gtest gtest_main common sequence repeat_resolution)
+include_directories(src/projects/repeat_resolution)
+add_executable(run_tests test_rr.cpp)
+target_link_libraries(run_tests gtest gtest_main repeat_resolution)
