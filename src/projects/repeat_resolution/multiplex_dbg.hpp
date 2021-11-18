@@ -22,6 +22,8 @@ class MultiplexDBG
           /*Container neighbors_container_spec=*/
           graph_lite::Container::MULTISET> {
   RRPaths *rr_paths;
+  uint64_t max_edge_index{0};
+  uint64_t max_vert_index{0};
 
   bool node_has_loop(const node_type &node) const {
     auto [begin, end] = in_neighbors(node);
@@ -34,19 +36,101 @@ class MultiplexDBG
     return false;
   }
 
+  void assert_validity() const {
+    uint64_t est_max_vert_index = [this]() {
+      uint64_t est_max_vert_index{0};
+      for (const auto &vertex : *this) {
+        est_max_vert_index = std::max(est_max_vert_index, vertex.index);
+      }
+      return est_max_vert_index;
+    }();
+    VERIFY(max_vert_index == 1 + est_max_vert_index);
+
+    uint64_t est_max_edge_index = [this]() {
+      uint64_t est_max_edge_index{0};
+      for (const auto &vertex : *this) {
+        auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+        for (auto it2 = out_nbr_begin; it2 != out_nbr_end; ++it2) {
+          est_max_edge_index =
+              std::max(est_max_edge_index, it2->second.prop().get_index());
+        }
+      }
+      return est_max_edge_index;
+    }();
+    VERIFY(max_edge_index == 1 + est_max_edge_index);
+
+    for (const auto &vertex : *this) {
+      VERIFY(count_in_neighbors(vertex) != 1 or
+             count_out_neighbors(vertex) != 1);
+      auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+      auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+      for (auto in_it = in_nbr_begin; in_it != in_nbr_end; ++in_it) {
+        for (auto out_it = out_nbr_begin; out_it != out_nbr_end; ++out_it) {
+          in_it->second.prop().assert_incidence(out_it->second.prop(),
+                                                vertex.len);
+        }
+      }
+    }
+  }
+
+  void move_edge(const RRVertexType &s1, NeighborsIterator e1_it,
+                 const RRVertexType &s2, const RRVertexType &e2) {
+    add_edge_with_prop(s2, e2, std::move(e1_it->second.prop()));
+    ConstIterator s1_it = find(s1);
+    remove_edge(s1_it, e1_it);
+  }
+
+  void smart_remove_edge(ConstIterator s1_it, NeighborsIterator e1_it,
+                         bool moving) {
+    const RREdgeProperty &edge_prop = e1_it->second.prop();
+    rr_paths->remove(edge_prop.get_index());
+
+    if (moving) {
+      auto [in_nbr_begin, in_nbr_end] = in_neighbors(e1_it->first);
+      for (auto in_nbr_it = in_nbr_begin; in_nbr_it != in_nbr_end;
+           ++in_nbr_it) {
+        move_edge(e1_it->first, in_nbr_it, in_nbr_it->first, *s1_it);
+      }
+
+      auto [out_nbr_begin, out_nbr_end] = out_neighbors(e1_it->first);
+      for (auto out_nbr_it = out_nbr_begin; out_nbr_it != out_nbr_end;
+           ++out_nbr_it) {
+        move_edge(e1_it->first, out_nbr_it, *s1_it, out_nbr_it->first);
+      }
+    }
+    remove_edge(s1_it, e1_it);
+  }
+
+  // void merge_edges()
+
 public:
+  // This constructor is for testing purposes
+  MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
+               const uint64_t start_k, RRPaths *const rr_paths)
+      : rr_paths{rr_paths} {
+    for (const SuccinctEdgeInfo &edge : edges) {
+      max_vert_index = std::max(max_vert_index, 1 + edge.start.index);
+      max_vert_index = std::max(max_vert_index, 1 + edge.end.index);
+      add_nodes(edge.start);
+      add_nodes(edge.end);
+      RREdgeProperty edge_property{ max_edge_index, edge.seq, edge.unique };
+      add_edge_with_prop(edge.start, edge.end, std::move(edge_property));
+      ++max_edge_index;
+    }
+    assert_validity();
+  }
+
   MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
                const uint64_t start_k, UniqueClassificator &classificator,
                bool debug, const std::experimental::filesystem::path &dir,
                logging::Logger &logger)
       : rr_paths{rr_paths} {
-    const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg]() {
-      uint64_t ind{0};
+    const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg, this]() {
       std::unordered_map<std::string, uint64_t> vert2ind;
       for (const Vertex &vertex : dbg.vertices()) {
         const std::string &id = vertex.getId();
-        vert2ind.emplace(id, ind);
-        ++ind;
+        vert2ind.emplace(id, max_vert_index);
+        ++max_vert_index;
       }
       return vert2ind;
     }();
@@ -67,10 +151,12 @@ public:
         return seq;
       }();
 
-      RREdgeProperty edge_property{std::move(seq),
+      RREdgeProperty edge_property{max_edge_index, std::move(seq),
                                    classificator.isUnique(edge)};
       add_edge_with_prop(start_vt, end_vt, std::move(edge_property));
+      ++max_edge_index;
     }
+    assert_validity();
   }
 
   void serialize_to_dot(const std::experimental::filesystem::path &path) const {

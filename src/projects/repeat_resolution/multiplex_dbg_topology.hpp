@@ -51,16 +51,37 @@ namespace repeat_resolution {
 using EdgeIndexType = uint64_t;
 
 class RREdgeProperty {
+  uint64_t index{0};
   std::list<char> seq;
   bool unique{false};
 
 public:
-  RREdgeProperty(std::list<char> seq, bool unique)
-      : seq{std::move(seq)}, unique{unique} {}
+  RREdgeProperty(const uint64_t index, std::list<char> seq, bool unique)
+      : index{index}, seq{std::move(seq)}, unique{unique} {}
 
   [[nodiscard]] uint64_t size() const { return seq.size(); }
 
   [[nodiscard]] bool is_unique() const { return unique; }
+
+  [[nodiscard]] uint64_t get_index() const { return index; }
+  [[nodiscard]] std::list<char> get_seq() const { return seq; }
+
+  void assert_incidence(const RREdgeProperty &rhs,
+                        const uint64_t overlap_len) const {
+    VERIFY(size() > overlap_len and rhs.size() > overlap_len);
+    auto it = [this, overlap_len]() {
+      auto rit = seq.rbegin();
+      for (uint64_t i = 0; i < overlap_len; ++i) {
+        ++rit;
+      }
+      return rit.base();
+    }();
+    auto it_rhs = rhs.seq.begin();
+    while (it != seq.end()) {
+      VERIFY(*it == *it_rhs);
+      ++it, ++it_rhs;
+    }
+  }
 
   void append(char c) { seq.push_back(c); }
   void prepend(char c) { seq.push_front(c); }
@@ -90,4 +111,21 @@ public:
 
 std::ostream &operator<<(std::ostream &os, const RREdgeProperty &edge_property);
 
+struct SuccinctEdgeInfo {
+  RRVertexType start;
+  RRVertexType end;
+  std::list<char> seq;
+  bool unique{false};
+};
+
+inline bool operator==(const SuccinctEdgeInfo &lhs,
+                       const SuccinctEdgeInfo &rhs) {
+  return lhs.start == rhs.start and lhs.end == rhs.end and
+         lhs.seq == rhs.seq and lhs.unique == rhs.unique;
+}
+
+inline bool operator!=(const SuccinctEdgeInfo &lhs,
+                       const SuccinctEdgeInfo &rhs) {
+  return !operator==(lhs, rhs);
+}
 } // End namespace repeat_resolution

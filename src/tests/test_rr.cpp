@@ -4,6 +4,7 @@
 
 #include "gtest/gtest.h"
 
+#include "repeat_resolution/multiplex_dbg.hpp"
 #include "repeat_resolution/paths.hpp"
 
 using namespace repeat_resolution;
@@ -162,5 +163,78 @@ TEST(RRPathsTest, Basic) {
       ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
       ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
     }
+  }
+}
+
+auto Str2List = [](const std::string &str) {
+  std::list<char> seq;
+  std::move(str.begin(), str.end(), std::back_inserter(seq));
+  return seq;
+};
+
+bool CompareVertexes(const MultiplexDBG &graph,
+                     const std::vector<SuccinctEdgeInfo> &edge_info) {
+  std::unordered_set<RRVertexType> obs_vertex_set;
+  for (const auto &vertex : graph) {
+    obs_vertex_set.emplace(vertex);
+  }
+
+  std::unordered_set<RRVertexType> true_vertex_set;
+  for (const SuccinctEdgeInfo &edge : edge_info) {
+    true_vertex_set.emplace(edge.start);
+    true_vertex_set.emplace(edge.end);
+  }
+  return obs_vertex_set == true_vertex_set;
+}
+
+bool CompareEdges(const MultiplexDBG &graph,
+                  const std::vector<SuccinctEdgeInfo> &edge_info) {
+  int cnt = 0;
+  for (const auto &vertex : graph) {
+    auto [nbr_begin, nbr_end] = graph.out_neighbors(vertex);
+    for (auto nbr_it = nbr_begin; nbr_it != nbr_end; ++nbr_it) {
+      const RREdgeProperty &edge_prop = nbr_it->second.prop();
+      SuccinctEdgeInfo edge{vertex, nbr_it->first, edge_prop.get_seq(),
+                            edge_prop.is_unique()};
+      if (std::find(edge_info.begin(), edge_info.end(), edge) ==
+          edge_info.end()) {
+        return false;
+      }
+      ++cnt;
+    }
+  }
+  return cnt == edge_info.size();
+}
+
+TEST(DB1, Basic) {
+  const size_t k = 2;
+
+  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+    const bool frozen = false;
+    const bool unique = false;
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 2, "CCT"},  {1, 2, "GACT"}, {2, 3, "CTAG"},
+        {3, 4, "AGTT"}, {3, 5, "AGC"},  {2, 4, "CTT"}};
+    std::vector<SuccinctEdgeInfo> edge_info;
+    for (const auto &[st, en, str] : raw_edge_info) {
+      edge_info.push_back(
+          {{st, k, frozen}, {en, k, frozen}, Str2List(str), unique});
+    }
+    return edge_info;
+  }();
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+    _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 2}});
+    _path_vector.emplace_back(RRPath{"1", std::list<size_t>{0, 5}});
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+
+  {
+    ASSERT_TRUE(CompareVertexes(mdbg, edge_info));
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }

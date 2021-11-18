@@ -6,6 +6,7 @@
 
 #include "../dbg/graph_alignment_storage.hpp"
 #include "../dbg/sparse_dbg.hpp"
+#include "../error_correction/multiplicity_estimation.hpp"
 #include "multiplex_dbg.hpp"
 #include "paths.hpp"
 #include <graphlite/serialize.hpp>
