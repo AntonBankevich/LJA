@@ -4,7 +4,7 @@ import os
 import random
 import logging
 from Bio.Seq import Seq
-import networkx as nx
+#import networkx as nx
 inf = 1e8
 
 
