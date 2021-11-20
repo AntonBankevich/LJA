@@ -172,8 +172,15 @@ auto Str2List = [](const std::string &str) {
   return seq;
 };
 
+auto List2Str = [](const std::list<char> &list) {
+  std::string str;
+  std::move(list.begin(), list.end(), std::back_inserter(str));
+  return str;
+};
+
 bool CompareVertexes(const MultiplexDBG &graph,
-                     const std::vector<SuccinctEdgeInfo> &edge_info) {
+                     const std::vector<SuccinctEdgeInfo> &edge_info,
+                     const std::vector<RRVertexType> &isolates = {}) {
   std::unordered_set<RRVertexType> obs_vertex_set;
   for (const auto &vertex : graph) {
     obs_vertex_set.emplace(vertex);
@@ -181,8 +188,11 @@ bool CompareVertexes(const MultiplexDBG &graph,
 
   std::unordered_set<RRVertexType> true_vertex_set;
   for (const SuccinctEdgeInfo &edge : edge_info) {
-    true_vertex_set.emplace(edge.start);
-    true_vertex_set.emplace(edge.end);
+    true_vertex_set.emplace(edge.start_ind);
+    true_vertex_set.emplace(edge.end_ind);
+  }
+  for (const RRVertexType &isolate : isolates) {
+    true_vertex_set.emplace(isolate);
   }
   return obs_vertex_set == true_vertex_set;
 }
@@ -194,10 +204,16 @@ bool CompareEdges(const MultiplexDBG &graph,
     auto [nbr_begin, nbr_end] = graph.out_neighbors(vertex);
     for (auto nbr_it = nbr_begin; nbr_it != nbr_end; ++nbr_it) {
       const RREdgeProperty &edge_prop = nbr_it->second.prop();
-      SuccinctEdgeInfo edge{vertex, nbr_it->first, edge_prop.get_seq(),
+      SuccinctEdgeInfo edge{vertex,
+                            graph.node_prop(vertex),
+                            nbr_it->first,
+                            graph.node_prop(nbr_it->first),
+                            edge_prop.get_seq(),
                             edge_prop.is_unique()};
       if (std::find(edge_info.begin(), edge_info.end(), edge) ==
           edge_info.end()) {
+        std::cout << edge.start_ind << " " << edge.end_ind << " "
+                  << List2Str(edge.seq) << "\n";
         return false;
       }
       ++cnt;
@@ -206,26 +222,37 @@ bool CompareEdges(const MultiplexDBG &graph,
   return cnt == edge_info.size();
 }
 
+using RawEdgeInfo = std::vector<std::tuple<uint64_t, uint64_t, std::string>>;
+std::vector<SuccinctEdgeInfo> GetEdgeInfo(const RawEdgeInfo &raw_edge_info,
+                                          size_t k, bool frozen, bool unique) {
+  std::vector<SuccinctEdgeInfo> edge_info;
+  for (const auto &[st, en, str] : raw_edge_info) {
+    edge_info.push_back(
+        {st, {k, frozen}, en, {k, frozen}, Str2List(str), unique});
+  }
+  return edge_info;
+}
+
 TEST(DB1, Basic) {
   const size_t k = 2;
 
   const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
     const bool frozen = false;
     const bool unique = false;
-    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {0, 2, "CCT"},  {1, 2, "GACT"}, {2, 3, "CTAG"},
-        {3, 4, "AGTT"}, {3, 5, "AGC"},  {2, 4, "CTT"}};
+    std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
+        raw_edge_info{{0, 2, "CCT"},  {1, 2, "GACT"}, {2, 3, "CTAG"},
+                      {3, 4, "AGTT"}, {3, 5, "AGC"},  {2, 4, "CTT"}};
     std::vector<SuccinctEdgeInfo> edge_info;
     for (const auto &[st, en, str] : raw_edge_info) {
       edge_info.push_back(
-          {{st, k, frozen}, {en, k, frozen}, Str2List(str), unique});
+          {st, {k, frozen}, en, {k, frozen}, Str2List(str), unique});
     }
     return edge_info;
   }();
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
-    _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 2}});
+    _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 2, 3}});
     _path_vector.emplace_back(RRPath{"1", std::list<size_t>{0, 5}});
 
     return PathsBuilder::FromPathVector(_path_vector);
@@ -235,6 +262,72 @@ TEST(DB1, Basic) {
 
   {
     ASSERT_TRUE(CompareVertexes(mdbg, edge_info));
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}
+
+TEST(DBStVertex, Basic) {
+  const size_t k = 2;
+
+  std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+      {0, 1, "AAAAA"}, {0, 2, "AAACA"}, {0, 3, "AAA"}};
+  const std::vector<SuccinctEdgeInfo> edge_info =
+      GetEdgeInfo(raw_edge_info, k, false, false);
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+  mdbg.inc();
+  // for (const RRVertexType &vertex : mdbg) {
+  //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+  //             << mdbg.count_out_neighbors(vertex) << " "
+  //             << mdbg.node_prop(vertex).len << "\n";
+  // }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {4, 1, "AAAAA"}, {5, 2, "AAACA"}};
+    const std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::vector<RRVertexType> isolates {6};
+
+    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}
+
+TEST(DBEvVertex, Basic) {
+  const size_t k = 2;
+
+  std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+      {0, 3, "AAAAA"}, {1, 3, "AAACA"}, {2, 3, "AAA"}};
+  const std::vector<SuccinctEdgeInfo> edge_info =
+      GetEdgeInfo(raw_edge_info, k, false, false);
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+  mdbg.inc();
+  for (const RRVertexType &vertex : mdbg) {
+    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+              << mdbg.count_out_neighbors(vertex) << " "
+              << mdbg.node_prop(vertex).len << "\n";
+  }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 4, "AAAAA"}, {1, 5, "AAACA"}};
+    const std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::vector<RRVertexType> isolates {2};
+
+    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }

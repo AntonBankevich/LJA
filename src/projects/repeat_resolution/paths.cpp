@@ -54,7 +54,9 @@ void RRPaths::add(EdgeIndexType left, EdgeIndexType right,
 }
 
 void RRPaths::remove(EdgeIndexType index) {
-  VERIFY(edge2pos.find({index}) != edge2pos.end());
+  if (edge2pos.find(index) == edge2pos.end()) {
+    return;
+  }
   for (const IteratorInPath &iter_in_path : edge2pos.at(index)) {
     RRPath *const &p_path = iter_in_path.p_path;
     const PathEdgeList::const_iterator &iter = iter_in_path.iter;

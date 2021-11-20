@@ -10,61 +10,34 @@
 #include <graphlite/serialize.hpp>
 
 namespace repeat_resolution {
-struct RRVertexType {
-  uint64_t index{0};
+using RRVertexType = uint64_t;
+
+struct RRVertexProperty {
   uint64_t len{0};
   bool frozen{false};
 };
 
-inline bool operator==(const RRVertexType &lhs, const RRVertexType &rhs) {
-  return lhs.index == rhs.index;
-}
-inline bool operator!=(const RRVertexType &lhs, const RRVertexType &rhs) {
-  return !operator==(lhs, rhs);
-}
-inline bool operator<(const RRVertexType &lhs, const RRVertexType &rhs) {
-  return lhs.index < rhs.index;
-}
-inline bool operator>(const RRVertexType &lhs, const RRVertexType &rhs) {
-  return operator<(rhs, lhs);
-}
-inline bool operator<=(const RRVertexType &lhs, const RRVertexType &rhs) {
-  return !operator>(lhs, rhs);
-}
-inline bool operator>=(const RRVertexType &lhs, const RRVertexType &rhs) {
-  return !operator<(lhs, rhs);
-}
+std::ostream &operator<<(std::ostream &os, const RRVertexProperty &vertex);
 
-std::ostream &operator<<(std::ostream &os, const RRVertexType &vertex);
-} // namespace repeat_resolution
-
-namespace std {
-template <> struct hash<repeat_resolution::RRVertexType> {
-  size_t operator()(const repeat_resolution::RRVertexType &s) const noexcept {
-    return hash<uint64_t>()(s.index);
-  }
-};
-} // End namespace std
-
-namespace repeat_resolution {
+bool operator==(const RRVertexProperty &lhs, const RRVertexProperty &rhs);
 
 using EdgeIndexType = uint64_t;
 
 class RREdgeProperty {
-  uint64_t index{0};
+  EdgeIndexType index{0};
   std::list<char> seq;
   bool unique{false};
 
 public:
-  RREdgeProperty(const uint64_t index, std::list<char> seq, bool unique)
+  RREdgeProperty(const EdgeIndexType index, std::list<char> seq, bool unique)
       : index{index}, seq{std::move(seq)}, unique{unique} {}
 
   [[nodiscard]] uint64_t size() const { return seq.size(); }
 
   [[nodiscard]] bool is_unique() const { return unique; }
 
-  [[nodiscard]] uint64_t get_index() const { return index; }
-  [[nodiscard]] std::list<char> get_seq() const { return seq; }
+  [[nodiscard]] EdgeIndexType get_index() const { return index; }
+  [[nodiscard]] const std::list<char> &get_seq() const { return seq; }
 
   void assert_incidence(const RREdgeProperty &rhs,
                         const uint64_t overlap_len) const {
@@ -109,18 +82,24 @@ public:
   }
 };
 
+RREdgeProperty add(const RREdgeProperty &lhs, const RREdgeProperty &rhs,
+                   uint64_t overlap_len, EdgeIndexType index);
+
 std::ostream &operator<<(std::ostream &os, const RREdgeProperty &edge_property);
 
 struct SuccinctEdgeInfo {
-  RRVertexType start;
-  RRVertexType end;
+  RRVertexType start_ind{0};
+  RRVertexProperty start_prop;
+  RRVertexType end_ind{0};
+  RRVertexProperty end_prop;
   std::list<char> seq;
   bool unique{false};
 };
 
 inline bool operator==(const SuccinctEdgeInfo &lhs,
                        const SuccinctEdgeInfo &rhs) {
-  return lhs.start == rhs.start and lhs.end == rhs.end and
+  return lhs.start_ind == rhs.start_ind and lhs.start_prop == rhs.start_prop and
+         lhs.end_ind == rhs.end_ind and lhs.end_prop == rhs.end_prop and
          lhs.seq == rhs.seq and lhs.unique == rhs.unique;
 }
 
