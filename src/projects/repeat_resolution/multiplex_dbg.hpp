@@ -82,27 +82,34 @@ class MultiplexDBG
     remove_edge(s1_it, e1_it);
   }
 
-  void smart_remove_edge(ConstIterator s_it, NeighborsIterator e_it,
-                         bool moving) {
+  void collapse_edge(ConstIterator s_it, NeighborsIterator e_it) {
+    RRVertexType s = *s_it;
+    RRVertexType e = e_it->first;
+    VERIFY(s != e);
+    VERIFY(count_out_neighbors(s_it) == 1);
+    VERIFY(count_in_neighbors(e_it->first) == 1);
+
     const RREdgeProperty &edge_prop = e_it->second.prop();
     rr_paths->remove(edge_prop.get_index());
 
     remove_edge(s_it, e_it);
-    if (moving) {
-      auto [in_nbr_begin, in_nbr_end] = in_neighbors(e_it->first);
-      for (auto in_nbr_it = in_nbr_begin; in_nbr_it != in_nbr_end;
-           ++in_nbr_it) {
-        move_edge(e_it->first, in_nbr_it, in_nbr_it->first, *s_it);
-      }
 
-      auto [out_nbr_begin, out_nbr_end] = out_neighbors(e_it->first);
-      for (auto out_nbr_it = out_nbr_begin; out_nbr_it != out_nbr_end;
-           ++out_nbr_it) {
-        move_edge(e_it->first, out_nbr_it, *s_it, out_nbr_it->first);
-      }
+    // auto [in_nbr_begin, in_nbr_end] = in_neighbors(e_it->first);
+    // for (auto in_nbr_it = in_nbr_begin; in_nbr_it != in_nbr_end;
+    //      ++in_nbr_it) {
+    //   move_edge(e_it->first, in_nbr_it, in_nbr_it->first, *s_it);
+    // }
+
+    auto [out_nbr_begin, out_nbr_end] = out_neighbors(e);
+    for (auto out_nbr_it = out_nbr_begin; out_nbr_it != out_nbr_end;
+         ++out_nbr_it) {
+      move_edge(e, out_nbr_it, s, out_nbr_it->first);
     }
+    VERIFY(count_in_neighbors(e) == 0 and count_out_neighbors(e) == 0);
+    remove_nodes(e);
   }
 
+  /*
   void merge_edges(ConstIterator s1_it, NeighborsIterator e1_it,
                    ConstIterator s2_it, NeighborsIterator e2_it) {
     VERIFY_MSG(e1_it->first == *s2_it, "Can only merge adjacent edges");
@@ -131,6 +138,7 @@ class MultiplexDBG
                   e_new_prop.get_index());
     add_edge_with_prop(e1_it->first, *s2_it, std::move(e_new_prop));
   }
+   */
 
   [[nodiscard]] bool is_frozen() const {
     return std::all_of(begin(), end(), [this](const RRVertexType &v) {
@@ -184,10 +192,24 @@ class MultiplexDBG
       remove_nodes(vertex); // careful: Iterator is invalidated
 
     } else if (indegree == 1 and outdegree > 1) {
-      // TODO
+      auto in_nbr_begin = in_neighbors(vertex).first;
+      RREdgeProperty &in_edge = in_nbr_begin->second.prop();
+      auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+      for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
+        RREdgeProperty &out_edge = it->second.prop();
+        out_edge.prepend(in_edge, v_prop.len);
+      }
+      ++v_prop.len;
 
     } else if (indegree > 1 and outdegree == 1) {
-      // TODO
+      auto out_nbr_begin = out_neighbors(vertex).first;
+      RREdgeProperty &out_edge = out_nbr_begin->second.prop();
+      auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+      for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
+        RREdgeProperty &in_edge = it->second.prop();
+        in_edge.append(out_edge, v_prop.len);
+      }
+      ++v_prop.len;
     }
   }
 
@@ -204,7 +226,7 @@ class MultiplexDBG
     }
   }
 
-  void finalize_transformation() {
+  void collapse_edges_into_vertices() {
     for (const RRVertexType &v1 : *this) {
       const RRVertexProperty &v1p = node_prop(v1);
       auto [out_it_begin, out_it_end] = out_neighbors(v1);
@@ -216,10 +238,7 @@ class MultiplexDBG
             v2p.len == edge_property.size()) {
           VERIFY(v1p.len == v2p.len);
           VERIFY(not v1p.frozen and not v2p.frozen);
-          smart_remove_edge(find(v1), it, true);
-          if (count_in_neighbors(v2) + count_out_neighbors(v2) == 0) {
-            remove_nodes(v2);
-          }
+          collapse_edge(find(v1), it);
         }
       }
     }
@@ -302,7 +321,7 @@ public:
     for (const auto &vertex : vertexes) {
       process_vertex(vertex);
     }
-    finalize_transformation();
+    collapse_edges_into_vertices();
     assert_validity();
     ++niter;
   }
