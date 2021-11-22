@@ -86,7 +86,7 @@ public:
     for (size_t i = 0; i < overlap_len; ++i) {
       rhs.seq.pop_front();
     }
-    seq.splice(seq.end(), rhs.seq);
+    seq.splice(seq.end(), std::move(rhs.seq));
     if (rhs.unique) {
       unique = true;
     }

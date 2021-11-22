@@ -215,8 +215,6 @@ class MultiplexDBG
 
   void process_complex_vertex(const RRVertexType &vertex, const int indegree,
                               const int outdegree) {
-    auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
-    auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
     const RRVertexProperty &v_prop = node_prop(vertex);
 
     /*
@@ -235,54 +233,58 @@ class MultiplexDBG
     }
     */
 
-    std::unordered_map<const RREdgeProperty *,
-                       std::unordered_set<const RREdgeProperty *>>
-        ac_s2e, ac_e2s;
-    for (auto in_it = in_nbr_begin; in_it != in_nbr_end; ++in_it) {
-      for (auto out_it = out_nbr_begin; out_it != out_nbr_end; ++out_it) {
-        const RREdgeProperty &in_prop = in_it->second.prop();
-        const RREdgeProperty &out_prop = out_it->second.prop();
-        if (rr_paths->contains_pair(in_prop.get_index(),
-                                    out_prop.get_index())) {
-          ac_s2e[&in_prop].emplace(&out_prop);
-          ac_e2s[&out_prop].emplace(&in_prop);
+    auto [ac_s2e, ac_e2s] = [this, &vertex]() {
+      std::unordered_map<EdgeIndexType, std::unordered_set<EdgeIndexType>>
+          ac_s2e, ac_e2s;
+      auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+      auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+      for (auto in_it = in_nbr_begin; in_it != in_nbr_end; ++in_it) {
+        for (auto out_it = out_nbr_begin; out_it != out_nbr_end; ++out_it) {
+          const EdgeIndexType &in_ind = in_it->second.prop().get_index();
+          const EdgeIndexType &out_ind = out_it->second.prop().get_index();
+          if (rr_paths->contains_pair(in_ind, out_ind)) {
+            ac_s2e[in_ind].emplace(out_ind);
+            ac_e2s[out_ind].emplace(in_ind);
+          }
         }
       }
-    }
+      return std::make_pair(ac_s2e, ac_e2s);
+    }();
 
-    std::unordered_map<const RREdgeProperty *, const RREdgeProperty *>
-        where_edge_merged;
-    auto FindMergeEdgeId =
-        [&where_edge_merged](const RREdgeProperty *edge_prop_) {
-          const RREdgeProperty *edge_prop{edge_prop_};
-          while (where_edge_merged.find(edge_prop) != where_edge_merged.end()) {
-            edge_prop = where_edge_merged.at(edge_prop);
-          }
-          return edge_prop;
-        };
+    std::unordered_map<EdgeIndexType, EdgeIndexType> where_edge_merged;
+    auto FindMergeEdgeId = [&where_edge_merged](const EdgeIndexType edge_ind_) {
+      EdgeIndexType edge_ind{edge_ind_};
+      while (where_edge_merged.find(edge_ind) != where_edge_merged.end()) {
+        edge_ind = where_edge_merged.at(edge_ind);
+      }
+      return edge_ind;
+    };
 
     for (const auto &[edge1_, edge1_neighbors] : ac_s2e) {
-      const RREdgeProperty *edge1 = FindMergeEdgeId(edge1_);
-
-      auto incoming_it = in_nbr_begin;
-      while (incoming_it->second.prop() != *edge1_) {
-        ++incoming_it;
-      }
-      auto e1_it = [this, &incoming_it, &vertex]() {
-        auto e1_it = out_neighbors(incoming_it->first).first;
-        while (e1_it->first != vertex) {
-          ++e1_it;
-        }
-        return e1_it;
-      }();
+      const EdgeIndexType edge1 = FindMergeEdgeId(edge1_);
 
       for (const auto &edge2_ : edge1_neighbors) {
-        const RREdgeProperty *edge2 = FindMergeEdgeId(edge2_);
-        const std::unordered_set<const RREdgeProperty *> &edge2_neighbors =
+        auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+
+        auto incoming_it = in_nbr_begin;
+        while (incoming_it->second.prop().get_index() != edge1) {
+          ++incoming_it;
+        }
+        auto e1_it = [this, &incoming_it, &vertex]() {
+          auto e1_it = out_neighbors(incoming_it->first).first;
+          while (e1_it->first != vertex) {
+            ++e1_it;
+          }
+          return e1_it;
+        }();
+
+        const EdgeIndexType edge2 = FindMergeEdgeId(edge2_);
+        const std::unordered_set<EdgeIndexType> &edge2_neighbors =
             ac_e2s[edge2];
 
+        auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
         auto e2_it = out_nbr_begin;
-        while (e2_it->second.prop() != *edge2_) {
+        while (e2_it->second.prop().get_index() != edge2) {
           ++e2_it;
         }
 
