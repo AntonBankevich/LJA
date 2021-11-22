@@ -233,7 +233,6 @@ std::vector<SuccinctEdgeInfo> GetEdgeInfo(const RawEdgeInfo &raw_edge_info,
   return edge_info;
 }
 
-/*
 TEST(DB1, Basic) {
   const size_t k = 2;
 
@@ -626,7 +625,6 @@ TEST(DBComplexVertexLoop3, Basic) {
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }
-*/
 
 // graph with a complex vertex (multiple loops)
 TEST(DBComplexVertexLoop4, Basic) {
