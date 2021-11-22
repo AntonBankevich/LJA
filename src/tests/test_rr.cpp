@@ -233,6 +233,7 @@ std::vector<SuccinctEdgeInfo> GetEdgeInfo(const RawEdgeInfo &raw_edge_info,
   return edge_info;
 }
 
+/*
 TEST(DB1, Basic) {
   const size_t k = 2;
 
@@ -616,6 +617,48 @@ TEST(DBComplexVertexLoop3, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "ACAAAGAATGC"}, {4, 5, "GGAAATG"}};
+    const std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::vector<RRVertexType> isolates{};
+
+    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}
+*/
+
+// graph with a complex vertex (multiple loops)
+TEST(DBComplexVertexLoop4, Basic) {
+  const size_t k = 2;
+
+  std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+      {0, 1, "ACAAA"},
+      {1, 1, "AAGAA"},
+      {1, 1, "AACAA"},
+      {1, 1, "AATAA"},
+      {1, 1, "AAAAA"},
+      {1, 2, "AATGC"}};
+  const std::vector<SuccinctEdgeInfo> edge_info =
+      GetEdgeInfo(raw_edge_info, k, false, false);
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+    _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 1, 2, 3, 4, 5}});
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+  mdbg.inc();
+  for (const RRVertexType &vertex : mdbg) {
+    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+              << mdbg.count_out_neighbors(vertex) << " "
+              << mdbg.node_prop(vertex).len << "\n";
+  }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 2, "ACAAAGAACAATAAAAATGC"}};
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 

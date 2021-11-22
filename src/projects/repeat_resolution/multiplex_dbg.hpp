@@ -261,18 +261,17 @@ class MultiplexDBG
     };
 
     for (const auto &[edge1_, edge1_neighbors] : ac_s2e) {
-      const EdgeIndexType edge1 = FindMergeEdgeId(edge1_);
-
       for (const auto &edge2_ : edge1_neighbors) {
+        const EdgeIndexType edge1 = FindMergeEdgeId(edge1_);
         auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
 
         auto incoming_it = in_nbr_begin;
         while (incoming_it->second.prop().get_index() != edge1) {
           ++incoming_it;
         }
-        auto e1_it = [this, &incoming_it, &vertex]() {
+        auto e1_it = [this, &incoming_it, &edge1]() {
           auto e1_it = out_neighbors(incoming_it->first).first;
-          while (e1_it->first != vertex) {
+          while (e1_it->second.prop().get_index() != edge1) {
             ++e1_it;
           }
           return e1_it;
