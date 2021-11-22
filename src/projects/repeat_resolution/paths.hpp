@@ -93,6 +93,9 @@ public:
   void remove(EdgeIndexType index);
 
   void merge(EdgeIndexType left_index, EdgeIndexType right_index);
+
+  [[nodiscard]] bool contains_pair(const EdgeIndexType &lhs,
+                                   const EdgeIndexType &rhs) const;
 };
 
 class PathsBuilder {

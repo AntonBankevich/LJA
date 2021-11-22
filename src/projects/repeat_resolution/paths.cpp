@@ -145,3 +145,8 @@ const EdgeIndex2PosMap &RRPaths::GetEdge2Pos() const { return edge2pos; }
 const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
   return edgepair2pos;
 }
+
+[[nodiscard]] bool RRPaths::contains_pair(const EdgeIndexType &lhs,
+                                          const EdgeIndexType &rhs) const {
+  return edgepair2pos.find(std::make_pair(lhs, rhs)) != edgepair2pos.end();
+}

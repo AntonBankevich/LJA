@@ -93,8 +93,12 @@ public:
   }
 };
 
+bool operator==(const RREdgeProperty &lhs, const RREdgeProperty &rhs);
+bool operator!=(const RREdgeProperty &lhs, const RREdgeProperty &rhs);
+
 RREdgeProperty add(const RREdgeProperty &lhs, const RREdgeProperty &rhs,
                    uint64_t overlap_len, EdgeIndexType index);
+
 
 std::ostream &operator<<(std::ostream &os, const RREdgeProperty &edge_property);
 

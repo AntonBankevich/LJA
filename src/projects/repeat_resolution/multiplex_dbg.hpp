@@ -82,6 +82,37 @@ class MultiplexDBG
     remove_edge(s1_it, e1_it);
   }
 
+  void merge_edges(ConstIterator s1_it, NeighborsIterator e1_it,
+                   ConstIterator s2_it, NeighborsIterator e2_it) {
+    VERIFY_MSG(e1_it->first == *s2_it, "Can only merge adjacent edges");
+    VERIFY_MSG(not node_prop(s2_it).frozen,
+               "Cannot merge edges via a frozen vertex");
+    const uint64_t overlap_len = node_prop(s2_it).len;
+    RREdgeProperty &e1_prop = e1_it->second.prop();
+    RREdgeProperty &e2_prop = e2_it->second.prop();
+    rr_paths->merge(e1_prop.get_index(), e2_prop.get_index());
+    e1_prop.merge(std::move(e2_prop), overlap_len);
+    move_edge(*s1_it, e1_it, *s1_it, e2_it->first);
+    remove_edge(s2_it, e2_it);
+  }
+
+  /*
+  void smart_add_edge(ConstIterator s1_it, NeighborsIterator e1_it,
+                      ConstIterator s2_it, NeighborsIterator e2_it) {
+    VERIFY_MSG(e1_it->first != *s2_it,
+               "Can only add edge b/w disconnected edges");
+    const uint64_t overlap_len = node_prop(s2_it).len;
+    RREdgeProperty &e1_prop = e1_it->second.prop();
+    RREdgeProperty &e2_prop = e2_it->second.prop();
+    RREdgeProperty e_new_prop =
+        add(e1_prop, e2_prop, overlap_len, max_edge_index);
+    ++max_edge_index;
+    rr_paths->add(e1_prop.get_index(), e2_prop.get_index(),
+                  e_new_prop.get_index());
+    add_edge_with_prop(e1_it->first, *s2_it, std::move(e_new_prop));
+  }
+   */
+
   void collapse_edge(ConstIterator s_it, NeighborsIterator e_it) {
     RRVertexType s = *s_it;
     RRVertexType e = e_it->first;
@@ -108,37 +139,6 @@ class MultiplexDBG
     VERIFY(count_in_neighbors(e) == 0 and count_out_neighbors(e) == 0);
     remove_nodes(e);
   }
-
-  /*
-  void merge_edges(ConstIterator s1_it, NeighborsIterator e1_it,
-                   ConstIterator s2_it, NeighborsIterator e2_it) {
-    VERIFY_MSG(e1_it->first == *s2_it, "Can only merge adjacent edges");
-    VERIFY_MSG(not node_prop(s2_it).frozen,
-               "Cannot merge edges via a frozen vertex");
-    const uint64_t overlap_len = node_prop(s2_it).len;
-    RREdgeProperty &e1_prop = e1_it->second.prop();
-    RREdgeProperty &e2_prop = e2_it->second.prop();
-    rr_paths->merge(e1_prop.get_index(), e2_prop.get_index());
-    e1_prop.merge(std::move(e2_prop), overlap_len);
-    move_edge(*s1_it, e1_it, *s1_it, e2_it->first);
-    smart_remove_edge(s2_it, e2_it, false);
-  }
-
-  void smart_add_edge(ConstIterator s1_it, NeighborsIterator e1_it,
-                      ConstIterator s2_it, NeighborsIterator e2_it) {
-    VERIFY_MSG(e1_it->first != *s2_it,
-               "Can only add edge b/w disconnected edges");
-    const uint64_t overlap_len = node_prop(s2_it).len;
-    RREdgeProperty &e1_prop = e1_it->second.prop();
-    RREdgeProperty &e2_prop = e2_it->second.prop();
-    RREdgeProperty e_new_prop =
-        add(e1_prop, e2_prop, overlap_len, max_edge_index);
-    ++max_edge_index;
-    rr_paths->add(e1_prop.get_index(), e2_prop.get_index(),
-                  e_new_prop.get_index());
-    add_edge_with_prop(e1_it->first, *s2_it, std::move(e_new_prop));
-  }
-   */
 
   [[nodiscard]] bool is_frozen() const {
     return std::all_of(begin(), end(), [this](const RRVertexType &v) {
@@ -214,7 +214,93 @@ class MultiplexDBG
   }
 
   void process_complex_vertex(const RRVertexType &vertex, const int indegree,
-                              const int outdegree) {}
+                              const int outdegree) {
+    auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+    auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+    const RRVertexProperty &v_prop = node_prop(vertex);
+
+    /*
+    for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
+      RRVertexType new_vertex = get_new_vertex(v_prop.len + 1);
+      auto v_it = out_neighbors(it->first).first;
+      while (v_it->first != vertex) {
+        ++v_it;
+      }
+      move_edge(it->first, v_it, it->first, new_vertex);
+    }
+
+    for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
+      RRVertexType new_vertex = get_new_vertex(v_prop.len + 1);
+      move_edge(vertex, it, new_vertex, it->first);
+    }
+    */
+
+    std::unordered_map<const RREdgeProperty *,
+                       std::unordered_set<const RREdgeProperty *>>
+        ac_s2e, ac_e2s;
+    for (auto in_it = in_nbr_begin; in_it != in_nbr_end; ++in_it) {
+      for (auto out_it = out_nbr_begin; out_it != out_nbr_end; ++out_it) {
+        const RREdgeProperty &in_prop = in_it->second.prop();
+        const RREdgeProperty &out_prop = out_it->second.prop();
+        if (rr_paths->contains_pair(in_prop.get_index(),
+                                    out_prop.get_index())) {
+          ac_s2e[&in_prop].emplace(&out_prop);
+          ac_e2s[&out_prop].emplace(&in_prop);
+        }
+      }
+    }
+
+    std::unordered_map<const RREdgeProperty *, const RREdgeProperty *>
+        where_edge_merged;
+    auto FindMergeEdgeId =
+        [&where_edge_merged](const RREdgeProperty *edge_prop_) {
+          const RREdgeProperty *edge_prop{edge_prop_};
+          while (where_edge_merged.find(edge_prop) != where_edge_merged.end()) {
+            edge_prop = where_edge_merged.at(edge_prop);
+          }
+          return edge_prop;
+        };
+
+    for (const auto &[edge1_, edge1_neighbors] : ac_s2e) {
+      const RREdgeProperty *edge1 = FindMergeEdgeId(edge1_);
+
+      auto incoming_it = in_nbr_begin;
+      while (incoming_it->second.prop() != *edge1_) {
+        ++incoming_it;
+      }
+      auto e1_it = [this, &incoming_it, &vertex]() {
+        auto e1_it = out_neighbors(incoming_it->first).first;
+        while (e1_it->first != vertex) {
+          ++e1_it;
+        }
+        return e1_it;
+      }();
+
+      for (const auto &edge2_ : edge1_neighbors) {
+        const RREdgeProperty *edge2 = FindMergeEdgeId(edge2_);
+        const std::unordered_set<const RREdgeProperty *> &edge2_neighbors =
+            ac_e2s[edge2];
+
+        auto e2_it = out_nbr_begin;
+        while (e2_it->second.prop() != *edge2_) {
+          ++e2_it;
+        }
+
+        if (edge1_neighbors.size() == 1 and edge2_neighbors.size() == 1) {
+          if (edge1 != edge2) {
+            merge_edges(find(incoming_it->first), e1_it, find(vertex), e2_it);
+            where_edge_merged.emplace(edge2, edge1);
+          } else {
+            // isolated loop
+            // TODO
+          }
+        } else {
+          // TODO
+        }
+      }
+    }
+    remove_nodes(vertex);
+  }
 
   void process_vertex(const RRVertexType &vertex) {
     const int indegree = count_in_neighbors(vertex);
@@ -226,7 +312,7 @@ class MultiplexDBG
     }
   }
 
-  void collapse_edges_into_vertices() {
+  void collapse_short_edges_into_vertices() {
     for (const RRVertexType &v1 : *this) {
       const RRVertexProperty &v1p = node_prop(v1);
       auto [out_it_begin, out_it_end] = out_neighbors(v1);
@@ -321,7 +407,7 @@ public:
     for (const auto &vertex : vertexes) {
       process_vertex(vertex);
     }
-    collapse_edges_into_vertices();
+    collapse_short_edges_into_vertices();
     assert_validity();
     ++niter;
   }

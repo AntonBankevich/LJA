@@ -23,6 +23,16 @@ bool repeat_resolution::operator==(const RRVertexProperty &lhs,
   return lhs.len == rhs.len and lhs.frozen == rhs.frozen;
 }
 
+bool repeat_resolution::operator==(const RREdgeProperty &lhs,
+                                   const RREdgeProperty &rhs) {
+  return lhs.get_index() == rhs.get_index();
+}
+
+bool repeat_resolution::operator!=(const RREdgeProperty &lhs,
+                                   const RREdgeProperty &rhs) {
+  return not (lhs == rhs);
+}
+
 RREdgeProperty repeat_resolution::add(const RREdgeProperty &lhs,
                                       const RREdgeProperty &rhs,
                                       const uint64_t overlap_len,
