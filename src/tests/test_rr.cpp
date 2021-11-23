@@ -468,6 +468,7 @@ TEST(DB1outVertex, WithShortEdge) {
   }
 }
 
+/*
 // graph with a complex vertex (2in-2out)
 TEST(DBComplexVertex, Basic) {
   const size_t k = 2;
@@ -504,6 +505,7 @@ TEST(DBComplexVertex, Basic) {
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }
+*/
 
 // graph with a complex vertex (loop)
 TEST(DBComplexVertexLoop1, Basic) {
