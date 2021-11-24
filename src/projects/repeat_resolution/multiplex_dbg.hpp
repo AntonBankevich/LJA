@@ -82,39 +82,37 @@ class MultiplexDBG
     remove_edge(s1_it, e1_it);
   }
 
-  void merge_edges(ConstIterator s1_it, NeighborsIterator e1_it,
-                   ConstIterator s2_it, NeighborsIterator e2_it) {
-    //    VERIFY_MSG(count_out_neighbors(e1_it->first) == 0,
-    //               "merging edges e1&e2: no out-edges for end of e1 allowed");
-    //    VERIFY_MSG(count_in_neighbors(*s2_it) == 0,
-    //               "merging edges e1&e2: no in-edges for start of e2
-    //               allowed");
-    VERIFY_MSG(not node_prop(s2_it).frozen,
+  void merge_edges(const RRVertexType &s1, NeighborsIterator e1_it,
+                   const RRVertexType &s2, NeighborsIterator e2_it,
+                   const uint64_t overlap_len) {
+    VERIFY_MSG(not node_prop(s2).frozen,
                "Cannot merge edges via a frozen vertex");
-    const uint64_t overlap_len = node_prop(s2_it).len - 1;
-    VERIFY(overlap_len == node_prop(e1_it->first).len - 1);
     RREdgeProperty &e1_prop = e1_it->second.prop();
     RREdgeProperty &e2_prop = e2_it->second.prop();
     rr_paths->merge(e1_prop.get_index(), e2_prop.get_index());
     e1_prop.merge(std::move(e2_prop), overlap_len);
-    move_edge(*s1_it, e1_it, *s1_it, e2_it->first);
-    remove_edge(s2_it, e2_it);
+    move_edge(s1, e1_it, s1, e2_it->first);
+    remove_edge(find(s2), e2_it);
+    if (e1_it->first != s2) {
+      remove_nodes(s2);
+    }
     remove_nodes(e1_it->first);
-    remove_nodes(s2_it);
   }
 
-  void add_connecting_edge(NeighborsIterator e1_it, const RRVertexType &s2,
-                           NeighborsIterator e2_it) {
+  EdgeIndexType add_connecting_edge(NeighborsIterator e1_it,
+                                    const RRVertexType &s2,
+                                    NeighborsIterator e2_it) {
     VERIFY_MSG(e1_it->first != s2, "Can only add edge b/w disconnected edges");
     const uint64_t vertex_len = node_prop(s2).len;
     RREdgeProperty &e1_prop = e1_it->second.prop();
     RREdgeProperty &e2_prop = e2_it->second.prop();
-    RREdgeProperty e_new_prop =
-        add(e1_prop, e2_prop, vertex_len, max_edge_index);
+    const EdgeIndexType new_index = max_edge_index;
     ++max_edge_index;
+    RREdgeProperty e_new_prop = add(e1_prop, e2_prop, vertex_len, new_index);
     rr_paths->add(e1_prop.get_index(), e2_prop.get_index(),
                   e_new_prop.get_index());
     add_edge_with_prop(e1_it->first, s2, std::move(e_new_prop));
+    return new_index;
   }
 
   void collapse_edge(ConstIterator s_it, NeighborsIterator e_it) {
@@ -302,19 +300,30 @@ class MultiplexDBG
 
         if (edge1_neighbors.size() == 1 and edge2_neighbors.size() == 1) {
           if (edge1 != edge2) {
-            merge_edges(find(left_vertex), e1_it, find(right_vertex), e2_it);
+            merge_edges(left_vertex, e1_it, right_vertex, e2_it,
+                        node_prop(vertex).len);
             where_edge_merged.emplace(edge2, edge1);
           } else {
             // isolated loop
             // TODO
           }
         } else {
-          add_connecting_edge(e1_it, right_vertex, e2_it);
+          const EdgeIndexType new_index =
+              add_connecting_edge(e1_it, right_vertex, e2_it);
           if (edge1_neighbors.size() == 1 and edge2_neighbors.size() >= 2) {
-            // TODO
+            VERIFY(count_out_neighbors(e1_it->first) == 1);
+            auto new_edge_it = out_neighbors(e1_it->first).first;
+            merge_edges(left_vertex, e1_it, e1_it->first, new_edge_it,
+                        node_prop(left_vertex).len);
           } else if (edge1_neighbors.size() >= 2 and
                      edge2_neighbors.size() == 1) {
-            // TODO
+            VERIFY(count_in_neighbors(right_vertex) == 1);
+            auto new_edge_it = out_neighbors(e1_it->first).first;
+            while (new_edge_it->second.prop().get_index() != new_index) {
+              ++new_edge_it;
+            }
+            merge_edges(e1_it->first, new_edge_it, right_vertex, e2_it,
+                        node_prop(right_vertex).len);
           }
         }
       }

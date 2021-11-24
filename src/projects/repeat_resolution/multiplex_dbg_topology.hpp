@@ -79,8 +79,9 @@ public:
       }
       return it.base();
     }();
-    auto rhs_it = rhs.seq.begin();
-    for (/*empty*/; lhs_it != seq.end(); ++lhs_it, ++rhs_it) {
+
+    for (auto rhs_it = rhs.seq.begin(); lhs_it != seq.end();
+         ++lhs_it, ++rhs_it) {
       VERIFY(*rhs_it == *lhs_it);
     }
     for (size_t i = 0; i < overlap_len; ++i) {
@@ -98,7 +99,6 @@ bool operator!=(const RREdgeProperty &lhs, const RREdgeProperty &rhs);
 
 RREdgeProperty add(const RREdgeProperty &lhs, const RREdgeProperty &rhs,
                    uint64_t overlap_len, EdgeIndexType index);
-
 
 std::ostream &operator<<(std::ostream &os, const RREdgeProperty &edge_property);
 
