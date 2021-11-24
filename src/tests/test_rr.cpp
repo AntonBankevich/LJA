@@ -468,7 +468,6 @@ TEST(DB1outVertex, WithShortEdge) {
   }
 }
 
-/*
 // graph with a complex vertex (2in-2out)
 TEST(DBComplexVertex, Basic) {
   const size_t k = 2;
@@ -505,7 +504,6 @@ TEST(DBComplexVertex, Basic) {
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }
-*/
 
 // graph with a complex vertex (loop)
 TEST(DBComplexVertexLoop1, Basic) {
@@ -751,6 +749,52 @@ TEST(DBBuldges1, Basic) {
         {6, 3, "ACAAAGAACGG"},
         {7, 4, "ACTAAAAATGC"},
         {8, 5, "ACAAATGC"}};
+    const std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::vector<RRVertexType> isolates{};
+
+    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}
+
+// graph with complex vertex and 4 connections
+TEST(DBComplexVertexConn4, Basic) {
+  const size_t k = 2;
+
+  std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+      {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
+  const std::vector<SuccinctEdgeInfo> edge_info =
+      GetEdgeInfo(raw_edge_info, k, false, false);
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+    _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 2}});
+    _path_vector.emplace_back(RRPath{"1", std::list<size_t>{0, 3}});
+    _path_vector.emplace_back(RRPath{"2", std::list<size_t>{1, 2}});
+    _path_vector.emplace_back(RRPath{"3", std::list<size_t>{1, 3}});
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+  mdbg.inc();
+  // for (const RRVertexType &vertex : mdbg) {
+  //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+  //             << mdbg.count_out_neighbors(vertex) << " "
+  //             << mdbg.node_prop(vertex).len << "\n";
+  // }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 5, "ACAAA"},
+        {5, 7, "AAAT"},
+        {7, 3, "AATGC"},
+        {5, 8, "AAAT"},
+        {1, 6, "GGAAA"},
+        {6, 7, "AAAT"},
+        {6, 8, "AAAT"},
+        {8, 4, "AATT"}};
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 

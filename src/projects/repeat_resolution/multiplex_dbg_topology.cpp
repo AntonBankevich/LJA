@@ -35,21 +35,21 @@ bool repeat_resolution::operator!=(const RREdgeProperty &lhs,
 
 RREdgeProperty repeat_resolution::add(const RREdgeProperty &lhs,
                                       const RREdgeProperty &rhs,
-                                      const uint64_t overlap_len,
+                                      const uint64_t vertex_size,
                                       const uint64_t index) {
-  VERIFY(lhs.size() > overlap_len);
-  VERIFY(rhs.size() > overlap_len);
+  VERIFY(lhs.size() > vertex_size);
+  VERIFY(rhs.size() > vertex_size);
   const bool unique = lhs.is_unique() or rhs.is_unique();
-  std::list<char> new_seq = [&lhs, &rhs, &overlap_len]() {
+  std::list<char> new_seq = [&lhs, &rhs, &vertex_size]() {
     const std::list<char> &seq = lhs.get_seq();
     auto lhs_it = lhs.get_seq().rbegin();
-    for (size_t i = 0; i < overlap_len; ++i) {
+    for (size_t i = 0; i < vertex_size - 1; ++i) {
       lhs_it++;
     }
     char lhs_char = *lhs_it;
     std::list<char> new_seq{lhs_char};
     auto rhs_it = rhs.get_seq().begin();
-    for (uint64_t i = 0; i < overlap_len + 1; ++i) {
+    for (uint64_t i = 0; i < vertex_size; ++i) {
       new_seq.emplace_back(*rhs_it);
       ++rhs_it;
     }

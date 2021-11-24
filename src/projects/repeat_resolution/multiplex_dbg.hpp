@@ -84,10 +84,11 @@ class MultiplexDBG
 
   void merge_edges(ConstIterator s1_it, NeighborsIterator e1_it,
                    ConstIterator s2_it, NeighborsIterator e2_it) {
-    VERIFY_MSG(count_out_neighbors(e1_it->first) == 0,
-               "merging edges e1&e2: no out-edges for end of e1 allowed");
-    VERIFY_MSG(count_in_neighbors(*s2_it) == 0,
-               "merging edges e1&e2: no in-edges for start of e2 allowed");
+    //    VERIFY_MSG(count_out_neighbors(e1_it->first) == 0,
+    //               "merging edges e1&e2: no out-edges for end of e1 allowed");
+    //    VERIFY_MSG(count_in_neighbors(*s2_it) == 0,
+    //               "merging edges e1&e2: no in-edges for start of e2
+    //               allowed");
     VERIFY_MSG(not node_prop(s2_it).frozen,
                "Cannot merge edges via a frozen vertex");
     const uint64_t overlap_len = node_prop(s2_it).len - 1;
@@ -102,22 +103,19 @@ class MultiplexDBG
     remove_nodes(s2_it);
   }
 
-  /*
-  void smart_add_edge(ConstIterator s1_it, NeighborsIterator e1_it,
-                      ConstIterator s2_it, NeighborsIterator e2_it) {
-    VERIFY_MSG(e1_it->first != *s2_it,
-               "Can only add edge b/w disconnected edges");
-    const uint64_t overlap_len = node_prop(s2_it).len;
+  void add_connecting_edge(NeighborsIterator e1_it, const RRVertexType &s2,
+                           NeighborsIterator e2_it) {
+    VERIFY_MSG(e1_it->first != s2, "Can only add edge b/w disconnected edges");
+    const uint64_t vertex_len = node_prop(s2).len;
     RREdgeProperty &e1_prop = e1_it->second.prop();
     RREdgeProperty &e2_prop = e2_it->second.prop();
     RREdgeProperty e_new_prop =
-        add(e1_prop, e2_prop, overlap_len, max_edge_index);
+        add(e1_prop, e2_prop, vertex_len, max_edge_index);
     ++max_edge_index;
     rr_paths->add(e1_prop.get_index(), e2_prop.get_index(),
                   e_new_prop.get_index());
-    add_edge_with_prop(e1_it->first, *s2_it, std::move(e_new_prop));
+    add_edge_with_prop(e1_it->first, s2, std::move(e_new_prop));
   }
-   */
 
   void collapse_edge(ConstIterator s_it, NeighborsIterator e_it) {
     RRVertexType s = *s_it;
@@ -311,7 +309,13 @@ class MultiplexDBG
             // TODO
           }
         } else {
-          // TODO
+          add_connecting_edge(e1_it, right_vertex, e2_it);
+          if (edge1_neighbors.size() == 1 and edge2_neighbors.size() >= 2) {
+            // TODO
+          } else if (edge1_neighbors.size() >= 2 and
+                     edge2_neighbors.size() == 1) {
+            // TODO
+          }
         }
       }
     }
