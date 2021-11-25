@@ -1010,3 +1010,38 @@ TEST(DBComplexVertexLoop8, Basic) {
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }
+
+
+// graph with a single edge that will be isolated
+TEST(DBIsolate, Basic) {
+  const size_t k = 2;
+
+  std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+      {0, 1, "ACA"}};
+  const std::vector<SuccinctEdgeInfo> edge_info =
+      GetEdgeInfo(raw_edge_info, k, false, false);
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+  mdbg.inc();
+  // for (const RRVertexType &vertex : mdbg) {
+  //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+  //             << mdbg.count_out_neighbors(vertex) << " "
+  //             << mdbg.node_prop(vertex).len << "\n";
+  // }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info;
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::vector<RRVertexType> isolates{0};
+
+    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}

@@ -25,6 +25,7 @@ class MultiplexDBG
   uint64_t max_edge_index{0};
   uint64_t max_vert_index{0};
   uint64_t niter{0};
+  std::unordered_map<RRVertexType, RREdgeProperty> isolate_properties;
 
   void freeze_isolated_loops() {
     for (const auto &vertex : *this) {
@@ -132,16 +133,16 @@ class MultiplexDBG
     VERIFY(count_out_neighbors(s_it) == 1);
     VERIFY(count_in_neighbors(e_it->first) == 1);
 
-    const RREdgeProperty &edge_prop = e_it->second.prop();
+    RREdgeProperty &edge_prop = e_it->second.prop();
     rr_paths->remove(edge_prop.get_index());
 
-    remove_edge(s_it, e_it);
+    if (count_in_neighbors(s) == 0 and count_out_neighbors(e) == 0) {
+      // isolated vertex. Need to freeze and save its label
+      isolate_properties.emplace(s, std::move(edge_prop));
+      freeze_vertex(s);
+    }
 
-    // auto [in_nbr_begin, in_nbr_end] = in_neighbors(e_it->first);
-    // for (auto in_nbr_it = in_nbr_begin; in_nbr_it != in_nbr_end;
-    //      ++in_nbr_it) {
-    //   move_edge(e_it->first, in_nbr_it, in_nbr_it->first, *s_it);
-    // }
+    remove_edge(s_it, e_it);
 
     auto [out_nbr_begin, out_nbr_end] = out_neighbors(e);
     for (auto out_nbr_it = out_nbr_begin; out_nbr_it != out_nbr_end;
@@ -150,6 +151,7 @@ class MultiplexDBG
     }
     VERIFY(count_in_neighbors(e) == 0 and count_out_neighbors(e) == 0);
     remove_nodes(e);
+
   }
 
   [[nodiscard]] bool is_frozen() const {
