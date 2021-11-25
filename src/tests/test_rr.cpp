@@ -166,6 +166,15 @@ TEST(RRPathsTest, Basic) {
   }
 }
 
+TEST(RRPathsTest, MergeIterDereference) {
+  std::vector<RRPath> _path_vector;
+  _path_vector.emplace_back(RRPath{"0", std::list<size_t>{1, 2}});
+  _path_vector.emplace_back(RRPath{"1", std::list<size_t>{2, 3}});
+
+  RRPaths paths = PathsBuilder::FromPathVector(_path_vector);
+  paths.merge(1, 2);
+}
+
 auto Str2List = [](const std::string &str) {
   std::list<char> seq;
   std::move(str.begin(), str.end(), std::back_inserter(seq));
@@ -566,11 +575,11 @@ TEST(DBComplexVertexLoop2, Basic) {
 
   MultiplexDBG mdbg(edge_info, k, &paths);
   mdbg.inc();
-  //for (const RRVertexType &vertex : mdbg) {
-  //  std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
-  //            << mdbg.count_out_neighbors(vertex) << " "
-  //            << mdbg.node_prop(vertex).len << "\n";
-  //}
+  // for (const RRVertexType &vertex : mdbg) {
+  //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+  //             << mdbg.count_out_neighbors(vertex) << " "
+  //             << mdbg.node_prop(vertex).len << "\n";
+  // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "ACAAAGAATGC"}, {4, 5, "GGAATG"}};
@@ -589,12 +598,8 @@ TEST(DBComplexVertexLoop3, Basic) {
   const size_t k = 2;
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-      {0, 2, "ACAAA"},
-      {2, 2, "AAGAA"},
-      {2, 3, "AATGC"},
-      {4, 2, "GGAA"},
-      {2, 2, "AAA"},
-      {2, 5, "AATG"}};
+      {0, 2, "ACAAA"}, {2, 2, "AAGAA"}, {2, 3, "AATGC"},
+      {4, 2, "GGAA"},  {2, 2, "AAA"},   {2, 5, "AATG"}};
   const std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
@@ -699,9 +704,7 @@ TEST(DBComplexVertexLoop5, Basic) {
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {0, 2, "ACAAAGAACAATGC"},
-        {3, 4, "ACAAATAAAAATGC"},
-        {5, 6, "ACAAATGC"}};
+        {0, 2, "ACAAAGAACAATGC"}, {3, 4, "ACAAATAAAAATGC"}, {5, 6, "ACAAATGC"}};
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
@@ -746,9 +749,7 @@ TEST(DBBuldges1, Basic) {
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {6, 3, "ACAAAGAACGG"},
-        {7, 4, "ACTAAAAATGC"},
-        {8, 5, "ACAAATGC"}};
+        {6, 3, "ACAAAGAACGG"}, {7, 4, "ACTAAAAATGC"}, {8, 5, "ACAAATGC"}};
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
@@ -787,14 +788,8 @@ TEST(DBComplexVertexConn4, Basic) {
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {0, 5, "ACAAA"},
-        {5, 7, "AAAT"},
-        {7, 3, "AATGC"},
-        {5, 8, "AAAT"},
-        {1, 6, "GGAAA"},
-        {6, 7, "AAAT"},
-        {6, 8, "AAAT"},
-        {8, 4, "AATT"}};
+        {0, 5, "ACAAA"}, {5, 7, "AAAT"}, {7, 3, "AATGC"}, {5, 8, "AAAT"},
+        {1, 6, "GGAAA"}, {6, 7, "AAAT"}, {6, 8, "AAAT"},  {8, 4, "AATT"}};
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
@@ -935,7 +930,7 @@ TEST(DBComplexVertexLoop7, Basic) {
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       // {0, 1, "ACAAA"},
       {1, 1, "AAGAA"}};
-      // {1, 2, "AATGC"}};
+  // {1, 2, "AATGC"}};
   const std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
@@ -972,9 +967,7 @@ TEST(DBComplexVertexLoop8, Basic) {
   const size_t k = 2;
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-      {0, 1, "ACAAA"},
-      {1, 1, "AAGAA"},
-      {1, 2, "AATGC"}};
+      {0, 1, "ACAAA"}, {1, 1, "AAGAA"}, {1, 2, "AATGC"}};
   const std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
@@ -995,8 +988,7 @@ TEST(DBComplexVertexLoop8, Basic) {
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {0, 2, "ACAAATGC"},
-        {6, 6, "AAGAA"}};
+        {0, 2, "ACAAATGC"}, {6, 6, "AAGAA"}};
     std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
     edge_info[1].start_prop.freeze();
@@ -1010,7 +1002,6 @@ TEST(DBComplexVertexLoop8, Basic) {
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }
-
 
 // graph with a single edge that will be isolated
 TEST(DBIsolate, Basic) {

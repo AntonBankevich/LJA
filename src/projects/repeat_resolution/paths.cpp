@@ -112,16 +112,17 @@ void RRPaths::merge(EdgeIndexType left_index, EdgeIndexType right_index) {
 
     bool is_begin = iter_in_path.iter == iter_in_path.p_path->edge_list.begin();
     if (is_begin) {
-      p_path->edge_list.pop_front();
-      p_path->edge_list.emplace_front(left_index);
-
-      edge2pos[left_index].emplace(p_path, p_path->edge_list.begin());
-
       const auto list_next_iter = [&list_iter]() {
         auto next = list_iter;
         return ++next;
       }();
       bool is_end = list_next_iter == p_path->edge_list.end();
+
+      p_path->edge_list.pop_front();
+      p_path->edge_list.emplace_front(left_index);
+
+      edge2pos[left_index].emplace(p_path, p_path->edge_list.begin());
+
       if (not is_end) {
         PairEdgeIndexType right_next{right_index, *list_next_iter};
         edgepair2pos.at(right_next).erase(iter_in_path);
