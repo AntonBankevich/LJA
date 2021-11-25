@@ -1045,3 +1045,31 @@ TEST(DBIsolate, Basic) {
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }
+
+TEST(DBEmptyGraph, Basic) {
+  const size_t k = 2;
+
+  std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info;
+  const std::vector<SuccinctEdgeInfo> edge_info =
+      GetEdgeInfo(raw_edge_info, k, false, false);
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+  mdbg.inc();
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info;
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::vector<RRVertexType> isolates{};
+
+    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    ASSERT_TRUE(mdbg.is_frozen());
+  }
+}

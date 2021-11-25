@@ -22,8 +22,8 @@ class MultiplexDBG
           /*Container neighbors_container_spec=*/
           graph_lite::Container::MULTISET> {
   RRPaths *rr_paths;
-  uint64_t max_edge_index{0};
-  uint64_t max_vert_index{0};
+  uint64_t next_edge_index{0};
+  uint64_t next_vert_index{0};
   uint64_t niter{0};
   std::unordered_map<RRVertexType, RREdgeProperty> isolate_properties;
 
@@ -39,27 +39,27 @@ class MultiplexDBG
     }
   }
   void assert_validity() const {
-    uint64_t est_max_vert_index = [this]() {
-      uint64_t est_max_vert_index{0};
+    int64_t est_max_vert_index = [this]() {
+      int64_t est_max_vert_index{-1};
       for (const auto &vertex : *this) {
-        est_max_vert_index = std::max(est_max_vert_index, vertex);
+        est_max_vert_index = std::max(est_max_vert_index, (int64_t)vertex);
       }
       return est_max_vert_index;
     }();
-    VERIFY(max_vert_index >= 1 + est_max_vert_index);
+    VERIFY(next_vert_index >= 1 + est_max_vert_index);
 
-    uint64_t est_max_edge_index = [this]() {
-      uint64_t est_max_edge_index{0};
+    int64_t est_max_edge_index = [this]() {
+      int64_t est_max_edge_index{-1};
       for (const auto &vertex : *this) {
         auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
         for (auto it2 = out_nbr_begin; it2 != out_nbr_end; ++it2) {
-          est_max_edge_index =
-              std::max(est_max_edge_index, it2->second.prop().get_index());
+          est_max_edge_index = std::max(
+              est_max_edge_index, (int64_t)it2->second.prop().get_index());
         }
       }
       return est_max_edge_index;
     }();
-    VERIFY(max_edge_index >= 1 + est_max_edge_index);
+    VERIFY(next_edge_index >= 1 + est_max_edge_index);
 
     for (const auto &vertex : *this) {
       if (count_in_neighbors(vertex) == 1 and
@@ -80,7 +80,7 @@ class MultiplexDBG
     }
   }
 
-  void freeze_vertex(const RRVertexType & vertex) {
+  void freeze_vertex(const RRVertexType &vertex) {
     RRVertexProperty &prop = node_prop(vertex);
     prop.freeze();
   }
@@ -117,8 +117,8 @@ class MultiplexDBG
     const uint64_t vertex_len = node_prop(s2).len;
     RREdgeProperty &e1_prop = e1_it->second.prop();
     RREdgeProperty &e2_prop = e2_it->second.prop();
-    const EdgeIndexType new_index = max_edge_index;
-    ++max_edge_index;
+    const EdgeIndexType new_index = next_edge_index;
+    ++next_edge_index;
     RREdgeProperty e_new_prop = add(e1_prop, e2_prop, vertex_len, new_index);
     rr_paths->add(e1_prop.get_index(), e2_prop.get_index(),
                   e_new_prop.get_index());
@@ -151,18 +151,11 @@ class MultiplexDBG
     }
     VERIFY(count_in_neighbors(e) == 0 and count_out_neighbors(e) == 0);
     remove_nodes(e);
-
-  }
-
-  [[nodiscard]] bool is_frozen() const {
-    return std::all_of(begin(), end(), [this](const RRVertexType &v) {
-      return node_prop(v).frozen;
-    });
   }
 
   RRVertexType get_new_vertex(const uint64_t len) {
-    RRVertexType new_vertex{max_vert_index};
-    ++max_vert_index;
+    RRVertexType new_vertex{next_vert_index};
+    ++next_vert_index;
     RRVertexProperty property{len, false};
     add_node_with_prop(new_vertex, property);
     return new_vertex;
@@ -385,14 +378,14 @@ public:
                const uint64_t start_k, RRPaths *const rr_paths)
       : rr_paths{rr_paths} {
     for (const SuccinctEdgeInfo &edge : edges) {
-      max_vert_index = std::max(max_vert_index, 1 + edge.start_ind);
-      max_vert_index = std::max(max_vert_index, 1 + edge.end_ind);
+      next_vert_index = std::max(next_vert_index, 1 + edge.start_ind);
+      next_vert_index = std::max(next_vert_index, 1 + edge.end_ind);
       add_node_with_prop(edge.start_ind, edge.start_prop);
       add_node_with_prop(edge.end_ind, edge.end_prop);
-      RREdgeProperty edge_property{max_edge_index, edge.seq, edge.unique};
+      RREdgeProperty edge_property{next_edge_index, edge.seq, edge.unique};
       add_edge_with_prop(edge.start_ind, edge.end_ind,
                          std::move(edge_property));
-      ++max_edge_index;
+      ++next_edge_index;
     }
 
     freeze_isolated_loops();
@@ -408,8 +401,8 @@ public:
       std::unordered_map<std::string, uint64_t> vert2ind;
       for (const Vertex &vertex : dbg.vertices()) {
         const std::string &id = vertex.getId();
-        vert2ind.emplace(id, max_vert_index);
-        ++max_vert_index;
+        vert2ind.emplace(id, next_vert_index);
+        ++next_vert_index;
       }
       return vert2ind;
     }();
@@ -429,10 +422,10 @@ public:
         return seq;
       }();
 
-      RREdgeProperty edge_property{max_edge_index, std::move(seq),
+      RREdgeProperty edge_property{next_edge_index, std::move(seq),
                                    classificator.isUnique(edge)};
       add_edge_with_prop(start_ind, end_ind, std::move(edge_property));
-      ++max_edge_index;
+      ++next_edge_index;
     }
     freeze_isolated_loops();
     assert_validity();
@@ -442,6 +435,12 @@ public:
     graph_lite::Serializer serializer(*this);
     std::ofstream dot_os(path);
     serializer.serialize_to_dot(dot_os);
+  }
+
+  [[nodiscard]] bool is_frozen() const {
+    return std::all_of(begin(), end(), [this](const RRVertexType &v) {
+      return node_prop(v).frozen;
+    });
   }
 
   void inc() {
