@@ -26,17 +26,17 @@ class MultiplexDBG
   uint64_t max_vert_index{0};
   uint64_t niter{0};
 
-  bool node_has_loop(const node_type &node) const {
-    auto [begin, end] = in_neighbors(node);
-    for (auto it = begin; it != end; ++it) {
-      const node_type &neighbor = it->first;
-      if (neighbor == node) {
-        return true;
+  void freeze_isolated_loops() {
+    for (const auto &vertex : *this) {
+      if (count_in_neighbors(vertex) == 1 and
+          count_out_neighbors(vertex) == 1) {
+        auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+        VERIFY_MSG(in_nbr_begin->first == vertex,
+                   "No 1in-1out vertices are allowed except loops")
+        freeze_vertex(vertex);
       }
     }
-    return false;
   }
-
   void assert_validity() const {
     uint64_t est_max_vert_index = [this]() {
       uint64_t est_max_vert_index{0};
@@ -61,8 +61,13 @@ class MultiplexDBG
     VERIFY(max_edge_index >= 1 + est_max_edge_index);
 
     for (const auto &vertex : *this) {
-      VERIFY(count_in_neighbors(vertex) != 1 or
-             count_out_neighbors(vertex) != 1);
+      if (count_in_neighbors(vertex) == 1 and
+          count_out_neighbors(vertex) == 1) {
+        auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+        VERIFY_MSG(in_nbr_begin->first == vertex,
+                   "No 1in-1out vertices are allowed except loops")
+        VERIFY_MSG(node_prop(vertex).frozen, "An isolated loop must be frozen");
+      }
       auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
       auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
       for (auto in_it = in_nbr_begin; in_it != in_nbr_end; ++in_it) {
@@ -72,6 +77,11 @@ class MultiplexDBG
         }
       }
     }
+  }
+
+  void freeze_vertex(const RRVertexType & vertex) {
+    RRVertexProperty &prop = node_prop(vertex);
+    prop.freeze();
   }
 
   void move_edge(const RRVertexType &s1, NeighborsIterator e1_it,
@@ -305,7 +315,12 @@ class MultiplexDBG
             where_edge_merged.emplace(edge2, edge1);
           } else {
             // isolated loop
-            // TODO
+            VERIFY(left_vertex == right_vertex);
+            RRVertexType vertex2remove = e1_it->first;
+            move_edge(left_vertex, e1_it, left_vertex, left_vertex);
+            remove_nodes(vertex2remove);
+            --node_prop(left_vertex).len;
+            freeze_vertex(left_vertex);
           }
         } else {
           const EdgeIndexType new_index =
@@ -332,6 +347,9 @@ class MultiplexDBG
   }
 
   void process_vertex(const RRVertexType &vertex) {
+    if (node_prop(vertex).frozen) {
+      return;
+    }
     const int indegree = count_in_neighbors(vertex);
     const int outdegree = count_out_neighbors(vertex);
     if (indegree >= 2 and outdegree >= 2) {
@@ -374,6 +392,8 @@ public:
                          std::move(edge_property));
       ++max_edge_index;
     }
+
+    freeze_isolated_loops();
     assert_validity();
   }
 
@@ -412,6 +432,7 @@ public:
       add_edge_with_prop(start_ind, end_ind, std::move(edge_property));
       ++max_edge_index;
     }
+    freeze_isolated_loops();
     assert_validity();
   }
 
@@ -441,10 +462,9 @@ public:
     ++niter;
   }
 
-  void incN(const uint64_t n_iter) {
-    for (uint64_t i = 0; i < n_iter; ++i) {
+  void incN(uint64_t n_iter) {
+    while (n_iter--)
       inc();
-    }
   }
 };
 

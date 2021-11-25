@@ -15,6 +15,10 @@ using RRVertexType = uint64_t;
 struct RRVertexProperty {
   uint64_t len{0};
   bool frozen{false};
+
+  void freeze() {
+    frozen = true;
+  }
 };
 
 std::ostream &operator<<(std::ostream &os, const RRVertexProperty &vertex);
