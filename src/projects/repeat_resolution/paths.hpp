@@ -121,18 +121,25 @@ public:
   FromStorages(const std::vector<RecordStorage *> &storages,
                const std::unordered_map<std::string, size_t> &edgeid2ind) {
     std::vector<RRPath> paths;
+    auto path2edge_list = [&edgeid2ind](const dbg::Path &dbg_path) {
+      PathEdgeList edge_list;
+      for (const Edge *p_edge : dbg_path) {
+        EdgeIndexType edge_i = edgeid2ind.at(p_edge->getId());
+        edge_list.emplace_back(edge_i);
+      }
+      return edge_list;
+    };
     for (RecordStorage *const storage : storages) {
       if (storage == nullptr) {
         continue;
       }
       for (const AlignedRead &aligned_read : *storage) {
-        const dbg::Path dbg_path = aligned_read.path.getPath();
-        PathEdgeList edge_list;
-        for (const Edge *p_edge : dbg_path) {
-          EdgeIndexType edge_i = edgeid2ind.at(p_edge->getId());
-          edge_list.emplace_back(edge_i);
+        dbg::Path path = aligned_read.path.getPath();
+        if (path.size() == 0) {
+          continue;
         }
-        paths.push_back({aligned_read.id, std::move(edge_list)});
+        paths.push_back({'+' + aligned_read.id, path2edge_list(path)});
+        paths.push_back({'-' + aligned_read.id, path2edge_list(path.RC())});
       }
     }
     return FromPathVector(std::move(paths));

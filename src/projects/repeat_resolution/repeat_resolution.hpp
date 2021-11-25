@@ -54,8 +54,10 @@ public:
     MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator, debug, dir,
                       logger);
     mdbg.serialize_to_dot(dir / "init_graph.dot");
-    // rr_graph.resolve_graph();
-    // rr_graph.serialize_to_dot(dir / "resolved_graph.dot");
+    logger.info() << "Increasing k" << std::endl;
+    mdbg.incN(100000, debug);
+    logger.info() << "Finished increasing k" << std::endl;
+    mdbg.serialize_to_dot(dir / "resolved_graph.dot");
   }
 };
 

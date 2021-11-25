@@ -324,7 +324,7 @@ class MultiplexDBG
             VERIFY(count_out_neighbors(e1_it->first) == 1);
             auto new_edge_it = out_neighbors(e1_it->first).first;
             merge_edges(left_vertex, e1_it, e1_it->first, new_edge_it,
-                        node_prop(left_vertex).len);
+                        node_prop(e1_it->first).len);
           } else if (edge1_neighbors.size() >= 2 and
                      edge2_neighbors.size() == 1) {
             VERIFY(count_in_neighbors(right_vertex) == 1);
@@ -357,7 +357,11 @@ class MultiplexDBG
   void collapse_short_edges_into_vertices() {
     for (const RRVertexType &v1 : *this) {
       const RRVertexProperty &v1p = node_prop(v1);
+      if (count_out_neighbors(v1) == 0) {
+        continue;
+      }
       auto [out_it_begin, out_it_end] = out_neighbors(v1);
+      std::vector<EdgeIndexType> edges2collapse;
       for (auto it = out_it_begin; it != out_it_end; ++it) {
         const RRVertexType &v2 = it->first;
         const RRVertexProperty &v2p = node_prop(v2);
@@ -366,8 +370,20 @@ class MultiplexDBG
             v2p.len == edge_property.size()) {
           VERIFY(v1p.len == v2p.len);
           VERIFY(not v1p.frozen and not v2p.frozen);
-          collapse_edge(find(v1), it);
+          edges2collapse.push_back(edge_property.get_index());
         }
+      }
+      for (const EdgeIndexType &edge_index : edges2collapse) {
+        // iterator might be getting invalidated every time we collapse an edge
+        // thus, we find the iterator for every edge from scratch
+        auto it = [this, &v1, &edge_index]() {
+          auto it = out_neighbors(v1).first;
+          while (it->second.prop().get_index() != edge_index) {
+            ++it;
+          }
+          return it;
+        }();
+        collapse_edge(find(v1), it);
       }
     }
   }
@@ -443,7 +459,7 @@ public:
     });
   }
 
-  void inc() {
+  void inc(const bool debug=true) {
     if (is_frozen()) {
       return;
     }
@@ -459,13 +475,17 @@ public:
       process_vertex(vertex);
     }
     collapse_short_edges_into_vertices();
-    assert_validity();
     ++niter;
+    if (debug) {
+      assert_validity();
+    }
   }
 
-  void incN(uint64_t n_iter) {
-    while (n_iter--)
-      inc();
+  void incN(uint64_t n_iter, const bool debug=true) {
+    for (int i = 0; i < n_iter; ++i) {
+      std::cout << i << "\n";
+      inc(debug);
+    }
   }
 };
 
