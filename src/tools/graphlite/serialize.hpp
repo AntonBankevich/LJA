@@ -278,7 +278,7 @@ namespace graph_lite {
     };
     // deduction guide for serializer
     template<typename G>
-    explicit Serializer(G graph) -> Serializer<
+    explicit Serializer(const G& graph) -> Serializer<
             typename G::node_type, typename G::node_prop_type, typename G::edge_prop_type,
             G::DIRECTION, G::MULTI_EDGE, G::SELF_LOOP,
             G::ADJ_LIST_SPEC, G::NEIGHBORS_CONTAINER_SPEC

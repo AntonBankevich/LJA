@@ -447,6 +447,11 @@ public:
     assert_validity();
   }
 
+  MultiplexDBG(const MultiplexDBG &) = delete;
+  MultiplexDBG(MultiplexDBG &&) = default;
+  MultiplexDBG &operator=(const MultiplexDBG &) = delete;
+  MultiplexDBG &operator=(MultiplexDBG &&) = default;
+
   void serialize_to_dot(const std::experimental::filesystem::path &path) const {
     graph_lite::Serializer serializer(*this);
     std::ofstream dot_os(path);
@@ -459,7 +464,7 @@ public:
     });
   }
 
-  void inc(const bool debug=true) {
+  void inc(const bool debug = true) {
     if (is_frozen()) {
       return;
     }
@@ -481,7 +486,7 @@ public:
     }
   }
 
-  void incN(uint64_t n_iter, const bool debug=true) {
+  void incN(uint64_t n_iter, const bool debug = true) {
     for (int i = 0; i < n_iter; ++i) {
       std::cout << i << "\n";
       inc(debug);

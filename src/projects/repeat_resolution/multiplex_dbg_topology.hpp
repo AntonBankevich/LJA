@@ -16,9 +16,7 @@ struct RRVertexProperty {
   uint64_t len{0};
   bool frozen{false};
 
-  void freeze() {
-    frozen = true;
-  }
+  void freeze() { frozen = true; }
 };
 
 std::ostream &operator<<(std::ostream &os, const RRVertexProperty &vertex);
@@ -35,6 +33,11 @@ class RREdgeProperty {
 public:
   RREdgeProperty(const EdgeIndexType index, std::list<char> seq, bool unique)
       : index{index}, seq{std::move(seq)}, unique{unique} {}
+
+  RREdgeProperty(const RREdgeProperty &) = delete;
+  RREdgeProperty(RREdgeProperty &&) = default;
+  RREdgeProperty &operator=(const RREdgeProperty &) = delete;
+  RREdgeProperty &operator=(RREdgeProperty &&) = default;
 
   [[nodiscard]] uint64_t size() const { return seq.size(); }
 
