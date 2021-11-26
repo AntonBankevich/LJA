@@ -28,9 +28,10 @@ class MultiplexDBG
   uint64_t n_iter{0};
   std::unordered_map<RRVertexType, RREdgeProperty> isolate_properties;
 
-  void freeze_isolated_loops();
-
   void assert_validity() const;
+
+  void _spread_frost();
+  void freeze_unpaired_vertices();
 
 public:
   // This constructor is for testing purposes
@@ -68,6 +69,14 @@ public:
   EdgeIndexType add_connecting_edge(NeighborsIterator e1_it,
                                     const RRVertexType &s2,
                                     NeighborsIterator e2_it);
+
+  std::vector<EdgeIndexType>
+  get_in_edges_indexes(const RRVertexType &vertex) const;
+  std::vector<EdgeIndexType>
+  get_out_edges_indexes(const RRVertexType &vertex) const;
+
+  std::pair<std::vector<EdgeIndexType>, std::vector<EdgeIndexType>>
+  get_neighbor_edges_indexes(const RRVertexType &vertex) const;
 
   using EdgeNeighborMap =
       std::unordered_map<EdgeIndexType, std::unordered_set<EdgeIndexType>>;

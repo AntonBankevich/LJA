@@ -136,7 +136,6 @@ void MDBGComplexVertexProcessor::process_11(
     graph.move_edge(left_vertex, e1_it, left_vertex, left_vertex);
     graph.remove_nodes(vertex2remove);
     --graph.node_prop(left_vertex).len;
-    graph.freeze_vertex(left_vertex);
   }
 }
 

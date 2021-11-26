@@ -120,6 +120,7 @@ void MultiplexDBGIncreaser::Increment(MultiplexDBG &graph) {
   ++graph.n_iter;
 
   collapse_short_edges_into_vertices(graph);
+  graph.freeze_unpaired_vertices();
 
   if (debug) {
     graph.assert_validity();
@@ -127,7 +128,7 @@ void MultiplexDBGIncreaser::Increment(MultiplexDBG &graph) {
 }
 
 void MultiplexDBGIncreaser::IncrementN(MultiplexDBG &graph, uint64_t N) {
-  N = std::max(N, saturating_k - start_k - graph.n_iter);
+  N = std::min(N, saturating_k - start_k - graph.n_iter);
   for (int i = 0; i < N; ++i) {
     std::cout << i << "\n";
     Increment(graph);

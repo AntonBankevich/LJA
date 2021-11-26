@@ -252,8 +252,12 @@ TEST(DB1, Basic) {
     const bool frozen = false;
     const bool unique = false;
     std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
-        raw_edge_info{{0, 2, "CCT"},  {1, 2, "GACT"}, {2, 3, "CTAG"},
-                      {3, 4, "AGTT"}, {3, 5, "AGC"},  {2, 4, "CTT"}};
+        raw_edge_info{{0, 2, "CCT"},  // 0
+                      {1, 2, "GACT"}, // 1
+                      {2, 3, "CTAG"}, // 2
+                      {3, 4, "AGTT"}, // 3
+                      {3, 5, "AGC"},  // 4
+                      {2, 4, "CTT"}}; // 5
     std::vector<SuccinctEdgeInfo> edge_info;
     for (const auto &[st, en, str] : raw_edge_info) {
       edge_info.push_back(
@@ -265,7 +269,7 @@ TEST(DB1, Basic) {
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
     _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 2, 3}});
-    _path_vector.emplace_back(RRPath{"1", std::list<size_t>{0, 5}});
+    _path_vector.emplace_back(RRPath{"1", std::list<size_t>{1, 5}});
 
     return PathsBuilder::FromPathVector(_path_vector);
   }();

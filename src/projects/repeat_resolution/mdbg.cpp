@@ -6,17 +6,6 @@
 
 using namespace repeat_resolution;
 
-void MultiplexDBG::freeze_isolated_loops() {
-  for (const auto &vertex : *this) {
-    if (count_in_neighbors(vertex) == 1 and count_out_neighbors(vertex) == 1) {
-      auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
-      VERIFY_MSG(in_nbr_begin->first == vertex,
-                 "No 1in-1out vertices are allowed except loops")
-      freeze_vertex(vertex);
-    }
-  }
-}
-
 void MultiplexDBG::assert_validity() const {
   int64_t est_max_vert_index = [this]() {
     int64_t est_max_vert_index{-1};
@@ -55,6 +44,73 @@ void MultiplexDBG::assert_validity() const {
                                               node_prop(vertex).len);
       }
     }
+  }
+}
+
+void MultiplexDBG::_spread_frost() {
+  std::unordered_set<RRVertexType> prev_frozen, new_frozen;
+  for (const RRVertexType &vertex : *this) {
+    const RRVertexProperty vertex_prop = node_prop(vertex);
+    if (vertex_prop.frozen) {
+      prev_frozen.insert(vertex);
+    }
+  }
+
+  auto upd_new_frozen =
+      [this, &new_frozen](const RRVertexProperty &vertex_prop,
+                              NeighborsIterator begin, NeighborsIterator end) {
+        for (auto it = begin; it != end; ++it) {
+          const RREdgeProperty &edge_prop = it->second.prop();
+          const RRVertexType &neighbor = it->first;
+          const RRVertexProperty &neighbor_prop = node_prop(neighbor);
+          if (not neighbor_prop.frozen and
+              edge_prop.size() == 1 + neighbor_prop.len) {
+            freeze_vertex(neighbor);
+            new_frozen.insert(neighbor);
+          }
+        }
+      };
+
+  while (not prev_frozen.empty()) {
+    for (const RRVertexType &vertex : prev_frozen) {
+      auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+      auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+      upd_new_frozen(node_prop(vertex), in_nbr_begin, in_nbr_end);
+      upd_new_frozen(node_prop(vertex), out_nbr_begin, out_nbr_end);
+    }
+    prev_frozen = std::move(new_frozen);
+  }
+}
+
+void MultiplexDBG::freeze_unpaired_vertices() {
+  for (const RRVertexType &vertex : *this) {
+    RRVertexProperty &vertex_prop = node_prop(vertex);
+    if (vertex_prop.frozen) {
+      continue;
+    }
+
+    auto [in_edges, out_edges] = get_neighbor_edges_indexes(vertex);
+    if (in_edges.size() == 1 and out_edges.size() == 1) {
+      // must be a self-loop
+      VERIFY(in_edges == out_edges);
+      freeze_vertex(vertex);
+    } else if (in_edges.size() >= 2 and out_edges.size() >= 2) {
+      auto [ac_s2e, ac_e2s] = get_edgepairs_vertex(vertex);
+      for (const EdgeIndexType &edge : in_edges) {
+        if (ac_s2e.find(edge) == ac_s2e.end()) {
+          freeze_vertex(vertex);
+          break;
+        }
+      }
+      for (const EdgeIndexType &edge : out_edges) {
+        if (ac_e2s.find(edge) == ac_e2s.end()) {
+          freeze_vertex(vertex);
+          break;
+        }
+      }
+    }
+
+    _spread_frost();
   }
 }
 
@@ -120,7 +176,7 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
     ++next_edge_index;
   }
 
-  freeze_isolated_loops();
+  freeze_unpaired_vertices();
   assert_validity();
 }
 
@@ -160,7 +216,8 @@ MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
     add_edge_with_prop(start_ind, end_ind, std::move(edge_property));
     ++next_edge_index;
   }
-  freeze_isolated_loops();
+
+  freeze_unpaired_vertices();
   assert_validity();
 }
 
@@ -177,15 +234,37 @@ void MultiplexDBG::serialize_to_dot(
   });
 }
 
+std::vector<EdgeIndexType>
+MultiplexDBG::get_in_edges_indexes(const RRVertexType &vertex) const {
+  std::vector<EdgeIndexType> indexes;
+  auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+  for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
+    indexes.push_back(it->second.prop().get_index());
+  }
+  return indexes;
+}
+
+std::vector<EdgeIndexType>
+MultiplexDBG::get_out_edges_indexes(const RRVertexType &vertex) const {
+  std::vector<EdgeIndexType> indexes;
+  auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+  for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
+    indexes.push_back(it->second.prop().get_index());
+  }
+  return indexes;
+}
+
+std::pair<std::vector<EdgeIndexType>, std::vector<EdgeIndexType>>
+MultiplexDBG::get_neighbor_edges_indexes(const RRVertexType &vertex) const {
+  return {get_in_edges_indexes(vertex), get_out_edges_indexes(vertex)};
+}
+
 std::pair<MultiplexDBG::EdgeNeighborMap, MultiplexDBG::EdgeNeighborMap>
 MultiplexDBG::get_edgepairs_vertex(const RRVertexType &vertex) const {
   EdgeNeighborMap ac_s2e, ac_e2s;
-  auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
-  auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
-  for (auto in_it = in_nbr_begin; in_it != in_nbr_end; ++in_it) {
-    for (auto out_it = out_nbr_begin; out_it != out_nbr_end; ++out_it) {
-      const EdgeIndexType &in_ind = in_it->second.prop().get_index();
-      const EdgeIndexType &out_ind = out_it->second.prop().get_index();
+  auto [in_edges, out_edges] = get_neighbor_edges_indexes(vertex);
+  for (const EdgeIndexType &in_ind : in_edges) {
+    for (const EdgeIndexType &out_ind : out_edges) {
       if (rr_paths->contains_pair(in_ind, out_ind)) {
         ac_s2e[in_ind].emplace(out_ind);
         ac_e2s[out_ind].emplace(in_ind);
