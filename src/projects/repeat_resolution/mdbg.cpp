@@ -176,3 +176,31 @@ void MultiplexDBG::serialize_to_dot(
     return node_prop(v).frozen;
   });
 }
+
+std::pair<MultiplexDBG::EdgeNeighborMap, MultiplexDBG::EdgeNeighborMap>
+MultiplexDBG::get_edgepairs_vertex(const RRVertexType &vertex) const {
+  EdgeNeighborMap ac_s2e, ac_e2s;
+  auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
+  auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
+  for (auto in_it = in_nbr_begin; in_it != in_nbr_end; ++in_it) {
+    for (auto out_it = out_nbr_begin; out_it != out_nbr_end; ++out_it) {
+      const EdgeIndexType &in_ind = in_it->second.prop().get_index();
+      const EdgeIndexType &out_ind = out_it->second.prop().get_index();
+      if (rr_paths->contains_pair(in_ind, out_ind)) {
+        ac_s2e[in_ind].emplace(out_ind);
+        ac_e2s[out_ind].emplace(in_ind);
+      }
+    }
+  }
+  return std::make_pair(ac_s2e, ac_e2s);
+}
+
+MultiplexDBG::NeighborsIterator
+MultiplexDBG::find_edge_iterator(const RRVertexType &v,
+                                 const EdgeIndexType &edge) {
+  auto it = out_neighbors(v).first;
+  while (it->second.prop().get_index() != edge) {
+    ++it;
+  }
+  return it;
+};

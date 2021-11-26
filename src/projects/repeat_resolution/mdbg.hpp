@@ -22,6 +22,7 @@ class MultiplexDBG
           /*Container neighbors_container_spec=*/
           graph_lite::Container::MULTISET> {
   friend class MultiplexDBGIncreaser;
+  RRPaths *rr_paths;
   uint64_t next_edge_index{0};
   uint64_t next_vert_index{0};
   uint64_t n_iter{0};
@@ -32,9 +33,6 @@ class MultiplexDBG
   void assert_validity() const;
 
 public:
-  // TODO remove public
-  RRPaths *rr_paths;
-
   // This constructor is for testing purposes
   MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
                RRPaths *rr_paths);
@@ -70,6 +68,14 @@ public:
   EdgeIndexType add_connecting_edge(NeighborsIterator e1_it,
                                     const RRVertexType &s2,
                                     NeighborsIterator e2_it);
+
+  using EdgeNeighborMap =
+      std::unordered_map<EdgeIndexType, std::unordered_set<EdgeIndexType>>;
+  std::pair<EdgeNeighborMap, EdgeNeighborMap>
+  get_edgepairs_vertex(const RRVertexType &vertex) const;
+
+  NeighborsIterator find_edge_iterator(const RRVertexType &v,
+                                       const EdgeIndexType &edge);
 };
 
 } // End namespace repeat_resolution
