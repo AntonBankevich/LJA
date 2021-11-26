@@ -7,7 +7,8 @@
 #include "../dbg/graph_alignment_storage.hpp"
 #include "../dbg/sparse_dbg.hpp"
 #include "../error_correction/multiplicity_estimation.hpp"
-#include "multiplex_dbg.hpp"
+#include "mdbg.hpp"
+#include "mdbg_inc.hpp"
 #include "paths.hpp"
 #include <graphlite/serialize.hpp>
 #include <vector>
@@ -19,8 +20,9 @@ class RepeatResolver {
   RecordStorage *reads_storage;
   std::vector<RecordStorage *> extra_storages;
   std::uint64_t start_k{1};
+  std::uint64_t saturating_k{1};
   std::experimental::filesystem::path dir;
-  uint64_t unique_threshold;
+  uint64_t unique_threshold{0};
   bool diploid{false};
   bool debug{false};
 
@@ -33,11 +35,11 @@ class RepeatResolver {
 public:
   RepeatResolver(dbg::SparseDBG &dbg, RecordStorage *reads_storage,
                  std::vector<RecordStorage *> extra_storages, uint64_t start_k,
-                 std::experimental::filesystem::path dir,
+                 uint64_t saturating_k, std::experimental::filesystem::path dir,
                  uint64_t unique_threshold, bool diploid, bool debug)
-      : dbg{dbg}, reads_storage{reads_storage}, extra_storages{std::move(
-                                                    extra_storages)},
-        start_k{start_k}, dir{std::move(dir)},
+      : dbg{dbg}, reads_storage{reads_storage},
+        extra_storages{std::move(extra_storages)}, start_k{start_k},
+        saturating_k{saturating_k}, dir{std::move(dir)},
         unique_threshold{unique_threshold}, diploid{diploid}, debug{debug} {
     std::experimental::filesystem::create_directory(this->dir);
   }
@@ -50,12 +52,13 @@ public:
     RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
 
     UniqueClassificator classificator(dbg, *reads_storage, diploid, debug);
-    classificator.classify(logger, unique_threshold, dir/"mult_dir");
+    classificator.classify(logger, unique_threshold, dir / "mult_dir");
     MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator, debug, dir,
                       logger);
     mdbg.serialize_to_dot(dir / "init_graph.dot");
     logger.info() << "Increasing k" << std::endl;
-    mdbg.incN(100000, debug);
+    MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};
+    k_increaser.IncrementN(mdbg, 100000);
     logger.info() << "Finished increasing k" << std::endl;
     mdbg.serialize_to_dot(dir / "resolved_graph.dot");
   }

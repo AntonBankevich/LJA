@@ -9,4 +9,4 @@ include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
 include_directories(src/projects/repeat_resolution)
 add_executable(run_tests test_rr.cpp)
-target_link_libraries(run_tests gtest gtest_main repeat_resolution)
+target_link_libraries(run_tests gtest gtest_main repeat_resolution lja_dbg)

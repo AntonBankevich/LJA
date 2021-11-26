@@ -3,11 +3,14 @@
 //
 
 #include "gtest/gtest.h"
+#include <repeat_resolution/mdbg_inc.hpp>
 
-#include "repeat_resolution/multiplex_dbg.hpp"
+#include "repeat_resolution/mdbg.hpp"
 #include "repeat_resolution/paths.hpp"
 
 using namespace repeat_resolution;
+
+logging::Logger logger;
 
 TEST(RRPathsTest, Basic) {
   std::vector<RRPath> _path_vector;
@@ -289,7 +292,9 @@ TEST(DBStVertex, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -322,7 +327,9 @@ TEST(DBEvVertex, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
@@ -356,7 +363,9 @@ TEST(DB1inVertex, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
@@ -390,7 +399,9 @@ TEST(DB1inVertex, WithShortEdge) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -424,7 +435,9 @@ TEST(DB1outVertex, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
@@ -458,7 +471,9 @@ TEST(DB1outVertex, WithShortEdge) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
@@ -495,7 +510,9 @@ TEST(DBComplexVertex, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -532,7 +549,9 @@ TEST(DBComplexVertexLoop1, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -574,7 +593,9 @@ TEST(DBComplexVertexLoop2, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -612,7 +633,9 @@ TEST(DBComplexVertexLoop3, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -649,7 +672,9 @@ TEST(DBComplexVertexLoop4, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -696,7 +721,9 @@ TEST(DBComplexVertexLoop5, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -741,7 +768,9 @@ TEST(DBBuldges1, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -780,7 +809,9 @@ TEST(DBComplexVertexConn4, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -820,7 +851,9 @@ TEST(DBComplexVertexConn3, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -863,7 +896,9 @@ TEST(DBComplexVertexConn3_2, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -904,7 +939,9 @@ TEST(DBComplexVertexLoop6, Basic) {
 
   MultiplexDBG mdbg(edge_info, k, &paths);
   int N = 4;
-  mdbg.incN(N);
+
+  MultiplexDBGIncreaser k_increaser{k, k + N, logger, true};
+  k_increaser.IncrementN(mdbg, N);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -943,7 +980,9 @@ TEST(DBComplexVertexLoop7, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -980,7 +1019,9 @@ TEST(DBComplexVertexLoop8, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -1019,7 +1060,9 @@ TEST(DBIsolate, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
@@ -1051,7 +1094,9 @@ TEST(DBEmptyGraph, Basic) {
   }();
 
   MultiplexDBG mdbg(edge_info, k, &paths);
-  mdbg.inc();
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.Increment(mdbg);
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info;
     std::vector<SuccinctEdgeInfo> edge_info =

@@ -2,7 +2,7 @@
 // Created by Andrey Bzikadze on 11/10/21.
 //
 
-#include "multiplex_dbg_topology.hpp"
+#include "mdbg_topology.hpp"
 using namespace repeat_resolution;
 
 std::ostream &repeat_resolution::operator<<(std::ostream &os,

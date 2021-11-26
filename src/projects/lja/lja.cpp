@@ -162,10 +162,12 @@ SecondPhase(logging::Logger &logger,
   }
   ensure_dir_existance(dir);
   hashing::RollingHash hasher(k, 239);
-  std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w,
-                                   &reads_lib, &pseudo_reads_lib, &paths_lib,
-                                   threads, threshold, reliable_coverage, debug,
-                                   unique_threshold, diploid, py_path] {
+  // std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w,
+  //                                  &reads_lib, &pseudo_reads_lib, &paths_lib,
+  //                                  threads, threshold, reliable_coverage,
+  //                                  debug, unique_threshold, diploid, py_path]
+  //                                  {
+  {
     io::Library construction_lib = reads_lib + pseudo_reads_lib;
     SparseDBG dbg =
         load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads,
@@ -256,13 +258,16 @@ partial_contigs, dir / "merging.txt", is_unique);
      */
 
     // Modified version
-    repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads}, k,
-                                         dir / "repeat_resolution",
-                                         unique_threshold, diploid, debug);
+    uint64_t saturating_k = 40001;
+    repeat_resolution::RepeatResolver rr(
+        dbg, &readStorage, {&extra_reads}, k, saturating_k,
+        dir / "repeat_resolution", unique_threshold, diploid, debug);
     rr.resolve_repeats(logger);
-  };
-  if (!skip)
-    runInFork(ic_task);
+  }
+  // };
+  // if (!skip)
+  //   runInFork(ic_task);
+
   std::experimental::filesystem::path res;
   res = dir / "corrected.fasta";
   logger.info() << "Second phase results with k = " << k << " printed to "

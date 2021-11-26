@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "multiplex_dbg_topology.hpp"
+#include "mdbg_topology.hpp"
 #include <cctype>
 #include <dbg/graph_alignment_storage.hpp>
 #include <list>
