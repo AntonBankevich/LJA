@@ -83,8 +83,17 @@ public:
   std::pair<EdgeNeighborMap, EdgeNeighborMap>
   get_edgepairs_vertex(const RRVertexType &vertex) const;
 
-  NeighborsIterator find_edge_iterator(const RRVertexType &v,
-                                       const EdgeIndexType &edge);
+  NeighborsIterator find_in_edge_iterator(const RRVertexType &v,
+                                          const EdgeIndexType &edge);
+  NeighborsConstIterator
+  find_in_edge_constiterator(const RRVertexType &v,
+                             const EdgeIndexType &edge) const;
+
+  NeighborsIterator find_out_edge_iterator(const RRVertexType &v,
+                                           const EdgeIndexType &edge);
+  NeighborsConstIterator
+  find_out_edge_constiterator(const RRVertexType &v,
+                              const EdgeIndexType &edge) const;
 };
 
 } // End namespace repeat_resolution

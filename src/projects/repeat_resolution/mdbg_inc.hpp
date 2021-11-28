@@ -19,9 +19,10 @@ class MultiplexDBGIncreaser {
 
 private:
   void process_vertex(MultiplexDBG &graph, const RRVertexType &vertex);
-  static void collapse_short_edges_into_vertices(MultiplexDBG & graph);
-  static void collapse_edge(MultiplexDBG &graph, MultiplexDBG::ConstIterator s_it,
-                     MultiplexDBG::NeighborsIterator e_it);
+  static void collapse_short_edges_into_vertices(MultiplexDBG &graph);
+  static void collapse_edge(MultiplexDBG &graph,
+                            MultiplexDBG::ConstIterator s_it,
+                            MultiplexDBG::NeighborsIterator e_it);
 
 public:
   MultiplexDBGIncreaser(uint64_t start_k, uint64_t saturating_k,

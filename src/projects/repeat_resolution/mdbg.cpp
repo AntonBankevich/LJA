@@ -56,20 +56,20 @@ void MultiplexDBG::_spread_frost() {
     }
   }
 
-  auto upd_new_frozen =
-      [this, &new_frozen](const RRVertexProperty &vertex_prop,
-                              NeighborsIterator begin, NeighborsIterator end) {
-        for (auto it = begin; it != end; ++it) {
-          const RREdgeProperty &edge_prop = it->second.prop();
-          const RRVertexType &neighbor = it->first;
-          const RRVertexProperty &neighbor_prop = node_prop(neighbor);
-          if (not neighbor_prop.frozen and
-              edge_prop.size() == 1 + neighbor_prop.len) {
-            freeze_vertex(neighbor);
-            new_frozen.insert(neighbor);
-          }
-        }
-      };
+  auto upd_new_frozen = [this, &new_frozen](const RRVertexProperty &vertex_prop,
+                                            NeighborsIterator begin,
+                                            NeighborsIterator end) {
+    for (auto it = begin; it != end; ++it) {
+      const RREdgeProperty &edge_prop = it->second.prop();
+      const RRVertexType &neighbor = it->first;
+      const RRVertexProperty &neighbor_prop = node_prop(neighbor);
+      if (not neighbor_prop.frozen and
+          edge_prop.size() == 1 + neighbor_prop.len) {
+        freeze_vertex(neighbor);
+        new_frozen.insert(neighbor);
+      }
+    }
+  };
 
   while (not prev_frozen.empty()) {
     for (const RRVertexType &vertex : prev_frozen) {
@@ -261,24 +261,134 @@ MultiplexDBG::get_neighbor_edges_indexes(const RRVertexType &vertex) const {
 
 std::pair<MultiplexDBG::EdgeNeighborMap, MultiplexDBG::EdgeNeighborMap>
 MultiplexDBG::get_edgepairs_vertex(const RRVertexType &vertex) const {
-  EdgeNeighborMap ac_s2e, ac_e2s;
-  auto [in_edges, out_edges] = get_neighbor_edges_indexes(vertex);
-  for (const EdgeIndexType &in_ind : in_edges) {
-    for (const EdgeIndexType &out_ind : out_edges) {
-      if (rr_paths->contains_pair(in_ind, out_ind)) {
-        ac_s2e[in_ind].emplace(out_ind);
-        ac_e2s[out_ind].emplace(in_ind);
-      }
-    }
-  }
+  auto get_init_transitions =
+      [this](const std::vector<EdgeIndexType> &in_edges,
+             const std::vector<EdgeIndexType> &out_edges) {
+        EdgeNeighborMap ac_s2e, ac_e2s;
+        for (const EdgeIndexType &in_ind : in_edges) {
+          for (const EdgeIndexType &out_ind : out_edges) {
+            if (rr_paths->contains_pair(in_ind, out_ind)) {
+              ac_s2e[in_ind].emplace(out_ind);
+              ac_e2s[out_ind].emplace(in_ind);
+            }
+          }
+        }
+        return std::make_pair(ac_s2e, ac_e2s);
+      };
+
+  auto extend_transitions_single_loop =
+      [this, &vertex](const std::vector<EdgeIndexType> &in_edges,
+                      const std::vector<EdgeIndexType> &out_edges,
+                      EdgeNeighborMap &ac_s2e, EdgeNeighborMap &ac_e2s) {
+        std::vector<EdgeIndexType> loops;
+        for (const EdgeIndexType &index : in_edges) {
+          if (std::find(out_edges.begin(), out_edges.end(), index) !=
+              out_edges.end()) {
+            loops.push_back(index);
+          }
+        }
+
+        if (loops.size() == 1) {
+          const EdgeIndexType loop = loops.front();
+          const RREdgeProperty &loop_prop =
+              find_out_edge_constiterator(vertex, loop)->second.prop();
+          if (loop_prop.is_unique()) {
+            if (in_edges.size() == 2) {
+              const size_t loop_index = in_edges.back() == loop;
+              const size_t nonloop = in_edges[loop_index ^ 1];
+              ac_s2e[nonloop].emplace(loop);
+              ac_e2s[loop].emplace(nonloop);
+            }
+            if (out_edges.size() == 2) {
+              const size_t loop_index = out_edges.back() == loop;
+              const size_t nonloop = out_edges[loop_index ^ 1];
+              ac_s2e[loop].emplace(nonloop);
+              ac_e2s[nonloop].emplace(loop);
+            }
+          }
+        }
+      };
+
+  auto extend_transitions_all_unique =
+      [this, &vertex](const std::vector<EdgeIndexType> &in_edges,
+                      const std::vector<EdgeIndexType> &out_edges,
+                      EdgeNeighborMap &ac_s2e, EdgeNeighborMap &ac_e2s) {
+        std::vector<EdgeIndexType> unpaired_in, unpaired_out;
+        for (const EdgeIndexType &index : out_edges) {
+          if (ac_e2s.find(index) == ac_e2s.end()) {
+            unpaired_out.push_back(index);
+          }
+        }
+        for (const EdgeIndexType &index : in_edges) {
+          if (ac_e2s.find(index) == ac_e2s.end()) {
+            unpaired_in.push_back(index);
+          }
+        }
+
+        bool all_in_unique =
+            std::all_of(in_edges.begin(), in_edges.end(),
+                        [this, &vertex](const EdgeIndexType &edge_index) {
+                          return find_in_edge_constiterator(vertex, edge_index)
+                              ->second.prop()
+                              .is_unique();
+                        });
+        bool all_out_unique =
+            std::all_of(out_edges.begin(), out_edges.end(),
+                        [this, &vertex](const EdgeIndexType &edge_index) {
+                          return find_out_edge_constiterator(vertex, edge_index)
+                              ->second.prop()
+                              .is_unique();
+                        });
+        if (unpaired_in.size() == 1 and unpaired_out.size() == 1 and
+            (all_in_unique or all_out_unique)) {
+          ac_s2e.emplace(unpaired_in.front(), unpaired_out.front());
+          ac_e2s.emplace(unpaired_out.front(), unpaired_in.front());
+        }
+      };
+
+  const auto [in_edges, out_edges] = get_neighbor_edges_indexes(vertex);
+  auto [ac_s2e, ac_e2s] = get_init_transitions(in_edges, out_edges);
+  extend_transitions_single_loop(in_edges, out_edges, ac_s2e, ac_e2s);
+  extend_transitions_all_unique(in_edges, out_edges, ac_s2e, ac_e2s);
+
   return std::make_pair(ac_s2e, ac_e2s);
 }
 
 MultiplexDBG::NeighborsIterator
-MultiplexDBG::find_edge_iterator(const RRVertexType &v,
-                                 const EdgeIndexType &edge) {
-  auto it = out_neighbors(v).first;
-  while (it->second.prop().get_index() != edge) {
+MultiplexDBG::find_in_edge_iterator(const RRVertexType &v,
+                                    const EdgeIndexType &edge) {
+  auto [it, end] = in_neighbors(v);
+  while (it != end and it->second.prop().get_index() != edge) {
+    ++it;
+  }
+  return it;
+};
+
+MultiplexDBG::NeighborsConstIterator
+MultiplexDBG::find_in_edge_constiterator(const RRVertexType &v,
+                                         const EdgeIndexType &edge) const {
+  auto [it, end] = in_neighbors(v);
+  while (it != end and it->second.prop().get_index() != edge) {
+    ++it;
+  }
+  return it;
+};
+
+MultiplexDBG::NeighborsIterator
+MultiplexDBG::find_out_edge_iterator(const RRVertexType &v,
+                                     const EdgeIndexType &edge) {
+  auto [it, end] = out_neighbors(v);
+  while (it != end and it->second.prop().get_index() != edge) {
+    ++it;
+  }
+  return it;
+};
+
+MultiplexDBG::NeighborsConstIterator
+MultiplexDBG::find_out_edge_constiterator(const RRVertexType &v,
+                                          const EdgeIndexType &edge) const {
+  auto [it, end] = out_neighbors(v);
+  while (it != end and it->second.prop().get_index() != edge) {
     ++it;
   }
   return it;

@@ -190,12 +190,12 @@ void MDBGComplexVertexProcessor::process(MultiplexDBG &graph,
     for (const auto &edge2_ : edge1_neighbors) {
       const EdgeIndexType edge1 = FindMergeEdgeId(edge1_);
       const RRVertexType left_vertex = edge2vertex.at(edge1);
-      auto e1_it = graph.find_edge_iterator(left_vertex, edge1);
+      auto e1_it = graph.find_out_edge_iterator(left_vertex, edge1);
 
       const EdgeIndexType edge2 = FindMergeEdgeId(edge2_);
       const RRVertexType right_vertex = edge2vertex.at(edge2);
       const std::unordered_set<EdgeIndexType> &edge2_neighbors = ac_e2s[edge2];
-      auto e2_it = graph.find_edge_iterator(right_vertex, edge2);
+      auto e2_it = graph.find_out_edge_iterator(right_vertex, edge2);
 
       if (edge1_neighbors.size() == 1 and edge2_neighbors.size() == 1) {
         process_11(graph, vertex, left_vertex, right_vertex, e1_it, e2_it,
