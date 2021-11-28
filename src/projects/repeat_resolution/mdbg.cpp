@@ -244,6 +244,16 @@ MultiplexDBG::get_in_edges_indexes(const RRVertexType &vertex) const {
   return indexes;
 }
 
+bool MultiplexDBG::is_vertex_complex(const RRVertexType &vertex) const {
+  const int indegree = count_in_neighbors(vertex);
+  const int outdegree = count_out_neighbors(vertex);
+  return indegree >= 2 and outdegree >= 2;
+}
+
+bool MultiplexDBG::is_vertex_simple(const RRVertexType &vertex) const {
+  return not is_vertex_complex(vertex);
+}
+
 std::vector<EdgeIndexType>
 MultiplexDBG::get_out_edges_indexes(const RRVertexType &vertex) const {
   std::vector<EdgeIndexType> indexes;

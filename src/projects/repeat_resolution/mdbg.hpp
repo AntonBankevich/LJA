@@ -54,6 +54,10 @@ public:
 
   RRVertexType get_new_vertex(uint64_t len);
 
+  bool is_vertex_complex(const RRVertexType &vertex) const;
+
+  bool is_vertex_simple(const RRVertexType &vertex) const;
+
   void freeze_vertex(const RRVertexType &vertex) {
     RRVertexProperty &prop = node_prop(vertex);
     prop.freeze();

@@ -7,16 +7,16 @@
 using namespace repeat_resolution;
 
 void MultiplexDBGIncreaser::process_vertex(MultiplexDBG &graph,
-                                           const RRVertexType &vertex) {
+                                           const RRVertexType &vertex,
+                                           const uint64_t n_iter) {
   if (graph.node_prop(vertex).frozen) {
     return;
   }
-  const int indegree = graph.count_in_neighbors(vertex);
-  const int outdegree = graph.count_out_neighbors(vertex);
-  if (indegree >= 2 and outdegree >= 2) {
+  if (graph.is_vertex_complex(vertex)) {
+    VERIFY(n_iter == 1);
     complex_vertex_processor.process(graph, vertex);
   } else {
-    simple_vertex_processor.process(graph, vertex);
+    simple_vertex_processor.process(graph, vertex, n_iter);
   }
 }
 
@@ -93,7 +93,38 @@ MultiplexDBGIncreaser::MultiplexDBGIncreaser(const uint64_t start_k,
   VERIFY(saturating_k >= start_k);
 }
 
-void MultiplexDBGIncreaser::Increment(MultiplexDBG &graph) {
+uint64_t
+MultiplexDBGIncreaser::get_niter_wo_complex(const MultiplexDBG &graph) const {
+  // this function does not respect saturating k
+  uint64_t n_iter_wo_complex{std::numeric_limits<uint64_t>::max()};
+  for (const RRVertexType &vertex : graph) {
+    const RRVertexProperty &vertex_prop = graph.node_prop(vertex);
+    if (vertex_prop.frozen) {
+      continue;
+    }
+    const int indegree = graph.count_in_neighbors(vertex);
+    const int outdegree = graph.count_out_neighbors(vertex);
+    if (graph.is_vertex_complex(vertex) or (indegree == 0 and outdegree >= 2) or
+        (indegree >= 2 and outdegree == 0)) {
+      n_iter_wo_complex = 0;
+      break;
+    }
+    const auto [neighbor, edge] = graph.count_in_neighbors(vertex) == 1
+                                      ? *(graph.in_neighbors(vertex).first)
+                                      : *(graph.out_neighbors(vertex).first);
+    const RRVertexProperty &neighbor_prop = graph.node_prop(neighbor);
+    const bool is_neighbor_frozen = neighbor_prop.frozen;
+    const uint64_t edge_len = edge.prop().size();
+    VERIFY(edge_len > vertex_prop.len);
+    uint64_t n_iter_node = edge_len - vertex_prop.len - is_neighbor_frozen;
+    n_iter_wo_complex = std::min(n_iter_wo_complex, n_iter_node - 1);
+  }
+  return n_iter_wo_complex;
+}
+
+void MultiplexDBGIncreaser::Increase(MultiplexDBG &graph,
+                                     const bool unite_simple,
+                                     const uint64_t max_iter) {
   if (graph.is_frozen()) {
     logger.info() << "Graph is frozen, no increase of k possible" << std::endl;
     return;
@@ -114,10 +145,12 @@ void MultiplexDBGIncreaser::Increment(MultiplexDBG &graph) {
     return vertexes;
   }();
 
+  uint64_t n_iter =
+      unite_simple ? std::min(max_iter, get_niter_wo_complex(graph) + 1) : 1;
   for (const auto &vertex : vertexes) {
-    process_vertex(graph, vertex);
+    process_vertex(graph, vertex, n_iter);
   }
-  ++graph.n_iter;
+  graph.n_iter += n_iter;
 
   collapse_short_edges_into_vertices(graph);
   graph.freeze_unpaired_vertices();
@@ -127,10 +160,21 @@ void MultiplexDBGIncreaser::Increment(MultiplexDBG &graph) {
   }
 }
 
-void MultiplexDBGIncreaser::IncrementN(MultiplexDBG &graph, uint64_t N) {
-  N = std::min(N, saturating_k - start_k - graph.n_iter);
-  for (int i = 0; i < N; ++i) {
-    std::cout << i << "\n";
-    Increment(graph);
+void MultiplexDBGIncreaser::IncreaseN(MultiplexDBG &graph, uint64_t N,
+                                      const bool unite_simple) {
+  const uint64_t init_n_iter = graph.n_iter;
+  N = std::min(N, saturating_k - start_k - init_n_iter);
+  while (not graph.is_frozen() and start_k + graph.n_iter < saturating_k and
+         graph.n_iter - init_n_iter < N) {
+    std::cout << start_k + graph.n_iter << "\n";
+    const uint64_t remain_max_iter = N - (graph.n_iter - init_n_iter);
+    Increase(graph, unite_simple, remain_max_iter);
   }
+}
+
+void MultiplexDBGIncreaser::IncreaseUntilSaturation(MultiplexDBG &graph,
+                                                    const bool unite_simple) {
+  VERIFY(saturating_k - start_k >= graph.n_iter);
+  uint64_t N = saturating_k - start_k - graph.n_iter;
+  IncreaseN(graph, N, unite_simple);
 }

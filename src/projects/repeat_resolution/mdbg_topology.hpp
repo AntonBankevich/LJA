@@ -63,18 +63,24 @@ public:
     }
   }
 
-  void append(const RREdgeProperty &rhs, uint64_t overlap_len) {
-    VERIFY(rhs.size() > overlap_len);
+  void append(const RREdgeProperty &rhs, uint64_t overlap_len,
+              uint64_t n_iter = 1) {
+    VERIFY(rhs.size() >= overlap_len + n_iter);
     auto it = rhs.get_seq().begin();
     std::advance(it, overlap_len);
-    seq.push_back(*it);
+    for (size_t i = 0; i < n_iter; ++i, ++it) {
+      seq.push_back(*it);
+    }
   }
 
-  void prepend(const RREdgeProperty &lhs, uint64_t overlap_len) {
-    VERIFY(lhs.size() > overlap_len);
+  void prepend(const RREdgeProperty &lhs, uint64_t overlap_len,
+               uint64_t n_iter = 1) {
+    VERIFY(lhs.size() >= overlap_len + n_iter);
     auto it = lhs.get_seq().rbegin();
     std::advance(it, overlap_len);
-    seq.push_front(*it);
+    for (size_t i = 0; i < n_iter; ++i, ++it) {
+      seq.push_front(*it);
+    }
   }
 
   void merge(RREdgeProperty rhs, uint64_t overlap_len) {

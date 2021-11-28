@@ -3777,7 +3777,7 @@ Just define a functor class with a (possibly templated) call operator, matching
 the signature of your action.
 
 ```cpp
-struct Increment {
+struct Increase {
   template <typename T>
   T operator()(T* arg) {
     return ++(*arg);

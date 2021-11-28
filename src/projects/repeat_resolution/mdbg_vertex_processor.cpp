@@ -32,32 +32,35 @@ void MDBGSimpleVertexProcessor::process_1pin_0out(MultiplexDBG &graph,
   graph.remove_nodes(vertex); // careful: Iterator is invalidated
 }
 void MDBGSimpleVertexProcessor::process_1in_1pout(MultiplexDBG &graph,
-                                                  const RRVertexType &vertex) {
+                                                  const RRVertexType &vertex,
+                                                  const uint64_t n_iter) {
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   auto in_nbr_begin = graph.in_neighbors(vertex).first;
   RREdgeProperty &in_edge = in_nbr_begin->second.prop();
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
   for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
     RREdgeProperty &out_edge = it->second.prop();
-    out_edge.prepend(in_edge, v_prop.len);
+    out_edge.prepend(in_edge, v_prop.len, n_iter);
   }
-  ++v_prop.len;
+  v_prop.len += n_iter;
 }
 void MDBGSimpleVertexProcessor::process_1pin_1out(MultiplexDBG &graph,
-                                                  const RRVertexType &vertex) {
+                                                  const RRVertexType &vertex,
+                                                  const uint64_t n_iter) {
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   auto out_nbr_begin = graph.out_neighbors(vertex).first;
   RREdgeProperty &out_edge = out_nbr_begin->second.prop();
   auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
     RREdgeProperty &in_edge = it->second.prop();
-    in_edge.append(out_edge, v_prop.len);
+    in_edge.append(out_edge, v_prop.len, n_iter);
   }
-  ++v_prop.len;
+  v_prop.len += n_iter;
 }
 
 void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
-                                        const RRVertexType &vertex) {
+                                        const RRVertexType &vertex,
+                                        const uint64_t n_iter) {
   const int indegree = graph.count_in_neighbors(vertex);
   const int outdegree = graph.count_out_neighbors(vertex);
   VERIFY(indegree < 2 or outdegree < 2);
@@ -69,24 +72,26 @@ void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
     // Isolates should be skipped
   } else if (indegree == 0 and outdegree == 1) {
     // tip. Only increment length
-    ++v_prop.len;
+    v_prop.len += n_iter;
   } else if (indegree == 1 and outdegree == 0) {
     // tip. Only increment length
-    ++v_prop.len;
+    v_prop.len += n_iter;
 
   } else if (indegree == 0 and outdegree > 1) {
     // "Starting" vertex
+    VERIFY(n_iter == 1);
     process_0in_1pout(graph, vertex);
 
   } else if (indegree > 1 and outdegree == 0) {
     // "Finishing" vertex
+    VERIFY(n_iter == 1);
     process_1pin_0out(graph, vertex);
 
   } else if (indegree == 1 and outdegree > 1) {
-    process_1in_1pout(graph, vertex);
+    process_1in_1pout(graph, vertex, n_iter);
 
   } else if (indegree > 1 and outdegree == 1) {
-    process_1pin_1out(graph, vertex);
+    process_1pin_1out(graph, vertex, n_iter);
   }
 }
 
