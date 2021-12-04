@@ -9,7 +9,7 @@ using namespace repeat_resolution;
 void MultiplexDBGIncreaser::process_vertex(MultiplexDBG &graph,
                                            const RRVertexType &vertex,
                                            const uint64_t n_iter) {
-  if (graph.node_prop(vertex).frozen) {
+  if (graph.node_prop(vertex).IsFrozen()) {
     return;
   }
   if (graph.is_vertex_complex(vertex)) {
@@ -30,11 +30,10 @@ void MultiplexDBGIncreaser::collapse_edge(
   VERIFY(graph.count_in_neighbors(e_it->first) == 1);
 
   RREdgeProperty &edge_prop = e_it->second.prop();
-  graph.rr_paths->remove(edge_prop.get_index());
+  graph.rr_paths->remove(edge_prop.GetIndex());
 
   if (graph.count_in_neighbors(s) == 0 and graph.count_out_neighbors(e) == 0) {
-    // isolated vertex. Need to freeze and save its label
-    graph.isolate_properties.emplace(s, std::move(edge_prop));
+    // isolated vertex. Need to freeze
     graph.freeze_vertex(s);
   }
 
@@ -43,7 +42,7 @@ void MultiplexDBGIncreaser::collapse_edge(
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(e);
   for (auto out_nbr_it = out_nbr_begin; out_nbr_it != out_nbr_end;
        ++out_nbr_it) {
-    graph.move_edge(e, out_nbr_it, s, out_nbr_it->first);
+    graph.MoveEdge(e, out_nbr_it, s, out_nbr_it->first);
   }
   VERIFY(graph.count_in_neighbors(e) == 0 and
          graph.count_out_neighbors(e) == 0);
@@ -63,10 +62,11 @@ void MultiplexDBGIncreaser::collapse_short_edges_into_vertices(
       const RRVertexType &v2 = it->first;
       const RRVertexProperty &v2p = graph.node_prop(v2);
       const RREdgeProperty &edge_property = it->second.prop();
-      if (v1p.len == edge_property.size() or v2p.len == edge_property.size()) {
-        VERIFY(v1p.len == v2p.len);
-        VERIFY(not v1p.frozen and not v2p.frozen);
-        edges2collapse.push_back(edge_property.get_index());
+      const size_t full_edge_size = graph.FullEdgeSize(graph.find(v1), it);
+      if (v1p.size() == full_edge_size or v2p.size() == full_edge_size) {
+        VERIFY(v1p.size() == v2p.size());
+        VERIFY(not v1p.IsFrozen() and not v2p.IsFrozen());
+        edges2collapse.push_back(edge_property.GetIndex());
       }
     }
     for (const EdgeIndexType &edge_index : edges2collapse) {
@@ -74,7 +74,7 @@ void MultiplexDBGIncreaser::collapse_short_edges_into_vertices(
       // thus, we find the iterator for every edge from scratch
       auto it = [&graph, &v1, &edge_index]() {
         auto it = graph.out_neighbors(v1).first;
-        while (it->second.prop().get_index() != edge_index) {
+        while (it->second.prop().GetIndex() != edge_index) {
           ++it;
         }
         return it;
@@ -99,7 +99,7 @@ MultiplexDBGIncreaser::get_niter_wo_complex(const MultiplexDBG &graph) const {
   uint64_t n_iter_wo_complex{std::numeric_limits<uint64_t>::max()};
   for (const RRVertexType &vertex : graph) {
     const RRVertexProperty &vertex_prop = graph.node_prop(vertex);
-    if (vertex_prop.frozen) {
+    if (vertex_prop.IsFrozen()) {
       continue;
     }
     const int indegree = graph.count_in_neighbors(vertex);
@@ -109,14 +109,15 @@ MultiplexDBGIncreaser::get_niter_wo_complex(const MultiplexDBG &graph) const {
       n_iter_wo_complex = 0;
       break;
     }
-    const auto [neighbor, edge] = graph.count_in_neighbors(vertex) == 1
-                                      ? *(graph.in_neighbors(vertex).first)
-                                      : *(graph.out_neighbors(vertex).first);
+    const auto edge_it = graph.count_in_neighbors(vertex) == 1
+                             ? graph.in_neighbors(vertex).first
+                             : graph.out_neighbors(vertex).first;
+    const auto [neighbor, edge] = *edge_it;
     const RRVertexProperty &neighbor_prop = graph.node_prop(neighbor);
-    const bool is_neighbor_frozen = neighbor_prop.frozen;
-    const uint64_t edge_len = edge.prop().size();
-    VERIFY(edge_len > vertex_prop.len);
-    uint64_t n_iter_node = edge_len - vertex_prop.len - is_neighbor_frozen;
+    const bool is_neighbor_frozen = neighbor_prop.IsFrozen();
+    const uint64_t edge_len = graph.FullEdgeSize(graph.find(vertex), edge_it);
+    VERIFY(edge_len > vertex_prop.size());
+    uint64_t n_iter_node = edge_len - vertex_prop.size() - is_neighbor_frozen;
     n_iter_wo_complex = std::min(n_iter_wo_complex, n_iter_node - 1);
   }
   return n_iter_wo_complex;
@@ -125,7 +126,7 @@ MultiplexDBGIncreaser::get_niter_wo_complex(const MultiplexDBG &graph) const {
 void MultiplexDBGIncreaser::Increase(MultiplexDBG &graph,
                                      const bool unite_simple,
                                      const uint64_t max_iter) {
-  if (graph.is_frozen()) {
+  if (graph.IsFrozen()) {
     logger.info() << "Graph is frozen, no increase of k possible" << std::endl;
     return;
   }
@@ -164,7 +165,7 @@ void MultiplexDBGIncreaser::IncreaseN(MultiplexDBG &graph, uint64_t N,
                                       const bool unite_simple) {
   const uint64_t init_n_iter = graph.n_iter;
   N = std::min(N, saturating_k - start_k - init_n_iter);
-  while (not graph.is_frozen() and start_k + graph.n_iter < saturating_k and
+  while (not graph.IsFrozen() and start_k + graph.n_iter < saturating_k and
          graph.n_iter - init_n_iter < N) {
     std::cout << start_k + graph.n_iter << "\n";
     const uint64_t remain_max_iter = N - (graph.n_iter - init_n_iter);

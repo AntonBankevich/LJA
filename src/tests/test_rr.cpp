@@ -190,23 +190,44 @@ auto List2Str = [](const std::list<char> &list) {
   return str;
 };
 
-bool CompareVertexes(const MultiplexDBG &graph,
-                     const std::vector<SuccinctEdgeInfo> &edge_info,
-                     const std::vector<RRVertexType> &isolates = {}) {
-  std::unordered_set<RRVertexType> obs_vertex_set;
-  for (const auto &vertex : graph) {
-    obs_vertex_set.emplace(vertex);
-  }
+void CompareVertexes(
+    const MultiplexDBG &graph, const std::vector<SuccinctEdgeInfo> &edge_info,
+    const std::unordered_map<RRVertexType, RRVertexProperty> &isolates = {}) {
+  bool IndexSetsEqual = [&graph, &edge_info, &isolates]() {
+    std::unordered_set<RRVertexType> obs_vertex_set;
+    for (const auto &vertex : graph) {
+      obs_vertex_set.emplace(vertex);
+    }
 
-  std::unordered_set<RRVertexType> true_vertex_set;
-  for (const SuccinctEdgeInfo &edge : edge_info) {
-    true_vertex_set.emplace(edge.start_ind);
-    true_vertex_set.emplace(edge.end_ind);
-  }
-  for (const RRVertexType &isolate : isolates) {
-    true_vertex_set.emplace(isolate);
-  }
-  return obs_vertex_set == true_vertex_set;
+    std::unordered_set<RRVertexType> true_vertex_set;
+    for (const SuccinctEdgeInfo &edge : edge_info) {
+      true_vertex_set.emplace(edge.start_ind);
+      true_vertex_set.emplace(edge.end_ind);
+    }
+    for (const auto &[isolate_index, isolate_prop] : isolates) {
+      true_vertex_set.emplace(isolate_index);
+    }
+    return obs_vertex_set == true_vertex_set;
+  }();
+  VERIFY(IndexSetsEqual);
+
+  bool SeqsEquals = [&graph, &edge_info, &isolates]() {
+    std::unordered_map<RRVertexType, std::list<char>> obs_seqs;
+    for (const auto &vertex : graph) {
+      obs_seqs[vertex] = graph.node_prop(vertex).GetSeq();
+    }
+
+    std::unordered_map<RRVertexType, std::list<char>> true_seqs;
+    for (const SuccinctEdgeInfo &edge : edge_info) {
+      true_seqs[edge.start_ind] = edge.start_prop.GetSeq();
+      true_seqs[edge.end_ind] = edge.end_prop.GetSeq();
+    }
+    for (const auto &[isolate_index, isolate_prop] : isolates) {
+      true_seqs[isolate_index] = isolate_prop.GetSeq();
+    }
+    return obs_seqs == true_seqs;
+  }();
+  VERIFY(SeqsEquals);
 }
 
 bool CompareEdges(const MultiplexDBG &graph,
@@ -220,8 +241,9 @@ bool CompareEdges(const MultiplexDBG &graph,
                             graph.node_prop(vertex),
                             nbr_it->first,
                             graph.node_prop(nbr_it->first),
-                            edge_prop.get_seq(),
-                            edge_prop.is_unique()};
+                            edge_prop.size(),
+                            edge_prop.GetSeq(),
+                            edge_prop.IsUnique()};
       if (std::find(edge_info.begin(), edge_info.end(), edge) ==
           edge_info.end()) {
         std::cout << edge.start_ind << " " << edge.end_ind << " "
@@ -239,8 +261,17 @@ std::vector<SuccinctEdgeInfo> GetEdgeInfo(const RawEdgeInfo &raw_edge_info,
                                           size_t k, bool frozen, bool unique) {
   std::vector<SuccinctEdgeInfo> edge_info;
   for (const auto &[st, en, str] : raw_edge_info) {
-    edge_info.push_back(
-        {st, {k, frozen}, en, {k, frozen}, Str2List(str), unique});
+    std::string prefix = str.substr(0, k);
+    int64_t infix_size = ((int64_t)str.size()) - 2 * k;
+    std::string infix = infix_size > 0 ? str.substr(k, infix_size) : "";
+    std::string suffix = str.substr(str.size() - k);
+    edge_info.push_back({st,
+                         {Str2List(prefix), frozen},
+                         en,
+                         {Str2List(suffix), frozen},
+                         infix_size,
+                         Str2List(infix),
+                         unique});
   }
   return edge_info;
 }
@@ -258,11 +289,8 @@ TEST(DB1, Basic) {
                       {3, 4, "AGTT"}, // 3
                       {3, 5, "AGC"},  // 4
                       {2, 4, "CTT"}}; // 5
-    std::vector<SuccinctEdgeInfo> edge_info;
-    for (const auto &[st, en, str] : raw_edge_info) {
-      edge_info.push_back(
-          {st, {k, frozen}, en, {k, frozen}, Str2List(str), unique});
-    }
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k, frozen, unique);
     return edge_info;
   }();
 
@@ -277,11 +305,136 @@ TEST(DB1, Basic) {
   MultiplexDBG mdbg(edge_info, k, &paths);
 
   {
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info);
     ASSERT_TRUE(CompareEdges(mdbg, edge_info));
   }
 }
 
+TEST(DBSingleEdge1, Basic) {
+  const size_t k = 2;
+
+  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+    const bool frozen = false;
+    const bool unique = false;
+    std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
+        raw_edge_info{{0, 1, "ACGTTGCA"}}; // 0
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k, frozen, unique);
+    return edge_info;
+  }();
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.IncreaseUntilSaturation(mdbg);
+  // for (const RRVertexType &vertex : mdbg) {
+  //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+  //             << mdbg.count_out_neighbors(vertex) << " "
+  //             << mdbg.node_prop(vertex).size << "\n";
+  // }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 1, "ACGTTGCA"}};
+    const std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::unordered_map<RRVertexType, RRVertexProperty> isolates;
+
+    CompareVertexes(mdbg, edge_info, isolates);
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}
+
+TEST(DBSingleEdge2, Basic) {
+  const size_t k = 2;
+
+  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+    const bool frozen = false;
+    const bool unique = false;
+    std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
+        raw_edge_info{{0, 1, "ACGCA"}}; // 0
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k, frozen, unique);
+    return edge_info;
+  }();
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+
+  MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+  k_increaser.IncreaseUntilSaturation(mdbg);
+  // for (const RRVertexType &vertex : mdbg) {
+  //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+  //             << mdbg.count_out_neighbors(vertex) << " "
+  //             << mdbg.node_prop(vertex).size << "\n";
+  // }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 1, "ACGCA"}};
+    const std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + 1, false, false);
+
+    const std::unordered_map<RRVertexType, RRVertexProperty> isolates;
+
+    CompareVertexes(mdbg, edge_info, isolates);
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}
+
+TEST(DBSingleEdge3, Basic) {
+  const size_t k = 2;
+
+  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+    const bool frozen = false;
+    const bool unique = false;
+    std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
+        raw_edge_info{{0, 1, "ACGTGCA"}}; // 0
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k, frozen, unique);
+    return edge_info;
+  }();
+
+  RRPaths paths = []() {
+    std::vector<RRPath> _path_vector;
+
+    return PathsBuilder::FromPathVector(_path_vector);
+  }();
+
+  MultiplexDBG mdbg(edge_info, k, &paths);
+  int N = 5;
+
+  MultiplexDBGIncreaser k_increaser{k, k + N, logger, true};
+  k_increaser.IncreaseUntilSaturation(mdbg);
+  // for (const RRVertexType &vertex : mdbg) {
+  //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
+  //             << mdbg.count_out_neighbors(vertex) << " "
+  //             << mdbg.node_prop(vertex).size << "\n";
+  // }
+  {
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{};
+    const std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(raw_edge_info, k + N, false, false);
+
+    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
+        {0, {Str2List("ACGTGCA"), false}}};
+
+    CompareVertexes(mdbg, edge_info, isolates);
+    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+  }
+}
+
+/*
 TEST(DBStVertex, Basic) {
   const size_t k = 2;
 
@@ -302,7 +455,7 @@ TEST(DBStVertex, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -337,7 +490,7 @@ TEST(DBEvVertex, Basic) {
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
-  //              << mdbg.node_prop(vertex).len << "\n";
+  //              << mdbg.node_prop(vertex).size << "\n";
   //  }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -373,7 +526,7 @@ TEST(DB1inVertex, Basic) {
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
-  //              << mdbg.node_prop(vertex).len << "\n";
+  //              << mdbg.node_prop(vertex).size << "\n";
   //  }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -409,7 +562,7 @@ TEST(DB1inVertex, WithShortEdge) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -445,7 +598,7 @@ TEST(DB1outVertex, Basic) {
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
-  //              << mdbg.node_prop(vertex).len << "\n";
+  //              << mdbg.node_prop(vertex).size << "\n";
   //  }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -481,7 +634,7 @@ TEST(DB1outVertex, WithShortEdge) {
   //  for (const RRVertexType &vertex : mdbg) {
   //    std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //              << mdbg.count_out_neighbors(vertex) << " "
-  //              << mdbg.node_prop(vertex).len << "\n";
+  //              << mdbg.node_prop(vertex).size << "\n";
   //  }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -520,7 +673,7 @@ TEST(DBComplexVertex, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -559,7 +712,7 @@ TEST(DBComplexVertexLoop1, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -603,7 +756,7 @@ TEST(DBComplexVertexLoop2, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -643,7 +796,7 @@ TEST(DBComplexVertexLoop3, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -682,7 +835,7 @@ TEST(DBComplexVertexLoop4, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -731,7 +884,7 @@ TEST(DBComplexVertexLoop5, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -778,7 +931,7 @@ TEST(DBBuldges1, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -819,7 +972,7 @@ TEST(DBComplexVertexConn4, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -861,7 +1014,7 @@ TEST(DBComplexVertexConn3, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -906,7 +1059,7 @@ TEST(DBComplexVertexConn3_2, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -949,7 +1102,7 @@ TEST(DBComplexVertexLoop6, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -990,7 +1143,7 @@ TEST(DBComplexVertexLoop7, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -1029,7 +1182,7 @@ TEST(DBComplexVertexLoop8, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
@@ -1038,8 +1191,8 @@ TEST(DBComplexVertexLoop8, Basic) {
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
     edge_info[1].start_prop.freeze();
     edge_info[1].end_prop.freeze();
-    --edge_info[1].start_prop.len;
-    --edge_info[1].end_prop.len;
+    edge_info[1].start_prop.decrease(1);
+    edge_info[1].end_prop.decrease(1);
 
     const std::vector<RRVertexType> isolates{};
 
@@ -1070,7 +1223,7 @@ TEST(DBIsolate, Basic) {
   // for (const RRVertexType &vertex : mdbg) {
   //   std::cout << vertex << " " << mdbg.count_in_neighbors(vertex) << " "
   //             << mdbg.count_out_neighbors(vertex) << " "
-  //             << mdbg.node_prop(vertex).len << "\n";
+  //             << mdbg.node_prop(vertex).size << "\n";
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info;
@@ -1113,3 +1266,4 @@ TEST(DBEmptyGraph, Basic) {
     ASSERT_TRUE(mdbg.is_frozen());
   }
 }
+*/

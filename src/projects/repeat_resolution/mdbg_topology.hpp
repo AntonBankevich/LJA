@@ -12,11 +12,28 @@
 namespace repeat_resolution {
 using RRVertexType = uint64_t;
 
-struct RRVertexProperty {
-  uint64_t len{0};
+class RRVertexProperty {
+  std::list<char> seq;
   bool frozen{false};
 
+public:
+  friend class RREdgeProperty;
+  RRVertexProperty(std::list<char> seq, const bool frozen)
+      : seq{std::move(seq)}, frozen{frozen} {}
+
+  [[nodiscard]] uint64_t size() const { return seq.size(); }
+  [[nodiscard]] bool IsFrozen() const { return frozen; }
+  [[nodiscard]] const std::list<char> &GetSeq() const { return seq; }
+
   void freeze() { frozen = true; }
+
+  void IncLeft(std::list<char> prefix);
+  void IncRight(std::list<char> suffix);
+  void DecLeft(uint64_t inc = 1);
+  void DecRight(uint64_t inc = 1);
+
+  std::list<char> GetSeqPrefix(size_t len, int64_t shift = 0) const;
+  std::list<char> GetSeqSuffix(size_t len, int64_t shift = 0) const;
 };
 
 std::ostream &operator<<(std::ostream &os, const RRVertexProperty &vertex);
@@ -28,90 +45,42 @@ using EdgeIndexType = uint64_t;
 class RREdgeProperty {
   EdgeIndexType index{0};
   std::list<char> seq;
+  int64_t size_{0};
   bool unique{false};
 
 public:
-  RREdgeProperty(const EdgeIndexType index, std::list<char> seq, bool unique)
-      : index{index}, seq{std::move(seq)}, unique{unique} {}
+  RREdgeProperty(const EdgeIndexType index, std::list<char> seq,
+                 const int64_t size_, bool unique)
+      : index{index}, seq{std::move(seq)}, size_{size_}, unique{unique} {}
 
   RREdgeProperty(const RREdgeProperty &) = delete;
   RREdgeProperty(RREdgeProperty &&) = default;
   RREdgeProperty &operator=(const RREdgeProperty &) = delete;
   RREdgeProperty &operator=(RREdgeProperty &&) = default;
 
-  [[nodiscard]] uint64_t size() const { return seq.size(); }
+  [[nodiscard]] int64_t size() const;
 
-  [[nodiscard]] bool is_unique() const { return unique; }
+  [[nodiscard]] bool IsUnique() const { return unique; }
 
-  [[nodiscard]] EdgeIndexType get_index() const { return index; }
-  [[nodiscard]] const std::list<char> &get_seq() const { return seq; }
+  [[nodiscard]] EdgeIndexType GetIndex() const { return index; }
+  [[nodiscard]] const std::list<char> &GetSeq() const { return seq; }
 
-  void assert_incidence(const RREdgeProperty &rhs,
-                        const uint64_t overlap_len) const {
-    VERIFY(size() > overlap_len and rhs.size() > overlap_len);
-    auto it = [this, overlap_len]() {
-      auto rit = seq.rbegin();
-      for (uint64_t i = 0; i < overlap_len; ++i) {
-        ++rit;
-      }
-      return rit.base();
-    }();
-    auto it_rhs = rhs.seq.begin();
-    while (it != seq.end()) {
-      VERIFY(*it == *it_rhs);
-      ++it, ++it_rhs;
-    }
-  }
+  void Merge(RRVertexProperty vertex, RREdgeProperty rhs);
 
-  void append(const RREdgeProperty &rhs, uint64_t overlap_len,
-              uint64_t n_iter = 1) {
-    VERIFY(rhs.size() >= overlap_len + n_iter);
-    auto it = rhs.get_seq().begin();
-    std::advance(it, overlap_len);
-    for (size_t i = 0; i < n_iter; ++i, ++it) {
-      seq.push_back(*it);
-    }
-  }
+  std::list<char> ExtractSeqPrefix(size_t len);
+  std::list<char> ExtractSeqSuffix(size_t len);
 
-  void prepend(const RREdgeProperty &lhs, uint64_t overlap_len,
-               uint64_t n_iter = 1) {
-    VERIFY(lhs.size() >= overlap_len + n_iter);
-    auto it = lhs.get_seq().rbegin();
-    std::advance(it, overlap_len);
-    for (size_t i = 0; i < n_iter; ++i, ++it) {
-      seq.push_front(*it);
-    }
-  }
-
-  void merge(RREdgeProperty rhs, uint64_t overlap_len) {
-    VERIFY(size() > overlap_len and rhs.size() > overlap_len);
-    auto lhs_it = [this, &overlap_len]() {
-      auto it = seq.rbegin();
-      for (size_t i = 0; i < overlap_len; ++i) {
-        it++;
-      }
-      return it.base();
-    }();
-
-    for (auto rhs_it = rhs.seq.begin(); lhs_it != seq.end();
-         ++lhs_it, ++rhs_it) {
-      VERIFY(*rhs_it == *lhs_it);
-    }
-    for (size_t i = 0; i < overlap_len; ++i) {
-      rhs.seq.pop_front();
-    }
-    seq.splice(seq.end(), std::move(rhs.seq));
-    if (rhs.unique) {
-      unique = true;
-    }
+  void ShortenWithEmptySeq(size_t len) {
+    VERIFY(seq.empty());
+    size_ -= len;
   }
 };
 
 bool operator==(const RREdgeProperty &lhs, const RREdgeProperty &rhs);
 bool operator!=(const RREdgeProperty &lhs, const RREdgeProperty &rhs);
 
-RREdgeProperty add(const RREdgeProperty &lhs, const RREdgeProperty &rhs,
-                   uint64_t overlap_len, EdgeIndexType index);
+RREdgeProperty Add(const RRVertexProperty &lhs, const RRVertexProperty &rhs,
+                   EdgeIndexType index);
 
 std::ostream &operator<<(std::ostream &os, const RREdgeProperty &edge_property);
 
@@ -120,6 +89,7 @@ struct SuccinctEdgeInfo {
   RRVertexProperty start_prop;
   RRVertexType end_ind{0};
   RRVertexProperty end_prop;
+  int64_t infix_size{0};
   std::list<char> seq;
   bool unique{false};
 };
@@ -128,7 +98,8 @@ inline bool operator==(const SuccinctEdgeInfo &lhs,
                        const SuccinctEdgeInfo &rhs) {
   return lhs.start_ind == rhs.start_ind and lhs.start_prop == rhs.start_prop and
          lhs.end_ind == rhs.end_ind and lhs.end_prop == rhs.end_prop and
-         lhs.seq == rhs.seq and lhs.unique == rhs.unique;
+         lhs.infix_size == rhs.infix_size and lhs.seq == rhs.seq and
+         lhs.unique == rhs.unique;
 }
 
 inline bool operator!=(const SuccinctEdgeInfo &lhs,

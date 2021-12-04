@@ -6,12 +6,13 @@
 
 using namespace repeat_resolution;
 
+/*
 void MDBGSimpleVertexProcessor::process_0in_1pout(MultiplexDBG &graph,
                                                   const RRVertexType &vertex) {
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
   for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.len + 1);
+    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
     graph.move_edge(vertex, it, new_vertex, it->first);
   }
   graph.remove_nodes(vertex); // careful: Iterator is invalidated
@@ -21,7 +22,7 @@ void MDBGSimpleVertexProcessor::process_1pin_0out(MultiplexDBG &graph,
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.len + 1);
+    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
     // need to construct a NeighborIterator pointing to vertex
     auto out_nbr = graph.out_neighbors(it->first).first;
     while (out_nbr->first != vertex) {
@@ -40,10 +41,11 @@ void MDBGSimpleVertexProcessor::process_1in_1pout(MultiplexDBG &graph,
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
   for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
     RREdgeProperty &out_edge = it->second.prop();
-    out_edge.prepend(in_edge, v_prop.len, n_iter);
+    out_edge.prepend(in_edge, v_prop.size(), n_iter);
   }
-  v_prop.len += n_iter;
+  v_prop.increase(true, n_iter);
 }
+
 void MDBGSimpleVertexProcessor::process_1pin_1out(MultiplexDBG &graph,
                                                   const RRVertexType &vertex,
                                                   const uint64_t n_iter) {
@@ -53,10 +55,11 @@ void MDBGSimpleVertexProcessor::process_1pin_1out(MultiplexDBG &graph,
   auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
     RREdgeProperty &in_edge = it->second.prop();
-    in_edge.append(out_edge, v_prop.len, n_iter);
+    in_edge.append(out_edge, v_prop.size(), n_iter);
   }
-  v_prop.len += n_iter;
+  v_prop.increase(false, n_iter);
 }
+*/
 
 void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
                                         const RRVertexType &vertex,
@@ -72,12 +75,13 @@ void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
     // Isolates should be skipped
   } else if (indegree == 0 and outdegree == 1) {
     // tip. Only increment length
-    v_prop.len += n_iter;
-  } else if (indegree == 1 and outdegree == 0) {
+    graph.IncreaseVertex(vertex, n_iter);
+  }
+  else if (indegree == 1 and outdegree == 0) {
     // tip. Only increment length
-    v_prop.len += n_iter;
-
-  } else if (indegree == 0 and outdegree > 1) {
+    graph.IncreaseVertex(vertex, n_iter);
+  }
+  /*else if (indegree == 0 and outdegree > 1) {
     // "Starting" vertex
     VERIFY(n_iter == 1);
     process_0in_1pout(graph, vertex);
@@ -93,8 +97,10 @@ void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
   } else if (indegree > 1 and outdegree == 1) {
     process_1pin_1out(graph, vertex, n_iter);
   }
+  */
 }
 
+/*
 std::unordered_map<EdgeIndexType, RRVertexType>
 MDBGComplexVertexProcessor::split_vertex(MultiplexDBG &graph,
                                          const RRVertexType &vertex) {
@@ -104,7 +110,7 @@ MDBGComplexVertexProcessor::split_vertex(MultiplexDBG &graph,
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
     const RRVertexType &neighbor = it->first;
     const EdgeIndexType edge_index = it->second.prop().get_index();
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.len + 1);
+    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
     auto e_it = graph.out_neighbors(neighbor).first;
     while (e_it->second.prop().get_index() != edge_index) {
       ++e_it;
@@ -116,7 +122,7 @@ MDBGComplexVertexProcessor::split_vertex(MultiplexDBG &graph,
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
   for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
     const EdgeIndexType edge_index = it->second.prop().get_index();
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.len + 1);
+    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
     graph.move_edge(vertex, it, new_vertex, it->first);
     edge2vertex[edge_index] = new_vertex;
   }
@@ -132,7 +138,7 @@ void MDBGComplexVertexProcessor::process_11(
     std::unordered_map<EdgeIndexType, EdgeIndexType> &where_edge_merged) {
   if (edge1 != edge2) {
     graph.merge_edges(left_vertex, e1_it, right_vertex, e2_it,
-                      graph.node_prop(vertex).len);
+                      graph.node_prop(vertex).size());
     where_edge_merged.emplace(edge2, edge1);
   } else {
     // isolated loop
@@ -140,7 +146,7 @@ void MDBGComplexVertexProcessor::process_11(
     RRVertexType vertex2remove = e1_it->first;
     graph.move_edge(left_vertex, e1_it, left_vertex, left_vertex);
     graph.remove_nodes(vertex2remove);
-    --graph.node_prop(left_vertex).len;
+    graph.node_prop(left_vertex).decrease(1);
   }
 }
 
@@ -161,7 +167,7 @@ void MDBGComplexVertexProcessor::process_not11(
     VERIFY(graph.count_out_neighbors(e1_it->first) == 1);
     auto new_edge_it = graph.out_neighbors(e1_it->first).first;
     graph.merge_edges(left_vertex, e1_it, e1_it->first, new_edge_it,
-                      graph.node_prop(e1_it->first).len);
+                      graph.node_prop(e1_it->first).size());
 
   } else if (edge1_neighbors.size() >= 2 and edge2_neighbors.size() == 1) {
     VERIFY(graph.count_in_neighbors(right_vertex) == 1);
@@ -170,12 +176,14 @@ void MDBGComplexVertexProcessor::process_not11(
       ++new_edge_it;
     }
     graph.merge_edges(e1_it->first, new_edge_it, right_vertex, e2_it,
-                      graph.node_prop(right_vertex).len);
+                      graph.node_prop(right_vertex).size());
   }
 }
+*/
 
 void MDBGComplexVertexProcessor::process(MultiplexDBG &graph,
                                          const RRVertexType &vertex) {
+  /*
   const RRVertexProperty &v_prop = graph.node_prop(vertex);
 
   auto [ac_s2e, ac_e2s] = graph.get_edgepairs_vertex(vertex);
@@ -213,4 +221,5 @@ void MDBGComplexVertexProcessor::process(MultiplexDBG &graph,
     }
   }
   graph.remove_nodes(vertex);
+*/
 }

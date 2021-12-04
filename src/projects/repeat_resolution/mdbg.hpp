@@ -26,7 +26,6 @@ class MultiplexDBG
   uint64_t next_edge_index{0};
   uint64_t next_vert_index{0};
   uint64_t n_iter{0};
-  std::unordered_map<RRVertexType, RREdgeProperty> isolate_properties;
 
   void assert_validity() const;
 
@@ -38,10 +37,12 @@ public:
   MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
                RRPaths *rr_paths);
 
+  /*
   MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *rr_paths, uint64_t start_k,
                UniqueClassificator &classificator, bool debug,
                const std::experimental::filesystem::path &dir,
                logging::Logger &logger);
+               */
 
   MultiplexDBG(const MultiplexDBG &) = delete;
   MultiplexDBG(MultiplexDBG &&) = default;
@@ -50,9 +51,9 @@ public:
 
   void serialize_to_dot(const std::experimental::filesystem::path &path) const;
 
-  [[nodiscard]] bool is_frozen() const;
+  [[nodiscard]] bool IsFrozen() const;
 
-  RRVertexType get_new_vertex(uint64_t len);
+  RRVertexType GetNewVertex(std::list<char> seq);
 
   bool is_vertex_complex(const RRVertexType &vertex) const;
 
@@ -63,16 +64,26 @@ public:
     prop.freeze();
   }
 
-  void move_edge(const RRVertexType &s1, NeighborsIterator e1_it,
-                 const RRVertexType &s2, const RRVertexType &e2);
+  size_t FullEdgeSize(ConstIterator vertex, NeighborsConstIterator e_it) const;
 
-  void merge_edges(const RRVertexType &s1, NeighborsIterator e1_it,
-                   const RRVertexType &s2, NeighborsIterator e2_it,
-                   uint64_t overlap_len);
+  std::list<char> ExtractEdgePostStartPrefix(ConstIterator vertex,
+                                             NeighborsIterator e_it,
+                                             uint64_t len);
 
-  EdgeIndexType add_connecting_edge(NeighborsIterator e1_it,
-                                    const RRVertexType &s2,
-                                    NeighborsIterator e2_it);
+  std::list<char> ExtractEdgePreEndSuffix(ConstIterator vertex,
+                                          NeighborsIterator e_it, uint64_t len);
+
+  void IncreaseVertex(const RRVertexType &vertex, uint64_t len);
+
+  void MoveEdge(const RRVertexType &s1, NeighborsIterator e1_it,
+                const RRVertexType &s2, const RRVertexType &e2);
+
+  void MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
+                  NeighborsIterator e2_it);
+
+  EdgeIndexType AddConnectingEdge(NeighborsIterator e1_it,
+                                  const RRVertexType &s2,
+                                  NeighborsIterator e2_it);
 
   std::vector<EdgeIndexType>
   get_in_edges_indexes(const RRVertexType &vertex) const;
