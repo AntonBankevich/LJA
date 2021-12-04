@@ -6,60 +6,35 @@
 
 using namespace repeat_resolution;
 
-/*
 void MDBGSimpleVertexProcessor::process_0in_1pout(MultiplexDBG &graph,
                                                   const RRVertexType &vertex) {
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
   for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
-    graph.move_edge(vertex, it, new_vertex, it->first);
+    RRVertexType new_vertex = graph.GetNewVertex(v_prop.GetSeq());
+    graph.MoveEdge(vertex, it, new_vertex, it->first);
+    graph.IncreaseVertex(new_vertex, 1);
   }
   graph.remove_nodes(vertex); // careful: Iterator is invalidated
 }
+
 void MDBGSimpleVertexProcessor::process_1pin_0out(MultiplexDBG &graph,
                                                   const RRVertexType &vertex) {
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
+    EdgeIndexType edge_index = it->second.prop().GetIndex();
+    RRVertexType new_vertex = graph.GetNewVertex(v_prop.GetSeq());
     // need to construct a NeighborIterator pointing to vertex
     auto out_nbr = graph.out_neighbors(it->first).first;
-    while (out_nbr->first != vertex) {
+    while (out_nbr->second.prop().GetIndex() != edge_index) {
       ++out_nbr;
     }
-    graph.move_edge(it->first, out_nbr, it->first, new_vertex);
+    graph.MoveEdge(it->first, out_nbr, it->first, new_vertex);
+    graph.IncreaseVertex(new_vertex, 1);
   }
   graph.remove_nodes(vertex); // careful: Iterator is invalidated
 }
-void MDBGSimpleVertexProcessor::process_1in_1pout(MultiplexDBG &graph,
-                                                  const RRVertexType &vertex,
-                                                  const uint64_t n_iter) {
-  RRVertexProperty &v_prop = graph.node_prop(vertex);
-  auto in_nbr_begin = graph.in_neighbors(vertex).first;
-  RREdgeProperty &in_edge = in_nbr_begin->second.prop();
-  auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
-  for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
-    RREdgeProperty &out_edge = it->second.prop();
-    out_edge.prepend(in_edge, v_prop.size(), n_iter);
-  }
-  v_prop.increase(true, n_iter);
-}
-
-void MDBGSimpleVertexProcessor::process_1pin_1out(MultiplexDBG &graph,
-                                                  const RRVertexType &vertex,
-                                                  const uint64_t n_iter) {
-  RRVertexProperty &v_prop = graph.node_prop(vertex);
-  auto out_nbr_begin = graph.out_neighbors(vertex).first;
-  RREdgeProperty &out_edge = out_nbr_begin->second.prop();
-  auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
-  for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
-    RREdgeProperty &in_edge = it->second.prop();
-    in_edge.append(out_edge, v_prop.size(), n_iter);
-  }
-  v_prop.increase(false, n_iter);
-}
-*/
 
 void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
                                         const RRVertexType &vertex,
@@ -81,7 +56,7 @@ void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
     // tip. Only increment length
     graph.IncreaseVertex(vertex, n_iter);
   }
-  /*else if (indegree == 0 and outdegree > 1) {
+  else if (indegree == 0 and outdegree > 1) {
     // "Starting" vertex
     VERIFY(n_iter == 1);
     process_0in_1pout(graph, vertex);
@@ -92,12 +67,11 @@ void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
     process_1pin_0out(graph, vertex);
 
   } else if (indegree == 1 and outdegree > 1) {
-    process_1in_1pout(graph, vertex, n_iter);
+    graph.IncreaseVertex(vertex, n_iter);
 
   } else if (indegree > 1 and outdegree == 1) {
-    process_1pin_1out(graph, vertex, n_iter);
+    graph.IncreaseVertex(vertex, n_iter);
   }
-  */
 }
 
 /*

@@ -211,26 +211,26 @@ void CompareVertexes(
   }();
   VERIFY(IndexSetsEqual);
 
-  bool SeqsEquals = [&graph, &edge_info, &isolates]() {
-    std::unordered_map<RRVertexType, std::list<char>> obs_seqs;
+  bool PropsEquals = [&graph, &edge_info, &isolates]() {
+    std::unordered_map<RRVertexType, RRVertexProperty> obs_props;
     for (const auto &vertex : graph) {
-      obs_seqs[vertex] = graph.node_prop(vertex).GetSeq();
+      obs_props.emplace(vertex, graph.node_prop(vertex));
     }
 
-    std::unordered_map<RRVertexType, std::list<char>> true_seqs;
+    std::unordered_map<RRVertexType, RRVertexProperty> true_props;
     for (const SuccinctEdgeInfo &edge : edge_info) {
-      true_seqs[edge.start_ind] = edge.start_prop.GetSeq();
-      true_seqs[edge.end_ind] = edge.end_prop.GetSeq();
+      true_props.emplace(edge.start_ind, edge.start_prop);
+      true_props.emplace(edge.end_ind, edge.end_prop);
     }
     for (const auto &[isolate_index, isolate_prop] : isolates) {
-      true_seqs[isolate_index] = isolate_prop.GetSeq();
+      true_props.emplace(isolate_index, isolate_prop);
     }
-    return obs_seqs == true_seqs;
+    return obs_props == true_props;
   }();
-  VERIFY(SeqsEquals);
+  VERIFY(PropsEquals);
 }
 
-bool CompareEdges(const MultiplexDBG &graph,
+void CompareEdges(const MultiplexDBG &graph,
                   const std::vector<SuccinctEdgeInfo> &edge_info) {
   int cnt = 0;
   for (const auto &vertex : graph) {
@@ -248,12 +248,12 @@ bool CompareEdges(const MultiplexDBG &graph,
           edge_info.end()) {
         std::cout << edge.start_ind << " " << edge.end_ind << " "
                   << List2Str(edge.seq) << "\n";
-        return false;
+        VERIFY_MSG(false, "Found an edge that is not present among true edges");
       }
       ++cnt;
     }
   }
-  return cnt == edge_info.size();
+  VERIFY(cnt == edge_info.size());
 }
 
 using RawEdgeInfo = std::vector<std::tuple<uint64_t, uint64_t, std::string>>;
@@ -306,7 +306,7 @@ TEST(DB1, Basic) {
 
   {
     CompareVertexes(mdbg, edge_info);
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -347,7 +347,7 @@ TEST(DBSingleEdge1, Basic) {
     const std::unordered_map<RRVertexType, RRVertexProperty> isolates;
 
     CompareVertexes(mdbg, edge_info, isolates);
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -388,7 +388,7 @@ TEST(DBSingleEdge2, Basic) {
     const std::unordered_map<RRVertexType, RRVertexProperty> isolates;
 
     CompareVertexes(mdbg, edge_info, isolates);
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -427,14 +427,13 @@ TEST(DBSingleEdge3, Basic) {
         GetEdgeInfo(raw_edge_info, k + N, false, false);
 
     const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
-        {0, {Str2List("ACGTGCA"), false}}};
+        {0, {Str2List("ACGTGCA"), true}}};
 
     CompareVertexes(mdbg, edge_info, isolates);
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareEdges(mdbg, edge_info);
   }
 }
 
-/*
 TEST(DBStVertex, Basic) {
   const size_t k = 2;
 
@@ -463,10 +462,11 @@ TEST(DBStVertex, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{6};
+    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
+        {6, {Str2List("AAA"), true}}};
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, isolates);
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -474,7 +474,7 @@ TEST(DBEvVertex, Basic) {
   const size_t k = 2;
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-      {0, 3, "AAAAA"}, {1, 3, "AAACA"}, {2, 3, "AAA"}};
+      {0, 3, "AAAAA"}, {1, 3, "AACAA"}, {2, 3, "AAA"}};
   const std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
@@ -494,14 +494,15 @@ TEST(DBEvVertex, Basic) {
   //  }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {0, 4, "AAAAA"}, {1, 5, "AAACA"}};
+        {0, 4, "AAAAA"}, {1, 5, "AACAA"}};
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{2};
+    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
+        {2, {Str2List("AAA"), true}}};
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, isolates);
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -534,10 +535,10 @@ TEST(DB1inVertex, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
+    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{};
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, isolates);
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -570,10 +571,8 @@ TEST(DB1inVertex, WithShortEdge) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -608,8 +607,8 @@ TEST(DB1outVertex, Basic) {
 
     const std::vector<RRVertexType> isolates{};
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -644,11 +643,12 @@ TEST(DB1outVertex, WithShortEdge) {
 
     const std::vector<RRVertexType> isolates{};
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
+/*
 // graph with a complex vertex (2in-2out)
 TEST(DBComplexVertex, Basic) {
   const size_t k = 2;

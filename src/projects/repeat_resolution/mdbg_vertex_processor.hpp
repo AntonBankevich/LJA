@@ -12,10 +12,6 @@ class MDBGSimpleVertexProcessor {
 
   void process_0in_1pout(MultiplexDBG &graph, const RRVertexType &vertex);
   void process_1pin_0out(MultiplexDBG &graph, const RRVertexType &vertex);
-  void process_1in_1pout(MultiplexDBG &graph, const RRVertexType &vertex,
-                         uint64_t niter);
-  void process_1pin_1out(MultiplexDBG &graph, const RRVertexType &vertex,
-                         uint64_t niter);
 
 public:
   void process(MultiplexDBG &graph, const RRVertexType &vertex,

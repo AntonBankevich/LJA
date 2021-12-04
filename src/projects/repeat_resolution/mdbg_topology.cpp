@@ -65,7 +65,7 @@ repeat_resolution::operator<<(std::ostream &os,
 
 bool repeat_resolution::operator==(const RRVertexProperty &lhs,
                                    const RRVertexProperty &rhs) {
-  return lhs.GetSeq() == rhs.GetSeq();
+  return lhs.GetSeq() == rhs.GetSeq() and lhs.IsFrozen() == rhs.IsFrozen();
 }
 
 [[nodiscard]] int64_t RREdgeProperty::size() const {
