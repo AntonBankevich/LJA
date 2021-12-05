@@ -150,10 +150,13 @@ void MultiplexDBG::MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
              "Cannot merge edges via a frozen vertex");
   RREdgeProperty &e1_prop = e1_it->second.prop();
   RREdgeProperty &e2_prop = e2_it->second.prop();
+  const EdgeIndexType e2_index = e2_prop.GetIndex();
   rr_paths->merge(e1_prop.GetIndex(), e2_prop.GetIndex());
-  e1_prop.Merge(std::move(node_prop(s1)), std::move(e2_prop));
+  const RRVertexProperty &v1 = node_prop(s1);
+  const RRVertexProperty &v3 = node_prop(e2_it->first);
+  e1_prop.Merge(std::move(node_prop(s2)), std::move(e2_prop));
   MoveEdge(s1, e1_it, s1, e2_it->first);
-  remove_edge(find(s2), e2_it);
+  remove_edge(find(s2), find_out_edge_iterator(s2, e2_index));
   remove_nodes(s2);
 }
 
@@ -164,6 +167,17 @@ EdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
   VERIFY_MSG(vleft != vright, "Can only add edge b/w disconnected edges");
   const RRVertexProperty &vleft_prop = node_prop(vleft);
   const RRVertexProperty &vright_prop = node_prop(vright);
+  VERIFY(vleft_prop.size() == vright_prop.size());
+  {
+    auto lit = vleft_prop.GetSeq().cbegin();
+    ++lit;
+    auto rit = vright_prop.GetSeq().cbegin();
+    while (lit != vleft_prop.GetSeq().cend()) {
+      VERIFY(*lit == *rit);
+      ++lit, ++rit;
+    }
+  }
+
   const RREdgeProperty &eleft_prop = eleft_it->second.prop();
   const RREdgeProperty &eright_prop = eright_it->second.prop();
   const EdgeIndexType new_index = next_edge_index;

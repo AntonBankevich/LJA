@@ -76,7 +76,15 @@ bool repeat_resolution::operator==(const RRVertexProperty &lhs,
 }
 
 void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
-  size_ += (int64_t)vertex.size() + rhs.size_;
+  // in case current edge has negative length, there is an overlap b/w vertices
+  int64_t vertex_size = vertex.size();
+  if (size_ < 0) {
+    vertex.DecLeft(std::min((int64_t) vertex.size(), -size_));
+  }
+  size_ += (int64_t)vertex_size + rhs.size_;
+  if (rhs.size_ < 0) {
+    vertex.DecRight(std::min((int64_t) vertex.size(), -rhs.size_));
+  }
   seq.splice(seq.end(), std::move(vertex.seq));
   seq.splice(seq.end(), std::move(rhs.seq));
   if (size_ > 0) {

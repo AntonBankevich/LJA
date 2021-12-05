@@ -32,8 +32,10 @@ public:
   void DecLeft(uint64_t inc = 1);
   void DecRight(uint64_t inc = 1);
 
-  std::list<char> GetSeqPrefix(size_t len, int64_t shift = 0) const;
-  std::list<char> GetSeqSuffix(size_t len, int64_t shift = 0) const;
+  [[nodiscard]] std::list<char> GetSeqPrefix(size_t len,
+                                             int64_t shift = 0) const;
+  [[nodiscard]] std::list<char> GetSeqSuffix(size_t len,
+                                             int64_t shift = 0) const;
 };
 
 std::ostream &operator<<(std::ostream &os, const RRVertexProperty &vertex);

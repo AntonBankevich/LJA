@@ -51,12 +51,10 @@ void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
   } else if (indegree == 0 and outdegree == 1) {
     // tip. Only increment length
     graph.IncreaseVertex(vertex, n_iter);
-  }
-  else if (indegree == 1 and outdegree == 0) {
+  } else if (indegree == 1 and outdegree == 0) {
     // tip. Only increment length
     graph.IncreaseVertex(vertex, n_iter);
-  }
-  else if (indegree == 0 and outdegree > 1) {
+  } else if (indegree == 0 and outdegree > 1) {
     // "Starting" vertex
     VERIFY(n_iter == 1);
     process_0in_1pout(graph, vertex);
@@ -74,126 +72,78 @@ void MDBGSimpleVertexProcessor::process(MultiplexDBG &graph,
   }
 }
 
-/*
-std::unordered_map<EdgeIndexType, RRVertexType>
+std::pair<std::unordered_map<EdgeIndexType, RRVertexType>,
+          std::vector<RRVertexType>>
 MDBGComplexVertexProcessor::split_vertex(MultiplexDBG &graph,
                                          const RRVertexType &vertex) {
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   std::unordered_map<EdgeIndexType, RRVertexType> edge2vertex;
+  std::vector<RRVertexType> new_vertices;
   auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
     const RRVertexType &neighbor = it->first;
-    const EdgeIndexType edge_index = it->second.prop().get_index();
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
+    const EdgeIndexType edge_index = it->second.prop().GetIndex();
+    RRVertexType new_vertex = graph.GetNewVertex(v_prop.GetSeq());
+    new_vertices.emplace_back(new_vertex);
     auto e_it = graph.out_neighbors(neighbor).first;
-    while (e_it->second.prop().get_index() != edge_index) {
+    while (e_it->second.prop().GetIndex() != edge_index) {
       ++e_it;
     }
-    graph.move_edge(neighbor, e_it, neighbor, new_vertex);
-    edge2vertex[edge_index] = neighbor;
+    graph.MoveEdge(neighbor, e_it, neighbor, new_vertex);
+    graph.IncreaseVertex(new_vertex, 1);
+    edge2vertex.emplace(edge_index, neighbor);
   }
 
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
   for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
-    const EdgeIndexType edge_index = it->second.prop().get_index();
-    RRVertexType new_vertex = graph.get_new_vertex(v_prop.size() + 1);
-    graph.move_edge(vertex, it, new_vertex, it->first);
+    const EdgeIndexType edge_index = it->second.prop().GetIndex();
+    RRVertexType new_vertex = graph.GetNewVertex(v_prop.GetSeq());
+    new_vertices.emplace_back(new_vertex);
+    graph.MoveEdge(vertex, it, new_vertex, it->first);
+    graph.IncreaseVertex(new_vertex, 1);
+    // here we use map[key] = value instead of map.emplace(key, value)
+    // because edge_index is already saved in the dict if the edge is a loop
     edge2vertex[edge_index] = new_vertex;
   }
-  return edge2vertex;
+  return {edge2vertex, new_vertices};
 }
-
-void MDBGComplexVertexProcessor::process_11(
-    MultiplexDBG &graph, const RRVertexType &vertex,
-    const RRVertexType &left_vertex, const RRVertexType &right_vertex,
-    MultiplexDBG::NeighborsIterator e1_it,
-    MultiplexDBG::NeighborsIterator e2_it, const EdgeIndexType &edge1,
-    const EdgeIndexType &edge2,
-    std::unordered_map<EdgeIndexType, EdgeIndexType> &where_edge_merged) {
-  if (edge1 != edge2) {
-    graph.merge_edges(left_vertex, e1_it, right_vertex, e2_it,
-                      graph.node_prop(vertex).size());
-    where_edge_merged.emplace(edge2, edge1);
-  } else {
-    // isolated loop
-    VERIFY(left_vertex == right_vertex);
-    RRVertexType vertex2remove = e1_it->first;
-    graph.move_edge(left_vertex, e1_it, left_vertex, left_vertex);
-    graph.remove_nodes(vertex2remove);
-    graph.node_prop(left_vertex).decrease(1);
-  }
-}
-
-void MDBGComplexVertexProcessor::process_not11(
-    MultiplexDBG &graph, const RRVertexType &vertex,
-    const RRVertexType &left_vertex, const RRVertexType &right_vertex,
-    MultiplexDBG::NeighborsIterator e1_it,
-    MultiplexDBG::NeighborsIterator e2_it, const EdgeIndexType &edge1,
-    const EdgeIndexType &edge2,
-    const std::unordered_set<EdgeIndexType> &edge1_neighbors,
-    const std::unordered_set<EdgeIndexType> &edge2_neighbors,
-    std::unordered_map<EdgeIndexType, EdgeIndexType> &where_edge_merged) {
-
-  const EdgeIndexType new_index =
-      graph.add_connecting_edge(e1_it, right_vertex, e2_it);
-
-  if (edge1_neighbors.size() == 1 and edge2_neighbors.size() >= 2) {
-    VERIFY(graph.count_out_neighbors(e1_it->first) == 1);
-    auto new_edge_it = graph.out_neighbors(e1_it->first).first;
-    graph.merge_edges(left_vertex, e1_it, e1_it->first, new_edge_it,
-                      graph.node_prop(e1_it->first).size());
-
-  } else if (edge1_neighbors.size() >= 2 and edge2_neighbors.size() == 1) {
-    VERIFY(graph.count_in_neighbors(right_vertex) == 1);
-    auto new_edge_it = graph.out_neighbors(e1_it->first).first;
-    while (new_edge_it->second.prop().get_index() != new_index) {
-      ++new_edge_it;
-    }
-    graph.merge_edges(e1_it->first, new_edge_it, right_vertex, e2_it,
-                      graph.node_prop(right_vertex).size());
-  }
-}
-*/
 
 void MDBGComplexVertexProcessor::process(MultiplexDBG &graph,
                                          const RRVertexType &vertex) {
-  /*
   const RRVertexProperty &v_prop = graph.node_prop(vertex);
 
   auto [ac_s2e, ac_e2s] = graph.get_edgepairs_vertex(vertex);
-  std::unordered_map<EdgeIndexType, RRVertexType> edge2vertex =
-      split_vertex(graph, vertex);
+  auto [edge2vertex, new_vertices] = split_vertex(graph, vertex);
 
-  std::unordered_map<EdgeIndexType, EdgeIndexType> where_edge_merged;
-  auto FindMergeEdgeId = [&where_edge_merged](const EdgeIndexType edge_ind_) {
-    EdgeIndexType edge_ind{edge_ind_};
-    while (where_edge_merged.find(edge_ind) != where_edge_merged.end()) {
-      edge_ind = where_edge_merged.at(edge_ind);
-    }
-    return edge_ind;
-  };
-
-  for (const auto &[edge1_, edge1_neighbors] : ac_s2e) {
-    for (const auto &edge2_ : edge1_neighbors) {
-      const EdgeIndexType edge1 = FindMergeEdgeId(edge1_);
+  for (const auto &[edge1, edge1_neighbors] : ac_s2e) {
+    for (const auto &edge2 : edge1_neighbors) {
+      // const EdgeIndexType edge1 = FindMergeEdgeId(edge1_);
       const RRVertexType left_vertex = edge2vertex.at(edge1);
       auto e1_it = graph.find_out_edge_iterator(left_vertex, edge1);
 
-      const EdgeIndexType edge2 = FindMergeEdgeId(edge2_);
+      // const EdgeIndexType edge2 = FindMergeEdgeId(edge2_);
       const RRVertexType right_vertex = edge2vertex.at(edge2);
       const std::unordered_set<EdgeIndexType> &edge2_neighbors = ac_e2s[edge2];
       auto e2_it = graph.find_out_edge_iterator(right_vertex, edge2);
 
-      if (edge1_neighbors.size() == 1 and edge2_neighbors.size() == 1) {
-        process_11(graph, vertex, left_vertex, right_vertex, e1_it, e2_it,
-                   edge1, edge2, where_edge_merged);
-      } else {
-        process_not11(graph, vertex, left_vertex, right_vertex, e1_it, e2_it,
-                      edge1, edge2, edge1_neighbors, edge2_neighbors,
-                      where_edge_merged);
+      graph.AddConnectingEdge(e1_it, right_vertex, e2_it);
+    }
+  }
+  for (const RRVertexType &new_vertex : new_vertices) {
+    const uint64_t indegree = graph.count_in_neighbors(new_vertex);
+    const uint64_t outdegree = graph.count_out_neighbors(new_vertex);
+    if (indegree == 1 and outdegree == 1) {
+      auto in_rev_it = graph.in_neighbors(new_vertex).first;
+      const RRVertexType &left_vertex = in_rev_it->first;
+      if (left_vertex == new_vertex) {
+        // self-loop should be skipped
+        continue;
       }
+      auto in_it = graph.find_out_edge_iterator(
+          left_vertex, in_rev_it->second.prop().GetIndex());
+      auto out_it = graph.out_neighbors(new_vertex).first;
+      graph.MergeEdges(left_vertex, in_it, out_it);
     }
   }
   graph.remove_nodes(vertex);
-*/
 }

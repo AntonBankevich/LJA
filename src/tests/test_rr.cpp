@@ -648,7 +648,6 @@ TEST(DB1outVertex, WithShortEdge) {
   }
 }
 
-/*
 // graph with a complex vertex (2in-2out)
 TEST(DBComplexVertex, Basic) {
   const size_t k = 2;
@@ -681,10 +680,8 @@ TEST(DBComplexVertex, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -722,8 +719,8 @@ TEST(DBComplexVertexLoop1, Basic) {
 
     const std::vector<RRVertexType> isolates{};
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -764,10 +761,8 @@ TEST(DBComplexVertexLoop2, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -806,8 +801,8 @@ TEST(DBComplexVertexLoop3, Basic) {
 
     const std::vector<RRVertexType> isolates{};
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -843,10 +838,8 @@ TEST(DBComplexVertexLoop4, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -892,10 +885,8 @@ TEST(DBComplexVertexLoop5, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -906,7 +897,7 @@ TEST(DBBuldges1, Basic) {
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACAAA"},  // 0
       {1, 1, "AAGAA"},  // 1
-      {1, 2, "AACGG"},  // 2
+      {1, 2, "AACGC"},  // 2
       {0, 1, "ACTAA"},  // 3
       {1, 1, "AAAAA"},  // 4
       {1, 2, "AATGC"},  // 5
@@ -935,14 +926,12 @@ TEST(DBBuldges1, Basic) {
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {6, 3, "ACAAAGAACGG"}, {7, 4, "ACTAAAAATGC"}, {8, 5, "ACAAATGC"}};
+        {6, 3, "ACAAAGAACGC"}, {7, 4, "ACTAAAAATGC"}, {8, 5, "ACAAATGC"}};
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -981,10 +970,8 @@ TEST(DBComplexVertexConn4, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -1026,10 +1013,8 @@ TEST(DBComplexVertexConn3, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -1071,10 +1056,8 @@ TEST(DBComplexVertexConn3_2, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -1110,10 +1093,8 @@ TEST(DBComplexVertexLoop6, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + N, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -1151,10 +1132,8 @@ TEST(DBComplexVertexLoop7, Basic) {
     const std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k, true, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -1186,18 +1165,14 @@ TEST(DBComplexVertexLoop8, Basic) {
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
-        {0, 2, "ACAAATGC"}, {6, 6, "AAGAA"}};
+        {0, 2, "ACAAATGC"}, {6, 6, "AAGAAG"}};
     std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
     edge_info[1].start_prop.freeze();
     edge_info[1].end_prop.freeze();
-    edge_info[1].start_prop.decrease(1);
-    edge_info[1].end_prop.decrease(1);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -1230,10 +1205,12 @@ TEST(DBIsolate, Basic) {
     std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{0};
+    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
+        {0, {Str2List("ACA"), true}}
+    };
 
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
+    CompareVertexes(mdbg, edge_info, isolates);
+    CompareEdges(mdbg, edge_info);
   }
 }
 
@@ -1259,11 +1236,8 @@ TEST(DBEmptyGraph, Basic) {
     std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::vector<RRVertexType> isolates{};
-
-    ASSERT_TRUE(CompareVertexes(mdbg, edge_info, isolates));
-    ASSERT_TRUE(CompareEdges(mdbg, edge_info));
-    ASSERT_TRUE(mdbg.is_frozen());
+    CompareVertexes(mdbg, edge_info, {});
+    CompareEdges(mdbg, edge_info);
+    ASSERT_TRUE(mdbg.IsFrozen());
   }
 }
-*/
