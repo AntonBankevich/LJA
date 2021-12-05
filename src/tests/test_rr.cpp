@@ -242,7 +242,7 @@ void CompareEdges(const MultiplexDBG &graph,
                             nbr_it->first,
                             graph.node_prop(nbr_it->first),
                             edge_prop.size(),
-                            edge_prop.GetSeq(),
+                            edge_prop.Seq(),
                             edge_prop.IsUnique()};
       if (std::find(edge_info.begin(), edge_info.end(), edge) ==
           edge_info.end()) {

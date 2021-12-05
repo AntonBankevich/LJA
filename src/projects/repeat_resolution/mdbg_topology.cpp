@@ -65,7 +65,7 @@ repeat_resolution::operator<<(std::ostream &os,
 
 bool repeat_resolution::operator==(const RRVertexProperty &lhs,
                                    const RRVertexProperty &rhs) {
-  return lhs.GetSeq() == rhs.GetSeq() and lhs.IsFrozen() == rhs.IsFrozen();
+  return lhs.Seq() == rhs.Seq() and lhs.IsFrozen() == rhs.IsFrozen();
 }
 
 [[nodiscard]] int64_t RREdgeProperty::size() const {
@@ -79,11 +79,11 @@ void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
   // in case current edge has negative length, there is an overlap b/w vertices
   int64_t vertex_size = vertex.size();
   if (size_ < 0) {
-    vertex.DecLeft(std::min((int64_t) vertex.size(), -size_));
+    vertex.DecLeft(std::min((int64_t)vertex.size(), -size_));
   }
   size_ += (int64_t)vertex_size + rhs.size_;
   if (rhs.size_ < 0) {
-    vertex.DecRight(std::min((int64_t) vertex.size(), -rhs.size_));
+    vertex.DecRight(std::min((int64_t)vertex.size(), -rhs.size_));
   }
   seq.splice(seq.end(), std::move(vertex.seq));
   seq.splice(seq.end(), std::move(rhs.seq));
@@ -117,9 +117,14 @@ std::list<char> RREdgeProperty::ExtractSeqSuffix(const size_t len) {
   return suffix;
 }
 
+void RREdgeProperty::ShortenWithEmptySeq(size_t len) {
+  VERIFY(seq.empty());
+  size_ -= len;
+}
+
 bool repeat_resolution::operator==(const RREdgeProperty &lhs,
                                    const RREdgeProperty &rhs) {
-  return lhs.GetIndex() == rhs.GetIndex();
+  return lhs.Index() == rhs.Index();
 }
 
 bool repeat_resolution::operator!=(const RREdgeProperty &lhs,
@@ -134,4 +139,17 @@ RREdgeProperty repeat_resolution::Add(const RRVertexProperty &lhs,
   // can assign uniqueness more carefully if we pass left&right edges
   return RREdgeProperty(/*index=*/index, /*(inner)seq=*/{},
                         /*size=*/-((int64_t)lhs.size()) + 1, /*unique=*/false);
+}
+
+bool repeat_resolution::operator==(const SuccinctEdgeInfo &lhs,
+                                   const SuccinctEdgeInfo &rhs) {
+  return lhs.start_ind == rhs.start_ind and lhs.start_prop == rhs.start_prop and
+         lhs.end_ind == rhs.end_ind and lhs.end_prop == rhs.end_prop and
+         lhs.infix_size == rhs.infix_size and lhs.seq == rhs.seq and
+         lhs.unique == rhs.unique;
+}
+
+bool repeat_resolution::operator!=(const SuccinctEdgeInfo &lhs,
+                                   const SuccinctEdgeInfo &rhs) {
+  return !repeat_resolution::operator==(lhs, rhs);
 }

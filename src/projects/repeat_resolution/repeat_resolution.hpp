@@ -55,12 +55,12 @@ public:
     classificator.classify(logger, unique_threshold, dir / "mult_dir");
     MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator, debug, dir,
                       logger);
-    mdbg.serialize_to_dot(dir / "init_graph.dot");
+    mdbg.SerializeToDot(dir / "init_graph.dot");
     logger.info() << "Increasing k" << std::endl;
     MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};
     k_increaser.IncreaseUntilSaturation(mdbg);
     logger.info() << "Finished increasing k" << std::endl;
-    mdbg.serialize_to_dot(dir / "resolved_graph.dot");
+    mdbg.SerializeToDot(dir / "resolved_graph.dot");
   }
 };
 

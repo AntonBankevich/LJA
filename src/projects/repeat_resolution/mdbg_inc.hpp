@@ -18,13 +18,13 @@ class MultiplexDBGIncreaser {
   MDBGComplexVertexProcessor complex_vertex_processor;
 
 private:
-  void process_vertex(MultiplexDBG &graph, const RRVertexType &vertex,
-                      uint64_t max_iter);
-  static void collapse_short_edges_into_vertices(MultiplexDBG &graph);
-  static void collapse_edge(MultiplexDBG &graph,
-                            MultiplexDBG::ConstIterator s_it,
-                            MultiplexDBG::NeighborsIterator e_it);
-  [[nodiscard]] uint64_t get_niter_wo_complex(const MultiplexDBG &graph) const;
+  void ProcessVertex(MultiplexDBG &graph, const RRVertexType &vertex,
+                     uint64_t max_iter);
+  static void CollapseShortEdgesIntoVertices(MultiplexDBG &graph);
+  static void CollapseEdge(MultiplexDBG &graph,
+                           MultiplexDBG::ConstIterator s_it,
+                           MultiplexDBG::NeighborsIterator e_it);
+  [[nodiscard]] uint64_t GetNiterWoComplex(const MultiplexDBG &graph) const;
 
 public:
   MultiplexDBGIncreaser(uint64_t start_k, uint64_t saturating_k,

@@ -27,10 +27,10 @@ class MultiplexDBG
   uint64_t next_vert_index{0};
   uint64_t n_iter{0};
 
-  void assert_validity() const;
+  void AssertValidity() const;
 
-  void _spread_frost();
-  void freeze_unpaired_vertices();
+  void SpreadFrost();
+  void FreezeUnpairedVertices();
 
 public:
   // This constructor is for testing purposes
@@ -49,20 +49,17 @@ public:
   MultiplexDBG &operator=(const MultiplexDBG &) = delete;
   MultiplexDBG &operator=(MultiplexDBG &&) = default;
 
-  void serialize_to_dot(const std::experimental::filesystem::path &path) const;
+  void SerializeToDot(const std::experimental::filesystem::path &path) const;
 
   [[nodiscard]] bool IsFrozen() const;
 
+  bool IsVertexComplex(const RRVertexType &vertex) const;
+
+  bool IsVertexSimple(const RRVertexType &vertex) const;
+
+  void FreezeVertex(const RRVertexType &vertex) { node_prop(vertex).freeze(); }
+
   RRVertexType GetNewVertex(std::list<char> seq);
-
-  bool is_vertex_complex(const RRVertexType &vertex) const;
-
-  bool is_vertex_simple(const RRVertexType &vertex) const;
-
-  void freeze_vertex(const RRVertexType &vertex) {
-    RRVertexProperty &prop = node_prop(vertex);
-    prop.freeze();
-  }
 
   size_t FullEdgeSize(ConstIterator vertex, NeighborsConstIterator e_it) const;
 
@@ -86,29 +83,29 @@ public:
                                   NeighborsIterator e2_it);
 
   std::vector<EdgeIndexType>
-  get_in_edges_indexes(const RRVertexType &vertex) const;
+  GetInEdgesIndexes(const RRVertexType &vertex) const;
   std::vector<EdgeIndexType>
-  get_out_edges_indexes(const RRVertexType &vertex) const;
+  GetOutEdgesIndexes(const RRVertexType &vertex) const;
 
   std::pair<std::vector<EdgeIndexType>, std::vector<EdgeIndexType>>
-  get_neighbor_edges_indexes(const RRVertexType &vertex) const;
+  GetNeighborEdgesIndexes(const RRVertexType &vertex) const;
 
   using EdgeNeighborMap =
       std::unordered_map<EdgeIndexType, std::unordered_set<EdgeIndexType>>;
   std::pair<EdgeNeighborMap, EdgeNeighborMap>
-  get_edgepairs_vertex(const RRVertexType &vertex) const;
+  GetEdgepairsVertex(const RRVertexType &vertex) const;
 
-  NeighborsIterator find_in_edge_iterator(const RRVertexType &v,
-                                          const EdgeIndexType &edge);
+  NeighborsIterator FindInEdgeIterator(const RRVertexType &v,
+                                       const EdgeIndexType &edge);
   NeighborsConstIterator
-  find_in_edge_constiterator(const RRVertexType &v,
-                             const EdgeIndexType &edge) const;
+  FindInEdgeConstiterator(const RRVertexType &v,
+                          const EdgeIndexType &edge) const;
 
-  NeighborsIterator find_out_edge_iterator(const RRVertexType &v,
-                                           const EdgeIndexType &edge);
+  NeighborsIterator FindOutEdgeIterator(const RRVertexType &v,
+                                        const EdgeIndexType &edge);
   NeighborsConstIterator
-  find_out_edge_constiterator(const RRVertexType &v,
-                              const EdgeIndexType &edge) const;
+  FindOutEdgeConstiterator(const RRVertexType &v,
+                           const EdgeIndexType &edge) const;
 };
 
 } // End namespace repeat_resolution

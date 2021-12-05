@@ -23,7 +23,7 @@ public:
 
   [[nodiscard]] uint64_t size() const { return seq.size(); }
   [[nodiscard]] bool IsFrozen() const { return frozen; }
-  [[nodiscard]] const std::list<char> &GetSeq() const { return seq; }
+  [[nodiscard]] const std::list<char> &Seq() const { return seq; }
 
   void freeze() { frozen = true; }
 
@@ -64,18 +64,15 @@ public:
 
   [[nodiscard]] bool IsUnique() const { return unique; }
 
-  [[nodiscard]] EdgeIndexType GetIndex() const { return index; }
-  [[nodiscard]] const std::list<char> &GetSeq() const { return seq; }
+  [[nodiscard]] EdgeIndexType Index() const { return index; }
+  [[nodiscard]] const std::list<char> &Seq() const { return seq; }
 
   void Merge(RRVertexProperty vertex, RREdgeProperty rhs);
 
   std::list<char> ExtractSeqPrefix(size_t len);
   std::list<char> ExtractSeqSuffix(size_t len);
 
-  void ShortenWithEmptySeq(size_t len) {
-    VERIFY(seq.empty());
-    size_ -= len;
-  }
+  void ShortenWithEmptySeq(size_t len);
 };
 
 bool operator==(const RREdgeProperty &lhs, const RREdgeProperty &rhs);
@@ -96,16 +93,7 @@ struct SuccinctEdgeInfo {
   bool unique{false};
 };
 
-inline bool operator==(const SuccinctEdgeInfo &lhs,
-                       const SuccinctEdgeInfo &rhs) {
-  return lhs.start_ind == rhs.start_ind and lhs.start_prop == rhs.start_prop and
-         lhs.end_ind == rhs.end_ind and lhs.end_prop == rhs.end_prop and
-         lhs.infix_size == rhs.infix_size and lhs.seq == rhs.seq and
-         lhs.unique == rhs.unique;
-}
+bool operator==(const SuccinctEdgeInfo &lhs, const SuccinctEdgeInfo &rhs);
 
-inline bool operator!=(const SuccinctEdgeInfo &lhs,
-                       const SuccinctEdgeInfo &rhs) {
-  return !operator==(lhs, rhs);
-}
+bool operator!=(const SuccinctEdgeInfo &lhs, const SuccinctEdgeInfo &rhs);
 } // End namespace repeat_resolution
