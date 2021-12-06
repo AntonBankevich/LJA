@@ -21,6 +21,11 @@ public:
   RRVertexProperty(std::list<char> seq, const bool frozen)
       : seq{std::move(seq)}, frozen{frozen} {}
 
+  RRVertexProperty(const RRVertexProperty &) = delete;
+  RRVertexProperty(RRVertexProperty &&) = default;
+  RRVertexProperty &operator=(const RRVertexProperty &) = delete;
+  RRVertexProperty &operator=(RRVertexProperty &&) = default;
+
   [[nodiscard]] uint64_t size() const { return seq.size(); }
   [[nodiscard]] bool IsFrozen() const { return frozen; }
   [[nodiscard]] const std::list<char> &Seq() const { return seq; }

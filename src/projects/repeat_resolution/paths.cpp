@@ -37,7 +37,9 @@ void RRPaths::assert_validity() const {
 
 void RRPaths::add(EdgeIndexType left, EdgeIndexType right,
                   EdgeIndexType new_index) {
-  VERIFY(edgepair2pos.find({left, right}) != edgepair2pos.end());
+  if (edgepair2pos.find({left, right}) == edgepair2pos.end()) {
+    return;
+  }
   for (const IteratorInPath &iter_in_path : edgepair2pos.at({left, right})) {
     const PathEdgeList::const_iterator left_iter{iter_in_path.iter};
     const auto right_iter = [&iter_in_path]() {
@@ -103,6 +105,9 @@ void RRPaths::remove(EdgeIndexType index) {
 
 void RRPaths::merge(EdgeIndexType left_index, EdgeIndexType right_index) {
   // Taken from https://stackoverflow.com/a/3792615
+  if (edge2pos.find(right_index) == edge2pos.end()) {
+    return;
+  }
   IteratorInPathUSet &pos_right_index = edge2pos.at(right_index);
   for (auto it = pos_right_index.begin(); it != pos_right_index.end();
        /* blank */) {

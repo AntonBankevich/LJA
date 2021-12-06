@@ -71,13 +71,14 @@ void MultiplexDBG::AssertValidity() const {
 void MultiplexDBG::SpreadFrost() {
   std::unordered_set<RRVertexType> prev_frozen, new_frozen;
   for (const RRVertexType &vertex : *this) {
-    const RRVertexProperty vertex_prop = node_prop(vertex);
+    const RRVertexProperty &vertex_prop = node_prop(vertex);
     if (vertex_prop.IsFrozen()) {
       prev_frozen.insert(vertex);
     }
   }
 
-  auto upd_new_frozen = [this, &new_frozen](const RRVertexProperty &vertex_prop,
+  auto upd_new_frozen = [this, &new_frozen](const RRVertexType &vertex,
+                                            const RRVertexProperty &vertex_prop,
                                             NeighborsIterator begin,
                                             NeighborsIterator end) {
     for (auto it = begin; it != end; ++it) {
@@ -85,7 +86,7 @@ void MultiplexDBG::SpreadFrost() {
       const RRVertexType &neighbor = it->first;
       const RRVertexProperty &neighbor_prop = node_prop(neighbor);
       if (not neighbor_prop.IsFrozen() and
-          edge_prop.size() == 1 + neighbor_prop.size()) {
+          FullEdgeSize(find(vertex), it) == 1 + neighbor_prop.size()) {
         FreezeVertex(neighbor);
         new_frozen.insert(neighbor);
       }
@@ -96,8 +97,8 @@ void MultiplexDBG::SpreadFrost() {
     for (const RRVertexType &vertex : prev_frozen) {
       auto [in_nbr_begin, in_nbr_end] = in_neighbors(vertex);
       auto [out_nbr_begin, out_nbr_end] = out_neighbors(vertex);
-      upd_new_frozen(node_prop(vertex), in_nbr_begin, in_nbr_end);
-      upd_new_frozen(node_prop(vertex), out_nbr_begin, out_nbr_end);
+      upd_new_frozen(vertex, node_prop(vertex), in_nbr_begin, in_nbr_end);
+      upd_new_frozen(vertex, node_prop(vertex), out_nbr_begin, out_nbr_end);
     }
     prev_frozen = std::move(new_frozen);
   }
@@ -172,10 +173,10 @@ EdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
     auto lit = vleft_prop.Seq().cbegin();
     ++lit;
     auto rit = vright_prop.Seq().cbegin();
-    while (lit != vleft_prop.Seq().cend()) {
-      VERIFY(*lit == *rit);
-      ++lit, ++rit;
-    }
+    // while (lit != vleft_prop.Seq().cend()) {
+    //   VERIFY(*lit == *rit);
+    //   ++lit, ++rit;
+    // }
   }
 
   const RREdgeProperty &eleft_prop = eleft_it->second.prop();
@@ -197,14 +198,14 @@ RRVertexType MultiplexDBG::GetNewVertex(std::list<char> seq) {
   return new_vertex;
 }
 
-MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
+MultiplexDBG::MultiplexDBG(std::vector<SuccinctEdgeInfo> &edges,
                            const uint64_t start_k, RRPaths *const rr_paths)
     : rr_paths{rr_paths} {
-  for (const SuccinctEdgeInfo &edge : edges) {
+  for (SuccinctEdgeInfo &edge : edges) {
     next_vert_index = std::max(next_vert_index, 1 + edge.start_ind);
     next_vert_index = std::max(next_vert_index, 1 + edge.end_ind);
-    add_node_with_prop(edge.start_ind, edge.start_prop);
-    add_node_with_prop(edge.end_ind, edge.end_prop);
+    add_node_with_prop(edge.start_ind, std::move(edge.start_prop));
+    add_node_with_prop(edge.end_ind, std::move(edge.end_prop));
     RREdgeProperty edge_property{next_edge_index, edge.seq, edge.infix_size,
                                  edge.unique};
     add_edge_with_prop(edge.start_ind, edge.end_ind, std::move(edge_property));
@@ -215,7 +216,6 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
   AssertValidity();
 }
 
-/*
 MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
                            const uint64_t start_k,
                            UniqueClassificator &classificator, bool debug,
@@ -236,27 +236,35 @@ MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
     const Edge &edge = *it;
     const RRVertexType start_ind = vert2ind.at(edge.start()->getId());
     const RRVertexType end_ind = vert2ind.at(edge.end()->getId());
-    const RRVertexProperty vertex_prop{start_k, false};
-    add_node_with_prop(start_ind, vertex_prop);
-    add_node_with_prop(end_ind, vertex_prop);
 
-    std::list<char> seq = [&edge]() {
-      std::string seq_str = edge.suffix(0).str();
+    std::string seq = edge.suffix(0).str();
+
+    std::string prefix = seq.substr(0, start_k);
+    int64_t infix_size = ((int64_t)seq.size()) - 2 * start_k;
+    std::string infix = infix_size > 0 ? seq.substr(start_k, infix_size) : "";
+    std::string suffix = seq.substr(seq.size() - start_k);
+
+    auto Str2List = [](const std::string &str) {
       std::list<char> seq;
-      std::move(seq_str.begin(), seq_str.end(), std::back_inserter(seq));
+      std::move(str.begin(), str.end(), std::back_inserter(seq));
       return seq;
-    }();
+    };
 
-    RREdgeProperty edge_property{next_edge_index, std::move(seq),
-                                 classificator.isUnique(edge)};
-    add_edge_with_prop(start_ind, end_ind, std::move(edge_property));
+    RRVertexProperty st_v_prop(std::move(Str2List(prefix)), false);
+    add_node_with_prop(start_ind, std::move(st_v_prop));
+
+    RRVertexProperty en_v_prop(std::move(Str2List(suffix)), false);
+    add_node_with_prop(end_ind, std::move(en_v_prop));
+
+    RREdgeProperty edge_prop(next_edge_index, Str2List(infix), infix_size,
+                                 classificator.isUnique(edge));
+    add_edge_with_prop(start_ind, end_ind, std::move(edge_prop));
     ++next_edge_index;
   }
 
   FreezeUnpairedVertices();
   AssertValidity();
 }
- */
 
 void MultiplexDBG::SerializeToDot(
     const std::experimental::filesystem::path &path) const {
@@ -339,7 +347,8 @@ std::list<char> MultiplexDBG::ExtractEdgePreEndSuffix(ConstIterator en_v_it,
   const RRVertexProperty &st_v_prop = node_prop(st_v);
   const RRVertexProperty &en_v_prop = node_prop(en_v);
   RREdgeProperty &edge_prop = e_it->second.prop();
-  VERIFY(len + en_v_prop.size() <= FullEdgeSize(find(st_v), e_it));
+  size_t full_edge_size = FullEdgeSize(find(en_v), e_it);
+  VERIFY(len + en_v_prop.size() <= full_edge_size);
 
   uint64_t inner_part_len =
       std::min(len, (uint64_t)std::max(0L, edge_prop.size()));
