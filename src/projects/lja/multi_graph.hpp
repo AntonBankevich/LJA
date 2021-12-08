@@ -3,6 +3,7 @@
 #include <sequences/sequence.hpp>
 #include <unordered_set>
 #include <unordered_map>
+#include <set>
 #include <experimental/filesystem>
 #include <fstream>
 #include <common/string_utils.hpp>
@@ -31,6 +32,10 @@ namespace multigraph {
         size_t outDeg() const {
             return outgoing.size();
         }
+
+        size_t k() const {
+            return seq.size();
+        };
     };
 
     struct Edge {
@@ -77,6 +82,30 @@ namespace multigraph {
             VERIFY(canonical == (id > 0));
             return canonical;
         }
+
+        bool isTip() const {
+            if (start->inDeg() == 0 && end->inDeg() > 1 && end->outDeg() > 0)
+                return true;
+            if (end->outDeg() == 0 && start->outDeg() > 1 && start->inDeg() > 0)
+                return true;
+            return false;
+        }
+
+//simplified check, works only for trivial cases
+        bool isBridge() const {
+            if (isTip())
+                return false;
+            for (auto alt_e: start->outgoing) {
+                if (alt_e->getId() != getId() and !alt_e->isTip())
+                    return false;
+            }
+            for (auto alt_e: rc->start->outgoing) {
+                if (alt_e->getId() != rc->getId() and !alt_e->isTip())
+                    return false;
+            }
+            return true;
+        }
+
     };
 
     struct MultiGraph {
@@ -86,7 +115,7 @@ namespace multigraph {
         std::unordered_map<int, Edge *> edges;
 //To canonic ID
         std::unordered_map<std::string, int> label_to_id;
-        std::unordered_map<int, Edge* > id_to_edge;
+//        std::unordered_map<int, Edge* > id_to_edge;
 
 
         MultiGraph() = default;
@@ -100,7 +129,7 @@ namespace multigraph {
                 if (e->isCanonical()) {
                     label_to_id[e->getLabel()] = e->getId();
                 }
-                id_to_edge[e->getId()] = e;
+//                id_to_edge[e->getId()] = e;
             }
         }
 
@@ -135,6 +164,7 @@ namespace multigraph {
             return *this;
         }
 
+//Is it obsolate?
         MultiGraph DBG() const {
             MultiGraph dbg;
             std::unordered_map<Edge *, Vertex *> emap;
@@ -170,6 +200,8 @@ namespace multigraph {
                 }
                 dbg.addEdge(*start, *end, v->seq, v->id, v->label);
             }
+            std::cout <<"loaded V/E " << vertices.size() << " " << edges.size() << endl;
+            std::cout <<"transformed V/E " << dbg.vertices.size() << " " << dbg.edges.size() << endl;
             return std::move(dbg);
         }
 
@@ -289,7 +321,7 @@ namespace multigraph {
 
 
         Vertex &addVertex(const Sequence &seq, int id = 0, std::string label = "") {
-            if(id = 0) {
+            if (id == 0) {
                 id = maxVId + 1;
             }
             maxVId = std::max(std::abs(id), maxVId);
@@ -331,6 +363,71 @@ namespace multigraph {
                 res->rc = res;
             }
             return *res;
+        }
+
+        void internalRemoveEdge (int eid) {
+            Edge * edge = edges[eid];
+            Edge * rc_edge = edge->rc;
+            int rcid = rc_edge->getId();
+            std::unordered_map<Vertex* , Edge*> to_delete;
+            to_delete[edge->start] = edge;
+            to_delete[rc_edge->start] = rc_edge;
+            for (auto p: to_delete){
+                Vertex * d_vertex = p.first;
+                Edge* d_edge = p.second;
+                d_vertex->outgoing.erase(std::remove(d_vertex->outgoing.begin(), d_vertex->outgoing.end(), d_edge),
+                        d_vertex->outgoing.end());
+            }
+            delete edge;
+            delete rc_edge;
+            edges.erase(eid);
+            edges.erase(rcid);
+//delete, nullptr
+        }
+
+        void compressVertex(int vid) {
+            if (vertices.find(vid) != vertices.end() && vertices[vid]->outDeg() == 1 && vertices[vid]->inDeg() == 1) {
+//Do not compress 1-1 loops and RC loops
+                if (vertices[vid]->outgoing[0] == vertices[vid]->rc->outgoing[0]->rc)
+                    return;
+                if (vertices[vid]->outgoing[0] == vertices[vid]->rc->outgoing[0])
+                    return;
+
+                std::set<int> edgeids_to_remove;
+                Edge* e_out =  vertices[vid]->outgoing[0];
+                Vertex* end_v = e_out->end;
+                edgeids_to_remove.insert(e_out->getId());
+//                edgeids_to_remove.insert(e_out->rc->id)
+                Edge* e_in = vertices[vid]->rc->outgoing[0]->rc;
+                Vertex* start_v = e_in->start;
+                edgeids_to_remove.insert(e_in->getId());
+//                edgeids_to_remove.insert(e_out->rc->id);
+                size_t overlap = vertices[vid]->k();
+                Sequence new_seq = e_in->getSeq().Prefix(e_in->getSeq().size() - overlap) + e_out->getSeq();
+//                std::cerr << new_seq.size() << " " << overlap   << " "<< e_in->size() <<" "<< e_out->size() << endl;
+                string new_label = e_in->getLabel()+ "_"+ e_out->getLabel();
+                addEdge(*start_v, *end_v, new_seq, 0, new_label);
+                for (auto eid: edgeids_to_remove){
+                    internalRemoveEdge(eid);
+                }
+            }
+//clear vertex;
+        }
+
+        void deleteEdgeById(int eid){
+            Vertex* start_v = edges[eid]->start;
+            Vertex* end_v = edges[eid]->end;
+            internalRemoveEdge(eid);
+            compressVertex(start_v->id);
+            compressVertex(end_v->id);
+        }
+
+
+        void deleteEdgeByLabel(std::string label){
+            if (label_to_id.find(label) != label_to_id.end()) {
+                int eid = label_to_id[label];
+                deleteEdgeById(eid);
+            }
         }
 
         std::vector<Edge *> uniquePathForward(Edge &edge) {
@@ -463,7 +560,7 @@ namespace multigraph {
             os.close();
         }
 
-        void printEdgeGFA(const std::experimental::filesystem::path &f, const std::vector<Vertex *> &component) const {
+        void printEdgeGFA(const std::experimental::filesystem::path &f, const std::vector<Vertex *> &component, bool labels = false) const {
             std::ofstream os;
             os.open(f);
             os << "H\tVN:Z:1.0" << std::endl;
@@ -471,8 +568,15 @@ namespace multigraph {
             for(Vertex *v : component)
                 for (Edge *edge : v->outgoing) {
                     if (edge->isCanonical()) {
-                        eids[edge] = itos(edge->getId());
-                        eids[edge->rc] = itos(edge->getId());
+                        if (labels) {
+                            eids[edge] = edge->getLabel();
+                            eids[edge->rc] = edge->getLabel();
+                        } else {
+                            eids[edge] = itos(edge->getId());
+                            eids[edge->rc] = itos(edge->getId());
+
+                        }
+
                         os << "S\t" << eids[edge] << "\t" << edge->getSeq() << "\n";
                     }
                 }
@@ -493,11 +597,11 @@ namespace multigraph {
             os.close();
         }
 
-        void printEdgeGFA(const std::experimental::filesystem::path &f) const {
+        void printEdgeGFA(const std::experimental::filesystem::path &f, bool labels = false) const {
             std::vector<Vertex* > component;
             for (auto p: vertices)
                 component.push_back(p.second);
-            printEdgeGFA(f, component);
+            printEdgeGFA(f, component, labels);
         }
 
         void printVertexGFA(const std::experimental::filesystem::path &f, const std::vector<Vertex *> &component) const {
