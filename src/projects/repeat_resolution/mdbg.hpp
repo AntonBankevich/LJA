@@ -34,7 +34,7 @@ class MultiplexDBG
 
 public:
   // This constructor is for testing purposes
-  MultiplexDBG(std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
+  MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
                RRPaths *rr_paths);
 
   MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *rr_paths, uint64_t start_k,
@@ -54,6 +54,9 @@ public:
   bool IsVertexComplex(const RRVertexType &vertex) const;
 
   bool IsVertexSimple(const RRVertexType &vertex) const;
+
+  bool IsVertexCanonical(const RRVertexType &vertex) const;
+  bool IsEdgeCanonical(ConstIterator vertex, NeighborsConstIterator e_it) const;
 
   void FreezeVertex(const RRVertexType &vertex) { node_prop(vertex).freeze(); }
 
@@ -104,6 +107,15 @@ public:
   NeighborsConstIterator
   FindOutEdgeConstiterator(const RRVertexType &v,
                            const EdgeIndexType &edge) const;
+
+  int64_t GetInnerEdgeSize(ConstIterator vertex,
+                           NeighborsConstIterator e_it) const;
+  std::list<char> GetEdgeSequence(ConstIterator vertex,
+                                  NeighborsConstIterator e_it, bool trim_left,
+                                  bool trim_right) const;
+  std::vector<Contig> GetTrimEdges(uint64_t min_inner_edge_size = 1000) const;
+  std::vector<Contig>
+  PrintTrimEdges(const std::experimental::filesystem::path &f) const;
 };
 
 } // End namespace repeat_resolution

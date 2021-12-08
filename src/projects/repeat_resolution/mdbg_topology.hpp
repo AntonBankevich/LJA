@@ -12,6 +12,10 @@
 namespace repeat_resolution {
 using RRVertexType = uint64_t;
 
+constexpr char CharCompl(char c);
+std::list<char> GetRC(const std::list<char> &seq);
+bool IsCanonical(const std::list<char> &seq);
+
 class RRVertexProperty {
   std::list<char> seq;
   bool frozen{false};
@@ -26,6 +30,7 @@ public:
   RRVertexProperty &operator=(const RRVertexProperty &) = delete;
   RRVertexProperty &operator=(RRVertexProperty &&) = default;
 
+  [[nodiscard]] bool IsCanonical() const;
   [[nodiscard]] uint64_t size() const { return seq.size(); }
   [[nodiscard]] bool IsFrozen() const { return frozen; }
   [[nodiscard]] const std::list<char> &Seq() const { return seq; }
@@ -67,6 +72,7 @@ public:
 
   [[nodiscard]] int64_t size() const;
 
+  [[nodiscard]] bool IsCanonical() const;
   [[nodiscard]] bool IsUnique() const { return unique; }
 
   [[nodiscard]] EdgeIndexType Index() const { return index; }

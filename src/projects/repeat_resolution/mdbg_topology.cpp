@@ -5,6 +5,36 @@
 #include "mdbg_topology.hpp"
 using namespace repeat_resolution;
 
+constexpr char repeat_resolution::CharCompl(const char c) {
+  constexpr std::string_view bases = "ATCG";
+  return bases[bases.find(c) ^ 1];
+}
+
+std::list<char> repeat_resolution::GetRC(const std::list<char> &seq) {
+  std::list<char> rc;
+  std::transform(seq.crbegin(), seq.crend(), std::back_inserter(rc), CharCompl);
+  return rc;
+}
+
+bool repeat_resolution::IsCanonical(const std::list<char> &seq) {
+  for (auto [it, rit] = std::make_pair(seq.cbegin(), seq.crbegin());
+       it != seq.cend(); ++it, ++rit) {
+    char f = *it;
+    char r = CharCompl(*rit);
+    if (f < r) {
+      return true;
+    }
+    if (r < f) {
+      return false;
+    }
+  }
+  return true;
+}
+
+[[nodiscard]] bool RRVertexProperty::IsCanonical() const {
+  return ::repeat_resolution::IsCanonical(seq);
+}
+
 void RRVertexProperty::IncLeft(std::list<char> prefix) {
   seq.splice(seq.begin(), std::move(prefix));
 }
@@ -59,7 +89,9 @@ std::ostream &repeat_resolution::operator<<(std::ostream &os,
 std::ostream &
 repeat_resolution::operator<<(std::ostream &os,
                               const RREdgeProperty &edge_property) {
-  os << edge_property.size() << "\\n" << edge_property.IsUnique();
+  os << "index=" << edge_property.Index() << "\\n" <<
+      "size=" << edge_property.size() << "\\n" <<
+      "unique=" << edge_property.IsUnique();
   return os;
 }
 
@@ -73,6 +105,10 @@ bool repeat_resolution::operator==(const RRVertexProperty &lhs,
     VERIFY(size_ == seq.size())
   }
   return size_;
+}
+
+[[nodiscard]] bool RREdgeProperty::IsCanonical() const {
+  return ::repeat_resolution::IsCanonical(seq);
 }
 
 void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {

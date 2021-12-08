@@ -145,14 +145,13 @@ AlternativeCorrection(logging::Logger &logger,
   return {res, dir / "graph.fasta"};
 }
 
-std::vector<std::experimental::filesystem::path>
-SecondPhase(logging::Logger &logger,
-            const std::experimental::filesystem::path &dir,
-            const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-            const io::Library &paths_lib, size_t threads, size_t k, size_t w,
-            double threshold, double reliable_coverage, size_t unique_threshold,
-            const std::experimental::filesystem::path &py_path, bool diploid,
-            bool skip, bool debug, bool load) {
+std::vector<std::experimental::filesystem::path> SecondPhase(
+    logging::Logger &logger, const std::experimental::filesystem::path &dir,
+    const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
+    const io::Library &paths_lib, size_t threads, size_t k, size_t w,
+    size_t kmdbg, double threshold, double reliable_coverage,
+    size_t unique_threshold, const std::experimental::filesystem::path &py_path,
+    bool diploid, bool skip, bool debug, bool load) {
   logger.info() << "Performing second phase of correction with k = " << k
                 << std::endl;
   if (k % 2 == 0) {
@@ -233,36 +232,14 @@ SecondPhase(logging::Logger &logger,
     dbg.printFastaOld(dir / "graph.fasta");
     printDot(dir / "graph.dot", Component(dbg), readStorage.labeler());
 
-    /*  Original  repeat resolution code that calls py script
-     *
-     *  RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "split",
-py_path, debug);
-     *  std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads,
-is_unique);
-     *  logger.info()<< "Printing partial repeat resolution results to " << (dir
-/ "partial.fasta") << std::endl;
-     *  PrintFasta(partial_contigs, dir / "partial.fasta");
-//   *    std::vector<Contig> contigs = rr.CollectResults(logger, threads,
-partial_contigs, dir / "merging.txt", is_unique);
-     *  multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
-     *  mg.printEdgeGFA(dir / "partial.gfa");
-     *  mg.printDot(dir / "partial.dot");
-     *  multigraph::MultiGraph mmg = mg.Merge();
-     *  mmg.printEdgeGFA(dir / "compressed.gfa");
-     *  mmg.printDot(dir / "compressed.dot");
-     *  mmg.printCutEdges(dir / "compressed.fasta");
-     *  std::vector<Contig> contigs = mmg.getCutEdges();
-     *  PrintAlignments(logger, threads, contigs, readStorage, k, dir /
-"uncompressing");
-     *  readStorage.printFasta(logger, dir / "corrected.fasta");
-     */
-
-    // Modified version
-    uint64_t saturating_k = 40001;
     repeat_resolution::RepeatResolver rr(
-        dbg, &readStorage, {&extra_reads}, k, saturating_k,
+        dbg, &readStorage, {&extra_reads}, k, kmdbg,
         dir / "repeat_resolution", unique_threshold, diploid, debug);
-    rr.resolve_repeats(logger);
+    std::vector<Contig> contigs = rr.resolve_repeats(logger);
+
+    PrintAlignments(logger, threads, contigs, readStorage, k,
+                    dir / "uncompressing");
+    readStorage.printFasta(logger, dir / "corrected.fasta");
   }
   // };
   // if (!skip)
@@ -323,12 +300,26 @@ std::string constructMessage() {
 }
 
 int main(int argc, char **argv) {
-  CLParser parser({"output-dir=", "threads=16", "k-mer-size=501", "window=2000",
-                   "K-mer-size=5001", "Window=500", "cov-threshold=3",
-                   "rel-threshold=10", "Cov-threshold=3", "Rel-threshold=7",
-                   "unique-threshold=40000", "dump", "dimer-compress=32,32,1",
-                   "restart-from=none", "load", "alternative", "diploid",
-                   "debug", "help"},
+  CLParser parser({"output-dir=",
+                   "threads=16",
+                   "k-mer-size=501",
+                   "window=2000",
+                   "K-mer-size=5001",
+                   "KmDBG=40001",
+                   "Window=500",
+                   "cov-threshold=3",
+                   "rel-threshold=10",
+                   "Cov-threshold=3",
+                   "Rel-threshold=7",
+                   "unique-threshold=40000",
+                   "dump",
+                   "dimer-compress=32,32,1",
+                   "restart-from=none",
+                   "load",
+                   "alternative",
+                   "diploid",
+                   "debug",
+                   "help"},
                   {"reads", "paths", "ref"},
                   {"o=output-dir", "t=threads", "k=k-mer-size", "w=window",
                    "K=K-mer-size", "W=Window", "h=help"},
@@ -397,6 +388,7 @@ int main(int argc, char **argv) {
     load = false;
   size_t K = std::stoi(parser.getValue("K-mer-size"));
   size_t W = std::stoi(parser.getValue("Window"));
+  size_t KmDBG = std::stoi(parser.getValue("KmDBG"));
 
   double Threshold = std::stod(parser.getValue("Cov-threshold"));
   double Reliable_coverage = std::stod(parser.getValue("Rel-threshold"));
@@ -410,8 +402,8 @@ int main(int argc, char **argv) {
   logger.trace() << "py_path set to " << py_path.string() << std::endl;
   std::vector<std::experimental::filesystem::path> corrected2 = SecondPhase(
       logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second},
-      paths, threads, K, W, Threshold, Reliable_coverage, unique_threshold,
-      py_path, diplod, skip, debug, load);
+      paths, threads, K, W, KmDBG, Threshold, Reliable_coverage,
+      unique_threshold, py_path, diplod, skip, debug, load);
   if (first_stage == "phase2")
     load = false;
   if (first_stage == "polishing")

@@ -44,7 +44,7 @@ public:
     std::experimental::filesystem::create_directory(this->dir);
   }
 
-  void resolve_repeats(logging::Logger &logger) {
+  std::vector<Contig> resolve_repeats(logging::Logger &logger) {
     logger.info() << "Resolving repeats" << std::endl;
     for (RecordStorage *const storage : get_storages()) {
       storage->invalidateSubreads(logger, 1);
@@ -61,6 +61,10 @@ public:
     k_increaser.IncreaseUntilSaturation(mdbg);
     logger.info() << "Finished increasing k" << std::endl;
     mdbg.SerializeToDot(dir / "resolved_graph.dot");
+
+    std::vector<Contig> edges =
+        mdbg.PrintTrimEdges(dir / "compressed.fasta");
+    return edges;
   }
 };
 
