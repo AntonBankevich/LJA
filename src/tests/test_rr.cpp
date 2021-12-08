@@ -214,16 +214,25 @@ void CompareVertexes(
   bool PropsEquals = [&graph, &edge_info, &isolates]() {
     std::unordered_map<RRVertexType, RRVertexProperty> obs_props;
     for (const auto &vertex : graph) {
-      obs_props.emplace(vertex, graph.node_prop(vertex));
+      const RRVertexProperty &vertex_prop = graph.node_prop(vertex);
+      obs_props.emplace(
+          vertex, RRVertexProperty(vertex_prop.Seq(), vertex_prop.IsFrozen()));
     }
 
     std::unordered_map<RRVertexType, RRVertexProperty> true_props;
     for (const SuccinctEdgeInfo &edge : edge_info) {
-      true_props.emplace(edge.start_ind, edge.start_prop);
-      true_props.emplace(edge.end_ind, edge.end_prop);
+      true_props.emplace(
+          edge.start_ind,
+          RRVertexProperty(edge.start_prop.Seq(), edge.start_prop.IsFrozen()));
+      true_props.emplace(
+          edge.end_ind,
+          RRVertexProperty(edge.end_prop.Seq(), edge.end_prop.IsFrozen()));
     }
+
     for (const auto &[isolate_index, isolate_prop] : isolates) {
-      true_props.emplace(isolate_index, isolate_prop);
+      true_props.emplace(
+          isolate_index,
+          RRVertexProperty(isolate_prop.Seq(), isolate_prop.IsFrozen()));
     }
     return obs_props == true_props;
   }();
@@ -237,10 +246,12 @@ void CompareEdges(const MultiplexDBG &graph,
     auto [nbr_begin, nbr_end] = graph.out_neighbors(vertex);
     for (auto nbr_it = nbr_begin; nbr_it != nbr_end; ++nbr_it) {
       const RREdgeProperty &edge_prop = nbr_it->second.prop();
+      const RRVertexProperty &vertex_prop = graph.node_prop(vertex);
+      const RRVertexProperty &neighbor_prop = graph.node_prop(nbr_it->first);
       SuccinctEdgeInfo edge{vertex,
-                            graph.node_prop(vertex),
+                            {vertex_prop.Seq(), vertex_prop.IsFrozen()},
                             nbr_it->first,
-                            graph.node_prop(nbr_it->first),
+                            {neighbor_prop.Seq(), neighbor_prop.IsFrozen()},
                             edge_prop.size(),
                             edge_prop.Seq(),
                             edge_prop.IsUnique()};
@@ -279,7 +290,7 @@ std::vector<SuccinctEdgeInfo> GetEdgeInfo(const RawEdgeInfo &raw_edge_info,
 TEST(DB1, Basic) {
   const size_t k = 2;
 
-  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+  std::vector<SuccinctEdgeInfo> edge_info = [k]() {
     const bool frozen = false;
     const bool unique = false;
     std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
@@ -313,7 +324,7 @@ TEST(DB1, Basic) {
 TEST(DBSingleEdge1, Basic) {
   const size_t k = 2;
 
-  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+  std::vector<SuccinctEdgeInfo> edge_info = [k]() {
     const bool frozen = false;
     const bool unique = false;
     std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
@@ -341,7 +352,7 @@ TEST(DBSingleEdge1, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 1, "ACGTTGCA"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     const std::unordered_map<RRVertexType, RRVertexProperty> isolates;
@@ -354,7 +365,7 @@ TEST(DBSingleEdge1, Basic) {
 TEST(DBSingleEdge2, Basic) {
   const size_t k = 2;
 
-  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+  std::vector<SuccinctEdgeInfo> edge_info = [k]() {
     const bool frozen = false;
     const bool unique = false;
     std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
@@ -382,7 +393,7 @@ TEST(DBSingleEdge2, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 1, "ACGCA"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     const std::unordered_map<RRVertexType, RRVertexProperty> isolates;
@@ -395,7 +406,7 @@ TEST(DBSingleEdge2, Basic) {
 TEST(DBSingleEdge3, Basic) {
   const size_t k = 2;
 
-  const std::vector<SuccinctEdgeInfo> edge_info = [k]() {
+  std::vector<SuccinctEdgeInfo> edge_info = [k]() {
     const bool frozen = false;
     const bool unique = false;
     std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
@@ -423,11 +434,11 @@ TEST(DBSingleEdge3, Basic) {
   // }
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + N, false, false);
 
-    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
-        {0, {Str2List("ACGTGCA"), true}}};
+    std::unordered_map<RRVertexType, RRVertexProperty> isolates;
+    isolates.emplace(0, RRVertexProperty(Str2List("ACGTGCA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -439,7 +450,7 @@ TEST(DBStVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "AAAAA"}, {0, 2, "AAACA"}, {0, 3, "AAA"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -459,11 +470,11 @@ TEST(DBStVertex, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {4, 1, "AAAAA"}, {5, 2, "AAACA"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
-        {6, {Str2List("AAA"), true}}};
+    std::unordered_map<RRVertexType, RRVertexProperty> isolates;
+    isolates.emplace(6, RRVertexProperty(Str2List("AAA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -475,7 +486,7 @@ TEST(DBEvVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 3, "AAAAA"}, {1, 3, "AACAA"}, {2, 3, "AAA"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -495,11 +506,11 @@ TEST(DBEvVertex, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 4, "AAAAA"}, {1, 5, "AACAA"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
-        {2, {Str2List("AAA"), true}}};
+    std::unordered_map<RRVertexType, RRVertexProperty> isolates;
+    isolates.emplace(2, RRVertexProperty(Str2List("AAA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -512,7 +523,7 @@ TEST(DB1inVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "AACAG"}, {1, 2, "AGACC"}, {1, 3, "AGATT"}, {1, 4, "AGAGG"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -532,7 +543,7 @@ TEST(DB1inVertex, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 1, "AACAG"}, {1, 2, "CAGACC"}, {1, 3, "CAGATT"}, {1, 4, "CAGAGG"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     const std::unordered_map<RRVertexType, RRVertexProperty> isolates{};
@@ -548,7 +559,7 @@ TEST(DB1inVertex, WithShortEdge) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "CAG"}, {1, 2, "AGACC"}, {1, 3, "AGATT"}, {1, 4, "AGAGG"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -568,7 +579,7 @@ TEST(DB1inVertex, WithShortEdge) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 2, "CAGACC"}, {0, 3, "CAGATT"}, {0, 4, "CAGAGG"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -582,7 +593,7 @@ TEST(DB1outVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 3, "CCAGA"}, {1, 3, "TTAGA"}, {2, 3, "GGAGA"}, {3, 4, "GAAAA"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -602,7 +613,7 @@ TEST(DB1outVertex, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "CCAGAA"}, {1, 3, "TTAGAA"}, {2, 3, "GGAGAA"}, {3, 4, "GAAAA"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     const std::vector<RRVertexType> isolates{};
@@ -618,7 +629,7 @@ TEST(DB1outVertex, WithShortEdge) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 3, "CCAGA"}, {1, 3, "TTAGA"}, {2, 3, "GGAGA"}, {3, 4, "GAA"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -638,7 +649,7 @@ TEST(DB1outVertex, WithShortEdge) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "CCAGAA"}, {1, 3, "TTAGAA"}, {2, 3, "GGAGAA"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     const std::vector<RRVertexType> isolates{};
@@ -654,7 +665,7 @@ TEST(DBComplexVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -677,7 +688,7 @@ TEST(DBComplexVertex, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "ACAAATGC"}, {1, 4, "GGAAATT"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -691,7 +702,7 @@ TEST(DBComplexVertexLoop1, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {2, 2, "AAGAA"}, {2, 3, "AATGC"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -714,7 +725,7 @@ TEST(DBComplexVertexLoop1, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "ACAAAGAATGC"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     const std::vector<RRVertexType> isolates{};
@@ -734,7 +745,7 @@ TEST(DBComplexVertexLoop2, Basic) {
       {2, 3, "AATGC"},
       {4, 2, "GGAA"},
       {2, 5, "AATG"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -758,7 +769,7 @@ TEST(DBComplexVertexLoop2, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "ACAAAGAATGC"}, {4, 5, "GGAATG"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -773,7 +784,7 @@ TEST(DBComplexVertexLoop3, Basic) {
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {2, 2, "AAGAA"}, {2, 3, "AATGC"},
       {4, 2, "GGAA"},  {2, 2, "AAA"},   {2, 5, "AATG"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -796,7 +807,7 @@ TEST(DBComplexVertexLoop3, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 3, "ACAAAGAATGC"}, {4, 5, "GGAAATG"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     const std::vector<RRVertexType> isolates{};
@@ -813,7 +824,7 @@ TEST(DBComplexVertexLoop4, Basic) {
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACAAA"}, {1, 1, "AAGAA"}, {1, 1, "AACAA"},
       {1, 1, "AATAA"}, {1, 1, "AAAAA"}, {1, 2, "AATGC"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -835,7 +846,7 @@ TEST(DBComplexVertexLoop4, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 2, "ACAAAGAACAATAAAAATGC"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -858,7 +869,7 @@ TEST(DBComplexVertexLoop5, Basic) {
       {1, 4, "AATGC"},  // 7
       {5, 1, "ACAAA"},  // 8
       {1, 6, "AATGC"}}; // 9
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -882,7 +893,7 @@ TEST(DBComplexVertexLoop5, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 2, "ACAAAGAACAATGC"}, {3, 4, "ACAAATAAAAATGC"}, {5, 6, "ACAAATGC"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -903,7 +914,7 @@ TEST(DBBuldges1, Basic) {
       {1, 2, "AATGC"},  // 5
       {0, 1, "ACAAA"},  // 6
       {1, 2, "AATGC"}}; // 7
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -927,7 +938,7 @@ TEST(DBBuldges1, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {6, 3, "ACAAAGAACGC"}, {7, 4, "ACTAAAAATGC"}, {8, 5, "ACAAATGC"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -941,7 +952,7 @@ TEST(DBComplexVertexConn4, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -967,7 +978,7 @@ TEST(DBComplexVertexConn4, Basic) {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 5, "ACAAA"}, {5, 7, "AAAT"}, {7, 3, "AATGC"}, {5, 8, "AAAT"},
         {1, 6, "GGAAA"}, {6, 7, "AAAT"}, {6, 8, "AAAT"},  {8, 4, "AATT"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -981,7 +992,7 @@ TEST(DBComplexVertexConn3, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -1010,7 +1021,7 @@ TEST(DBComplexVertexConn3, Basic) {
         {5, 8, "AAAT"},
         {1, 8, "GGAAAT"},
         {8, 4, "AATT"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -1024,7 +1035,7 @@ TEST(DBComplexVertexConn3_2, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -1053,7 +1064,7 @@ TEST(DBComplexVertexConn3_2, Basic) {
         {6, 7, "AAAT"},
         {1, 6, "GGAAA"},
         {6, 4, "AAATT"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -1067,7 +1078,7 @@ TEST(DBComplexVertexLoop6, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACAAA"}, {1, 1, "AAGAA"}, {1, 2, "AATGC"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -1090,7 +1101,7 @@ TEST(DBComplexVertexLoop6, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {0, 2, "ACAAAGAAGAATGC"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + N, false, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -1106,7 +1117,7 @@ TEST(DBComplexVertexLoop7, Basic) {
       // {0, 1, "ACAAA"},
       {1, 1, "AAGAA"}};
   // {1, 2, "AATGC"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -1129,7 +1140,7 @@ TEST(DBComplexVertexLoop7, Basic) {
   {
     std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
         {1, 1, "AAGAA"}};
-    const std::vector<SuccinctEdgeInfo> edge_info =
+    std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k, true, false);
 
     CompareVertexes(mdbg, edge_info, {});
@@ -1143,7 +1154,7 @@ TEST(DBComplexVertexLoop8, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACAAA"}, {1, 1, "AAGAA"}, {1, 2, "AATGC"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -1182,7 +1193,7 @@ TEST(DBIsolate, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACA"}};
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -1205,9 +1216,8 @@ TEST(DBIsolate, Basic) {
     std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
-    const std::unordered_map<RRVertexType, RRVertexProperty> isolates{
-        {0, {Str2List("ACA"), true}}
-    };
+    std::unordered_map<RRVertexType, RRVertexProperty> isolates;
+    isolates.emplace(0, RRVertexProperty(Str2List("ACA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -1218,7 +1228,7 @@ TEST(DBEmptyGraph, Basic) {
   const size_t k = 2;
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info;
-  const std::vector<SuccinctEdgeInfo> edge_info =
+  std::vector<SuccinctEdgeInfo> edge_info =
       GetEdgeInfo(raw_edge_info, k, false, false);
 
   RRPaths paths = []() {
@@ -1240,4 +1250,13 @@ TEST(DBEmptyGraph, Basic) {
     CompareEdges(mdbg, edge_info);
     ASSERT_TRUE(mdbg.IsFrozen());
   }
+}
+
+TEST(RC, Basic) {
+  ASSERT_EQ(GetRC(Str2List("AATTCCGG")), Str2List("CCGGAATT"));
+  ASSERT_EQ(GetRC({}), Str2List({}));
+
+  ASSERT_TRUE(IsCanonical(Str2List("AATTCCGG")));
+  ASSERT_FALSE(IsCanonical(Str2List("CCGGAATT")));
+  ASSERT_TRUE(IsCanonical(Str2List("ACGT")));
 }
