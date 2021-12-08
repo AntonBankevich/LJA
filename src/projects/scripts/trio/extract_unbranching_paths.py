@@ -518,7 +518,7 @@ def assign_ambiguous_haplotypes(bulges, haplotypes, graph):
 
                 if maternal_count > paternal_count or (top_total == 0 and bottom.decisive_counts[0] > bottom.decisive_counts[1]) or (bottom_total == 0 and top.decisive_counts[1] > top.decisive_counts[0]):
                     decision = "m"
-                elif paternal_count < maternal_count or (top_total == 0 and bottom.decisive_counts[1] > bottom.decisive_counts[0]) or (bottom_total == 0 and top.decisive_counts[0] > top.decisive_counts[1]):
+                elif paternal_count > maternal_count or (top_total == 0 and bottom.decisive_counts[1] > bottom.decisive_counts[0]) or (bottom_total == 0 and top.decisive_counts[0] > top.decisive_counts[1]):
                     decision = "p"
                 else:
                     if l1 < short_length and l2 < short_length:
