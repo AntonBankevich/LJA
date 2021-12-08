@@ -382,7 +382,6 @@ namespace multigraph {
             delete rc_edge;
             edges.erase(eid);
             edges.erase(rcid);
-//delete, nullptr
         }
 
         void compressVertex(int vid) {
@@ -392,7 +391,7 @@ namespace multigraph {
                     return;
                 if (vertices[vid]->outgoing[0] == vertices[vid]->rc->outgoing[0])
                     return;
-
+                int rcid = vertices[vid]->rc->id;
                 std::set<int> edgeids_to_remove;
                 Edge* e_out =  vertices[vid]->outgoing[0];
                 Vertex* end_v = e_out->end;
@@ -403,15 +402,24 @@ namespace multigraph {
                 edgeids_to_remove.insert(e_in->getId());
 //                edgeids_to_remove.insert(e_out->rc->id);
                 size_t overlap = vertices[vid]->k();
-                Sequence new_seq = e_in->getSeq().Prefix(e_in->getSeq().size() - overlap) + e_out->getSeq();
-//                std::cerr << new_seq.size() << " " << overlap   << " "<< e_in->size() <<" "<< e_out->size() << endl;
+                size_t pref = e_in->getSeq().size();
+                if (pref >= overlap )
+                        pref -= overlap;
+                else {
+                    pref = 0;
+                    std::cerr << " wrong overlap " << overlap << " " << e_in->getSeq().size() << endl;
+                }
+                Sequence new_seq = e_in->getSeq().Prefix(pref) + e_out->getSeq();
                 string new_label = e_in->getLabel()+ "_"+ e_out->getLabel();
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
                 for (auto eid: edgeids_to_remove){
                     internalRemoveEdge(eid);
                 }
+                delete vertices[vid];
+                delete vertices[rcid];
+                vertices.erase(vid);
+                vertices.erase(rcid);
             }
-//clear vertex;
         }
 
         void deleteEdgeById(int eid){
