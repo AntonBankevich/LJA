@@ -26,6 +26,8 @@ class MultiplexDBG
   uint64_t next_edge_index{0};
   uint64_t next_vert_index{0};
   uint64_t n_iter{0};
+  uint64_t start_k{1};
+  bool contains_rc = true;
 
   void AssertValidity() const;
 
@@ -113,7 +115,7 @@ public:
   std::list<char> GetEdgeSequence(ConstIterator vertex,
                                   NeighborsConstIterator e_it, bool trim_left,
                                   bool trim_right) const;
-  std::vector<Contig> GetTrimEdges(uint64_t min_inner_edge_size = 1000) const;
+  std::vector<Contig> GetTrimEdges(int64_t min_inner_edge_size = 1000) const;
   std::vector<Contig>
   PrintTrimEdges(const std::experimental::filesystem::path &f) const;
 };

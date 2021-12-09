@@ -12,6 +12,9 @@
 namespace repeat_resolution {
 using RRVertexType = uint64_t;
 
+std::list<char> Str2List(const std::string &str);
+std::string List2Str(std::list<char> list);
+
 constexpr char CharCompl(char c);
 std::list<char> GetRC(const std::list<char> &seq);
 bool IsCanonical(const std::list<char> &seq);

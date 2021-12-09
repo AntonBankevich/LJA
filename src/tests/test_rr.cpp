@@ -178,18 +178,6 @@ TEST(RRPathsTest, MergeIterDereference) {
   paths.merge(1, 2);
 }
 
-auto Str2List = [](const std::string &str) {
-  std::list<char> seq;
-  std::move(str.begin(), str.end(), std::back_inserter(seq));
-  return seq;
-};
-
-auto List2Str = [](const std::list<char> &list) {
-  std::string str;
-  std::move(list.begin(), list.end(), std::back_inserter(str));
-  return str;
-};
-
 void CompareVertexes(
     const MultiplexDBG &graph, const std::vector<SuccinctEdgeInfo> &edge_info,
     const std::unordered_map<RRVertexType, RRVertexProperty> &isolates = {}) {

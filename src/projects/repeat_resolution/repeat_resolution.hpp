@@ -58,7 +58,7 @@ public:
     mdbg.SerializeToDot(dir / "init_graph.dot");
     logger.info() << "Increasing k" << std::endl;
     MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};
-    k_increaser.IncreaseUntilSaturation(mdbg);
+    k_increaser.IncreaseUntilSaturation(mdbg, true);
     logger.info() << "Finished increasing k" << std::endl;
     mdbg.SerializeToDot(dir / "resolved_graph.dot");
 

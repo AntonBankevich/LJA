@@ -5,6 +5,18 @@
 #include "mdbg_topology.hpp"
 using namespace repeat_resolution;
 
+std::list<char> repeat_resolution::Str2List(const std::string &str) {
+  std::list<char> seq;
+  std::move(str.begin(), str.end(), std::back_inserter(seq));
+  return seq;
+};
+
+std::string repeat_resolution::List2Str(std::list<char> list) {
+  std::string str;
+  std::move(list.begin(), list.end(), std::back_inserter(str));
+  return str;
+};
+
 constexpr char repeat_resolution::CharCompl(const char c) {
   constexpr std::string_view bases = "ATCG";
   return bases[bases.find(c) ^ 1];
@@ -146,7 +158,7 @@ std::list<char> RREdgeProperty::ExtractSeqSuffix(const size_t len) {
   VERIFY(seq.size() >= len);
   std::list<char> suffix;
   for (int i = 0; i < len; ++i) {
-    suffix.emplace_back(seq.back());
+    suffix.emplace_front(seq.back());
     seq.pop_back();
   }
   size_ -= len;
