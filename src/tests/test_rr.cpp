@@ -246,7 +246,7 @@ void CompareEdges(const MultiplexDBG &graph,
       if (std::find(edge_info.begin(), edge_info.end(), edge) ==
           edge_info.end()) {
         std::cout << edge.start_ind << " " << edge.end_ind << " "
-                  << List2Str(edge.seq) << "\n";
+                  << edge.seq.ToString() << "\n";
         VERIFY_MSG(false, "Found an edge that is not present among true edges");
       }
       ++cnt;
@@ -265,11 +265,11 @@ std::vector<SuccinctEdgeInfo> GetEdgeInfo(const RawEdgeInfo &raw_edge_info,
     std::string infix = infix_size > 0 ? str.substr(k, infix_size) : "";
     std::string suffix = str.substr(str.size() - k);
     edge_info.push_back({st,
-                         {Str2List(prefix), frozen},
+                         {MDBGSeq(prefix), frozen},
                          en,
-                         {Str2List(suffix), frozen},
+                         {MDBGSeq(suffix), frozen},
                          infix_size,
-                         Str2List(infix),
+                         MDBGSeq(infix),
                          unique});
   }
   return edge_info;
@@ -426,7 +426,7 @@ TEST(DBSingleEdge3, Basic) {
         GetEdgeInfo(raw_edge_info, k + N, false, false);
 
     std::unordered_map<RRVertexType, RRVertexProperty> isolates;
-    isolates.emplace(0, RRVertexProperty(Str2List("ACGTGCA"), true));
+    isolates.emplace(0, RRVertexProperty(MDBGSeq("ACGTGCA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -462,7 +462,7 @@ TEST(DBStVertex, Basic) {
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     std::unordered_map<RRVertexType, RRVertexProperty> isolates;
-    isolates.emplace(6, RRVertexProperty(Str2List("AAA"), true));
+    isolates.emplace(6, RRVertexProperty(MDBGSeq("AAA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -498,7 +498,7 @@ TEST(DBEvVertex, Basic) {
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     std::unordered_map<RRVertexType, RRVertexProperty> isolates;
-    isolates.emplace(2, RRVertexProperty(Str2List("AAA"), true));
+    isolates.emplace(2, RRVertexProperty(MDBGSeq("AAA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -1167,8 +1167,8 @@ TEST(DBComplexVertexLoop8, Basic) {
         {0, 2, "ACAAATGC"}, {6, 6, "AAGAAG"}};
     std::vector<SuccinctEdgeInfo> edge_info =
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
-    edge_info[1].start_prop.freeze();
-    edge_info[1].end_prop.freeze();
+    edge_info[1].start_prop.Freeze();
+    edge_info[1].end_prop.Freeze();
 
     CompareVertexes(mdbg, edge_info, {});
     CompareEdges(mdbg, edge_info);
@@ -1205,7 +1205,7 @@ TEST(DBIsolate, Basic) {
         GetEdgeInfo(raw_edge_info, k + 1, false, false);
 
     std::unordered_map<RRVertexType, RRVertexProperty> isolates;
-    isolates.emplace(0, RRVertexProperty(Str2List("ACA"), true));
+    isolates.emplace(0, RRVertexProperty(MDBGSeq("ACA"), true));
 
     CompareVertexes(mdbg, edge_info, isolates);
     CompareEdges(mdbg, edge_info);
@@ -1241,10 +1241,10 @@ TEST(DBEmptyGraph, Basic) {
 }
 
 TEST(RC, Basic) {
-  ASSERT_EQ(GetRC(Str2List("AATTCCGG")), Str2List("CCGGAATT"));
-  ASSERT_EQ(GetRC({}), Str2List({}));
+  ASSERT_EQ(MDBGSeq("AATTCCGG").GetRC(), MDBGSeq("CCGGAATT"));
+  ASSERT_EQ(MDBGSeq().GetRC(), MDBGSeq());
 
-  ASSERT_TRUE(IsCanonical(Str2List("AATTCCGG")));
-  ASSERT_FALSE(IsCanonical(Str2List("CCGGAATT")));
-  ASSERT_TRUE(IsCanonical(Str2List("ACGT")));
+  ASSERT_TRUE(MDBGSeq("AATTCCGG").IsCanonical());
+  ASSERT_FALSE(MDBGSeq("CCGGAATT").IsCanonical());
+  ASSERT_TRUE(MDBGSeq("ACGT").IsCanonical());
 }

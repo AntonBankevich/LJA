@@ -58,7 +58,7 @@ void MultiplexDBGIncreaser::CollapseShortEdgesIntoVertices(
       continue;
     }
     auto [out_it_begin, out_it_end] = graph.out_neighbors(v1);
-    std::vector<EdgeIndexType> edges2collapse;
+    std::vector<RREdgeIndexType> edges2collapse;
     for (auto it = out_it_begin; it != out_it_end; ++it) {
       const RRVertexType &v2 = it->first;
       const RRVertexProperty &v2p = graph.node_prop(v2);
@@ -70,7 +70,7 @@ void MultiplexDBGIncreaser::CollapseShortEdgesIntoVertices(
         edges2collapse.push_back(edge_property.Index());
       }
     }
-    for (const EdgeIndexType &edge_index : edges2collapse) {
+    for (const RREdgeIndexType &edge_index : edges2collapse) {
       // iterator might be getting invalidated every time we collapse an edge
       // thus, we find the iterator for every edge from scratch
       auto it = [&graph, &v1, &edge_index]() {

@@ -15,7 +15,7 @@
 
 namespace repeat_resolution {
 
-using PathEdgeList = std::list<EdgeIndexType>;
+using PathEdgeList = std::list<RREdgeIndexType>;
 
 struct RRPath {
   // TODO add invariant that no two mappings can have the same id
@@ -40,21 +40,21 @@ struct IteratorInPathHash {
   // this assumes that iterator can be dereferenced!
   std::size_t operator()(const IteratorInPath &iter_in_mapping) const noexcept {
     std::size_t h1 = std::hash<RRPath *>{}(iter_in_mapping.p_path);
-    std::size_t h2 = std::hash<const EdgeIndexType *>{}(&*iter_in_mapping.iter);
+    std::size_t h2 = std::hash<const RREdgeIndexType *>{}(&*iter_in_mapping.iter);
     return h1 ^ (h2 << 1);
   }
 };
 
 using IteratorInPathUSet =
     std::unordered_set<IteratorInPath, IteratorInPathHash>;
-using EdgeIndex2PosMap = std::unordered_map<EdgeIndexType, IteratorInPathUSet>;
+using EdgeIndex2PosMap = std::unordered_map<RREdgeIndexType, IteratorInPathUSet>;
 
-using PairEdgeIndexType = std::pair<EdgeIndexType, EdgeIndexType>;
+using PairEdgeIndexType = std::pair<RREdgeIndexType, RREdgeIndexType>;
 struct PairEdgeIndexHash {
   std::size_t
   operator()(const PairEdgeIndexType &pair_edge_index) const noexcept {
-    std::size_t h1 = std::hash<EdgeIndexType>{}(pair_edge_index.first);
-    std::size_t h2 = std::hash<EdgeIndexType>{}(pair_edge_index.second);
+    std::size_t h1 = std::hash<RREdgeIndexType>{}(pair_edge_index.first);
+    std::size_t h2 = std::hash<RREdgeIndexType>{}(pair_edge_index.second);
     return h1 ^ (h2 << 1);
   }
 };
@@ -87,15 +87,15 @@ public:
   RRPaths &operator=(const RRPaths &) = delete;
   RRPaths &operator=(RRPaths &&) = default;
 
-  void add(EdgeIndexType left_index, EdgeIndexType right_index,
-           EdgeIndexType new_index);
+  void add(RREdgeIndexType left_index, RREdgeIndexType right_index,
+           RREdgeIndexType new_index);
 
-  void remove(EdgeIndexType index);
+  void remove(RREdgeIndexType index);
 
-  void merge(EdgeIndexType left_index, EdgeIndexType right_index);
+  void merge(RREdgeIndexType left_index, RREdgeIndexType right_index);
 
-  [[nodiscard]] bool contains_pair(const EdgeIndexType &lhs,
-                                   const EdgeIndexType &rhs) const;
+  [[nodiscard]] bool contains_pair(const RREdgeIndexType &lhs,
+                                   const RREdgeIndexType &rhs) const;
 };
 
 class PathsBuilder {
@@ -124,7 +124,7 @@ public:
     auto path2edge_list = [&edgeid2ind](const dbg::Path &dbg_path) {
       PathEdgeList edge_list;
       for (const Edge *p_edge : dbg_path) {
-        EdgeIndexType edge_i = edgeid2ind.at(p_edge->getId());
+        RREdgeIndexType edge_i = edgeid2ind.at(p_edge->getId());
         edge_list.emplace_back(edge_i);
       }
       return edge_list;

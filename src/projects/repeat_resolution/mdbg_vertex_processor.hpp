@@ -20,7 +20,7 @@ public:
 
 class MDBGComplexVertexProcessor {
 
-  std::pair<std::unordered_map<EdgeIndexType, RRVertexType>,
+  std::pair<std::unordered_map<RREdgeIndexType, RRVertexType>,
             std::vector<RRVertexType>>
   SplitVertex(MultiplexDBG &graph, const RRVertexType &vertex);
 

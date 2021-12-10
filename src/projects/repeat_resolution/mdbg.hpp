@@ -60,18 +60,17 @@ public:
   bool IsVertexCanonical(const RRVertexType &vertex) const;
   bool IsEdgeCanonical(ConstIterator vertex, NeighborsConstIterator e_it) const;
 
-  void FreezeVertex(const RRVertexType &vertex) { node_prop(vertex).freeze(); }
+  void FreezeVertex(const RRVertexType &vertex) { node_prop(vertex).Freeze(); }
 
-  RRVertexType GetNewVertex(std::list<char> seq);
+  RRVertexType GetNewVertex(MDBGSeq seq);
 
   size_t FullEdgeSize(ConstIterator vertex, NeighborsConstIterator e_it) const;
 
-  std::list<char> ExtractEdgePostStartPrefix(ConstIterator vertex,
-                                             NeighborsIterator e_it,
-                                             uint64_t len);
+  MDBGSeq ExtractEdgePostStartPrefix(ConstIterator vertex,
+                                     NeighborsIterator e_it, uint64_t len);
 
-  std::list<char> ExtractEdgePreEndSuffix(ConstIterator vertex,
-                                          NeighborsIterator e_it, uint64_t len);
+  MDBGSeq ExtractEdgePreEndSuffix(ConstIterator vertex, NeighborsIterator e_it,
+                                  uint64_t len);
 
   void IncreaseVertex(const RRVertexType &vertex, uint64_t len);
 
@@ -81,40 +80,39 @@ public:
   void MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
                   NeighborsIterator e2_it);
 
-  EdgeIndexType AddConnectingEdge(NeighborsIterator e1_it,
+  RREdgeIndexType AddConnectingEdge(NeighborsIterator e1_it,
                                   const RRVertexType &s2,
                                   NeighborsIterator e2_it);
 
-  std::vector<EdgeIndexType>
+  std::vector<RREdgeIndexType>
   GetInEdgesIndexes(const RRVertexType &vertex) const;
-  std::vector<EdgeIndexType>
+  std::vector<RREdgeIndexType>
   GetOutEdgesIndexes(const RRVertexType &vertex) const;
 
-  std::pair<std::vector<EdgeIndexType>, std::vector<EdgeIndexType>>
+  std::pair<std::vector<RREdgeIndexType>, std::vector<RREdgeIndexType>>
   GetNeighborEdgesIndexes(const RRVertexType &vertex) const;
 
   using EdgeNeighborMap =
-      std::unordered_map<EdgeIndexType, std::unordered_set<EdgeIndexType>>;
+      std::unordered_map<RREdgeIndexType, std::unordered_set<RREdgeIndexType>>;
   std::pair<EdgeNeighborMap, EdgeNeighborMap>
   GetEdgepairsVertex(const RRVertexType &vertex) const;
 
   NeighborsIterator FindInEdgeIterator(const RRVertexType &v,
-                                       const EdgeIndexType &edge);
+                                       const RREdgeIndexType &edge);
   NeighborsConstIterator
   FindInEdgeConstiterator(const RRVertexType &v,
-                          const EdgeIndexType &edge) const;
+                          const RREdgeIndexType &edge) const;
 
   NeighborsIterator FindOutEdgeIterator(const RRVertexType &v,
-                                        const EdgeIndexType &edge);
+                                        const RREdgeIndexType &edge);
   NeighborsConstIterator
   FindOutEdgeConstiterator(const RRVertexType &v,
-                           const EdgeIndexType &edge) const;
+                           const RREdgeIndexType &edge) const;
 
   int64_t GetInnerEdgeSize(ConstIterator vertex,
                            NeighborsConstIterator e_it) const;
-  std::list<char> GetEdgeSequence(ConstIterator vertex,
-                                  NeighborsConstIterator e_it, bool trim_left,
-                                  bool trim_right) const;
+  MDBGSeq GetEdgeSequence(ConstIterator vertex, NeighborsConstIterator e_it,
+                          bool trim_left, bool trim_right) const;
   std::vector<Contig> GetTrimEdges(int64_t min_inner_edge_size = 1000) const;
   std::vector<Contig>
   PrintTrimEdges(const std::experimental::filesystem::path &f) const;

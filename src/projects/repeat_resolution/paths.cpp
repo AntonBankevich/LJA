@@ -35,8 +35,8 @@ void RRPaths::assert_validity() const {
   }
 }
 
-void RRPaths::add(EdgeIndexType left, EdgeIndexType right,
-                  EdgeIndexType new_index) {
+void RRPaths::add(RREdgeIndexType left, RREdgeIndexType right,
+                  RREdgeIndexType new_index) {
   if (edgepair2pos.find({left, right}) == edgepair2pos.end()) {
     return;
   }
@@ -55,7 +55,7 @@ void RRPaths::add(EdgeIndexType left, EdgeIndexType right,
   edgepair2pos.erase({left, right});
 }
 
-void RRPaths::remove(EdgeIndexType index) {
+void RRPaths::remove(RREdgeIndexType index) {
   if (edge2pos.find(index) == edge2pos.end()) {
     return;
   }
@@ -103,7 +103,7 @@ void RRPaths::remove(EdgeIndexType index) {
   edge2pos.erase(index);
 }
 
-void RRPaths::merge(EdgeIndexType left_index, EdgeIndexType right_index) {
+void RRPaths::merge(RREdgeIndexType left_index, RREdgeIndexType right_index) {
   // Taken from https://stackoverflow.com/a/3792615
   if (edge2pos.find(right_index) == edge2pos.end()) {
     return;
@@ -152,7 +152,7 @@ const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
   return edgepair2pos;
 }
 
-[[nodiscard]] bool RRPaths::contains_pair(const EdgeIndexType &lhs,
-                                          const EdgeIndexType &rhs) const {
+[[nodiscard]] bool RRPaths::contains_pair(const RREdgeIndexType &lhs,
+                                          const RREdgeIndexType &rhs) const {
   return edgepair2pos.find(std::make_pair(lhs, rhs)) != edgepair2pos.end();
 }

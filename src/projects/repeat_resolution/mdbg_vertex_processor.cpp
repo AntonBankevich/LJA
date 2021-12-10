@@ -23,7 +23,7 @@ void MDBGSimpleVertexProcessor::Process1Pin0Out(MultiplexDBG &graph,
   RRVertexProperty &v_prop = graph.node_prop(vertex);
   auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
-    EdgeIndexType edge_index = it->second.prop().Index();
+    RREdgeIndexType edge_index = it->second.prop().Index();
     RRVertexType new_vertex = graph.GetNewVertex(v_prop.Seq());
     // need to construct a NeighborIterator pointing to vertex
     auto out_nbr = graph.out_neighbors(it->first).first;
@@ -72,17 +72,17 @@ void MDBGSimpleVertexProcessor::Process(MultiplexDBG &graph,
   }
 }
 
-std::pair<std::unordered_map<EdgeIndexType, RRVertexType>,
+std::pair<std::unordered_map<RREdgeIndexType, RRVertexType>,
           std::vector<RRVertexType>>
 MDBGComplexVertexProcessor::SplitVertex(MultiplexDBG &graph,
                                          const RRVertexType &vertex) {
   RRVertexProperty &v_prop = graph.node_prop(vertex);
-  std::unordered_map<EdgeIndexType, RRVertexType> edge2vertex;
+  std::unordered_map<RREdgeIndexType, RRVertexType> edge2vertex;
   std::vector<RRVertexType> new_vertices;
   auto [in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
   for (auto it = in_nbr_begin; it != in_nbr_end; ++it) {
     const RRVertexType &neighbor = it->first;
-    const EdgeIndexType edge_index = it->second.prop().Index();
+    const RREdgeIndexType edge_index = it->second.prop().Index();
     RRVertexType new_vertex = graph.GetNewVertex(v_prop.Seq());
     new_vertices.emplace_back(new_vertex);
     auto e_it = graph.out_neighbors(neighbor).first;
@@ -96,7 +96,7 @@ MDBGComplexVertexProcessor::SplitVertex(MultiplexDBG &graph,
 
   auto [out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
   for (auto it = out_nbr_begin; it != out_nbr_end; ++it) {
-    const EdgeIndexType edge_index = it->second.prop().Index();
+    const RREdgeIndexType edge_index = it->second.prop().Index();
     RRVertexType new_vertex = graph.GetNewVertex(v_prop.Seq());
     new_vertices.emplace_back(new_vertex);
     graph.MoveEdge(vertex, it, new_vertex, it->first);
@@ -117,13 +117,13 @@ void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
 
   for (const auto &[edge1, edge1_neighbors] : ac_s2e) {
     for (const auto &edge2 : edge1_neighbors) {
-      // const EdgeIndexType edge1 = FindMergeEdgeId(edge1_);
+      // const RREdgeIndexType edge1 = FindMergeEdgeId(edge1_);
       const RRVertexType left_vertex = edge2vertex.at(edge1);
       auto e1_it = graph.FindOutEdgeIterator(left_vertex, edge1);
 
-      // const EdgeIndexType edge2 = FindMergeEdgeId(edge2_);
+      // const RREdgeIndexType edge2 = FindMergeEdgeId(edge2_);
       const RRVertexType right_vertex = edge2vertex.at(edge2);
-      const std::unordered_set<EdgeIndexType> &edge2_neighbors = ac_e2s[edge2];
+      const std::unordered_set<RREdgeIndexType> &edge2_neighbors = ac_e2s[edge2];
       auto e2_it = graph.FindOutEdgeIterator(right_vertex, edge2);
 
       graph.AddConnectingEdge(e1_it, right_vertex, e2_it);

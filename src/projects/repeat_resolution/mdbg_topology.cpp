@@ -5,30 +5,35 @@
 #include "mdbg_topology.hpp"
 using namespace repeat_resolution;
 
-std::list<char> repeat_resolution::Str2List(const std::string &str) {
-  std::list<char> seq;
-  std::move(str.begin(), str.end(), std::back_inserter(seq));
-  return seq;
-};
+// ---------- MDBGSeq ----------
 
-std::string repeat_resolution::List2Str(std::list<char> list) {
-  std::string str;
-  std::move(list.begin(), list.end(), std::back_inserter(str));
-  return str;
-};
-
-constexpr char repeat_resolution::CharCompl(const char c) {
+constexpr char MDBGSeq::CharCompl(const char c) {
   constexpr std::string_view bases = "ATCG";
   return bases[bases.find(c) ^ 1];
 }
 
-std::list<char> repeat_resolution::GetRC(const std::list<char> &seq) {
-  std::list<char> rc;
-  std::transform(seq.crbegin(), seq.crend(), std::back_inserter(rc), CharCompl);
-  return rc;
+MDBGSeq::MDBGSeq(std::list<char> seq) : seq{std::move(seq)} {}
+MDBGSeq::MDBGSeq(std::string str) {
+  std::move(str.begin(), str.end(), std::back_inserter(seq));
 }
 
-bool repeat_resolution::IsCanonical(const std::list<char> &seq) {
+MDBGSeq::MDBGSeq(const Sequence &seq) : MDBGSeq(std::move(seq.str())) {}
+
+std::string MDBGSeq::ToString() const {
+  std::string str;
+  std::move(seq.begin(), seq.end(), std::back_inserter(str));
+  return str;
+}
+
+size_t MDBGSeq::size() const { return seq.size(); }
+
+MDBGSeq MDBGSeq::GetRC() const {
+  std::list<char> rc;
+  std::transform(seq.crbegin(), seq.crend(), std::back_inserter(rc), CharCompl);
+  return MDBGSeq(std::move(rc));
+}
+
+bool MDBGSeq::IsCanonical() const {
   for (auto [it, rit] = std::make_pair(seq.cbegin(), seq.crbegin());
        it != seq.cend(); ++it, ++rit) {
     char f = *it;
@@ -43,53 +48,77 @@ bool repeat_resolution::IsCanonical(const std::list<char> &seq) {
   return true;
 }
 
-[[nodiscard]] bool RRVertexProperty::IsCanonical() const {
-  return ::repeat_resolution::IsCanonical(seq);
+bool MDBGSeq::Empty() const { return seq.empty(); }
+
+void MDBGSeq::Append(MDBGSeq mdbg_seq) {
+  seq.splice(seq.end(), std::move(mdbg_seq.seq));
 }
 
-void RRVertexProperty::IncLeft(std::list<char> prefix) {
-  seq.splice(seq.begin(), std::move(prefix));
+void MDBGSeq::Prepend(MDBGSeq mdbg_seq) {
+  seq.splice(seq.begin(), std::move(mdbg_seq.seq));
 }
-void RRVertexProperty::IncRight(std::list<char> suffix) {
-  seq.splice(seq.end(), std::move(suffix));
-}
-void RRVertexProperty::DecLeft(const uint64_t inc) {
-  for (uint64_t i = 0; i < inc; ++i) {
+
+void MDBGSeq::TrimLeft(uint64_t size) {
+  for (uint64_t i = 0; i < size; ++i) {
     seq.pop_front();
   }
 }
-void RRVertexProperty::DecRight(const uint64_t inc) {
-  for (uint64_t i = 0; i < inc; ++i) {
+
+void MDBGSeq::TrimRight(uint64_t size) {
+  for (uint64_t i = 0; i < size; ++i) {
     seq.pop_back();
   }
 }
 
-std::list<char> RRVertexProperty::GetSeqPrefix(size_t len,
-                                               int64_t shift) const {
-  VERIFY(seq.size() >= len);
-  auto it = seq.cbegin();
-  if (shift > 0) {
-    std::advance(it, shift);
+MDBGSeq MDBGSeq::Substr(const uint64_t pos, const uint64_t len) const {
+  VERIFY(pos + len <= seq.size());
+  auto it = [this, &pos, &len] {
+    if (pos < seq.size() - pos) {
+      auto it = seq.cbegin();
+      std::advance(it, pos);
+      return it;
+    }
+    auto it = seq.crbegin();
+    std::advance(it, seq.size() - pos);
+    return it.base();
+  }();
+  std::list<char> substr_list;
+  for (uint64_t cnt = 0; cnt < len; ++cnt, ++it) {
+    substr_list.emplace_back(*it);
   }
-  std::list<char> prefix;
-  for (auto i = 0; i < len; ++i, ++it) {
-    prefix.emplace_back(*it);
-  }
-  return prefix;
+  return MDBGSeq(substr_list);
 }
 
-std::list<char> RRVertexProperty::GetSeqSuffix(size_t len,
-                                               int64_t shift) const {
-  VERIFY(seq.size() >= len);
-  auto it = seq.crbegin();
+bool MDBGSeq::operator==(const MDBGSeq &rhs) const { return seq == rhs.seq; }
+
+// ---------- RRVertexProperty ----------
+
+[[nodiscard]] bool RRVertexProperty::IsCanonical() const {
+  return seq.IsCanonical();
+}
+
+void RRVertexProperty::IncLeft(MDBGSeq prefix) {
+  seq.Prepend(std::move(prefix));
+}
+
+void RRVertexProperty::IncRight(MDBGSeq suffix) {
+  seq.Append(std::move(suffix));
+}
+
+void RRVertexProperty::TrimLeft(const uint64_t size) { seq.TrimLeft(size); }
+
+void RRVertexProperty::TrimRight(const uint64_t size) { seq.TrimRight(size); }
+
+MDBGSeq RRVertexProperty::GetSeqPrefix(size_t len, int64_t shift) const {
+  return seq.Substr(shift > 0 ? shift : 0, len);
+}
+
+MDBGSeq RRVertexProperty::GetSeqSuffix(size_t len, int64_t shift) const {
+  uint64_t pos = seq.size() - len;
   if (shift > 0) {
-    std::advance(it, shift);
+    pos -= shift;
   }
-  std::list<char> suffix;
-  for (auto i = 0; i < len; ++i, ++it) {
-    suffix.emplace_front(*it);
-  }
-  return suffix;
+  return seq.Substr(pos, len);
 }
 
 std::ostream &repeat_resolution::operator<<(std::ostream &os,
@@ -98,43 +127,35 @@ std::ostream &repeat_resolution::operator<<(std::ostream &os,
   return os;
 }
 
-std::ostream &
-repeat_resolution::operator<<(std::ostream &os,
-                              const RREdgeProperty &edge_property) {
-  os << "index=" << edge_property.Index() << "\\n" <<
-      "size=" << edge_property.size() << "\\n" <<
-      "unique=" << edge_property.IsUnique();
-  return os;
+bool RRVertexProperty::operator==(const RRVertexProperty &rhs) const {
+  return seq == rhs.seq and frozen == rhs.frozen;
 }
 
-bool repeat_resolution::operator==(const RRVertexProperty &lhs,
-                                   const RRVertexProperty &rhs) {
-  return lhs.Seq() == rhs.Seq() and lhs.IsFrozen() == rhs.IsFrozen();
-}
+// ---------- RREdgeProperty ----------
 
 [[nodiscard]] int64_t RREdgeProperty::size() const {
-  if (not seq.empty()) {
+  if (not seq.Empty()) {
     VERIFY(size_ == seq.size())
   }
   return size_;
 }
 
 [[nodiscard]] bool RREdgeProperty::IsCanonical() const {
-  return ::repeat_resolution::IsCanonical(seq);
+  return seq.IsCanonical();
 }
 
 void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
   // in case current edge has negative length, there is an overlap b/w vertices
   int64_t vertex_size = vertex.size();
   if (size_ < 0) {
-    vertex.DecLeft(std::min((int64_t)vertex.size(), -size_));
+    vertex.TrimLeft((uint64_t)std::min((int64_t)vertex.size(), -size_));
   }
   size_ += (int64_t)vertex_size + rhs.size_;
   if (rhs.size_ < 0) {
-    vertex.DecRight(std::min((int64_t)vertex.size(), -rhs.size_));
+    vertex.TrimRight((uint64_t)std::min((int64_t)vertex.size(), -rhs.size_));
   }
-  seq.splice(seq.end(), std::move(vertex.seq));
-  seq.splice(seq.end(), std::move(rhs.seq));
+  seq.Append(std::move(vertex.seq));
+  seq.Append(std::move(rhs.seq));
   if (size_ > 0) {
     VERIFY(seq.size() == size_);
   }
@@ -143,30 +164,24 @@ void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
   }
 }
 
-std::list<char> RREdgeProperty::ExtractSeqPrefix(const size_t len) {
+MDBGSeq RREdgeProperty::ExtractSeqPrefix(const size_t len) {
   VERIFY(seq.size() >= len);
-  std::list<char> prefix;
-  for (int i = 0; i < len; ++i) {
-    prefix.emplace_back(seq.front());
-    seq.pop_front();
-  }
+  MDBGSeq prefix = seq.Substr(0, len);
+  seq.TrimLeft(len);
   size_ -= len;
   return prefix;
 }
 
-std::list<char> RREdgeProperty::ExtractSeqSuffix(const size_t len) {
+MDBGSeq RREdgeProperty::ExtractSeqSuffix(const size_t len) {
   VERIFY(seq.size() >= len);
-  std::list<char> suffix;
-  for (int i = 0; i < len; ++i) {
-    suffix.emplace_front(seq.back());
-    seq.pop_back();
-  }
+  MDBGSeq suffix = seq.Substr(seq.size() - len, len);
+  seq.TrimRight(len);
   size_ -= len;
   return suffix;
 }
 
 void RREdgeProperty::ShortenWithEmptySeq(size_t len) {
-  VERIFY(seq.empty());
+  VERIFY(seq.Empty());
   size_ -= len;
 }
 
@@ -187,6 +202,17 @@ RREdgeProperty repeat_resolution::Add(const RRVertexProperty &lhs,
   // can assign uniqueness more carefully if we pass left&right edges
   return RREdgeProperty(/*index=*/index, /*(inner)seq=*/{},
                         /*size=*/-((int64_t)lhs.size()) + 1, /*unique=*/false);
+}
+
+// -------- SuccinctEdgeInfo -------
+
+std::ostream &
+repeat_resolution::operator<<(std::ostream &os,
+                              const RREdgeProperty &edge_property) {
+  os << "index=" << edge_property.Index() << "\\n"
+     << "size=" << edge_property.size() << "\\n"
+     << "unique=" << edge_property.IsUnique();
+  return os;
 }
 
 bool repeat_resolution::operator==(const SuccinctEdgeInfo &lhs,
