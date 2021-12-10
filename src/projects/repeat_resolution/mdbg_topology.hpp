@@ -5,6 +5,7 @@
 #pragma once
 
 #include "common/verify.hpp"
+#include "dbg/sparse_dbg.hpp"
 #include "sequences/sequence.hpp"
 #include <functional>
 #include <graphlite/graphlite.hpp>
