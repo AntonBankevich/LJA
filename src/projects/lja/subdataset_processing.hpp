@@ -52,6 +52,3 @@ public:
 };
 
 void PrintFasta(const std::vector<Contig> &contigs, const std::experimental::filesystem::path &path);
-void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig> &contigs,
-                     const RecordStorage &readStorage, size_t k,
-                     const std::experimental::filesystem::path &dir);

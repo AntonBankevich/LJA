@@ -146,6 +146,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
         }
     }
 
+    logger.trace() << "Realigning reads" << std::endl;
     for(RecordStorage *sit : storages){
         RecordStorage &storage = *sit;
         if(new_extension_size == 0)
@@ -165,6 +166,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             GraphAlignment al = alignedRead.path.getAlignment();
             new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
             new_storage.apply(new_storage[i]);
+            alignedRead.invalidate();
         }
         new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);

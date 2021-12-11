@@ -28,7 +28,6 @@ private:
 public:
     GapCloser(size_t min_overlap, size_t max_overlap, size_t smallK, double allowed_divergence) :
             min_overlap(min_overlap), max_overlap(max_overlap), smallK(smallK), allowed_divergence(allowed_divergence){}
-    std::pair<size_t, size_t> CheckOverlap(const Sequence &s1, const Sequence &s2);
     bool HasInnerDuplications(const Sequence &seq, const hashing::RollingHash &hasher);
     std::vector<Connection> GapPatches(logging::Logger &logger, dbg::SparseDBG &dbg, size_t threads);
 };

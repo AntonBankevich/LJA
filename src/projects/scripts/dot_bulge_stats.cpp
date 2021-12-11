@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
     std::string line;
     std::vector<Edge> edges;
     while (std::getline(is, line)) {
-        if(line.find("->") != size_t(-1))
+        if(line.find("->") == size_t(-1))
             continue;
         std::vector<std::string> v = split(line);
         std::string from = split(v[0], "\"")[0];
@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
         size_t pos = tmp.find('(');
         VERIFY(pos != size_t(-1));
         size_t len = std::stoull(tmp.substr(0, pos));
-        double cov = std::stod(tmp.substr(pos, tmp.size() - pos));
+        double cov = std::stod(tmp.substr(pos + 1, tmp.size() - pos));
         edges.emplace_back(from, to, len, cov);
     }
     is.close();

@@ -369,25 +369,6 @@ multigraph::MultiGraph RepeatResolver::ConstructMultiGraph(const std::vector<Con
     return std::move(res);
 }
 
-struct RawSeg {
-    std::string id;
-    size_t left;
-    size_t right;
-
-    RawSeg(std::string id, size_t left, size_t right) : id(std::move(id)), left(left), right(right) {}
-
-    bool operator<(const RawSeg &other) const {
-        if(id != other.id)
-            return id < other.id;
-        if(left != other.left)
-            return left < other.left;
-        return right < other.right;
-    }
-    bool operator==(const RawSeg &other) const {
-        return id == other.id && left == other.left && right == other.right;
-    }
-};
-
 void PrintFasta(const std::vector<Contig> &contigs, const std::experimental::filesystem::path &path) {
     std::ofstream resos;
     resos.open(path);
@@ -396,105 +377,6 @@ void PrintFasta(const std::vector<Contig> &contigs, const std::experimental::fil
         resos << ">" << contig.id << "\n" << contig.seq << std::endl;
     }
     resos.close();
-}
-
-void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig> &contigs,
-                     const RecordStorage &readStorage, size_t K,
-                     const std::experimental::filesystem::path &dir) {
-    size_t k = K / 2;
-    size_t w = K - k;
-    ensure_dir_existance(dir);
-    std::unordered_map<hashing::htype, std::vector<std::pair<Contig *, size_t>>, hashing::alt_hasher<hashing::htype>> position_map;
-    std::ofstream refos;
-    refos.open(dir/"contigs.fasta");
-    std::vector<Contig> all_contigs;
-    logger.info() << "Printing compressed assembly to disk" << std::endl;
-    size_t size = 0;
-    for(const Contig & contig : contigs) {
-        size += contig.size();
-    }
-    size_t sum = 0;
-    for(const Contig & contig : contigs) {
-        sum += contig.size();
-        if(sum * 2 >= size) {
-            logger.trace() << "Compressed assembly N50 = " << contig.size() << std::endl;
-            size = size_t(-1);
-        }
-        refos << ">" << contig.id << "\n" << contig.seq << std::endl;
-        all_contigs.emplace_back(contig);
-        all_contigs.emplace_back(contig.RC());
-    }
-    refos.close();
-    logger.info() << "Aligning reads back to assembly" << std::endl;
-    hashing::RollingHash hasher(k, 239);
-    for(Contig &contig : all_contigs) {
-        for(size_t pos = 1; pos + k <= contig.size(); pos += w) {
-            hashing::htype h = hasher.hash(contig.seq, pos);
-            position_map[h].emplace_back(&contig, pos);
-        }
-    }
-    ParallelRecordCollector<std::pair<size_t, std::pair<RawSeg, Segment<Contig>>>> result(threads);
-    omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(readStorage, hasher, position_map, K, k, w, result, std::cout)
-    for(size_t i = 0; i < readStorage.size(); i++) {
-        const AlignedRead &alignedRead = readStorage[i];
-        if(!alignedRead.valid())
-            continue;
-        Contig read(alignedRead.path.getAlignment().Seq(), alignedRead.id);
-        std::vector<std::pair<Contig *, int>> res;
-        hashing::KWH kwh(hasher, read.seq, 0);
-        while (true) {
-            if (position_map.find(kwh.fHash()) != position_map.end()) {
-                for(std::pair<Contig *, size_t> &pos : position_map[kwh.fHash()]) {
-                    int start_pos = int(pos.second) - int(kwh.pos);
-                    res.emplace_back(pos.first, start_pos);
-                }
-            }
-            if (!kwh.hasNext())
-                break;
-            kwh = kwh.next();
-        }
-        std::sort(res.begin(), res.end());
-        res.erase(std::unique(res.begin(), res.end()), res.end());
-        for(std::pair<Contig *, int> &al : res) {
-            size_t clen = 0;
-            for(int rpos = 0; rpos <= read.size(); rpos++) {
-                if(rpos < read.size() && rpos + al.second >= 0 && rpos + al.second < al.first->size() &&
-                            read.seq[rpos] == al.first->seq[rpos + al.second]) {
-                    clen++;
-                } else {
-                    if(clen > K) {
-                        RawSeg seg_from(read.getId(), rpos - clen, rpos);
-                        Segment<Contig> seg_to(*al.first, rpos + al.second - clen, rpos + al.second);
-                        result.emplace_back(i, std::make_pair(seg_from, seg_to));
-                    }
-                    clen = 0;
-                }
-            }
-        }
-    }
-    std::vector<std::pair<size_t, std::pair<RawSeg, Segment<Contig>>>> final = result.collect();
-    __gnu_parallel::sort(final.begin(), final.end());
-    logger.info() << "Finished alignment. Printing alignments to " << (dir/"alignments.txt") << std::endl;
-    std::ofstream os;
-    os.open(dir/"good_alignments.txt");
-    std::ofstream os_bad;
-    os_bad.open(dir/"partial_alignments.txt");
-    for(auto &rec : final) {
-        size_t len = readStorage[rec.first].path.getAlignment().len() + readStorage[rec.first].path.start().seq.size();
-        if((rec.second.first.left != 0 && rec.second.second.left != 0) ||
-            (rec.second.first.right != len && rec.second.second.right != rec.second.second.contig().size())) {
-            os_bad << rec.second.first.id << " " << rec.second.first.left << " " << rec.second.first.right << " "
-                   << rec.second.second.contig().getId() << " " << rec.second.second.left << " " << rec.second.second.right
-                   << "\n";
-        } else {
-            os << rec.second.first.id << " " << rec.second.first.left << " " << rec.second.first.right << " "
-                   << rec.second.second.contig().getId() << " " << rec.second.second.left << " " << rec.second.second.right
-                   << "\n";
-        }
-    }
-    os.close();
-    os_bad.close();
 }
 
 bool RepeatResolver::Subdataset::operator<(const RepeatResolver::Subdataset &other) const {

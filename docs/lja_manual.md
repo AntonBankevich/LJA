@@ -9,7 +9,7 @@ Requirements
 * C++ compiler with C++14 support (GCC 5.0+)
 * GNU make
 * zlib
-* python3 with the following packages installed: networkx, llist, numpy, edlib, joblib, Bio, pydot
+* python3 with the following packages installed: networkx, pyyaml, llist, numpy, edlib, joblib, Bio, pydot
 
 
 Downloading and compiling from source code

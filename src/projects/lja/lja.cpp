@@ -1,6 +1,8 @@
 #include "multi_graph.hpp"
 #include "subdataset_processing.hpp"
+#include "uncompressed_output.hpp"
 #include "gap_closing.hpp"
+#include "polishing/perfect_alignment.hpp"
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/mitochondria_rescue.hpp"
 #include "error_correction/initial_correction.hpp"
@@ -17,6 +19,10 @@
 #include <wait.h>
 #include <error_correction/dimer_correction.hpp>
 #include <polishing/homopolish.hpp>
+#include "common/rolling_hash.hpp"
+#include <utility>
+#include <ksw2/ksw_wrapper.hpp>
+
 using namespace dbg;
 
 static size_t stage_num = 0;
@@ -185,43 +191,50 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const Edge &edge) {
             return edge.size() > unique_threshold;
         };
-        dbg.printFastaOld(dir / "graph.fasta");
-        printDot(dir / "graph.dot", Component(dbg), readStorage.labeler());
+        dbg.printFastaOld(dir / "final_dbg.fasta");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
+        printGFA(dir / "final_dbg.gfa", Component(dbg), true);
         std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
         logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
         PrintFasta(partial_contigs, dir / "partial.fasta");
 //        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
         multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
-        mg.printEdgeGFA(dir / "partial.gfa");
-        mg.printDot(dir / "partial.dot");
+//        mg.printEdgeGFA(dir / "partial.gfa");
+//        mg.printDot(dir / "partial.dot");
         multigraph::MultiGraph mmg = mg.Merge();
-        mmg.printEdgeGFA(dir / "compressed.gfa");
-        mmg.printDot(dir / "compressed.dot");
-        mmg.printCutEdges(dir / "compressed.fasta");
-        std::vector<Contig> contigs = mmg.getCutEdges();
-        PrintAlignments(logger, threads, contigs, readStorage, k, dir / "uncompressing");
-        readStorage.printReadFasta(logger, dir / "corrected.fasta");
+        mmg.printEdgeGFA(dir / "mdbg.hpc.gfa");
+        mmg.printDot(dir / "mdbg.hpc.dot");
+        mmg.printCutEdges(dir / "mdbg.hpc.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     };
     if(!skip)
         runInFork(ic_task);
     std::experimental::filesystem::path res;
-    res = dir / "corrected.fasta";
+    res = dir / "corrected_reads.fasta";
     logger.info() << "Second phase results with k = " << k << " printed to "    << res << std::endl;
-    return {res, dir / "uncompressing", dir / "compressed.gfa"};
+    return {res, dir / "mdbg.hpc.gfa"};
 }
 
 std::experimental::filesystem::path PolishingPhase(
-        logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &output_file,
-        const std::experimental::filesystem::path &contigs_file,
-        const std::experimental::filesystem::path &alignments,
-        const io::Library &reads, size_t dicompress, bool skip) {
+        logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+        const std::experimental::filesystem::path &output_dir,
+        const std::experimental::filesystem::path &gfa_file,
+        const std::experimental::filesystem::path &corrected_reads,
+        const io::Library &reads, size_t dicompress, size_t min_alignment, bool skip) {
     logger.info() << "Performing polishing and homopolymer uncompression" << std::endl;
-    std::function<void()> ic_task = [&logger, threads, &output_file, &contigs_file, &alignments, &reads, dicompress] {
-        Polish(logger, threads, output_file, contigs_file, alignments, reads, dicompress);
+    std::function<void()> ic_task = [&logger, threads, &output_dir, &gfa_file, &corrected_reads, &reads, dicompress, min_alignment, &dir] {
+        io::SeqReader reader(corrected_reads);
+        multigraph::MultiGraph vertex_graph;
+        vertex_graph.LoadGFA(gfa_file);
+        multigraph::MultiGraph edge_graph = vertex_graph.DBG();
+        std::vector<Contig> contigs = edge_graph.getEdges(false);
+        auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
+        std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
+        printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir);
     };
     if(!skip)
         runInFork(ic_task);
-    return output_file;
+    return output_dir / "assembly.fasta";
 }
 
 std::string constructMessage() {
@@ -272,7 +285,7 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
-    logger.info() << "Hello. You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads\n";
+    logger.info() << "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads\n";
     logging::logGit(logger, dir / "version.txt");
     bool diplod = parser.getCheck("diploid");
     std::string first_stage = parser.getValue("restart-from");
@@ -281,7 +294,6 @@ int main(int argc, char **argv) {
     logger.info() << "LJA pipeline started" << std::endl;
 
     size_t threads = std::stoi(parser.getValue("threads"));
-    bool dump = parser.getCheck("dump");
 
     io::Library lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
@@ -321,14 +333,13 @@ int main(int argc, char **argv) {
     if(first_stage == "polishing")
         skip = false;
     std::experimental::filesystem::path final_contigs =
-            PolishingPhase(logger, threads, dir / "assembly.fasta",
-                           corrected2[1] / "contigs.fasta",
-                           corrected2[1] / "good_alignments.txt",
-                            lib, StringContig::max_dimer_size / 2, skip);
+            PolishingPhase(logger, threads, dir/ "uncompressing", dir, corrected2[1],
+                           corrected2[0],
+                            lib, StringContig::max_dimer_size / 2, K, skip);
     if(first_stage == "polishing")
         load = false;
     logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2[0] << std::endl;
-    logger.info() << "Final graph with homopolymer compressed edges can be found here: " << corrected2[2] << std::endl;
+    logger.info() << "Final graph with homopolymer compressed edges can be found here: " << corrected2[1] << std::endl;
     logger.info() << "Final assembly can be found here: " << final_contigs << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;
     return 0;

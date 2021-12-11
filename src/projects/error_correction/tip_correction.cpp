@@ -96,7 +96,7 @@ inline GraphAlignment CorrectSuffix(const GraphAlignment &al) {
         first_unreliable--;
         bad_end_size += al[first_unreliable].size();
     }
-    if(first_unreliable == al.size()) {
+    if(first_unreliable == al.size() || first_unreliable == 0) {
         return al;
     }
     size_t max_len = bad_end_size  * 11/10 + 100;

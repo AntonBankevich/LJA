@@ -2,7 +2,7 @@
 #include "dbg/graph_modification.hpp"
 #include "dbg/compact_path.hpp"
 #include "multiplicity_estimation.hpp"
-#include "edit_distance.hpp"
+#include "sequences/edit_distance.hpp"
 #include "tip_correction.hpp"
 #include "correction_utils.hpp"
 

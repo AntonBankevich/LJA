@@ -1,42 +1,6 @@
+#include <dbg/visualization.hpp>
 #include "gap_closing.hpp"
-
-std::pair<size_t, size_t> GapCloser::CheckOverlap(const Sequence &s1, const Sequence &s2) {
-    Sequence a = s1.Subseq(s1.size() - std::min(s1.size(), max_overlap));
-    Sequence b = s2.Subseq(0, std::min(s2.size(), max_overlap));
-    int64_t mult = a.size() + 1;
-    int64_t match = 1 * mult;
-    int64_t mismatch = 10 * mult;
-    int64_t indel = 10 * mult;
-    std::vector<int64_t> res(a.size() + 1);
-    for(size_t i = 0; i <= a.size(); i++) {
-        res[i] = i;
-    }
-    std::vector<int64_t> prev(a.size() + 1);
-    size_t best = 0;
-    int64_t best_val = res[a.size()];
-    for(size_t j = 1; j <= b.size(); j++) {
-        std::swap(prev, res);
-        res[0] = prev[0] - indel;
-        for(size_t i = 1; i <= a.size(); i++) {
-            if(a[i - 1] == b[j - 1]) {
-                res[i] = prev[i - 1] + match;
-            } else {
-                res[i] = std::max(res[i - 1] - indel, std::max(prev[i] - indel, prev[i - 1] - mismatch));
-            }
-        }
-        if(best_val < res[a.size()]) {
-            best = j;
-            best_val = res[a.size()];
-        }
-    }
-    size_t l1 = a.size() - (best_val % mult);
-    size_t l2 = best;
-    best_val = best_val / mult * mult;
-    double min_val = match * (1 - allowed_divergence) - allowed_divergence * std::max(indel, mismatch);
-    if(l1 < min_overlap || l2 < min_overlap || best_val < std::max(l1, l2) * min_val)
-        return {0, 0};
-    return {l1, l2};
-}
+#include "sequences/edit_distance.hpp"
 
 bool GapCloser::HasInnerDuplications(const Sequence &seq, const hashing::RollingHash &hasher) {
     std::vector<hashing::htype> hashs;
@@ -108,7 +72,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
             continue;
         Sequence s1 = tips[pairs[i].first]->start()->seq + tips[pairs[i].first]->seq;
         Sequence s2 = tips[pairs[i].second]->start()->seq + tips[pairs[i].second]->seq;
-        std::pair<size_t, size_t> overlap = CheckOverlap(s1, !s2);
+        std::pair<size_t, size_t> overlap = CheckOverlap(s1, !s2, min_overlap, max_overlap, allowed_divergence);
         if (overlap.first > 0) {
 #pragma omp atomic update
             d1++;
@@ -184,6 +148,11 @@ void GapColserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &
     std::vector<Connection> patches = gap_closer.GapPatches(logger, dbg, threads);
     AddConnections(logger, threads, dbg, storges, patches);
     MarkUnreliableTips(dbg, patches);
+    for(dbg::Edge &edge:dbg.edges()) {
+        if(!edge.is_reliable) {
+            logger.trace() << "Unreliable " << edge.getId() << std::endl;
+        }
+    }
     CorrectTips(logger, threads, dbg, storges);
     printStats(logger, dbg);
     RemoveUncovered(logger, threads, dbg, storges);

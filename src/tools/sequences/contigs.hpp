@@ -250,6 +250,14 @@ private:
         else
             return s.substr(s.find(' ') + 1);
     }
+
+    static std::string makeUpperCase(std::string &&s) {
+        for(size_t i = 0; i < s.size(); i++) {
+            if('a' <= s[i] && s[i] <= 'z')
+                s[i] += 'A' - 'a';
+        }
+        return std::move(s);
+    }
 public:
     std::string id;
     std::string comment;
@@ -269,7 +277,7 @@ public:
     StringContig() : id(""), comment(""), seq("") {
     }
 
-    StringContig(std::string && _seq, std::string &&_id) : id(extractId(_id)), comment(extractComment(_id)), seq(_seq) {
+    StringContig(std::string && _seq, std::string &&_id) : id(extractId(_id)), comment(extractComment(_id)), seq(makeUpperCase(std::move(_seq))) {
     }
 
     StringContig(StringContig && other) = default;

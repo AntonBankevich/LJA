@@ -179,7 +179,7 @@ int main(int argc, char **argv) {
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     const size_t w = std::stoi(parser.getValue("window"));
     logger << std::endl;
-    logger.info() << "Hello. You are running jumboDBG, a tool for construction of de Bruijn graphs for arbitrarily large values of k\n";
+    logger.info() << "Hello! You are running jumboDBG, a tool for construction of de Bruijn graphs for arbitrarily large values of k\n";
     logger.info() << "Note that jumboDB does not perform any error correction and ignores all reads shorter than k + w = " << k + w << std::endl;
     if(parser.getCheck("extract-subdatasets")) {
         logger.info() << "Enabled subdataset extraction" << std::endl;
