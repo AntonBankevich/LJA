@@ -76,13 +76,13 @@ namespace graph_lite {
                 }
             }();
             if constexpr(std::is_void_v<PT>) {
-                std::cerr << "Serializer: " << "no " << node_or_edge << " property needed at all\n";
+                // std::cerr << "Serializer: " << "no " << node_or_edge << " property needed at all\n";
             } else if (fmt.fmt.has_value()) {
-                std::cerr << "Serializer: " << "using " << node_or_edge << " formatter provided\n";
+                // std::cerr << "Serializer: " << "using " << node_or_edge << " formatter provided\n";
             } else if constexpr(detail::is_either_map_v<PT>) {
-                std::cerr << "Serializer: " << node_or_edge << " prop is a map/unordered_map; using map serializer\n";
+                // std::cerr << "Serializer: " << node_or_edge << " prop is a map/unordered_map; using map serializer\n";
             } else if constexpr(detail::is_streamable_v<PT>) {
-                std::cerr << "Serializer: " << node_or_edge + " is by itself serializable; populating the field \"label\"\n";
+                // std::cerr << "Serializer: " << node_or_edge + " is by itself serializable; populating the field \"label\"\n";
             } else {
                 throw std::runtime_error("failed to serialize " + node_or_edge + " properties");
             }
