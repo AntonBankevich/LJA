@@ -375,7 +375,9 @@ namespace multigraph {
             for (auto p: to_delete){
                 Vertex * d_vertex = p.first;
                 Edge* d_edge = p.second;
-                d_vertex->outgoing.erase(std::remove(d_vertex->outgoing.begin(), d_vertex->outgoing.end(), d_edge),
+                d_vertex->outgoing.erase(std::remove(d_vertex->outgoing.begin(), d_vertex->outgoing.end(), edge),
+                        d_vertex->outgoing.end());
+                d_vertex->outgoing.erase(std::remove(d_vertex->outgoing.begin(), d_vertex->outgoing.end(), rc_edge),
                         d_vertex->outgoing.end());
             }
             delete edge;
@@ -415,6 +417,7 @@ namespace multigraph {
                 for (auto eid: edgeids_to_remove){
                     internalRemoveEdge(eid);
                 }
+                
                 delete vertices[vid];
                 delete vertices[rcid];
                 vertices.erase(vid);
@@ -584,7 +587,9 @@ namespace multigraph {
                             eids[edge->rc] = itos(edge->getId());
 
                         }
-
+                        std::cerr<< edge->getId()<< " " << edge->getLabel() << endl;
+                        if (edges.find(edge->getId()) == edges.end())
+                            std::cerr << "OOOOOPS";
                         os << "S\t" << eids[edge] << "\t" << edge->getSeq() << "\n";
                     }
                 }
