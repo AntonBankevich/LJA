@@ -35,14 +35,15 @@ class MultiplexDBG
   void FreezeUnpairedVertices();
 
 public:
-  // This constructor is for testing purposes
   MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
-               RRPaths *rr_paths);
-
+               RRPaths *rr_paths,
+               bool contains_rc);
+  /*
   MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *rr_paths, uint64_t start_k,
                UniqueClassificator &classificator, bool debug,
                const std::experimental::filesystem::path &dir,
                logging::Logger &logger);
+   */
 
   MultiplexDBG(const MultiplexDBG &) = delete;
   MultiplexDBG(MultiplexDBG &&) = default;

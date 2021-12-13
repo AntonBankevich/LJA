@@ -38,32 +38,32 @@ struct EdgeSegment {
   [[nodiscard]] bool operator==(const EdgeSegment &rhs) const;
 };
 
-// ---------- MDBGSeq2 ----------
+// ---------- MDBGSeq ----------
 
-class MDBGSeq2 {
+class MDBGSeq {
   std::list<EdgeSegment> segms;
 
 public:
-  MDBGSeq2(const dbg::Edge *edge, const uint64_t start, const uint64_t end) {
+  MDBGSeq(const dbg::Edge *edge, const uint64_t start, const uint64_t end) {
     segms.emplace_back(edge, start, end);
   }
 
-  explicit MDBGSeq2(const dbg::Edge *edge) : MDBGSeq2(edge, 0, edge->size()) {}
-  explicit MDBGSeq2(std::list<EdgeSegment> segms) : segms{std::move(segms)} {}
-  MDBGSeq2() = default;
+  explicit MDBGSeq(const dbg::Edge *edge) : MDBGSeq(edge, 0, edge->size()) {}
+  explicit MDBGSeq(std::list<EdgeSegment> segms) : segms{std::move(segms)} {}
+  MDBGSeq() = default;
 
   [[nodiscard]] Sequence ToSequence() const;
   [[nodiscard]] size_t Size() const;
   [[nodiscard]] size_t ContainerSize() const;
-  [[nodiscard]] MDBGSeq2 RC() const;
+  [[nodiscard]] MDBGSeq RC() const;
   [[nodiscard]] bool IsCanonical() const;
   [[nodiscard]] bool Empty() const;
-  void Append(MDBGSeq2 mdbg_seq);
-  void Prepend(MDBGSeq2 mdbg_seq);
+  void Append(MDBGSeq mdbg_seq);
+  void Prepend(MDBGSeq mdbg_seq);
   void TrimLeft(uint64_t size);
   void TrimRight(uint64_t size);
-  [[nodiscard]] MDBGSeq2 Substr(uint64_t pos, uint64_t len) const;
-  [[nodiscard]] bool operator==(const MDBGSeq2 &rhs) const;
+  [[nodiscard]] MDBGSeq Substr(uint64_t pos, uint64_t len) const;
+  [[nodiscard]] bool operator==(const MDBGSeq &rhs) const;
 };
 
 } // namespace repeat_resolution

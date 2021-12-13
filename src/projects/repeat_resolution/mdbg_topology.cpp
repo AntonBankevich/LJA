@@ -7,6 +7,7 @@ using namespace repeat_resolution;
 
 // ---------- MDBGSeq ----------
 
+/*
 constexpr char MDBGSeq::CharCompl(const char c) {
   constexpr std::string_view bases = "ATCG";
   return bases[bases.find(c) ^ 1];
@@ -19,7 +20,7 @@ MDBGSeq::MDBGSeq(std::string str) {
 
 MDBGSeq::MDBGSeq(const Sequence &seq) : MDBGSeq(std::move(seq.str())) {}
 
-std::string MDBGSeq::ToString() const {
+std::string MDBGSeq::ToSequence() const {
   std::string str;
   std::move(seq.begin(), seq.end(), std::back_inserter(str));
   return str;
@@ -27,7 +28,7 @@ std::string MDBGSeq::ToString() const {
 
 size_t MDBGSeq::size() const { return seq.size(); }
 
-MDBGSeq MDBGSeq::GetRC() const {
+MDBGSeq MDBGSeq::RC() const {
   std::list<char> rc;
   std::transform(seq.crbegin(), seq.crend(), std::back_inserter(rc), CharCompl);
   return MDBGSeq(std::move(rc));
@@ -90,6 +91,7 @@ MDBGSeq MDBGSeq::Substr(const uint64_t pos, const uint64_t len) const {
 }
 
 bool MDBGSeq::operator==(const MDBGSeq &rhs) const { return seq == rhs.seq; }
+*/
 
 // ---------- RRVertexProperty ----------
 
@@ -114,7 +116,7 @@ MDBGSeq RRVertexProperty::GetSeqPrefix(size_t len, int64_t shift) const {
 }
 
 MDBGSeq RRVertexProperty::GetSeqSuffix(size_t len, int64_t shift) const {
-  uint64_t pos = seq.size() - len;
+  uint64_t pos = seq.Size() - len;
   if (shift > 0) {
     pos -= shift;
   }
@@ -135,7 +137,7 @@ bool RRVertexProperty::operator==(const RRVertexProperty &rhs) const {
 
 [[nodiscard]] int64_t RREdgeProperty::size() const {
   if (not seq.Empty()) {
-    VERIFY(size_ == seq.size())
+    VERIFY(size_ == seq.Size())
   }
   return size_;
 }
@@ -157,7 +159,7 @@ void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
   seq.Append(std::move(vertex.seq));
   seq.Append(std::move(rhs.seq));
   if (size_ > 0) {
-    VERIFY(seq.size() == size_);
+    VERIFY(seq.Size() == size_);
   }
   if (rhs.unique) {
     unique = true;
@@ -165,7 +167,7 @@ void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
 }
 
 MDBGSeq RREdgeProperty::ExtractSeqPrefix(const size_t len) {
-  VERIFY(seq.size() >= len);
+  VERIFY(seq.Size() >= len);
   MDBGSeq prefix = seq.Substr(0, len);
   seq.TrimLeft(len);
   size_ -= len;
@@ -173,8 +175,8 @@ MDBGSeq RREdgeProperty::ExtractSeqPrefix(const size_t len) {
 }
 
 MDBGSeq RREdgeProperty::ExtractSeqSuffix(const size_t len) {
-  VERIFY(seq.size() >= len);
-  MDBGSeq suffix = seq.Substr(seq.size() - len, len);
+  VERIFY(seq.Size() >= len);
+  MDBGSeq suffix = seq.Substr(seq.Size() - len, len);
   seq.TrimRight(len);
   size_ -= len;
   return suffix;
@@ -217,10 +219,8 @@ repeat_resolution::operator<<(std::ostream &os,
 
 bool repeat_resolution::operator==(const SuccinctEdgeInfo &lhs,
                                    const SuccinctEdgeInfo &rhs) {
-  return lhs.start_ind == rhs.start_ind and lhs.start_prop == rhs.start_prop and
-         lhs.end_ind == rhs.end_ind and lhs.end_prop == rhs.end_prop and
-         lhs.infix_size == rhs.infix_size and lhs.seq == rhs.seq and
-         lhs.unique == rhs.unique;
+  return lhs.start_ind == rhs.start_ind and lhs.end_ind == rhs.end_ind and
+         lhs.edge == rhs.edge and lhs.unique == rhs.unique;
 }
 
 bool repeat_resolution::operator!=(const SuccinctEdgeInfo &lhs,

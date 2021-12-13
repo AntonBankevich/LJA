@@ -10,11 +10,13 @@
 #include <functional>
 #include <graphlite/graphlite.hpp>
 #include <graphlite/serialize.hpp>
+#include "mdbg_seq.hpp"
 
 namespace repeat_resolution {
 
 // ---------- MDBGSeq ----------
 
+/*
 class MDBGSeq {
   std::list<char> seq;
 
@@ -33,9 +35,9 @@ public:
   std::list<char>::const_iterator cbegin() const { return seq.cbegin(); }
   std::list<char>::const_iterator cend() const { return seq.cend(); }
 
-  [[nodiscard]] std::string ToString() const;
+  [[nodiscard]] std::string ToSequence() const;
   [[nodiscard]] size_t size() const;
-  [[nodiscard]] MDBGSeq GetRC() const;
+  [[nodiscard]] MDBGSeq RC() const;
   [[nodiscard]] bool IsCanonical() const;
   [[nodiscard]] bool Empty() const;
 
@@ -49,6 +51,7 @@ public:
 
   [[nodiscard]] bool operator==(const MDBGSeq &rhs) const;
 };
+ */
 
 // ---------- RRVertexProperty ----------
 
@@ -69,7 +72,7 @@ public:
   RRVertexProperty &operator=(RRVertexProperty &&) = default;
 
   [[nodiscard]] bool IsCanonical() const;
-  [[nodiscard]] uint64_t size() const { return seq.size(); }
+  [[nodiscard]] uint64_t size() const { return seq.Size(); }
   [[nodiscard]] const MDBGSeq &Seq() const { return seq; }
   [[nodiscard]] bool IsFrozen() const { return frozen; }
 
@@ -132,13 +135,12 @@ RREdgeProperty Add(const RRVertexProperty &lhs, const RRVertexProperty &rhs,
 
 std::ostream &operator<<(std::ostream &os, const RREdgeProperty &edge_property);
 
+// ---------- SuccinctEdgeInfo ----------
+
 struct SuccinctEdgeInfo {
   RRVertexType start_ind{0};
-  RRVertexProperty start_prop;
   RRVertexType end_ind{0};
-  RRVertexProperty end_prop;
-  int64_t infix_size{0};
-  MDBGSeq seq;
+  const dbg::Edge * edge{nullptr};
   bool unique{false};
 };
 

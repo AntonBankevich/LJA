@@ -43,7 +43,8 @@ size_t EdgeSegment::EdgeSize() const {
 }
 
 void EdgeSegment::ExtendRight(const EdgeSegment &segment) {
-  VERIFY(edge == segment.edge);
+  VERIFY(edge != nullptr and segment.edge != nullptr)
+  VERIFY(*edge == *segment.edge);
   VERIFY(end == segment.start);
   end = segment.end;
 }
@@ -63,9 +64,9 @@ bool EdgeSegment::operator==(const EdgeSegment &rhs) const {
   return edge == rhs.edge and start == rhs.start and end == rhs.end;
 }
 
-// ---------- MDBGSeq2 ----------
+// ---------- MDBGSeq ----------
 
-[[nodiscard]] Sequence MDBGSeq2::ToSequence() const {
+[[nodiscard]] Sequence MDBGSeq::ToSequence() const {
   std::vector<Sequence> sec_vec;
   for (const EdgeSegment segm : segms) {
     sec_vec.emplace_back(segm.ToSequence());
@@ -73,7 +74,7 @@ bool EdgeSegment::operator==(const EdgeSegment &rhs) const {
   return Sequence::Concat(sec_vec);
 }
 
-[[nodiscard]] size_t MDBGSeq2::Size() const {
+[[nodiscard]] size_t MDBGSeq::Size() const {
   size_t size{0};
   for (const EdgeSegment segm : segms) {
     size += segm.Size();
@@ -81,28 +82,24 @@ bool EdgeSegment::operator==(const EdgeSegment &rhs) const {
   return size;
 }
 
-[[nodiscard]] size_t MDBGSeq2::ContainerSize() const {
-  return segms.size();
-}
+[[nodiscard]] size_t MDBGSeq::ContainerSize() const { return segms.size(); }
 
-[[nodiscard]] MDBGSeq2 MDBGSeq2::RC() const {
+[[nodiscard]] MDBGSeq MDBGSeq::RC() const {
   std::list<EdgeSegment> segms_rc;
   for (const EdgeSegment segm : segms) {
     segms_rc.emplace_front(segm.RC());
   }
-  return MDBGSeq2(std::move(segms_rc));
+  return MDBGSeq(std::move(segms_rc));
 }
 
-[[nodiscard]] bool MDBGSeq2::IsCanonical() const {
+[[nodiscard]] bool MDBGSeq::IsCanonical() const {
   // TODO maybe there is a faster way?
   return ToSequence() <= RC().ToSequence();
 }
 
-[[nodiscard]] bool MDBGSeq2::Empty() const {
-  return segms.empty();
-}
+[[nodiscard]] bool MDBGSeq::Empty() const { return segms.empty(); }
 
-void MDBGSeq2::Append(MDBGSeq2 mdbg_seq) {
+void MDBGSeq::Append(MDBGSeq mdbg_seq) {
   if (mdbg_seq.Empty()) {
     return;
   }
@@ -112,7 +109,7 @@ void MDBGSeq2::Append(MDBGSeq2 mdbg_seq) {
   EdgeSegment &back = segms.back();
   EdgeSegment &front = mdbg_seq.segms.front();
 
-  if (back.edge == front.edge) {
+  if (back.edge == front.edge and back.end == front.start) {
     back.ExtendRight(front);
     mdbg_seq.segms.pop_front();
   }
@@ -120,14 +117,14 @@ void MDBGSeq2::Append(MDBGSeq2 mdbg_seq) {
   segms.splice(segms.end(), std::move(mdbg_seq.segms));
 }
 
-void MDBGSeq2::Prepend(MDBGSeq2 mdbg_seq) {
-  MDBGSeq2 temp;
+void MDBGSeq::Prepend(MDBGSeq mdbg_seq) {
+  MDBGSeq temp;
   temp.segms = std::move(segms);
   mdbg_seq.Append(std::move(temp));
   segms = std::move(mdbg_seq.segms);
 }
 
-void MDBGSeq2::TrimLeft(uint64_t size) {
+void MDBGSeq::TrimLeft(uint64_t size) {
   VERIFY(size <= Size());
   while (size > 0) {
     EdgeSegment &front = segms.front();
@@ -141,7 +138,7 @@ void MDBGSeq2::TrimLeft(uint64_t size) {
   }
 }
 
-void MDBGSeq2::TrimRight(uint64_t size) {
+void MDBGSeq::TrimRight(uint64_t size) {
   VERIFY(size <= Size());
   while (size > 0) {
     EdgeSegment &back = segms.back();
@@ -155,32 +152,41 @@ void MDBGSeq2::TrimRight(uint64_t size) {
   }
 }
 
-[[nodiscard]] MDBGSeq2 MDBGSeq2::Substr(uint64_t pos, uint64_t len) const {
+[[nodiscard]] MDBGSeq MDBGSeq::Substr(uint64_t pos, const uint64_t len) const {
   VERIFY(pos + len <= Size());
+  if (len == 0 or Empty()) {
+    return MDBGSeq();
+  }
+
   auto left = segms.begin();
-  while(left->Size() <= pos) {
+  while (left->Size() <= pos) {
     pos -= left->Size();
     ++left;
+    VERIFY(left != segms.end());
   }
   auto right = left;
-  while(right->Size() <= len) {
-    len -= right->Size();
+  uint64_t end = pos + len;
+  while (right->Size() < end) {
+    end -= right->Size();
     ++right;
+    VERIFY(right != segms.end());
   }
   if (left == right) {
-    return MDBGSeq2({EdgeSegment(left->edge, pos, pos + len)});
+    return MDBGSeq(
+        {EdgeSegment(left->edge, left->start + pos, left->start + end)});
   }
 
   std::list<EdgeSegment> res;
-  res.emplace_back(left->edge, pos, left->edge->size());
-  ++left;
-  for(; left != right; ++left) {
-    res.emplace_back(left->edge);
+  res.emplace_back(left->edge, left->start + pos, left->end);
+  for (++left; left != right; ++left) {
+    res.emplace_back(*left);
   }
-  res.emplace_back(right->edge, 0, pos + len);
-  return MDBGSeq2(res);
+  res.emplace_back(right->edge, right->start, right->start + end);
+  MDBGSeq subseq(std::move(res));
+  VERIFY(subseq.Size() == len);
+  return subseq;
 }
 
-[[nodiscard]] bool MDBGSeq2::operator==(const MDBGSeq2 &rhs) const {
+[[nodiscard]] bool MDBGSeq::operator==(const MDBGSeq &rhs) const {
   return segms == rhs.segms;
 }

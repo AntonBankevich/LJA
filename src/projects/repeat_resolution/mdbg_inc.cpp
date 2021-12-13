@@ -28,7 +28,9 @@ void MultiplexDBGIncreaser::CollapseEdge(MultiplexDBG &graph,
   VERIFY(s != e);
   VERIFY(graph.count_out_neighbors(s_it) == 1);
   VERIFY(graph.count_in_neighbors(e_it->first) == 1);
-  VERIFY(graph.node_prop(s) == graph.node_prop(e));
+  // TODO deactivate
+  VERIFY(graph.node_prop(s).Seq().ToSequence() ==
+         graph.node_prop(e).Seq().ToSequence());
 
   RREdgeProperty &edge_prop = e_it->second.prop();
   graph.rr_paths->remove(edge_prop.Index());

@@ -47,46 +47,40 @@ void MultiplexDBG::AssertValidity() const {
       const int64_t inner_edge_size = edge_prop.size();
       if (inner_edge_size < 0) {
         const RRVertexProperty &neighbor_prop = node_prop(it->first);
-        auto lhs_it = vertex_prop.Seq().cend();
-        std::advance(lhs_it, inner_edge_size);
-        for (auto rhs_it = neighbor_prop.Seq().cbegin();
-             lhs_it != vertex_prop.Seq().cend(); ++lhs_it, ++rhs_it) {
-          VERIFY(*lhs_it == *rhs_it);
-        }
+        VERIFY(vertex_prop.Seq().ToSequence().Suffix(-inner_edge_size) ==
+               neighbor_prop.Seq().ToSequence().Prefix(-inner_edge_size));
       }
     }
   }
 
-  {
-    for (const RRVertexType &vertex : *this) {
-      const RRVertexProperty &vertex_prop = node_prop(vertex);
-      if (not vertex_prop.IsFrozen()) {
-        VERIFY(vertex_prop.size() == n_iter + start_k);
-      }
+  for (const RRVertexType &vertex : *this) {
+    const RRVertexProperty &vertex_prop = node_prop(vertex);
+    if (not vertex_prop.IsFrozen()) {
+      VERIFY(vertex_prop.size() == n_iter + start_k);
     }
   }
 
   if (contains_rc) {
-    std::unordered_set<std::string> seq_vertex;
+    std::set<Sequence> seq_vertex;
     for (const RRVertexType &vertex : *this) {
       const RRVertexProperty &vertex_prop = node_prop(vertex);
-      const std::string seq = vertex_prop.Seq().ToString();
-      seq_vertex.emplace(seq);
+      Sequence seq = vertex_prop.Seq().ToSequence();
+      seq_vertex.emplace(std::move(seq));
     }
 
     for (const RRVertexType &vertex : *this) {
       const RRVertexProperty &vertex_prop = node_prop(vertex);
-      VERIFY(seq_vertex.count(vertex_prop.Seq().GetRC().ToString()) == 1);
+      VERIFY(seq_vertex.count(vertex_prop.Seq().RC().ToSequence()) == 1);
     }
 
-    std::unordered_set<std::string> seq_edge;
+    std::set<Sequence> seq_edge;
     for (const RRVertexType &vertex : *this) {
       auto [begin, end] = out_neighbors(vertex);
       for (auto it = begin; it != end; ++it) {
         const RREdgeProperty &edge_prop = it->second.prop();
         if (edge_prop.size() > 0) {
           seq_edge.emplace(
-              GetEdgeSequence(find(vertex), it, false, false).ToString());
+              GetEdgeSequence(find(vertex), it, false, false).ToSequence());
         }
       }
     }
@@ -96,8 +90,8 @@ void MultiplexDBG::AssertValidity() const {
       for (auto it = begin; it != end; ++it) {
         const RREdgeProperty &edge_prop = it->second.prop();
         if (edge_prop.size() > 0) {
-          const std::string seq =
-              GetEdgeSequence(find(vertex), it, false, false).ToString();
+          const Sequence seq =
+              GetEdgeSequence(find(vertex), it, false, false).ToSequence();
           VERIFY(seq_edge.count(seq) == 1);
         }
       }
@@ -199,12 +193,14 @@ void MultiplexDBG::MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
 }
 
 RREdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
-                                              const RRVertexType &vright,
-                                              NeighborsIterator eright_it) {
+                                                const RRVertexType &vright,
+                                                NeighborsIterator eright_it) {
   const RRVertexType &vleft = eleft_it->first;
   VERIFY_MSG(vleft != vright, "Can only add edge b/w disconnected edges");
   const RRVertexProperty &vleft_prop = node_prop(vleft);
   const RRVertexProperty &vright_prop = node_prop(vright);
+  // TODO activate later
+  /*
   VERIFY(vleft_prop.size() == vright_prop.size());
   {
     auto lit = vleft_prop.Seq().cbegin();
@@ -215,6 +211,7 @@ RREdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
     //   ++lit, ++rit;
     // }
   }
+   */
 
   const RREdgeProperty &eleft_prop = eleft_it->second.prop();
   const RREdgeProperty &eright_prop = eright_it->second.prop();
@@ -236,20 +233,29 @@ RRVertexType MultiplexDBG::GetNewVertex(MDBGSeq seq) {
 }
 
 MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
-                           const uint64_t start_k, RRPaths *const rr_paths)
-    : rr_paths{rr_paths}, start_k{start_k}, contains_rc{false} {
-  for (const SuccinctEdgeInfo &edge : edges) {
-    next_vert_index = std::max(next_vert_index, 1 + edge.start_ind);
-    next_vert_index = std::max(next_vert_index, 1 + edge.end_ind);
+                           const uint64_t start_k, RRPaths *const rr_paths,
+                           bool contains_rc)
+    : rr_paths{rr_paths}, start_k{start_k}, contains_rc{contains_rc} {
+  for (const SuccinctEdgeInfo &edge_info : edges) {
+    const Edge *edge = edge_info.edge;
+    next_vert_index = std::max(next_vert_index, 1 + edge_info.start_ind);
+    next_vert_index = std::max(next_vert_index, 1 + edge_info.end_ind);
+    add_node_with_prop(edge_info.start_ind,
+                       RRVertexProperty(MDBGSeq(edge, 0, start_k), false));
     add_node_with_prop(
-        edge.start_ind,
-        RRVertexProperty(edge.start_prop.Seq(), edge.start_prop.IsFrozen()));
-    add_node_with_prop(
-        edge.end_ind,
-        RRVertexProperty(edge.end_prop.Seq(), edge.end_prop.IsFrozen()));
-    RREdgeProperty edge_property(next_edge_index, edge.seq, edge.infix_size,
-                                 edge.unique);
-    add_edge_with_prop(edge.start_ind, edge.end_ind, std::move(edge_property));
+        edge_info.end_ind,
+        RRVertexProperty(MDBGSeq(edge, edge->size() - start_k, edge->size()),
+                         false));
+
+    int64_t infix_size = ((int64_t)edge->size()) - 2 * start_k;
+    MDBGSeq edge_seq;
+    if (infix_size > 0) {
+      edge_seq = MDBGSeq(edge, start_k, start_k + infix_size);
+    }
+    RREdgeProperty edge_property(next_edge_index, std::move(edge_seq),
+                                 infix_size, edge_info.unique);
+    add_edge_with_prop(edge_info.start_ind, edge_info.end_ind,
+                       std::move(edge_property));
     ++next_edge_index;
   }
 
@@ -257,6 +263,7 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
   AssertValidity();
 }
 
+/*
 MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
                            const uint64_t start_k,
                            UniqueClassificator &classificator, bool debug,
@@ -301,6 +308,7 @@ MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
   FreezeUnpairedVertices();
   AssertValidity();
 }
+ */
 
 void MultiplexDBG::SerializeToDot(
     const std::experimental::filesystem::path &path) const {
@@ -591,16 +599,19 @@ MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
     if (trim_left and trim_right) {
       return {};
     }
+
+    MDBGSeq neighbor_seq = neighbor_prop.Seq();
     if (trim_left) {
-      MDBGSeq neighbor_seq = neighbor_prop.Seq();
       neighbor_seq.TrimLeft(-edge_prop.size());
       return neighbor_seq;
     }
-    if (trim_right) {
-      MDBGSeq vertex_seq = vertex_prop.Seq();
-      vertex_seq.TrimRight(-edge_prop.size());
-      return vertex_seq;
+
+    MDBGSeq vertex_seq = vertex_prop.Seq();
+    vertex_seq.TrimRight(-edge_prop.size());
+    if (not trim_right) {
+      vertex_seq.Append(neighbor_seq);
     }
+    return vertex_seq;
   }
 
   MDBGSeq seq = edge_prop.Seq();
@@ -618,10 +629,10 @@ MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
 std::vector<Contig>
 MultiplexDBG::GetTrimEdges(int64_t min_inner_edge_size) const {
   const std::unordered_map<RRVertexType, bool> trim = [this]() {
-    std::unordered_map<std::string, RRVertexType> seq2vertex;
+    std::map<Sequence, RRVertexType> seq2vertex;
     for (const RRVertexType &vertex : *this) {
       const RRVertexProperty &vertex_prop = node_prop(vertex);
-      seq2vertex.emplace(vertex_prop.Seq().ToString(), vertex);
+      seq2vertex.emplace(vertex_prop.Seq().ToSequence(), vertex);
     }
 
     std::unordered_map<RRVertexType, bool> trim;
@@ -630,7 +641,7 @@ MultiplexDBG::GetTrimEdges(int64_t min_inner_edge_size) const {
       if (IsVertexCanonical(vertex)) {
         const bool trim_vertex = count_out_neighbors(vertex) != 1;
         trim.emplace(vertex, trim_vertex);
-        trim.emplace(seq2vertex.at(vertex_prop.Seq().GetRC().ToString()),
+        trim.emplace(seq2vertex.at(vertex_prop.Seq().RC().ToSequence()),
                      not trim_vertex);
       }
     }
@@ -653,7 +664,7 @@ MultiplexDBG::GetTrimEdges(int64_t min_inner_edge_size) const {
         MDBGSeq edge_list = GetEdgeSequence(vertex_it, it, trim.at(vertex),
                                             not trim.at(it->first));
 
-        std::string edge_str = edge_list.ToString();
+        Sequence edge_str = edge_list.ToSequence();
         contigs.emplace_back(std::move(edge_str),
                              itos(it->second.prop().Index()));
       }
