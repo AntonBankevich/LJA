@@ -121,7 +121,7 @@ void processVertex(dbg::SparseDBG &dbg, const Sequence &seq) {
         return;
     dbg::Vertex &v1 = dbg.getVertex(kwh);
     for(dbg::Edge &edge : v1) {
-        if(edge.getCoverage() > 0) {
+        if(edge.seq[0] != seq[k]) {
             edge.is_reliable = false;
             edge.rc().is_reliable = false;
         } else {
