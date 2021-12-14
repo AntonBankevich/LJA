@@ -220,17 +220,17 @@ std::experimental::filesystem::path PolishingPhase(
         const std::experimental::filesystem::path &output_dir,
         const std::experimental::filesystem::path &gfa_file,
         const std::experimental::filesystem::path &corrected_reads,
-        const io::Library &reads, size_t dicompress, size_t min_alignment, bool skip) {
+        const io::Library &reads, size_t dicompress, size_t min_alignment, bool skip, bool debug) {
     logger.info() << "Performing polishing and homopolymer uncompression" << std::endl;
-    std::function<void()> ic_task = [&logger, threads, &output_dir, &gfa_file, &corrected_reads, &reads, dicompress, min_alignment, &dir] {
+    std::function<void()> ic_task = [&logger, threads, &output_dir, debug, &gfa_file, &corrected_reads, &reads, dicompress, min_alignment, &dir] {
         io::SeqReader reader(corrected_reads);
         multigraph::MultiGraph vertex_graph;
-        vertex_graph.LoadGFA(gfa_file);
+        vertex_graph.LoadGFA(gfa_file, true);
         multigraph::MultiGraph edge_graph = vertex_graph.DBG();
         std::vector<Contig> contigs = edge_graph.getEdges(false);
         auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
         std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
-        printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir);
+        printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir, debug);
     };
     if(!skip)
         runInFork(ic_task);
@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path final_contigs =
             PolishingPhase(logger, threads, dir/ "uncompressing", dir, corrected2[1],
                            corrected2[0],
-                            lib, StringContig::max_dimer_size / 2, K, skip);
+                            lib, StringContig::max_dimer_size / 2, K, skip, debug);
     if(first_stage == "polishing")
         load = false;
     logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2[0] << std::endl;

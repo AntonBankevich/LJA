@@ -78,15 +78,15 @@ namespace multigraph {
         MultiGraph &operator=(MultiGraph &&other) = default;
         MultiGraph(const MultiGraph &) = delete;
 
-        MultiGraph &LoadGFA(const std::experimental::filesystem::path &gfa_file) {
+        MultiGraph &LoadGFA(const std::experimental::filesystem::path &gfa_file, bool int_ids) {
             std::ifstream is;
             is.open(gfa_file);
             std::unordered_map<std::string, Vertex*> vmap;
             for( std::string line; getline(is, line); ) {
                 std::vector<std::string> tokens = ::split(line);
                 if(tokens[0] == "S") {
-                    Vertex &newV = addVertex(Sequence(tokens[2]));
                     std::string name = tokens[1];
+                    Vertex &newV = int_ids ? addVertex(Sequence(tokens[2]), std::stoi(name)) : addVertex(Sequence(tokens[2]));
                     VERIFY(vmap.find(name) == vmap.end());
                     vmap[name] = &newV;
                 } else if(tokens[0] == "L") {

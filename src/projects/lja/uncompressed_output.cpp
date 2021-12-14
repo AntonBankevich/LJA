@@ -45,6 +45,29 @@ struct OverlapRecord {
         }
         return res;
     }
+    std::pair<std::string, std::string> str() const {
+        size_t pos1 = left->getSeq().size() - endSize();
+        size_t pos2 = 0;
+        std::vector<char> s1;
+        std::vector<char> s2;
+        for(const cigar_pair &pair : cigar) {
+            for(size_t i = 0; i < pair.length; i++) {
+                if(pair.type == 'I')
+                    s1.emplace_back('-');
+                else
+                    s1.emplace_back(left->getSeq()[pos1 + i]);
+                if(pair.type == 'D')
+                    s2.emplace_back('-');
+                else
+                    s2.emplace_back(right->getSeq()[pos2 + i]);
+            }
+            if(pair.type != 'I')
+                pos1 += pair.length;
+            if(pair.type != 'D')
+                pos2 += pair.length;
+        }
+        return {std::string(s1.begin(), s1.end()), std::string(s2.begin(), s2.end())};
+    }
 };
 
 size_t compressedPrefixSize(const Sequence &hpcPrefix, const Sequence &seq) {
@@ -103,12 +126,12 @@ std::vector<cigar_pair> UncompressOverlap(const Sequence &hpcOverlap, const Sequ
     if(rightHomoSize(left_seq) < rightHomoSize(right_seq)) {
         right_seq = right_seq.Subseq(0, right_seq.size() - (rightHomoSize(right_seq) - rightHomoSize(left_seq)));
     }
-    KSWAligner kswAligner(1, 10, 10, 1);
+    KSWAligner kswAligner(1, 5, 10, 2);
     return kswAligner.iterativeBandAlign(left_seq.str(), right_seq.str(), 5, 100, 0.01);
 }
 
 void printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
-                              const std::vector<Contig> &uncompressed, const std::experimental::filesystem::path &out_dir) {
+                              const std::vector<Contig> &uncompressed, const std::experimental::filesystem::path &out_dir, bool debug) {
     std::unordered_map<int, Sequence> uncompression_results;
     for(const Contig &contig : uncompressed) {
         uncompression_results[std::stoi(contig.id)] = contig.seq;
@@ -116,7 +139,7 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
     }
     ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(graph, cigars_collection, uncompression_results)
+#pragma omp parallel for default(none) shared(graph, cigars_collection, uncompression_results, debug, std::cout)
     for(size_t i = 0; i < graph.vertices.size(); i++) {
         multigraph::Vertex &vertex = *graph.vertices[i];
         if(!vertex.isCanonical())
@@ -127,7 +150,16 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
                 VERIFY(inc_edge->getSeq().startsWith(!vertex.seq));
                 std::vector<cigar_pair> cigar = UncompressOverlap(graph.vertices[i]->seq, uncompression_results[inc_edge->rc->getId()],
                                                                   uncompression_results[out_edge->getId()]);
-                cigars_collection.emplace_back(inc_edge, out_edge->rc, cigar);
+                OverlapRecord overlapRecord(inc_edge, out_edge->rc, cigar);
+                if(debug) {
+#pragma omp critical
+                    {
+                        std::cout << inc_edge->getId() << " " << std::endl << out_edge->getId() << std::endl;;
+                        std::pair<std::string, std::string> al = overlapRecord.str();
+                        std::cout << al.first << "\n" << al.second << std::endl;
+                    }
+                }
+                cigars_collection.emplace_back(std::move(overlapRecord));
             }
         }
     }
