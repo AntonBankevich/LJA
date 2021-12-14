@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
                    "k-mer-size=501",
                    "window=2000",
                    "K-mer-size=5001",
-                   "KmDBG=40001",
+                   "KmDBG=100001",
                    "Window=500",
                    "cov-threshold=3",
                    "rel-threshold=10",
