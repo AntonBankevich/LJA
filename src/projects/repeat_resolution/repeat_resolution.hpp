@@ -53,8 +53,7 @@ public:
 
     UniqueClassificator classificator(dbg, *reads_storage, diploid, debug);
     classificator.classify(logger, unique_threshold, dir / "mult_dir");
-    MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator, debug, dir,
-                      logger);
+    MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
     mdbg.SerializeToDot(dir / "init_graph.dot");
     logger.info() << "Increasing k" << std::endl;
     MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};

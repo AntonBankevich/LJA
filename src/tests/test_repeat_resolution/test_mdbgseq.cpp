@@ -23,11 +23,14 @@ TEST(RC, Basic) {
 
 TEST(EdgeSegment, Basic) {
   Sequence seq("AATTCCGG");
-  dbg::Edge edge(nullptr, nullptr, seq);
+  uint64_t k = 2;
+  Vertex st(0);
+  st.seq = seq.Prefix(k);
+  dbg::Edge edge(&st, nullptr, seq.Suffix(seq.size() - k));
   EdgeSegment segm(&edge, 0, seq.size());
   ASSERT_TRUE(segm.LeftFull());
   ASSERT_TRUE(segm.RightFull());
-  ASSERT_EQ(segm.ToSequence(), Sequence(seq));
+  ASSERT_EQ(segm.ToSequence(), seq);
 
   int trim = 1;
   segm.TrimLeft(trim);
@@ -57,7 +60,10 @@ TEST(EdgeSegment, Basic) {
 
 TEST(MDBGSeq, SingleSegment) {
   Sequence s1("ACGT");
-  dbg::Edge edge1(nullptr, nullptr, s1);
+  uint64_t k = 2;
+  Vertex st(0);
+  st.seq = s1.Prefix(k);
+  dbg::Edge edge1(&st, nullptr, s1.Subseq(k));
   MDBGSeq seq1(&edge1, 0, s1.size());
   ASSERT_EQ(seq1.ToSequence(), s1);
   ASSERT_EQ(seq1.Size(), s1.size());
@@ -81,17 +87,25 @@ TEST(MDBGSeq, SingleSegment) {
 }
 
 TEST(MDBGSeq, SeveralSegments) {
+  uint64_t k = 2;
+
   Sequence s1("ACGT");
-  dbg::Edge edge1(nullptr, nullptr, s1);
+  Vertex st1(0);
+  st1.seq = s1.Prefix(k);
+  dbg::Edge edge1(&st1, nullptr, s1.Subseq(k));
   MDBGSeq seq1(&edge1, 0, s1.size());
 
   Sequence s2("AC");
-  dbg::Edge edge2(nullptr, nullptr, s2);
+  Vertex st2(0);
+  st2.seq = s2.Prefix(k);
+  dbg::Edge edge2(&st2, nullptr, s2.Subseq(k));
   MDBGSeq seq2(&edge2, 0, s2.size());
   seq1.Append(std::move(seq2));
 
   Sequence s3("TGA");
-  dbg::Edge edge3(nullptr, nullptr, s3);
+  Vertex st3(0);
+  st3.seq = s3.Prefix(k);
+  dbg::Edge edge3(&st3, nullptr, s3.Subseq(k));
   MDBGSeq seq3(&edge3, 0, s3.size());
   seq1.Prepend(std::move(seq3));
 

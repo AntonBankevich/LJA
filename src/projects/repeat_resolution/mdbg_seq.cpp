@@ -12,14 +12,14 @@ EdgeSegment::EdgeSegment(const dbg::Edge *edge, const uint64_t start,
                          const uint64_t end)
     : edge{edge}, start{start}, end{end} {
   VERIFY(start <= end);
+  VERIFY(edge != nullptr);
+  VERIFY(end <= edge->size() + GetStK());
 }
-
-EdgeSegment::EdgeSegment(const dbg::Edge *edge)
-    : EdgeSegment(edge, 0, edge->size()) {}
 
 bool EdgeSegment::RightFull() const {
   VERIFY(edge != nullptr);
-  return end == edge->size();
+  size_t k = edge->start()->seq.size();
+  return end == GetStK() + edge->size();
 }
 
 void EdgeSegment::TrimLeft(const uint64_t size) {
@@ -39,7 +39,7 @@ uint64_t EdgeSegment::Size() const {
 
 size_t EdgeSegment::EdgeSize() const {
   VERIFY(edge != nullptr);
-  return edge->size();
+  return edge->size() + GetStK();
 }
 
 void EdgeSegment::ExtendRight(const EdgeSegment &segment) {
@@ -51,13 +51,13 @@ void EdgeSegment::ExtendRight(const EdgeSegment &segment) {
 
 EdgeSegment EdgeSegment::RC() const {
   VERIFY(edge != nullptr);
-  // TODO check that this is safe
-  return EdgeSegment(&edge->rc(), edge->size() - end, edge->size() - start);
+  return EdgeSegment(&edge->rc(), edge->size() + GetStK() - end,
+                     edge->size() + GetStK() - start);
 }
 
 Sequence EdgeSegment::ToSequence() const {
   VERIFY(edge != nullptr);
-  return edge->seq.Subseq(start, end);
+  return edge->suffix(0).Subseq(start, end);
 }
 
 bool EdgeSegment::operator==(const EdgeSegment &rhs) const {

@@ -6,6 +6,30 @@
 
 using namespace repeat_resolution;
 
+std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
+    dbg::SparseDBG &dbg, const UniqueClassificator &classificator) {
+  const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg]() {
+    std::unordered_map<std::string, uint64_t> vert2ind;
+    uint64_t cnt;
+    for (const Vertex &vertex : dbg.vertices()) {
+      const std::string &id = vertex.getId();
+      vert2ind.emplace(id, cnt);
+      ++cnt;
+    }
+    return vert2ind;
+  }();
+
+  std::vector<SuccinctEdgeInfo> edge_info;
+  for (auto it = dbg.edges().begin(); it != dbg.edges().end(); ++it) {
+    const Edge &edge = *it;
+    const RRVertexType start_ind = vert2ind.at(edge.start()->getId());
+    const RRVertexType end_ind = vert2ind.at(edge.end()->getId());
+    edge_info.push_back(
+        {start_ind, end_ind, &edge, classificator.isUnique(edge)});
+  }
+  return edge_info;
+}
+
 void MultiplexDBG::AssertValidity() const {
   int64_t est_max_vert_index = [this]() {
     int64_t est_max_vert_index{-1};
@@ -244,10 +268,12 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
                        RRVertexProperty(MDBGSeq(edge, 0, start_k), false));
     add_node_with_prop(
         edge_info.end_ind,
-        RRVertexProperty(MDBGSeq(edge, edge->size() - start_k, edge->size()),
+        // Anton's edge does not contain prefix
+        RRVertexProperty(MDBGSeq(edge, edge->size(), edge->size() + start_k),
                          false));
 
-    int64_t infix_size = ((int64_t)edge->size()) - 2 * start_k;
+    int64_t infix_size = ((int64_t)edge->size()) - start_k;
+    VERIFY(infix_size > 0 or -infix_size < start_k);
     MDBGSeq edge_seq;
     if (infix_size > 0) {
       edge_seq = MDBGSeq(edge, start_k, start_k + infix_size);
@@ -263,52 +289,11 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
   AssertValidity();
 }
 
-/*
 MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
                            const uint64_t start_k,
-                           UniqueClassificator &classificator, bool debug,
-                           const std::experimental::filesystem::path &dir,
-                           logging::Logger &logger)
-    : rr_paths{rr_paths}, start_k{start_k} {
-  const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg, this]() {
-    std::unordered_map<std::string, uint64_t> vert2ind;
-    for (const Vertex &vertex : dbg.vertices()) {
-      const std::string &id = vertex.getId();
-      vert2ind.emplace(id, next_vert_index);
-      ++next_vert_index;
-    }
-    return vert2ind;
-  }();
-
-  for (auto it = dbg.edges().begin(); it != dbg.edges().end(); ++it) {
-    const Edge &edge = *it;
-    const RRVertexType start_ind = vert2ind.at(edge.start()->getId());
-    const RRVertexType end_ind = vert2ind.at(edge.end()->getId());
-
-    const Sequence &seq = edge.suffix(0);
-
-    Sequence prefix = seq.Prefix(start_k);
-    int64_t infix_size = ((int64_t)seq.size()) - 2 * start_k;
-    Sequence infix =
-        infix_size > 0 ? seq.Subseq(start_k, start_k + infix_size) : Sequence();
-    Sequence suffix = seq.Suffix(start_k);
-
-    RRVertexProperty st_v_prop(MDBGSeq(prefix), false);
-    add_node_with_prop(start_ind, std::move(st_v_prop));
-
-    RRVertexProperty en_v_prop(MDBGSeq(suffix), false);
-    add_node_with_prop(end_ind, std::move(en_v_prop));
-
-    RREdgeProperty edge_prop(next_edge_index, MDBGSeq(infix), infix_size,
-                             classificator.isUnique(edge));
-    add_edge_with_prop(start_ind, end_ind, std::move(edge_prop));
-    ++next_edge_index;
-  }
-
-  FreezeUnpairedVertices();
-  AssertValidity();
-}
- */
+                           UniqueClassificator &classificator)
+    : MultiplexDBG(SparseDBG2SuccinctEdgeInfo(dbg, classificator), start_k,
+                   rr_paths, true) {}
 
 void MultiplexDBG::SerializeToDot(
     const std::experimental::filesystem::path &path) const {

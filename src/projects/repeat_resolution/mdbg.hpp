@@ -29,6 +29,10 @@ class MultiplexDBG
   uint64_t start_k{1};
   bool contains_rc = true;
 
+  static std::vector<SuccinctEdgeInfo>
+  SparseDBG2SuccinctEdgeInfo(dbg::SparseDBG &dbg,
+                             const UniqueClassificator &classificator);
+
   void AssertValidity() const;
 
   void SpreadFrost();
@@ -36,14 +40,10 @@ class MultiplexDBG
 
 public:
   MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
-               RRPaths *rr_paths,
-               bool contains_rc);
-  /*
+               RRPaths *rr_paths, bool contains_rc);
+
   MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *rr_paths, uint64_t start_k,
-               UniqueClassificator &classificator, bool debug,
-               const std::experimental::filesystem::path &dir,
-               logging::Logger &logger);
-   */
+               UniqueClassificator &classificator);
 
   MultiplexDBG(const MultiplexDBG &) = delete;
   MultiplexDBG(MultiplexDBG &&) = default;
@@ -54,18 +54,20 @@ public:
 
   [[nodiscard]] bool IsFrozen() const;
 
-  bool IsVertexComplex(const RRVertexType &vertex) const;
+  [[nodiscard]] bool IsVertexComplex(const RRVertexType &vertex) const;
 
-  bool IsVertexSimple(const RRVertexType &vertex) const;
+  [[nodiscard]] bool IsVertexSimple(const RRVertexType &vertex) const;
 
-  bool IsVertexCanonical(const RRVertexType &vertex) const;
-  bool IsEdgeCanonical(ConstIterator vertex, NeighborsConstIterator e_it) const;
+  [[nodiscard]] bool IsVertexCanonical(const RRVertexType &vertex) const;
+  [[nodiscard]] bool IsEdgeCanonical(ConstIterator vertex,
+                                     NeighborsConstIterator e_it) const;
 
   void FreezeVertex(const RRVertexType &vertex) { node_prop(vertex).Freeze(); }
 
   RRVertexType GetNewVertex(MDBGSeq seq);
 
-  size_t FullEdgeSize(ConstIterator vertex, NeighborsConstIterator e_it) const;
+  [[nodiscard]] size_t FullEdgeSize(ConstIterator vertex,
+                                    NeighborsConstIterator e_it) const;
 
   MDBGSeq ExtractEdgePostStartPrefix(ConstIterator vertex,
                                      NeighborsIterator e_it, uint64_t len);
@@ -82,12 +84,12 @@ public:
                   NeighborsIterator e2_it);
 
   RREdgeIndexType AddConnectingEdge(NeighborsIterator e1_it,
-                                  const RRVertexType &s2,
-                                  NeighborsIterator e2_it);
+                                    const RRVertexType &s2,
+                                    NeighborsIterator e2_it);
 
-  std::vector<RREdgeIndexType>
+  [[nodiscard]] std::vector<RREdgeIndexType>
   GetInEdgesIndexes(const RRVertexType &vertex) const;
-  std::vector<RREdgeIndexType>
+  [[nodiscard]] std::vector<RREdgeIndexType>
   GetOutEdgesIndexes(const RRVertexType &vertex) const;
 
   std::pair<std::vector<RREdgeIndexType>, std::vector<RREdgeIndexType>>
@@ -95,27 +97,29 @@ public:
 
   using EdgeNeighborMap =
       std::unordered_map<RREdgeIndexType, std::unordered_set<RREdgeIndexType>>;
-  std::pair<EdgeNeighborMap, EdgeNeighborMap>
+  [[nodiscard]] std::pair<EdgeNeighborMap, EdgeNeighborMap>
   GetEdgepairsVertex(const RRVertexType &vertex) const;
 
   NeighborsIterator FindInEdgeIterator(const RRVertexType &v,
                                        const RREdgeIndexType &edge);
-  NeighborsConstIterator
+  [[nodiscard]] NeighborsConstIterator
   FindInEdgeConstiterator(const RRVertexType &v,
                           const RREdgeIndexType &edge) const;
 
   NeighborsIterator FindOutEdgeIterator(const RRVertexType &v,
                                         const RREdgeIndexType &edge);
-  NeighborsConstIterator
+  [[nodiscard]] NeighborsConstIterator
   FindOutEdgeConstiterator(const RRVertexType &v,
                            const RREdgeIndexType &edge) const;
 
-  int64_t GetInnerEdgeSize(ConstIterator vertex,
-                           NeighborsConstIterator e_it) const;
-  MDBGSeq GetEdgeSequence(ConstIterator vertex, NeighborsConstIterator e_it,
-                          bool trim_left, bool trim_right) const;
-  std::vector<Contig> GetTrimEdges(int64_t min_inner_edge_size = 1000) const;
-  std::vector<Contig>
+  [[nodiscard]] int64_t GetInnerEdgeSize(ConstIterator vertex,
+                                         NeighborsConstIterator e_it) const;
+  [[nodiscard]] MDBGSeq GetEdgeSequence(ConstIterator vertex,
+                                        NeighborsConstIterator e_it,
+                                        bool trim_left, bool trim_right) const;
+  [[nodiscard]] std::vector<Contig>
+  GetTrimEdges(int64_t min_inner_edge_size = 1000) const;
+  [[nodiscard]] std::vector<Contig>
   PrintTrimEdges(const std::experimental::filesystem::path &f) const;
 };
 

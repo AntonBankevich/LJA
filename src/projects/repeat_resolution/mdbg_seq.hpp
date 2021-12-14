@@ -2,12 +2,11 @@
 // Created by Andrey Bzikadze on 12/10/21.
 //
 
-
 #pragma once
 
-#include <list>
 #include "dbg/sparse_dbg.hpp"
 #include "sequences/sequence.hpp"
+#include <list>
 
 namespace repeat_resolution {
 
@@ -19,11 +18,11 @@ struct EdgeSegment {
   uint64_t end{0};
 
   EdgeSegment(const dbg::Edge *edge, uint64_t start, uint64_t end);
-  explicit EdgeSegment(const dbg::Edge *edge);
 
   EdgeSegment(const EdgeSegment &) = default;
   EdgeSegment(EdgeSegment &&) = default;
 
+  [[nodiscard]] uint64_t GetStK() const { return edge->start()->seq.size(); }
   [[nodiscard]] bool Empty() const { return start == end; }
   [[nodiscard]] bool LeftFull() const { return start == 0; }
   [[nodiscard]] bool RightFull() const;
@@ -41,7 +40,7 @@ struct EdgeSegment {
 // ---------- MDBGSeq ----------
 
 class MDBGSeq {
-  std::list<EdgeSegment> segms;
+  std::list<EdgeSegment> segms{};
 
 public:
   MDBGSeq(const dbg::Edge *edge, const uint64_t start, const uint64_t end) {

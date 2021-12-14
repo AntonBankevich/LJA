@@ -14,45 +14,6 @@
 
 namespace repeat_resolution {
 
-// ---------- MDBGSeq ----------
-
-/*
-class MDBGSeq {
-  std::list<char> seq;
-
-  static constexpr char CharCompl(char c);
-
-public:
-  explicit MDBGSeq(std::list<char> seq);
-  explicit MDBGSeq(std::string str);
-  explicit MDBGSeq(const Sequence &seq);
-  MDBGSeq() = default;
-
-  std::list<char>::iterator begin() { return seq.begin(); }
-  std::list<char>::iterator end() { return seq.end(); }
-  std::list<char>::const_iterator begin() const { return seq.begin(); }
-  std::list<char>::const_iterator end() const { return seq.end(); }
-  std::list<char>::const_iterator cbegin() const { return seq.cbegin(); }
-  std::list<char>::const_iterator cend() const { return seq.cend(); }
-
-  [[nodiscard]] std::string ToSequence() const;
-  [[nodiscard]] size_t size() const;
-  [[nodiscard]] MDBGSeq RC() const;
-  [[nodiscard]] bool IsCanonical() const;
-  [[nodiscard]] bool Empty() const;
-
-  void Append(MDBGSeq mdbg_seq);
-  void Prepend(MDBGSeq mdbg_seq);
-
-  void TrimLeft(uint64_t size);
-  void TrimRight(uint64_t size);
-
-  [[nodiscard]] MDBGSeq Substr(uint64_t pos, uint64_t len) const;
-
-  [[nodiscard]] bool operator==(const MDBGSeq &rhs) const;
-};
- */
-
 // ---------- RRVertexProperty ----------
 
 using RRVertexType = uint64_t;

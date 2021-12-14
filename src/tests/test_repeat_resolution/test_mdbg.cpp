@@ -11,13 +11,21 @@ using namespace repeat_resolution;
 
 using RawEdgeInfo =
     std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>;
-std::vector<SuccinctEdgeInfo> GetEdgeInfo(std::vector<dbg::Edge> &edges,
-                                          const RawEdgeInfo &raw_edge_info,
-                                          bool unique) {
-  std::vector<SuccinctEdgeInfo> edge_info;
+
+std::vector<SuccinctEdgeInfo>
+GetEdgeInfo(std::map<RRVertexType, dbg::Vertex> &vertexes,
+            std::vector<dbg::Edge> &edges, const RawEdgeInfo &raw_edge_info,
+            int k, bool unique) {
   for (const auto &[st, en, str] : raw_edge_info) {
-    edges.emplace_back(nullptr, nullptr, Sequence(str));
+    Sequence seq(str);
+    vertexes.emplace(st, st);
+    Vertex &st_v = vertexes.at(st);
+    st_v.seq = seq.Prefix(k);
+
+    edges.emplace_back(&st_v, nullptr, seq.Subseq(k));
   }
+
+  std::vector<SuccinctEdgeInfo> edge_info;
   for (auto it = raw_edge_info.begin(); it != raw_edge_info.end(); ++it) {
     edge_info.push_back({std::get<0>(*it), std::get<1>(*it),
                          &(edges[it - raw_edge_info.begin()]), unique});
@@ -85,6 +93,7 @@ TEST(DB1, Basic) {
 
   const bool frozen = false;
   const bool unique = false;
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   RawEdgeInfo raw_edge_info{{0, 2, "CCT"},  // 0
                             {1, 2, "GACT"}, // 1
@@ -93,7 +102,7 @@ TEST(DB1, Basic) {
                             {3, 5, "AGC"},  // 4
                             {2, 4, "CTT"}}; // 5
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, unique);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, unique);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -122,11 +131,12 @@ TEST(DBSingleEdge1, Basic) {
 
   const bool frozen = false;
   const bool unique = false;
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
       raw_edge_info{{0, 1, "ACGTTGCA"}}; // 0
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, unique);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, unique);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -158,11 +168,12 @@ TEST(DBSingleEdge2, Basic) {
 
   const bool frozen = false;
   const bool unique = false;
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
       raw_edge_info{{0, 1, "ACGCA"}}; // 0
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, unique);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, unique);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -195,9 +206,10 @@ TEST(DBSingleEdge3, Basic) {
   const bool unique = false;
   std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
       raw_edge_info{{0, 1, "ACGTGCA"}}; // 0
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, unique);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, unique);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -228,9 +240,10 @@ TEST(DBStVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "AAAAA"}, {0, 2, "AAACA"}, {0, 3, "AAA"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -265,9 +278,10 @@ TEST(DBEvVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 3, "AAAAA"}, {1, 3, "AACAA"}, {2, 3, "AAA"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -303,9 +317,10 @@ TEST(DB1inVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "AACAG"}, {1, 2, "AGACC"}, {1, 3, "AGATT"}, {1, 4, "AGAGG"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -340,9 +355,10 @@ TEST(DB1inVertex, WithShortEdge) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "CAG"}, {1, 2, "AGACC"}, {1, 3, "AGATT"}, {1, 4, "AGAGG"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -376,9 +392,10 @@ TEST(DB1outVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 3, "CCAGA"}, {1, 3, "TTAGA"}, {2, 3, "GGAGA"}, {3, 4, "GAAAA"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -413,9 +430,10 @@ TEST(DB1outVertex, WithShortEdge) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 3, "CCAGA"}, {1, 3, "TTAGA"}, {2, 3, "GGAGA"}, {3, 4, "GAA"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -449,9 +467,10 @@ TEST(DBComplexVertex, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -488,9 +507,10 @@ TEST(DBComplexVertexLoop1, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {2, 2, "AAGAA"}, {2, 3, "AATGC"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -528,9 +548,10 @@ TEST(DBComplexVertexLoop2, Basic) {
       {2, 3, "AATGC"},
       {4, 2, "GGAA"},
       {2, 5, "AATG"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -570,9 +591,10 @@ TEST(DBComplexVertexLoop3, Basic) {
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {2, 2, "AAGAA"}, {2, 3, "AATGC"},
       {4, 2, "GGAA"},  {2, 2, "AAA"},   {2, 5, "AATG"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -610,9 +632,10 @@ TEST(DBComplexVertexLoop4, Basic) {
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACAAA"}, {1, 1, "AAGAA"}, {1, 1, "AACAA"},
       {1, 1, "AATAA"}, {1, 1, "AAAAA"}, {1, 2, "AATGC"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -654,9 +677,10 @@ TEST(DBComplexVertexLoop5, Basic) {
       {1, 4, "AATGC"},  // 7
       {5, 1, "ACAAA"},  // 8
       {1, 6, "AATGC"}}; // 9
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -701,9 +725,10 @@ TEST(DBBuldges1, Basic) {
       {1, 2, "AATGC"},  // 5
       {0, 1, "ACAAA"},  // 6
       {1, 2, "AATGC"}}; // 7
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -740,9 +765,10 @@ TEST(DBComplexVertexConn4, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -782,9 +808,10 @@ TEST(DBComplexVertexConn3, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -826,9 +853,10 @@ TEST(DBComplexVertexConn3_2, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 2, "ACAAA"}, {1, 2, "GGAAA"}, {2, 3, "AATGC"}, {2, 4, "AATT"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -870,9 +898,10 @@ TEST(DBComplexVertexLoop6, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACAAA"}, {1, 1, "AAGAA"}, {1, 2, "AATGC"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -908,9 +937,10 @@ TEST(DBComplexVertexLoop7, Basic) {
       // {0, 1, "ACAAA"},
       {1, 1, "AAGAA"}};
   // {1, 2, "AATGC"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -944,9 +974,10 @@ TEST(DBComplexVertexLoop8, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACAAA"}, {1, 1, "AAGAA"}, {1, 2, "AATGC"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -982,9 +1013,10 @@ TEST(DBIsolate, Basic) {
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
       {0, 1, "ACA"}};
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
@@ -1013,9 +1045,10 @@ TEST(DBEmptyGraph, Basic) {
   const size_t k = 2;
 
   std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info;
+  std::map<RRVertexType, Vertex> vertexes;
   std::vector<dbg::Edge> edges;
   std::vector<SuccinctEdgeInfo> edge_info =
-      GetEdgeInfo(edges, raw_edge_info, false);
+      GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
 
   RRPaths paths = []() {
     std::vector<RRPath> _path_vector;
