@@ -29,8 +29,8 @@ void MultiplexDBGIncreaser::CollapseEdge(MultiplexDBG &graph,
   VERIFY(graph.count_out_neighbors(s_it) == 1);
   VERIFY(graph.count_in_neighbors(e_it->first) == 1);
   // TODO deactivate
-  VERIFY(graph.node_prop(s).Seq().ToSequence() ==
-         graph.node_prop(e).Seq().ToSequence());
+  // VERIFY(graph.node_prop(s).Seq().ToSequence() ==
+  //        graph.node_prop(e).Seq().ToSequence());
 
   RREdgeProperty &edge_prop = e_it->second.prop();
   graph.rr_paths->remove(edge_prop.Index());
@@ -158,6 +158,7 @@ void MultiplexDBGIncreaser::Increase(MultiplexDBG &graph,
 
   CollapseShortEdgesIntoVertices(graph);
   graph.FreezeUnpairedVertices();
+  graph.SpreadFrost();
 
   if (debug) {
     graph.AssertValidity();
@@ -170,7 +171,7 @@ void MultiplexDBGIncreaser::IncreaseN(MultiplexDBG &graph, uint64_t N,
   N = std::min(N, saturating_k - start_k - init_n_iter);
   while (not graph.IsFrozen() and start_k + graph.n_iter < saturating_k and
          graph.n_iter - init_n_iter < N) {
-    // std::cout << start_k + graph.n_iter << "\n";
+    std::cout << start_k + graph.n_iter << "\n";
     const uint64_t remain_max_iter = N - (graph.n_iter - init_n_iter);
     Increase(graph, unite_simple, remain_max_iter);
   }

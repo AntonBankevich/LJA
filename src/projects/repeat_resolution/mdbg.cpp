@@ -186,8 +186,6 @@ void MultiplexDBG::FreezeUnpairedVertices() {
         }
       }
     }
-
-    SpreadFrost();
   }
 }
 
@@ -286,6 +284,7 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
   }
 
   FreezeUnpairedVertices();
+  SpreadFrost();
   AssertValidity();
 }
 
