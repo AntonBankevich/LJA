@@ -54,18 +54,29 @@ public:
 
   std::vector<Contig> resolve_repeats(logging::Logger &logger) {
     logger.info() << "Resolving repeats" << std::endl;
+    logger.info() << "Constructing paths" << std::endl;
     RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
 
+    logger.info() << "Building graph" << std::endl;
     MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
-    mdbg.SerializeToDot(dir / "init_graph.dot");
+    logger.info() << "Export to dot" << std::endl;
+    mdbg.ExportToDot(dir / "init_graph.dot");
+    logger.info() << "Export to GFA" << std::endl;
+    mdbg.ExportToGFA(dir / "resolved_graph.gfa");
+
     logger.info() << "Increasing k" << std::endl;
     MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};
     k_increaser.IncreaseUntilSaturation(mdbg, true);
     logger.info() << "Finished increasing k" << std::endl;
-    mdbg.SerializeToDot(dir / "resolved_graph.dot");
-    mdbg.SerializeToGFA(dir / "resolved_graph.gfa");
 
+    logger.info() << "Export to Dot" << std::endl;
+    mdbg.ExportToDot(dir / "resolved_graph.dot");
+    logger.info() << "Export to GFA" << std::endl;
+    mdbg.ExportToGFA(dir / "resolved_graph.gfa");
+    logger.info() << "Exporting compressed contigs" << std::endl;
     std::vector<Contig> edges = mdbg.PrintTrimEdges(dir / "compressed.fasta");
+
+    logger.info() << "Finished repeat resolution" << std::endl;
     return edges;
   }
 };

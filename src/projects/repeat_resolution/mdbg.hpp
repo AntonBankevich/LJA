@@ -52,8 +52,8 @@ public:
 
   std::unordered_map<RRVertexType, RRVertexType> MapVertex2RC() const;
   std::unordered_map<RREdgeIndexType, RREdgeIndexType> MapEdge2RC() const;
-  void SerializeToDot(const std::experimental::filesystem::path &path) const;
-  void SerializeToGFA(const std::experimental::filesystem::path &path) const;
+  void ExportToDot(const std::experimental::filesystem::path &path) const;
+  void ExportToGFA(const std::experimental::filesystem::path &path) const;
 
   [[nodiscard]] bool IsFrozen() const;
 

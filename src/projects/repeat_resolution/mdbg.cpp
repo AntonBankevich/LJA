@@ -333,14 +333,14 @@ MultiplexDBG::MapEdge2RC() const {
   return fwd2rc;
 }
 
-void MultiplexDBG::SerializeToDot(
+void MultiplexDBG::ExportToDot(
     const std::experimental::filesystem::path &path) const {
   graph_lite::Serializer serializer(*this);
   std::ofstream dot_os(path);
   serializer.serialize_to_dot(dot_os);
 }
 
-void MultiplexDBG::SerializeToGFA(
+void MultiplexDBG::ExportToGFA(
     const std::experimental::filesystem::path &path) const {
   const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
       MapVertex2RC();
