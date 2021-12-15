@@ -25,6 +25,7 @@ class RepeatResolver {
   uint64_t unique_threshold{0};
   bool diploid{false};
   bool debug{false};
+  UniqueClassificator classificator;
 
   [[nodiscard]] std::vector<RecordStorage *> get_storages() const {
     std::vector<RecordStorage *> storages = extra_storages;
@@ -35,24 +36,26 @@ class RepeatResolver {
 public:
   RepeatResolver(dbg::SparseDBG &dbg, RecordStorage *reads_storage,
                  std::vector<RecordStorage *> extra_storages, uint64_t start_k,
-                 uint64_t saturating_k, std::experimental::filesystem::path dir,
-                 uint64_t unique_threshold, bool diploid, bool debug)
-      : dbg{dbg}, reads_storage{reads_storage},
+                 uint64_t saturating_k,
+                 const std::experimental::filesystem::path &dir,
+                 uint64_t unique_threshold, bool diploid, bool debug,
+                 logging::Logger &logger)
+      : dbg{dbg}, reads_storage{std::move(reads_storage)},
         extra_storages{std::move(extra_storages)}, start_k{start_k},
         saturating_k{saturating_k}, dir{std::move(dir)},
-        unique_threshold{unique_threshold}, diploid{diploid}, debug{debug} {
+        unique_threshold{unique_threshold}, diploid{diploid}, debug{debug},
+        classificator{dbg, *(this->reads_storage), diploid, debug} {
     std::experimental::filesystem::create_directory(this->dir);
+    classificator.classify(logger, unique_threshold, dir / "mult_dir");
+    for (RecordStorage *const storage : get_storages()) {
+      storage->invalidateSubreads(logger, 1);
+    }
   }
 
   std::vector<Contig> resolve_repeats(logging::Logger &logger) {
     logger.info() << "Resolving repeats" << std::endl;
-    for (RecordStorage *const storage : get_storages()) {
-      storage->invalidateSubreads(logger, 1);
-    }
     RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
 
-    UniqueClassificator classificator(dbg, *reads_storage, diploid, debug);
-    classificator.classify(logger, unique_threshold, dir / "mult_dir");
     MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
     mdbg.SerializeToDot(dir / "init_graph.dot");
     logger.info() << "Increasing k" << std::endl;
@@ -62,8 +65,7 @@ public:
     mdbg.SerializeToDot(dir / "resolved_graph.dot");
     mdbg.SerializeToGFA(dir / "resolved_graph.gfa");
 
-    std::vector<Contig> edges =
-        mdbg.PrintTrimEdges(dir / "compressed.fasta");
+    std::vector<Contig> edges = mdbg.PrintTrimEdges(dir / "compressed.fasta");
     return edges;
   }
 };

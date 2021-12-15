@@ -233,8 +233,8 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
     printDot(dir / "graph.dot", Component(dbg), readStorage.labeler());
 
     repeat_resolution::RepeatResolver rr(
-        dbg, &readStorage, {&extra_reads}, k, kmdbg,
-        dir / "repeat_resolution", unique_threshold, diploid, debug);
+        dbg, &readStorage, {&extra_reads}, k, kmdbg, dir / "repeat_resolution",
+        unique_threshold, diploid, debug, logger);
     std::vector<Contig> contigs = rr.resolve_repeats(logger);
 
     PrintAlignments(logger, threads, contigs, readStorage, k,
