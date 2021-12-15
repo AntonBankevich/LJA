@@ -36,6 +36,44 @@ class MultiplexDBG
   void SpreadFrost();
   void FreezeUnpairedVertices();
 
+  [[nodiscard]] std::unordered_map<RREdgeIndexType, Sequence>
+  GetEdgeSeqs() const;
+  [[nodiscard]] std::unordered_map<RRVertexType, Sequence>
+  GetVertexSeqs(const std::unordered_map<RREdgeIndexType, Sequence> &) const;
+
+  template <typename IndexType>
+  [[nodiscard]] std::unordered_map<IndexType, IndexType>
+  MapSeqs2RC(const std::unordered_map<IndexType, Sequence> &seqs) const;
+
+  template <typename IndexType>
+  [[nodiscard]] std::unordered_map<IndexType, bool>
+  AreSeqsCanonical(const std::unordered_map<IndexType, Sequence> &seqs) const;
+
+  void ExportToGFA(
+      const std::experimental::filesystem::path &path,
+      const std::unordered_map<RRVertexType, Sequence> &vertex_seqs,
+      const std::unordered_map<RREdgeIndexType, Sequence> &edge_seqs,
+      const std::unordered_map<RRVertexType, RRVertexType> &vertex2rc,
+      const std::unordered_map<RREdgeIndexType, RREdgeIndexType> &edge2rc,
+      const std::unordered_map<RRVertexType, bool> &vertex_can,
+      const std::unordered_map<RREdgeIndexType, bool> &edge_can) const;
+
+  [[nodiscard]] std::vector<Contig>
+  GetContigs(const std::unordered_map<RRVertexType, Sequence> &vertex_seqs,
+             const std::unordered_map<RREdgeIndexType, Sequence> &edge_seqs,
+             const std::unordered_map<RRVertexType, RRVertexType> &vertex2rc,
+             const std::unordered_map<RRVertexType, bool> &vertex_can,
+             const std::unordered_map<RREdgeIndexType, bool> &edge_can,
+             int64_t min_inner_edge_size = 1000) const;
+
+  [[nodiscard]] std::vector<Contig> ExportContigs(
+      const std::experimental::filesystem::path &f,
+      const std::unordered_map<RRVertexType, Sequence> &vertex_seqs,
+      const std::unordered_map<RREdgeIndexType, Sequence> &edge_seqs,
+      const std::unordered_map<RRVertexType, RRVertexType> &vertex2rc,
+      const std::unordered_map<RRVertexType, bool> &vertex_can,
+      const std::unordered_map<RREdgeIndexType, bool> &edge_can) const;
+
 public:
   MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
                RRPaths *rr_paths, bool contains_rc);
@@ -50,8 +88,6 @@ public:
 
   void AssertValidity() const;
 
-  std::unordered_map<RRVertexType, RRVertexType> MapVertex2RC() const;
-  std::unordered_map<RREdgeIndexType, RREdgeIndexType> MapEdge2RC() const;
   void ExportToDot(const std::experimental::filesystem::path &path) const;
   void ExportToGFA(const std::experimental::filesystem::path &path) const;
 
@@ -121,9 +157,38 @@ public:
                                         NeighborsConstIterator e_it,
                                         bool trim_left, bool trim_right) const;
   [[nodiscard]] std::vector<Contig>
-  GetTrimEdges(int64_t min_inner_edge_size = 1000) const;
+  GetContigs(int64_t min_inner_edge_size = 1000) const;
+
   [[nodiscard]] std::vector<Contig>
-  PrintTrimEdges(const std::experimental::filesystem::path &f) const;
+  ExportContigsAndGFA(const std::experimental::filesystem::path &contigs_fn,
+                      const std::experimental::filesystem::path &gfa_fn) const;
 };
+
+template <typename IndexType>
+std::unordered_map<IndexType, IndexType> MultiplexDBG::MapSeqs2RC(
+    const std::unordered_map<IndexType, Sequence> &seqs) const {
+  std::map<Sequence, IndexType> seq2ind;
+  for (auto &[ind, seq] : seqs) {
+    seq2ind.emplace(seq, ind);
+  }
+
+  std::unordered_map<IndexType, IndexType> fwd2rc;
+  for (const auto &[seq, ind] : seq2ind) {
+    const IndexType rc_ind = seq2ind.at(!seq);
+    fwd2rc.emplace(ind, rc_ind);
+    fwd2rc.emplace(rc_ind, ind);
+  }
+  return fwd2rc;
+}
+
+template <typename IndexType>
+std::unordered_map<IndexType, bool> MultiplexDBG::AreSeqsCanonical(
+    const std::unordered_map<IndexType, Sequence> &seqs) const {
+  std::unordered_map<IndexType, bool> canon;
+  for (const auto &[ind, seq] : seqs) {
+    canon.emplace(ind, seq <= !seq);
+  }
+  return canon;
+}
 
 } // End namespace repeat_resolution

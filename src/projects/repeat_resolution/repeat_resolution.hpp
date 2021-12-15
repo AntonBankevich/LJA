@@ -18,7 +18,7 @@ namespace repeat_resolution {
 class RepeatResolver {
   dbg::SparseDBG &dbg;
   RecordStorage *reads_storage;
-  std::vector<RecordStorage *> extra_storages;
+  std::vector<RecordStorage *> extra_storages{};
   std::uint64_t start_k{1};
   std::uint64_t saturating_k{1};
   std::experimental::filesystem::path dir;
@@ -76,13 +76,12 @@ public:
 
     logger.info() << "Export to Dot" << std::endl;
     mdbg.ExportToDot(dir / "resolved_graph.dot");
-    logger.info() << "Export to GFA" << std::endl;
-    mdbg.ExportToGFA(dir / "resolved_graph.gfa");
-    logger.info() << "Exporting compressed contigs" << std::endl;
-    std::vector<Contig> edges = mdbg.PrintTrimEdges(dir / "compressed.fasta");
+    logger.info() << "Export to GFA and compressed contigs" << std::endl;
+    std::vector<Contig> contigs = mdbg.ExportContigsAndGFA(
+        dir / "compressed.fasta", dir / "resolved_graph.gfa");
 
     logger.info() << "Finished repeat resolution" << std::endl;
-    return edges;
+    return contigs;
   }
 };
 
