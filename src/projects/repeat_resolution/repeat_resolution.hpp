@@ -59,6 +59,11 @@ public:
 
     logger.info() << "Building graph" << std::endl;
     MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
+    if (debug) {
+      logger.trace() << "Checking validity of graph" << std::endl;
+      mdbg.AssertValidity();
+      logger.trace() << "Graph has passed validity check" << std::endl;
+    }
     logger.info() << "Export to dot" << std::endl;
     mdbg.ExportToDot(dir / "init_graph.dot");
     logger.info() << "Export to GFA" << std::endl;

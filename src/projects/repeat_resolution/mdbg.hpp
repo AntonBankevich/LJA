@@ -33,8 +33,6 @@ class MultiplexDBG
   SparseDBG2SuccinctEdgeInfo(dbg::SparseDBG &dbg,
                              const UniqueClassificator &classificator);
 
-  void AssertValidity() const;
-
   void SpreadFrost();
   void FreezeUnpairedVertices();
 
@@ -49,6 +47,8 @@ public:
   MultiplexDBG(MultiplexDBG &&) = default;
   MultiplexDBG &operator=(const MultiplexDBG &) = delete;
   MultiplexDBG &operator=(MultiplexDBG &&) = default;
+
+  void AssertValidity() const;
 
   std::unordered_map<RRVertexType, RRVertexType> MapVertex2RC() const;
   std::unordered_map<RREdgeIndexType, RREdgeIndexType> MapEdge2RC() const;

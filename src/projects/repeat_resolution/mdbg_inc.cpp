@@ -179,9 +179,6 @@ void MultiplexDBGIncreaser::IncreaseN(MultiplexDBG &graph, uint64_t N,
 
 void MultiplexDBGIncreaser::IncreaseUntilSaturation(MultiplexDBG &graph,
                                                     const bool unite_simple) {
-  if (debug) {
-    graph.AssertValidity();
-  }
   VERIFY(saturating_k - start_k >= graph.n_iter);
   uint64_t N = saturating_k - start_k - graph.n_iter;
   IncreaseN(graph, N, unite_simple);
