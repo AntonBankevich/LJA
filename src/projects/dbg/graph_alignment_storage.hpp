@@ -133,6 +133,8 @@ public:
     typedef typename std::vector<AlignedRead>::iterator iterator;
     typedef typename std::vector<AlignedRead>::const_iterator const_iterator;
 
+    RecordStorage &operator=(const RecordStorage &other) = default;
+    RecordStorage(const RecordStorage &other) = default;
     RecordStorage &operator=(RecordStorage &&other) = default;
     RecordStorage(RecordStorage &&other) = default;
 

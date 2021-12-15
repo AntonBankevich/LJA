@@ -285,7 +285,6 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
 
   FreezeUnpairedVertices();
   SpreadFrost();
-  AssertValidity();
 }
 
 MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
