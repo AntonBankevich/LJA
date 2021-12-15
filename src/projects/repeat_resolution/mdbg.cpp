@@ -294,11 +294,100 @@ MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
     : MultiplexDBG(SparseDBG2SuccinctEdgeInfo(dbg, classificator), start_k,
                    rr_paths, true) {}
 
+std::unordered_map<RRVertexType, RRVertexType>
+MultiplexDBG::MapVertex2RC() const {
+  std::map<Sequence, RRVertexType> seq2ind;
+  for (auto it = begin(); it != end(); ++it) {
+    const RRVertexProperty &prop = node_prop(it);
+    seq2ind.emplace(prop.Seq().ToSequence(), *it);
+  }
+
+  std::unordered_map<RRVertexType, RRVertexType> fwd2rc;
+  for (const auto &[seq, ind] : seq2ind) {
+    const RRVertexType rc_ind = seq2ind.at(!seq);
+    fwd2rc.emplace(ind, rc_ind);
+    fwd2rc.emplace(rc_ind, ind);
+  }
+  return fwd2rc;
+}
+
+std::unordered_map<RREdgeIndexType, RREdgeIndexType>
+MultiplexDBG::MapEdge2RC() const {
+  std::map<Sequence, RREdgeIndexType> seq2ind;
+  for (auto v_it = begin(); v_it != end(); ++v_it) {
+    auto [begin, end] = out_neighbors(v_it);
+    for (auto e_it = begin; e_it != end; ++e_it) {
+      const RREdgeProperty &prop = e_it->second.prop();
+      const MDBGSeq &full_edge_mbdgseq =
+          GetEdgeSequence(v_it, e_it, false, false);
+      seq2ind.emplace(full_edge_mbdgseq.ToSequence(), prop.Index());
+    }
+  }
+
+  std::unordered_map<RREdgeIndexType, RREdgeIndexType> fwd2rc;
+  for (const auto &[seq, ind] : seq2ind) {
+    const RREdgeIndexType rc_ind = seq2ind.at(!seq);
+    fwd2rc.emplace(ind, rc_ind);
+    fwd2rc.emplace(rc_ind, ind);
+  }
+  return fwd2rc;
+}
+
 void MultiplexDBG::SerializeToDot(
     const std::experimental::filesystem::path &path) const {
   graph_lite::Serializer serializer(*this);
   std::ofstream dot_os(path);
   serializer.serialize_to_dot(dot_os);
+}
+
+void MultiplexDBG::SerializeToGFA(
+    const std::experimental::filesystem::path &path) const {
+  const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
+      MapVertex2RC();
+  const std::unordered_map<RREdgeIndexType, RREdgeIndexType> edge2rc =
+      MapEdge2RC();
+
+  std::ofstream os;
+  os.open(path);
+  os << "H\tVN:Z:1.0" << std::endl;
+  std::unordered_map<RREdgeIndexType, RREdgeIndexType> edge2can_id;
+  for (auto v_it = begin(); v_it != end(); ++v_it) {
+    auto [begin, end] = out_neighbors(v_it);
+    for (auto e_it = begin; e_it != end; ++e_it) {
+      if (IsEdgeCanonical(v_it, e_it)) {
+        const RREdgeProperty &prop = e_it->second.prop();
+        const RREdgeIndexType e_ind = prop.Index();
+        edge2can_id.emplace(e_ind, e_ind);
+        edge2can_id.emplace(edge2rc.at(e_ind), e_ind);
+        const MDBGSeq &full_edge_mbdgseq =
+            GetEdgeSequence(v_it, e_it, false, false);
+        os << "S\t" << e_ind << "\t" << full_edge_mbdgseq.ToSequence() << "\n";
+      }
+    }
+  }
+
+  for (auto v_it = begin(); v_it != end(); ++v_it) {
+    if (not IsVertexCanonical(*v_it)) {
+      continue;
+    }
+    auto [begin, end] = out_neighbors(v_it);
+    for (auto out_it = begin; out_it != end; ++out_it) {
+      const RREdgeProperty &out_prop = out_it->second.prop();
+      const RREdgeIndexType out_ind = edge2can_id.at(out_prop.Index());
+      bool out_sign = IsEdgeCanonical(v_it, out_it);
+      const RRVertexType v_rc = vertex2rc.at(*v_it);
+      auto [begin_rc, end_rc] = out_neighbors(v_rc);
+
+      for (auto in_it = begin_rc; in_it != end_rc; ++in_it) {
+        const RREdgeProperty &in_prop = in_it->second.prop();
+        const RREdgeIndexType in_ind = edge2can_id.at(in_prop.Index());
+        bool in_sign = not IsEdgeCanonical(find(v_rc), in_it);
+        os << "L\t" << in_ind << "\t" << (in_sign ? "+" : "-") << "\t"
+           << out_ind << "\t" << (out_sign ? "+" : "-") << "\t"
+           << node_prop(v_it).size() << "M\n";
+      }
+    }
+  }
 }
 
 [[nodiscard]] bool MultiplexDBG::IsFrozen() const {
@@ -625,7 +714,7 @@ MultiplexDBG::GetTrimEdges(int64_t min_inner_edge_size) const {
       if (IsVertexCanonical(vertex)) {
         const bool trim_vertex = count_out_neighbors(vertex) != 1;
         trim.emplace(vertex, trim_vertex);
-        trim.emplace(seq2vertex.at(vertex_prop.Seq().RC().ToSequence()),
+        trim.emplace(seq2vertex.at(!vertex_prop.Seq().ToSequence()),
                      not trim_vertex);
       }
     }

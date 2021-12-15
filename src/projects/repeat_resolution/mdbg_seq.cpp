@@ -93,8 +93,8 @@ bool EdgeSegment::operator==(const EdgeSegment &rhs) const {
 }
 
 [[nodiscard]] bool MDBGSeq::IsCanonical() const {
-  // TODO maybe there is a faster way?
-  return ToSequence() <= RC().ToSequence();
+  const Sequence seq = ToSequence();
+  return seq <= !seq;
 }
 
 [[nodiscard]] bool MDBGSeq::Empty() const { return segms.empty(); }

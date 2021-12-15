@@ -60,6 +60,7 @@ public:
     k_increaser.IncreaseUntilSaturation(mdbg, true);
     logger.info() << "Finished increasing k" << std::endl;
     mdbg.SerializeToDot(dir / "resolved_graph.dot");
+    mdbg.SerializeToGFA(dir / "resolved_graph.gfa");
 
     std::vector<Contig> edges =
         mdbg.PrintTrimEdges(dir / "compressed.fasta");

@@ -50,7 +50,10 @@ public:
   MultiplexDBG &operator=(const MultiplexDBG &) = delete;
   MultiplexDBG &operator=(MultiplexDBG &&) = default;
 
+  std::unordered_map<RRVertexType, RRVertexType> MapVertex2RC() const;
+  std::unordered_map<RREdgeIndexType, RREdgeIndexType> MapEdge2RC() const;
   void SerializeToDot(const std::experimental::filesystem::path &path) const;
+  void SerializeToGFA(const std::experimental::filesystem::path &path) const;
 
   [[nodiscard]] bool IsFrozen() const;
 
