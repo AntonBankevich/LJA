@@ -25,7 +25,9 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path haplo(parser.getValue("haployak"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     std::experimental::filesystem::path res_m(dir / "graph_m.gfa");
-    simplifyHaplo(logger, threads, res_m, graph, haplo, 'm');
+    simplifyHaplo(logger, threads, res_m, graph, haplo, 'm', reads_lib, dir);
     std::experimental::filesystem::path res_p(dir / "graph_p.gfa");
-    simplifyHaplo(logger, threads, res_p, graph, haplo, 'p');
+    simplifyHaplo(logger, threads, res_p, graph, haplo, 'p', reads_lib, dir);
+
+
 }

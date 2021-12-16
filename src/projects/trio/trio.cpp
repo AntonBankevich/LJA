@@ -6,6 +6,7 @@
 #include <common/omp_utils.hpp>
 #include <common/zip_utils.hpp>
 #include <common/string_utils.hpp>
+#include "dbg/dbg_construction.hpp"
 
 #include <unordered_set>
 #include <utility>
@@ -13,7 +14,9 @@
 #include <iostream>
 #include <array>
 #include <algorithm>
+
 #include <lja/multi_graph.hpp>
+#include <lja/subdataset_processing.hpp>
 using std::vector;
 using std::pair;
 using std::array;
@@ -204,7 +207,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   const std::experimental::filesystem::path &output_file,
                                                   const std::experimental::filesystem::path &diplo_graph,
                                                   const std::experimental::filesystem::path &haployak,
-                                                  const char haplotype) {
+                                                  const char haplotype, io::Library & reads,   const std::experimental::filesystem::path &dir) {
     multigraph::MultiGraph mmg;
     mmg.LoadGFA(diplo_graph);
     multigraph::MultiGraph mg = mmg.DBG();
@@ -234,5 +237,26 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     cout << "cleaned \n";
     mg.printEdgeGFA("after_clean.gfa", true);
     mg.printEdgeGFA(output_file, true);
+
+//printing alignments and contigs, should be refactored
+    std::string out_name = "corrected_";
+    size_t k = 5001;
+    size_t w = 500;
+    out_name+=haplotype;
+    std::string out_aligns = out_name; out_aligns += ".alignments";
+    std::string out_contigs = out_name; out_contigs += ".fasta";
+
+    hashing::RollingHash hasher(k, 239);
+    SparseDBG dbg = DBGPipeline(logger, hasher, w, reads, dir, threads);
+    dbg.fillAnchors(w, logger, threads);
+    size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
+    ReadLogger readLogger(threads, dir/"read_log.txt");
+    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false);
+    io::SeqReader reader(reads);
+    readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+
+    std::vector<Contig> contigs = mmg.getCutEdges();
+    PrintAlignments(logger, threads, contigs, readStorage, k, dir / out_aligns );
+    readStorage.printFasta(logger, dir / out_contigs);
     return output_file;
 }
