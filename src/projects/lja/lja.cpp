@@ -289,7 +289,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
             diploid,
             debug,
             logger);
-        std::vector<Contig> contigs = rr.resolve_repeats(logger);
+        std::vector<Contig> contigs = rr.ResolveRepeats(logger);
 
         PrintAlignments(logger, threads, contigs, readStorage, k,
                         dir/"uncompressing");

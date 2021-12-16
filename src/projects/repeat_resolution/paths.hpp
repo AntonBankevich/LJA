@@ -90,79 +90,27 @@ class RRPaths {
     RRPaths &operator=(const RRPaths &) = delete;
     RRPaths &operator=(RRPaths &&) = default;
 
-    void add(RREdgeIndexType left_index, RREdgeIndexType right_index,
+    void Add(RREdgeIndexType left_index, RREdgeIndexType right_index,
              RREdgeIndexType new_index);
 
-    void remove(RREdgeIndexType index);
+    void Remove(RREdgeIndexType index);
 
-    void merge(RREdgeIndexType left_index, RREdgeIndexType right_index);
+    void Merge(RREdgeIndexType left_index, RREdgeIndexType right_index);
 
-    [[nodiscard]] bool contains_pair(const RREdgeIndexType &lhs,
-                                     const RREdgeIndexType &rhs) const;
+    [[nodiscard]] bool ContainsPair(const RREdgeIndexType &lhs,
+                                    const RREdgeIndexType &rhs) const;
 };
 
 class PathsBuilder {
  public:
-    static RRPaths FromPathVector(std::vector<RRPath> path_vec) {
-        EdgeIndex2PosMap edge2pos;
-        EdgeIndexPair2PosMap edgepair2pos;
-        for (RRPath &path : path_vec) {
-            for (auto it = path.edge_list.begin(); it!=path.edge_list.end();
-                 ++it) {
-                edge2pos[*it].emplace(&path, it);
-            }
-
-            // TODO make a normal zip
-            for (auto it2{path.edge_list.begin()}, it1{it2++};
-                 it2!=path.edge_list.end(); ++it1, ++it2) {
-                edgepair2pos[std::make_pair(*it1, *it2)].emplace(&path, it1);
-            }
-        }
-        return {std::move(path_vec), std::move(edge2pos),
-                std::move(edgepair2pos)};
-    }
+    static RRPaths FromPathVector(std::vector<RRPath> path_vec);
 
     static RRPaths
     FromStorages(const std::vector<RecordStorage *> &storages,
-                 const std::unordered_map<std::string, size_t> &edgeid2ind) {
-        std::vector<RRPath> paths;
-        auto path2edge_list = [&edgeid2ind](const dbg::Path &dbg_path) {
-          PathEdgeList edge_list;
-          for (const Edge *p_edge : dbg_path) {
-              RREdgeIndexType edge_i = edgeid2ind.at(p_edge->getId());
-              edge_list.emplace_back(edge_i);
-          }
-          return edge_list;
-        };
-        for (RecordStorage *const storage : storages) {
-            if (storage==nullptr) {
-                continue;
-            }
-            for (const AlignedRead &aligned_read : *storage) {
-                dbg::Path path = aligned_read.path.getPath();
-                if (path.size()==0) {
-                    continue;
-                }
-                paths.push_back({'+' + aligned_read.id, path2edge_list(path)});
-                paths.push_back({'-' + aligned_read.id,
-                                 path2edge_list(path.RC())});
-            }
-        }
-        return FromPathVector(std::move(paths));
-    }
+                 const std::unordered_map<std::string, size_t> &edgeid2ind);
 
     static RRPaths FromDBGStorages(dbg::SparseDBG &dbg,
-                                   const std::vector<RecordStorage *> &storages) {
-        std::unordered_map<std::string, size_t> edgeid2ind;
-        size_t i = 0;
-        for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
-            const Edge &edge = *it;
-            // TODO use it - dbg.edges.begin()
-            edgeid2ind[edge.getId()] = i;
-            ++i;
-        }
-        return PathsBuilder::FromStorages(storages, edgeid2ind);
-    }
+                                   const std::vector<RecordStorage *> &storages);
 };
 
 } // End namespace repeat_resolution

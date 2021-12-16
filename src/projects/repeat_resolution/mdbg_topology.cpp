@@ -47,7 +47,7 @@ bool RRVertexProperty::operator==(const RRVertexProperty &rhs) const {
 
 // ---------- RREdgeProperty ----------
 
-[[nodiscard]] int64_t RREdgeProperty::size() const {
+[[nodiscard]] int64_t RREdgeProperty::Size() const {
     if (not seq.Empty()) {
         VERIFY(size_==seq.Size())
     }
@@ -125,7 +125,7 @@ std::ostream &
 repeat_resolution::operator<<(std::ostream &os,
                               const RREdgeProperty &edge_property) {
     os << "index=" << edge_property.Index() << "\\n"
-       << "size=" << edge_property.size() << "\\n"
+       << "size=" << edge_property.Size() << "\\n"
        << "unique=" << edge_property.IsUnique();
     return os;
 }

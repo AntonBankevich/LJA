@@ -69,7 +69,7 @@ void MultiplexDBG::AssertValidity() const {
         const RRVertexProperty &vertex_prop = node_prop(vertex);
         for (auto it = out_nbr_begin; it!=out_nbr_end; ++it) {
             const RREdgeProperty &edge_prop = it->second.prop();
-            const int64_t inner_edge_size = edge_prop.size();
+            const int64_t inner_edge_size = edge_prop.Size();
             if (inner_edge_size < 0) {
                 const RRVertexProperty &neighbor_prop = node_prop(it->first);
                 VERIFY(vertex_prop.Seq().ToSequence().Suffix(-inner_edge_size)==
@@ -103,7 +103,7 @@ void MultiplexDBG::AssertValidity() const {
             auto[begin, end] = out_neighbors(vertex);
             for (auto it = begin; it!=end; ++it) {
                 const RREdgeProperty &edge_prop = it->second.prop();
-                if (edge_prop.size() > 0) {
+                if (edge_prop.Size() > 0) {
                     seq_edge.emplace(
                         GetEdgeSequence(find(vertex), it, false, false)
                             .ToSequence());
@@ -115,7 +115,7 @@ void MultiplexDBG::AssertValidity() const {
             auto[begin, end] = out_neighbors(vertex);
             for (auto it = begin; it!=end; ++it) {
                 const RREdgeProperty &edge_prop = it->second.prop();
-                if (edge_prop.size() > 0) {
+                if (edge_prop.Size() > 0) {
                     const Sequence seq =
                         GetEdgeSequence(find(vertex), it, false, false)
                             .ToSequence();
@@ -247,7 +247,7 @@ void MultiplexDBG::MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
     RREdgeProperty &e1_prop = e1_it->second.prop();
     RREdgeProperty &e2_prop = e2_it->second.prop();
     const RREdgeIndexType e2_index = e2_prop.Index();
-    rr_paths->merge(e1_prop.Index(), e2_prop.Index());
+    rr_paths->Merge(e1_prop.Index(), e2_prop.Index());
     const RRVertexProperty &v1 = node_prop(s1);
     const RRVertexProperty &v3 = node_prop(e2_it->first);
     e1_prop.Merge(std::move(node_prop(s2)), std::move(e2_prop));
@@ -270,7 +270,7 @@ RREdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
     ++next_edge_index;
 
     RREdgeProperty e_new_prop = Add(vleft_prop, vright_prop, new_index);
-    rr_paths->add(eleft_prop.Index(), eright_prop.Index(), e_new_prop.Index());
+    rr_paths->Add(eleft_prop.Index(), eright_prop.Index(), e_new_prop.Index());
     add_edge_with_prop(vleft, vright, std::move(e_new_prop));
     return new_index;
 }
@@ -450,7 +450,7 @@ size_t MultiplexDBG::FullEdgeSize(ConstIterator st_v_it,
     const RRVertexProperty &st_v_prop = node_prop(st_v_it);
     const RRVertexProperty &en_v_prop = node_prop(en_v);
     const RREdgeProperty &edge_prop = e_it->second.prop();
-    int64_t inner_edge_size = edge_prop.size();
+    int64_t inner_edge_size = edge_prop.Size();
     if (inner_edge_size < 0) {
         VERIFY(st_v_prop.size() >= -inner_edge_size);
         VERIFY(en_v_prop.size() >= -inner_edge_size);
@@ -469,12 +469,12 @@ MDBGSeq MultiplexDBG::ExtractEdgePostStartPrefix(ConstIterator st_v_it,
     VERIFY(len + st_v_prop.size() <= FullEdgeSize(st_v_it, e_it));
 
     uint64_t inner_part_len =
-        std::min(len, (uint64_t) std::max(0L, edge_prop.size()));
+        std::min(len, (uint64_t) std::max(0L, edge_prop.Size()));
     MDBGSeq prefix = edge_prop.ExtractSeqPrefix(inner_part_len);
 
     uint64_t en_v_part_len = len - inner_part_len;
     VERIFY(en_v_part_len <= en_v_prop.size());
-    prefix.Append(en_v_prop.GetSeqPrefix(en_v_part_len, -edge_prop.size()));
+    prefix.Append(en_v_prop.GetSeqPrefix(en_v_part_len, -edge_prop.Size()));
     if (en_v_part_len) {
         edge_prop.ShortenWithEmptySeq(en_v_part_len);
     }
@@ -494,10 +494,10 @@ MDBGSeq MultiplexDBG::ExtractEdgePreEndSuffix(ConstIterator en_v_it,
     VERIFY(len + en_v_prop.size() <= full_edge_size);
 
     uint64_t inner_part_len =
-        std::min(len, (uint64_t) std::max(0L, edge_prop.size()));
+        std::min(len, (uint64_t) std::max(0L, edge_prop.Size()));
     uint64_t st_v_part_len = len - inner_part_len;
     VERIFY(st_v_part_len <= st_v_prop.size());
-    MDBGSeq suffix = st_v_prop.GetSeqSuffix(st_v_part_len, -edge_prop.size());
+    MDBGSeq suffix = st_v_prop.GetSeqSuffix(st_v_part_len, -edge_prop.Size());
     suffix.Append(edge_prop.ExtractSeqSuffix(inner_part_len));
     if (st_v_part_len) {
         edge_prop.ShortenWithEmptySeq(st_v_part_len);
@@ -545,7 +545,7 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
           EdgeNeighborMap ac_s2e, ac_e2s;
           for (const RREdgeIndexType &in_ind : in_edges) {
               for (const RREdgeIndexType &out_ind : out_edges) {
-                  if (rr_paths->contains_pair(in_ind, out_ind)) {
+                  if (rr_paths->ContainsPair(in_ind, out_ind)) {
                       ac_s2e[in_ind].emplace(out_ind);
                       ac_e2s[out_ind].emplace(in_ind);
                   }
@@ -674,7 +674,7 @@ MultiplexDBG::FindOutEdgeConstiterator(const RRVertexType &v,
 
 int64_t MultiplexDBG::GetInnerEdgeSize(ConstIterator vertex,
                                        NeighborsConstIterator e_it) const {
-    return e_it->second.prop().size();
+    return e_it->second.prop().Size();
 }
 
 MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
@@ -684,19 +684,19 @@ MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
     const RRVertexProperty &neighbor_prop = node_prop(e_it->first);
     const RREdgeProperty &edge_prop = e_it->second.prop();
 
-    if (edge_prop.size() < 0) {
+    if (edge_prop.Size() < 0) {
         if (trim_left and trim_right) {
             return {};
         }
 
         MDBGSeq neighbor_seq = neighbor_prop.Seq();
         if (trim_left) {
-            neighbor_seq.TrimLeft(-edge_prop.size());
+            neighbor_seq.TrimLeft(-edge_prop.Size());
             return neighbor_seq;
         }
 
         MDBGSeq vertex_seq = vertex_prop.Seq();
-        vertex_seq.TrimRight(-edge_prop.size());
+        vertex_seq.TrimRight(-edge_prop.Size());
         if (not trim_right) {
             vertex_seq.Append(neighbor_seq);
         }

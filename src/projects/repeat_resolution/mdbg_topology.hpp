@@ -74,7 +74,7 @@ class RREdgeProperty {
     RREdgeProperty &operator=(const RREdgeProperty &) = delete;
     RREdgeProperty &operator=(RREdgeProperty &&) = default;
 
-    [[nodiscard]] int64_t size() const;
+    [[nodiscard]] int64_t Size() const;
 
     [[nodiscard]] bool IsCanonical() const;
     [[nodiscard]] bool IsUnique() const { return unique; }

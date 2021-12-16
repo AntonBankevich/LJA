@@ -56,7 +56,7 @@ class RepeatResolver {
         }
     }
 
-    std::vector<Contig> resolve_repeats(logging::Logger &logger) {
+    std::vector<Contig> ResolveRepeats(logging::Logger &logger) {
         logger.info() << "Resolving repeats" << std::endl;
         logger.info() << "Constructing paths" << std::endl;
         RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());

@@ -58,7 +58,7 @@ TEST(RRPathsTest, Basic) {
         }
     }
 
-    paths.remove(2);
+    paths.Remove(2);
     paths.assert_validity();
     {
         std::vector<RRPath> path_vector_ref;
@@ -93,7 +93,7 @@ TEST(RRPathsTest, Basic) {
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
-    paths.add(1, 3, 2);
+    paths.Add(1, 3, 2);
     paths.assert_validity();
     {
         std::vector<RRPath> path_vector_ref;
@@ -129,7 +129,7 @@ TEST(RRPathsTest, Basic) {
         }
     }
 
-    paths.merge(4, 5);
+    paths.Merge(4, 5);
     paths.assert_validity();
     {
         std::vector<RRPath> path_vector_ref;
@@ -172,5 +172,5 @@ TEST(RRPathsTest, MergeIterDereference) {
     _path_vector.emplace_back(RRPath{"1", std::list<size_t>{2, 3}});
 
     RRPaths paths = PathsBuilder::FromPathVector(_path_vector);
-    paths.merge(1, 2);
+    paths.Merge(1, 2);
 }
