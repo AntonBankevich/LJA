@@ -16,73 +16,77 @@
 namespace repeat_resolution {
 
 class RepeatResolver {
-  dbg::SparseDBG &dbg;
-  RecordStorage *reads_storage;
-  std::vector<RecordStorage *> extra_storages{};
-  std::uint64_t start_k{1};
-  std::uint64_t saturating_k{1};
-  std::experimental::filesystem::path dir;
-  uint64_t unique_threshold{0};
-  bool diploid{false};
-  bool debug{false};
-  UniqueClassificator classificator;
+    dbg::SparseDBG &dbg;
+    RecordStorage *reads_storage;
+    std::vector<RecordStorage *> extra_storages{};
+    std::uint64_t start_k{1};
+    std::uint64_t saturating_k{1};
+    std::experimental::filesystem::path dir;
+    uint64_t unique_threshold{0};
+    bool diploid{false};
+    bool debug{false};
+    UniqueClassificator classificator;
 
-  [[nodiscard]] std::vector<RecordStorage *> get_storages() const {
-    std::vector<RecordStorage *> storages = extra_storages;
-    storages.push_back(reads_storage);
-    return storages;
-  }
-
-public:
-  RepeatResolver(dbg::SparseDBG &dbg, RecordStorage *reads_storage,
-                 std::vector<RecordStorage *> extra_storages, uint64_t start_k,
-                 uint64_t saturating_k,
-                 const std::experimental::filesystem::path &dir,
-                 uint64_t unique_threshold, bool diploid, bool debug,
-                 logging::Logger &logger)
-      : dbg{dbg}, reads_storage{std::move(reads_storage)},
-        extra_storages{std::move(extra_storages)}, start_k{start_k},
-        saturating_k{saturating_k}, dir{std::move(dir)},
-        unique_threshold{unique_threshold}, diploid{diploid}, debug{debug},
-        classificator{dbg, *(this->reads_storage), diploid, debug} {
-    std::experimental::filesystem::create_directory(this->dir);
-    classificator.classify(logger, unique_threshold, dir / "mult_dir");
-    for (RecordStorage *const storage : get_storages()) {
-      storage->invalidateSubreads(logger, 1);
+    [[nodiscard]] std::vector<RecordStorage *> get_storages() const {
+        std::vector<RecordStorage *> storages = extra_storages;
+        storages.push_back(reads_storage);
+        return storages;
     }
-  }
 
-  std::vector<Contig> resolve_repeats(logging::Logger &logger) {
-    logger.info() << "Resolving repeats" << std::endl;
-    logger.info() << "Constructing paths" << std::endl;
-    RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
-
-    logger.info() << "Building graph" << std::endl;
-    MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
-    if (debug) {
-      logger.trace() << "Checking validity of graph" << std::endl;
-      mdbg.AssertValidity();
-      logger.trace() << "Graph has passed validity check" << std::endl;
+ public:
+    RepeatResolver(dbg::SparseDBG &dbg,
+                   RecordStorage *reads_storage,
+                   std::vector<RecordStorage *> extra_storages,
+                   uint64_t start_k,
+                   uint64_t saturating_k,
+                   const std::experimental::filesystem::path &dir,
+                   uint64_t unique_threshold,
+                   bool diploid,
+                   bool debug,
+                   logging::Logger &logger)
+        : dbg{dbg}, reads_storage{std::move(reads_storage)},
+          extra_storages{std::move(extra_storages)}, start_k{start_k},
+          saturating_k{saturating_k}, dir{std::move(dir)},
+          unique_threshold{unique_threshold}, diploid{diploid}, debug{debug},
+          classificator{dbg, *(this->reads_storage), diploid, debug} {
+        std::experimental::filesystem::create_directory(this->dir);
+        classificator.classify(logger, unique_threshold, dir/"mult_dir");
+        for (RecordStorage *const storage : get_storages()) {
+            storage->invalidateSubreads(logger, 1);
+        }
     }
-    logger.info() << "Export to dot" << std::endl;
-    mdbg.ExportToDot(dir / "init_graph.dot");
-    logger.info() << "Export to GFA" << std::endl;
-    mdbg.ExportToGFA(dir / "resolved_graph.gfa");
 
-    logger.info() << "Increasing k" << std::endl;
-    MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};
-    k_increaser.IncreaseUntilSaturation(mdbg, true);
-    logger.info() << "Finished increasing k" << std::endl;
+    std::vector<Contig> resolve_repeats(logging::Logger &logger) {
+        logger.info() << "Resolving repeats" << std::endl;
+        logger.info() << "Constructing paths" << std::endl;
+        RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
 
-    logger.info() << "Export to Dot" << std::endl;
-    mdbg.ExportToDot(dir / "resolved_graph.dot");
-    logger.info() << "Export to GFA and compressed contigs" << std::endl;
-    std::vector<Contig> contigs = mdbg.ExportContigsAndGFA(
-        dir / "compressed.fasta", dir / "resolved_graph.gfa");
+        logger.info() << "Building graph" << std::endl;
+        MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
+        if (debug) {
+            logger.trace() << "Checking validity of graph" << std::endl;
+            mdbg.AssertValidity();
+            logger.trace() << "Graph has passed validity check" << std::endl;
+        }
+        logger.info() << "Export to dot" << std::endl;
+        mdbg.ExportToDot(dir/"init_graph.dot");
+        logger.info() << "Export to GFA" << std::endl;
+        mdbg.ExportToGFA(dir/"resolved_graph.gfa");
 
-    logger.info() << "Finished repeat resolution" << std::endl;
-    return contigs;
-  }
+        logger.info() << "Increasing k" << std::endl;
+        MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};
+        k_increaser.IncreaseUntilSaturation(mdbg, true);
+        logger.info() << "Finished increasing k" << std::endl;
+
+        logger.info() << "Export to Dot" << std::endl;
+        mdbg.ExportToDot(dir/"resolved_graph.dot");
+        logger.info() << "Export to GFA and compressed contigs" << std::endl;
+        std::vector<Contig> contigs = mdbg.ExportContigsAndGFA(
+            dir/"compressed.fasta", dir/"resolved_graph.gfa");
+
+        logger.info() << "Finished repeat resolution" << std::endl;
+        return contigs;
+    }
 };
 
 } // End namespace repeat_resolution
