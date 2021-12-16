@@ -475,7 +475,7 @@ void PrintAlignments(logging::Logger &logger, size_t threads, std::vector<Contig
     }
     std::vector<std::pair<size_t, std::pair<RawSeg, Segment<Contig>>>> final = result.collect();
     __gnu_parallel::sort(final.begin(), final.end());
-    logger.info() << "Finished alignment. Printing alignments to " << (dir/"alignments.txt") << std::endl;
+    logger.info() << "Finished alignment. Printing alignments to " << dir << std::endl;
     std::ofstream os;
     os.open(dir/"good_alignments.txt");
     std::ofstream os_bad;
