@@ -1,7 +1,7 @@
 project(debruijn)
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(lja lja.cpp subdataset_processing.cpp)
+add_executable(lja lja.cpp subdataset_processing.cpp gap_closing.cpp uncompressed_output.cpp)
 target_link_libraries(lja lja_ec lja_dbg lja_homopolish lja_common lja_sequence m)
 
 add_executable(jumboDBG dbg.cpp subdataset_processing.cpp)

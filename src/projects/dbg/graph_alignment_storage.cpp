@@ -1,5 +1,6 @@
 #include "graph_alignment_storage.hpp"
 
+using namespace dbg;
 void AlignedRead::correct(CompactPath &&cpath) {
     VERIFY_MSG(!corrected_path.valid(), "Attempt to correct path while previous correction was not yet applied");
     corrected_path = std::move(cpath);
@@ -296,8 +297,8 @@ void RecordStorage::processPath(const CompactPath &cpath, const std::function<vo
 
 //TODO Remove threads parameter
 RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
-                             ReadLogger &readLogger, bool _track_cov, bool log_changes) :
-        min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(&readLogger), log_changes(log_changes) {
+                             ReadLogger &readLogger, bool _track_cov, bool log_changes, bool track_suffixes) :
+        min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(&readLogger), log_changes(log_changes), track_suffixes(track_suffixes) {
     for(auto &it : dbg) {
         data.emplace(&it.second, VertexRecord(it.second));
         data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
@@ -305,14 +306,18 @@ RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, s
 }
 
 std::function<std::string(Edge &)> RecordStorage::labeler() const {
-    return [this](Edge &edge) {
-        const VertexRecord &rec = getRecord(*edge.start());
-        std::stringstream ss;
-        for (const auto &ext : rec) {
-            if (ext.first[0] == edge.seq[0])
-                ss << ext.first << "(" << ext.second << ")\\n";
-        }
-        return ss.str();
+    if(track_suffixes)
+        return [this](Edge &edge) {
+            const VertexRecord &rec = getRecord(*edge.start());
+            std::stringstream ss;
+            for (const auto &ext : rec) {
+                if (ext.first[0] == edge.seq[0])
+                    ss << ext.first << "(" << ext.second << ")\\n";
+            }
+            return ss.str();
+        };
+    else return [](Edge &) {
+        return "";
     };
 }
 
@@ -325,8 +330,10 @@ void RecordStorage::addRead(AlignedRead &&read) {
 void RecordStorage::invalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
     if(log_changes)
         readLogger->logInvalidate(read, message);
-    removeSubpath(read.path);
-    removeSubpath(read.path.RC());
+    if(track_cov) {
+        removeSubpath(read.path);
+        removeSubpath(read.path.RC());
+    }
     read.invalidate();
 }
 
@@ -360,12 +367,26 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const
     logger.info() << "Uncorrected reads were removed." << std::endl;
 }
 
+void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) {
+    for(AlignedRead &alignedRead : reads) {
+        const VertexRecord &rec = this->getRecord(alignedRead.path.start());
+        size_t cnt = rec.countStartsWith(alignedRead.path.cpath());
+        VERIFY_MSG(cnt >= 1, "This function assumes that suffixes are stored for complete reads")
+        if(rec.countStartsWith(alignedRead.path.cpath()) >= 2) {
+            invalidateRead(alignedRead, "Subread");
+        }
+    }
+    logger.info() << "Uncorrected reads were removed." << std::endl;
+}
+
 void RecordStorage::addSubpath(const CompactPath &cpath) {
     if(!cpath.valid())
         return;
-    std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
-        data.find(&v)->second.addPath(s);
-    };
+    std::function<void(Vertex &, const Sequence &)> vertex_task = [](Vertex &v, const Sequence &s) {};
+    if(track_suffixes)
+        vertex_task = [this](Vertex &v, const Sequence &s) {
+            data.find(&v)->second.addPath(s);
+        };
     std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
     if(track_cov)
         edge_task = [](Segment<Edge> seg){
@@ -377,9 +398,11 @@ void RecordStorage::addSubpath(const CompactPath &cpath) {
 void RecordStorage::removeSubpath(const CompactPath &cpath) {
     if(!cpath.valid())
         return;
-    std::function<void(Vertex &, const Sequence &)> vertex_task = [this](Vertex &v, const Sequence &s) {
-        data.find(&v)->second.removePath(s);
-    };
+    std::function<void(Vertex &, const Sequence &)> vertex_task = [](Vertex &v, const Sequence &s) {};
+    if(track_suffixes)
+        vertex_task = [this](Vertex &v, const Sequence &s) {
+            data.find(&v)->second.removePath(s);
+        };
     std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
     if(track_cov)
         edge_task = [](Segment<Edge> seg) {
@@ -425,7 +448,7 @@ void RecordStorage::applyCorrections(logging::Logger &logger, size_t threads) {
         logger.info() << "Applied correction to " << cnt.get() << " reads" << std::endl;
 }
 
-void RecordStorage::printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
+void RecordStorage::printReadAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
     logger.info() << "Printing read to graph alignenments to file " << path << std::endl;
     std::string acgt = "ACGT";
     std::ofstream os;
@@ -443,7 +466,7 @@ void RecordStorage::printAlignments(logging::Logger &logger, const std::experime
     os.close();
 }
 
-void RecordStorage::printFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
+void RecordStorage::printReadFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const {
     logger.info() << "Printing reads to fasta file " << path << std::endl;
     std::string acgt = "ACGT";
     std::ofstream os;
@@ -472,18 +495,50 @@ void RecordStorage::printFullAlignments(logging::Logger &logger, const std::expe
     os.close();
 }
 
-void RecordStorage::updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension) {
-    logger << "Updating stored read subpaths size" << std::endl;
-    for(auto &it : this->data) {
-        it.second.clear();
+//void RecordStorage::updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension) {
+//    logger << "Updating stored read subpaths size" << std::endl;
+//    for(auto &it : this->data) {
+//        it.second.clear();
+//    }
+//    this->max_len = new_max_extension;
+//    bool tmp_track_cov = track_cov;
+//    track_cov = false;
+//#pragma omp parallel for default(none) schedule(dynamic, 100)
+//    for(size_t i = 0; i < size(); i++) {
+//        addSubpath(reads[i].path);
+//        addSubpath(reads[i].path.RC());
+//    }
+//    track_cov = tmp_track_cov;
+//}
+
+const VertexRecord &RecordStorage::getRecord(const Vertex &v) const {
+    VERIFY(track_suffixes);
+    return data.find(&v)->second;
+}
+
+void RecordStorage::trackSuffixes(logging::Logger &logger, size_t threads) {
+    logger.info() << "Collecting and storing read suffixes" << std::endl;
+    VERIFY(!track_suffixes);
+    track_suffixes = true;
+    omp_set_num_threads(threads);
+    std::function<void(Vertex &, const Sequence &)> vertex_task  = [this](Vertex &v, const Sequence &s) {
+        data.find(&v)->second.addPath(s);
+    };
+    std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
+#pragma omp parallel for default(none) shared(vertex_task, edge_task)
+    for(size_t i = 0; i < reads.size(); i++) {
+        if(reads[i].valid()) {
+            processPath(reads[i].path, vertex_task, edge_task);
+            processPath(reads[i].path.RC(), vertex_task, edge_task);
+        }
     }
-    this->max_len = new_max_extension;
-    bool tmp_track_cov = track_cov;
-    track_cov = false;
-#pragma omp parallel for default(none) schedule(dynamic, 100)
-    for(size_t i = 0; i < size(); i++) {
-        addSubpath(reads[i].path);
-        addSubpath(reads[i].path.RC());
+}
+
+void RecordStorage::untrackSuffixes() {
+    if(track_suffixes) {
+        track_suffixes = false;
+        for (auto &it: this->data) {
+            it.second.clear();
+        }
     }
-    track_cov = tmp_track_cov;
 }

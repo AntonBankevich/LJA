@@ -1,6 +1,6 @@
 #include "diploidy_analysis.hpp"
 #include "multiplicity_estimation.hpp"
-
+using namespace dbg;
 size_t BoundRecord::inf = 1000000000000ul;
 
 MappedNetwork::MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique,

@@ -35,7 +35,7 @@ public:
 
     void parseCL(int argc, char **argv);
 
-    std::string check() {
+    std::string check(size_t start_size = 0) {
         for(const auto & key : values) {
             if (key.second.empty()) {
                 return key.first + " missing";
@@ -46,6 +46,9 @@ public:
         }
         if(!extra.empty()) {
             return "Unknown parameter(s): " + join(" ", extra);
+        }
+        if(start.size() > start_size + 1) {
+            return "Unknown parameter(s): " + start.back();
         }
         return "";
     }

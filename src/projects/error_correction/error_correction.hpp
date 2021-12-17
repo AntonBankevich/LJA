@@ -24,14 +24,14 @@ namespace error_correction {
     struct  State {
         State() = default;
 
-        State(size_t lastMatch, size_t diff, Vertex *graphPosition, bool match) : last_match(lastMatch),
+        State(size_t lastMatch, size_t diff, dbg::Vertex *graphPosition, bool match) : last_match(lastMatch),
                                                                                          diff(diff),
                                                                                          graph_position(graphPosition),
                                                                                          match(match) {}
 
         size_t last_match;
         size_t diff;
-        Vertex *graph_position;
+        dbg::Vertex *graph_position;
         bool match;
 
         bool operator==(const State &other) const {
@@ -63,10 +63,10 @@ namespace std {
 namespace error_correction {
 
     struct ResRecord {
-        ResRecord(ResRecord *prev, Edge *lastEdge, bool goodmatch) :
+        ResRecord(ResRecord *prev, dbg::Edge *lastEdge, bool goodmatch) :
                     prev(prev), last_edge(lastEdge), good_match(goodmatch) {}
         ResRecord *prev;
-        Edge *last_edge;
+        dbg::Edge *last_edge;
         bool good_match;
     };
 
@@ -85,12 +85,12 @@ namespace error_correction {
     };
 
     struct CorrectionResult {
-        CorrectionResult(const Path &path, size_t score, size_t iterations) : path(path),
+        CorrectionResult(const dbg::Path &path, size_t score, size_t iterations) : path(path),
                                                                                                   score(score),
                                                                                                   iterations(
                                                                                                           iterations) {}
 
-        Path path;
+        dbg::Path path;
         size_t score;
         size_t iterations;
     };
@@ -106,7 +106,7 @@ namespace error_correction {
         size_t high_coverage_penalty = 50;
         size_t match_to_freeze = 100;
 
-        size_t scoreMatchingEdge(const Edge &edge) const {
+        size_t scoreMatchingEdge(const dbg::Edge &edge) const {
             if (edge.getCoverage() <= very_bad_coverage) {
                 return very_bad_covereage_penalty * edge.size();
             } else if (edge.getCoverage() < cov_threshold) {
@@ -116,7 +116,7 @@ namespace error_correction {
             }
         }
 
-        size_t scoreAlternativeEdge(const Edge &edge) const {
+        size_t scoreAlternativeEdge(const dbg::Edge &edge) const {
             if (edge.getCoverage() <= very_bad_coverage) {
                 return (very_bad_covereage_penalty + alternative_penalty) * edge.size();
             } else if (edge.getCoverage() < cov_threshold) {
@@ -127,7 +127,7 @@ namespace error_correction {
         }
 
 
-        size_t scoreRemovedEdge(const Edge &edge) const {
+        size_t scoreRemovedEdge(const dbg::Edge &edge) const {
             if (edge.getCoverage() > cov_threshold) {
                 return high_coverage_penalty * edge.size();
             } else {
@@ -136,7 +136,7 @@ namespace error_correction {
         }
     };
 
-    std::vector<Edge*> restoreResult(const std::unordered_map<State, ResRecord> stateMap,
+    std::vector<dbg::Edge*> restoreResult(const std::unordered_map<State, ResRecord> stateMap,
             ResRecord *resRecord) {
         std::vector<Edge*> res;
         while(resRecord->prev != nullptr) {
@@ -187,7 +187,7 @@ namespace error_correction {
 //            std::cout << "Finished fail " << (size_t(-1) >> 1u) << std::endl;
             return {initial_path, size_t(-1) >> 1u, size_t(-1) >> 1u};
         }
-        Path path = initial_path.subPath(from, to);
+        dbg::Path path = initial_path.subPath(from, to);
         std::priority_queue<ScoredState> queue;
         queue.emplace(State(0, 0, &path.start(), true), ResRecord(nullptr, nullptr, false), 0);
         std::unordered_map<State, ResRecord> res;
@@ -199,7 +199,7 @@ namespace error_correction {
             if(next.state.last_match == path.size()) {
                 VERIFY(next.state.match);
 //                std::cout << "Finished " << next.score << " " << cnt << std::endl;
-                return {Path(path.start(), restoreResult(res, &next.resRecord)), next.score, cnt};
+                return {dbg::Path(path.start(), restoreResult(res, &next.resRecord)), next.score, cnt};
             }
 //            std::cout<< "New state " << next.state << " " << next.score << " " << next.state.graph_position->outDeg();
 //            for(size_t i = 0; i < next.state.graph_position->outDeg(); i++) {
@@ -261,7 +261,7 @@ namespace error_correction {
                 }
             }
             for(size_t i = 0; i < next.state.graph_position->outDeg(); i++) {
-                Edge &edge = next.state.graph_position->operator[](i);
+                dbg::Edge &edge = next.state.graph_position->operator[](i);
                 if (!next.state.match || edge.seq != path[next.state.last_match].seq) {
                     queue.emplace(State(next.state.last_match, next.state.diff + edge.size(), edge.end(), false),
                                   ResRecord(&prev, &edge, false),
@@ -301,7 +301,7 @@ namespace error_correction {
         std::function<void(size_t, ContigType &)> task = [&sdbg, &times, &scores, min_read_size, &result,  &bad_reads](size_t num, ContigType & contig) {
             Sequence seq = contig.makeSequence();
             if(seq.size() >= min_read_size) {
-                Path path = GraphAligner(sdbg).align(seq).path();
+                dbg::Path path = GraphAligner(sdbg).align(seq).path();
                 CorrectionResult res = correct(path);
                 times.emplace_back(res.iterations);
                 scores.emplace_back(res.score);

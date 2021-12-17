@@ -1,4 +1,5 @@
 #include "dimer_correction.hpp"
+using namespace dbg;
 
 std::vector<std::pair<size_t, size_t>> code(const GraphAlignment &al) {
     if(al.size() == 0)

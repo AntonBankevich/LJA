@@ -2,6 +2,7 @@
 #include "dbg_construction.hpp"
 
 using namespace hashing;
+using namespace dbg;
 std::vector<hashing::htype>
 findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs, const hashing::RollingHash &hasher,
               size_t threads) {
@@ -80,8 +81,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     return res;
 }
 
-SparseDBG
-constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertices, const std::vector<Sequence> &disjointigs,
+SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertices, const std::vector<Sequence> &disjointigs,
              const RollingHash &hasher, size_t threads) {
     logger.info() << "Starting DBG construction." << std::endl;
     SparseDBG dbg(vertices.begin(), vertices.end(), hasher);

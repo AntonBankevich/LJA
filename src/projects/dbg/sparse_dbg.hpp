@@ -26,6 +26,7 @@ namespace dbg {
         Vertex *start_;
         Vertex *end_;
         mutable size_t cov;
+        static Edge _fake;
     public:
         mutable size_t extraInfo;
         Sequence seq;
@@ -35,6 +36,7 @@ namespace dbg {
         Edge(Vertex *_start, Vertex *_end, const Sequence &_seq) :
                 start_(_start), end_(_end), cov(0), extraInfo(-1), seq(_seq) {
         }
+        static Edge &fake() {return _fake;}
         std::string getId() const;
         std::string oldId() const;
         std::string getShortId() const;
@@ -173,6 +175,7 @@ namespace dbg {
 
         SparseDBG Subgraph(std::vector<Segment<Edge>> &pieces);
         SparseDBG SplitGraph(const std::vector<EdgePosition> &breaks);
+        SparseDBG AddNewSequences(logging::Logger &logger, size_t threads, const std::vector<Sequence> &new_seqs);
 
         const hashing::RollingHash &hasher() const {return hasher_;}
         bool containsVertex(const hashing::htype &hash) const {return v.find(hash) != v.end();}
@@ -187,11 +190,13 @@ namespace dbg {
         size_t size() const {return v.size();}
 
         void checkConsistency(size_t threads, logging::Logger &logger);
+        void checkDBGConsistency(size_t threads, logging::Logger &logger);
         void checkSeqFilled(size_t threads, logging::Logger &logger);
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads);
         void fillAnchors(size_t w, logging::Logger &logger, size_t threads, const std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> &to_add);
         void processRead(const Sequence &seq);
         void processEdge(Vertex &vertex, Sequence old_seq);
+        void processEdge(Edge &other_graph_edge);
         Vertex &bindTip(Vertex &start, Edge &tip);
         void removeIsolated();
         void removeMarked();
