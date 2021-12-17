@@ -57,7 +57,7 @@ class RepeatResolver {
 //        }
     }
 
-    std::vector<Contig> ResolveRepeats(logging::Logger &logger) {
+    void ResolveRepeats(logging::Logger &logger) {
         logger.info() << "Resolving repeats" << std::endl;
         logger.info() << "Constructing paths" << std::endl;
         RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
@@ -69,10 +69,10 @@ class RepeatResolver {
             mdbg.AssertValidity();
             logger.trace() << "Graph has passed validity check" << std::endl;
         }
-        logger.info() << "Export to dot" << std::endl;
-        mdbg.ExportToDot(dir/"init_graph.dot");
-        logger.info() << "Export to GFA" << std::endl;
-        mdbg.ExportToGFA(dir/"resolved_graph.gfa");
+        // logger.info() << "Export to dot" << std::endl;
+        // mdbg.ExportToDot(dir/"init_graph.dot");
+        // logger.info() << "Export to GFA" << std::endl;
+        // mdbg.ExportToGFA(dir/"init_graph.gfa");
 
         logger.info() << "Increasing k" << std::endl;
         MultiplexDBGIncreaser k_increaser{start_k, saturating_k, logger, debug};
@@ -80,13 +80,12 @@ class RepeatResolver {
         logger.info() << "Finished increasing k" << std::endl;
 
         logger.info() << "Export to Dot" << std::endl;
-        mdbg.ExportToDot(dir/"resolved_graph.dot");
+        mdbg.ExportToDot(dir/"mdbg.hpc.dot");
         logger.info() << "Export to GFA and compressed contigs" << std::endl;
         std::vector<Contig> contigs = mdbg.ExportContigsAndGFA(
-            dir/"compressed.fasta", dir/"resolved_graph.gfa");
+            dir/"mdbg.hpc.fasta", dir/"mdbg.hpc.gfa");
 
         logger.info() << "Finished repeat resolution" << std::endl;
-        return contigs;
     }
 };
 

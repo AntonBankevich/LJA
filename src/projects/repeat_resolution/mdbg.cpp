@@ -11,7 +11,7 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
     const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg]() {
       std::unordered_map<std::string, uint64_t> vert2ind;
       uint64_t cnt;
-      for (const Vertex &vertex : dbg.vertices()) {
+      for (const dbg::Vertex &vertex : dbg.vertices()) {
           const std::string &id = vertex.getId();
           vert2ind.emplace(id, cnt);
           ++cnt;
@@ -21,7 +21,7 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
 
     std::vector<SuccinctEdgeInfo> edge_info;
     for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
-        const Edge &edge = *it;
+        const dbg::Edge &edge = *it;
         const RRVertexType start_ind = vert2ind.at(edge.start()->getId());
         const RRVertexType end_ind = vert2ind.at(edge.end()->getId());
         edge_info.push_back(
@@ -288,7 +288,7 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
                            bool contains_rc)
     : rr_paths{rr_paths}, start_k{start_k}, contains_rc{contains_rc} {
     for (const SuccinctEdgeInfo &edge_info : edges) {
-        const Edge *edge = edge_info.edge;
+        const dbg::Edge *edge = edge_info.edge;
         next_vert_index = std::max(next_vert_index, 1 + edge_info.start_ind);
         next_vert_index = std::max(next_vert_index, 1 + edge_info.end_ind);
         add_node_with_prop(edge_info.start_ind,
@@ -716,7 +716,7 @@ MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
 }
 
 std::vector<Contig>
-MultiplexDBG::GetContigs(int64_t min_inner_edge_size) const {
+MultiplexDBG::GetContigs() const {
     const std::unordered_map<RREdgeIndexType, Sequence>
         edge_seqs = GetEdgeSeqs();
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
@@ -730,8 +730,7 @@ MultiplexDBG::GetContigs(int64_t min_inner_edge_size) const {
     std::unordered_map<RREdgeIndexType, bool> edge_can =
         AreSeqsCanonical<RREdgeIndexType>(edge_seqs);
 
-    return GetContigs(vertex_seqs, edge_seqs, vertex2rc, vertex_can, edge_can,
-                      min_inner_edge_size);
+    return GetContigs(vertex_seqs, edge_seqs, vertex2rc, vertex_can, edge_can);
 }
 
 [[nodiscard]] std::vector<Contig> MultiplexDBG::GetContigs(
@@ -739,8 +738,7 @@ MultiplexDBG::GetContigs(int64_t min_inner_edge_size) const {
     const std::unordered_map<RREdgeIndexType, Sequence> &edge_seqs,
     const std::unordered_map<RRVertexType, RRVertexType> &vertex2rc,
     const std::unordered_map<RRVertexType, bool> &vertex_can,
-    const std::unordered_map<RREdgeIndexType, bool> &edge_can,
-    const int64_t min_inner_edge_size) const {
+    const std::unordered_map<RREdgeIndexType, bool> &edge_can) const {
 
     const std::unordered_map<RRVertexType, bool> trim = [this, &vertex_can,
         &vertex2rc]() {
@@ -764,8 +762,7 @@ MultiplexDBG::GetContigs(int64_t min_inner_edge_size) const {
         for (auto it = out_begin; it!=out_end; ++it) {
             const RREdgeProperty &e_prop = it->second.prop();
             const RREdgeIndexType e_ind = e_prop.Index();
-            if (edge_can.at(it->second.prop().Index()) and
-                GetInnerEdgeSize(vertex_it, it) >= min_inner_edge_size) {
+            if (edge_can.at(it->second.prop().Index())) {
 
                 Sequence edge_str = edge_seqs.at(e_ind);
                 uint64_t left = 0;
@@ -775,6 +772,9 @@ MultiplexDBG::GetContigs(int64_t min_inner_edge_size) const {
                 uint64_t right = edge_str.size();
                 if (not trim.at(it->first)) {
                     right -= node_prop(it->first).size();
+                }
+                if (left >= right) {
+                    continue;
                 }
                 edge_str = edge_str.Subseq(left, right);
                 contigs.emplace_back(std::move(edge_str),

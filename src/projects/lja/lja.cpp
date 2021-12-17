@@ -5,30 +5,19 @@
 #include "polishing/perfect_alignment.hpp"
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/mitochondria_rescue.hpp"
-#include "common/cl_parser.hpp"
-#include "common/dir_utils.hpp"
-#include "common/logging.hpp"
-#include "common/rolling_hash.hpp"
-#include "dbg/dbg_construction.hpp"
 #include "error_correction/initial_correction.hpp"
 #include "error_correction/manyk_correction.hpp"
-#include "error_correction/mitochondria_rescue.hpp"
-#include "error_correction/mult_correction.hpp"
-#include "gap_closing.hpp"
-#include "multi_graph.hpp"
 #include "repeat_resolution/repeat_resolution.hpp"
 #include "error_correction/precorrection.hpp"
 #include "sequences/seqio.hpp"
-#include "subdataset_processing.hpp"
-#include <error_correction/dimer_correction.hpp>
-#include <iostream>
-#include <polishing/homopolish.hpp>
-#include <queue>
+#include "dbg/dbg_construction.hpp"
+#include "common/rolling_hash.hpp"
+#include "common/dir_utils.hpp"
+#include "common/cl_parser.hpp"
+#include "common/logging.hpp"
 #include <wait.h>
 #include <error_correction/dimer_correction.hpp>
 #include <polishing/homopolish.hpp>
-#include "common/rolling_hash.hpp"
-#include <utility>
 #include <ksw2/ksw_wrapper.hpp>
 
 using namespace dbg;
@@ -203,12 +192,8 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
             PrintPaths(logger, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
             DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
         }
-        std::function<bool(const dbg::Edge &)> is_unique =
-            [unique_threshold](const Edge &edge) {
-              return edge.size() > unique_threshold;
-            };
-        dbg.printFastaOld(dir/"final_graph.fasta");
-        printDot(dir/"final_dbg.dot", Component(dbg), readStorage.labeler());
+        dbg.printFastaOld(dir / "final_dbg.fasta");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         printGFA(dir / "final_dbg.gfa", Component(dbg), true);
 
         repeat_resolution::RepeatResolver rr(
@@ -217,25 +202,22 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
             {&extra_reads},
             k,
             kmdbg,
-            dir/"repeat_resolution",
+            dir,
             unique_threshold,
             diploid,
             debug,
             logger);
-        std::vector<Contig> contigs = rr.ResolveRepeats(logger);
+        rr.ResolveRepeats(logger);
 
-        // PrintAlignments(logger, threads, contigs, readStorage, k,
-        //                dir/"uncompressing");
-        readStorage.printReadFasta(logger, dir/"corrected_reads.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     };
     if(!skip)
         runInFork(ic_task);
     std::experimental::filesystem::path res;
-    res = dir/"corrected_reads.fasta";
+    res = dir / "corrected_reads.fasta";
     logger.info() << "Second phase results with k = " << k << " printed to "
                   << res << std::endl;
-    return {res,
-            dir/"repeat_resolution"/"resolved_graph.gfa"};
+    return {res, dir / "mdbg.hpc.gfa"};
 }
 
 std::vector<std::experimental::filesystem::path> PolishingPhase(
@@ -298,8 +280,7 @@ int main(int argc, char **argv) {
                      "debug",
                      "help"},
                     {"reads", "paths", "ref"},
-                    {"o=output-dir", "t=threads", "k=k-mer-size", "w=window",
-                     "K=K-mer-size", "W=Window", "h=help"},
+                    {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window", "h=help"},
                     constructMessage());
     parser.parseCL(argc, argv);
     if (parser.getCheck("help")) {
@@ -366,11 +347,10 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path executable(argv[0]);
     std::experimental::filesystem::path py_path = executable.parent_path() / "run_rr.py";
     logger.trace() << "py_path set to " << py_path.string() << std::endl;
-    std::vector<std::experimental::filesystem::path> corrected2 = SecondPhase(
-        logger, dir/("k" + itos(K)), {corrected1.first}, {corrected1.second},
-        paths, threads, K, W, KmDBG, Threshold, Reliable_coverage,
-        unique_threshold, py_path, diplod, skip, debug, load);
-    if (first_stage=="phase2")
+    std::vector<std::experimental::filesystem::path> corrected2 =
+            SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
+                        threads, K, W, KmDBG, Threshold, Reliable_coverage, unique_threshold, py_path, diplod, skip, debug, load);
+    if(first_stage == "phase2")
         load = false;
     if(first_stage == "polishing")
         skip = false;

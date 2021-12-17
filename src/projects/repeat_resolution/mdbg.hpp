@@ -63,8 +63,8 @@ class MultiplexDBG
                const std::unordered_map<RREdgeIndexType, Sequence> &edge_seqs,
                const std::unordered_map<RRVertexType, RRVertexType> &vertex2rc,
                const std::unordered_map<RRVertexType, bool> &vertex_can,
-               const std::unordered_map<RREdgeIndexType, bool> &edge_can,
-               int64_t min_inner_edge_size = 1000) const;
+               const std::unordered_map<RREdgeIndexType, bool> &edge_can
+    ) const;
 
     [[nodiscard]] std::vector<Contig> ExportContigs(
         const std::experimental::filesystem::path &f,
@@ -161,7 +161,7 @@ class MultiplexDBG
                                           bool trim_left,
                                           bool trim_right) const;
     [[nodiscard]] std::vector<Contig>
-    GetContigs(int64_t min_inner_edge_size = 1000) const;
+    GetContigs() const;
 
     [[nodiscard]] std::vector<Contig>
     ExportContigsAndGFA(const std::experimental::filesystem::path &contigs_fn,
