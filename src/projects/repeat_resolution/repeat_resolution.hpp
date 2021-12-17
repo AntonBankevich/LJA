@@ -51,9 +51,10 @@ class RepeatResolver {
           classificator{dbg, *(this->reads_storage), diploid, debug} {
         std::experimental::filesystem::create_directory(this->dir);
         classificator.classify(logger, unique_threshold, dir/"mult_dir");
-        for (RecordStorage *const storage : get_storages()) {
-            storage->invalidateSubreads(logger, 1);
-        }
+        // TODO reactivate filtering
+//        for (RecordStorage *const storage : get_storages()) {
+//            storage->invalidateSubreads(logger, 1);
+//        }
     }
 
     std::vector<Contig> ResolveRepeats(logging::Logger &logger) {

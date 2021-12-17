@@ -195,6 +195,16 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
             continue;
         }
         for (const AlignedRead &aligned_read : *storage) {
+//            if(not aligned_read.valid()) {
+//                continue;
+//            }
+//            const VertexRecord
+//                &rec = storage->getRecord(aligned_read.path.start());
+//            size_t cnt = rec.countStartsWith(aligned_read.path.cpath());
+//            VERIFY_MSG(cnt >= 1, "This function assumes that suffixes are stored for complete reads")
+//            if (rec.countStartsWith(aligned_read.path.cpath()) >= 2) {
+//                continue;
+//            }
             dbg::Path path = aligned_read.path.getPath();
             if (path.size()==0) {
                 continue;
