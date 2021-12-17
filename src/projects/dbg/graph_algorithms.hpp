@@ -13,7 +13,6 @@ namespace dbg {
             if (seq.size() >= min_read_size)
                 sdbg.processRead(seq);
         };
-        threads = 1;
         processRecords(begin, end, logger, threads, task);
         logger.trace() << "Sparse graph edges filled." << std::endl;
     }

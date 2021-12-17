@@ -215,7 +215,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
     return {res, dir / "mdbg.hpc.gfa"};
 }
 
-std::experimental::filesystem::path PolishingPhase(
+std::vector<std::experimental::filesystem::path> PolishingPhase(
         logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
         const std::experimental::filesystem::path &output_dir,
         const std::experimental::filesystem::path &gfa_file,
@@ -234,7 +234,7 @@ std::experimental::filesystem::path PolishingPhase(
     };
     if(!skip)
         runInFork(ic_task);
-    return output_dir / "assembly.fasta";
+    return {output_dir / "assembly.fasta", output_dir / "mdbg.gfa"};
 }
 
 std::string constructMessage() {
@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
         load = false;
     if(first_stage == "polishing")
         skip = false;
-    std::experimental::filesystem::path final_contigs =
+    std::vector<std::experimental::filesystem::path> uncompressed_results =
             PolishingPhase(logger, threads, dir/ "uncompressing", dir, corrected2[1],
                            corrected2[0],
                             lib, StringContig::max_dimer_size / 2, K, skip, debug);
@@ -340,7 +340,8 @@ int main(int argc, char **argv) {
         load = false;
     logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2[0] << std::endl;
     logger.info() << "Final graph with homopolymer compressed edges can be found here: " << corrected2[1] << std::endl;
-    logger.info() << "Final assembly can be found here: " << final_contigs << std::endl;
+    logger.info() << "Final graph can be found here: " << uncompressed_results[1] << std::endl;
+    logger.info() << "Final assembly can be found here: " << uncompressed_results[0] << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;
     return 0;
 }
