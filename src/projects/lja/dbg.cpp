@@ -6,7 +6,6 @@
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/parameter_estimator.hpp"
 #include "dbg/visualization.hpp"
-#include "error_correction/error_correction.hpp"
 #include "dbg/graph_algorithms.hpp"
 #include "dbg/dbg_construction.hpp"
 #include "dbg/dbg_disjointigs.hpp"
@@ -147,7 +146,7 @@ std::string constructMessage() {
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "correct", "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct",
+                     "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct",
                      "initial-correct", "mult-correct", "mult-analyse", "compress", "dimer-compress=1000000000,1000000000,1", "help", "genome-path",
                      "dump", "extension-size=none", "print-all", "extract-subdatasets", "print-alignments", "subdataset-radius=10000",
                      "split", "diploid"},
@@ -180,7 +179,7 @@ int main(int argc, char **argv) {
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     const size_t w = std::stoi(parser.getValue("window"));
     logger << std::endl;
-    logger.info() << "Hello. You are running jumboDBG, a tool for construction of de Bruijn graphs for arbitrarily large values of k\n";
+    logger.info() << "Hello! You are running jumboDBG, a tool for construction of de Bruijn graphs for arbitrarily large values of k\n";
     logger.info() << "Note that jumboDB does not perform any error correction and ignores all reads shorter than k + w = " << k + w << std::endl;
     if(parser.getCheck("extract-subdatasets")) {
         logger.info() << "Enabled subdataset extraction" << std::endl;
@@ -294,11 +293,11 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("print-alignments") || parser.getCheck("mult-correct")) {
-        readStorage.printAlignments(logger, dir/"alignments.txt");
+        readStorage.printReadAlignments(logger, dir / "alignments.txt");
     }
 
     if(parser.getCheck("mult-correct") || parser.getCheck("initial-correct")) {
-        readStorage.printFasta(logger, dir/"corrected.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected.fasta");
     }
 
     if(parser.getCheck("print-all")) {
@@ -504,11 +503,6 @@ int main(int argc, char **argv) {
     }
 
 //    findTips(logger, dbg, threads);
-    if(parser.getCheck("correct")) {
-        io::SeqReader reader(reads_lib);
-        error_correction::correctSequences(dbg, logger, reader.begin(), reader.end(),
-                                           dir / "corrected.fasta", dir / "bad.fasta", threads, w + hasher.getK() - 1);
-    }
     if (parser.getValue("reference") != "none") {
         analyseGenome(dbg, parser.getValue("reference"), k + w - 1, dir / "ref.info", dir / "mult.info", logger);
     }

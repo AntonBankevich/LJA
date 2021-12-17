@@ -17,8 +17,8 @@
 
 std::vector<hashing::htype> findJunctions(logging::Logger & logger, const std::vector<Sequence>& disjointigs,
                                  const hashing::RollingHash &hasher, size_t threads);
-SparseDBG constructDBG(logging::Logger & logger, const std::vector<hashing::htype> &vertices,
+dbg::SparseDBG constructDBG(logging::Logger & logger, const std::vector<hashing::htype> &vertices,
                        const std::vector<Sequence> &disjointigs, const hashing::RollingHash &hasher, size_t threads);
-SparseDBG DBGPipeline(logging::Logger & logger, const hashing::RollingHash &hasher, size_t w, const io::Library &lib,
+dbg::SparseDBG DBGPipeline(logging::Logger & logger, const hashing::RollingHash &hasher, size_t w, const io::Library &lib,
                                 const std::experimental::filesystem::path &dir, size_t threads,
                                 const std::string& disjointigs_file = "none", const std::string &vertices_file = "none");

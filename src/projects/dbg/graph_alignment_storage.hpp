@@ -4,17 +4,17 @@
 
 class AlignedRead {
 private:
-    CompactPath corrected_path;
+    dbg::CompactPath corrected_path;
 public:
     std::string id;
-    CompactPath path;
+    dbg::CompactPath path;
 
     AlignedRead() = default;
     AlignedRead(AlignedRead &&other) = default;
     AlignedRead &operator=(AlignedRead &&other) = default;
     explicit AlignedRead(std::string readId) : id(std::move(readId)) {}
-    AlignedRead(std::string readId, GraphAlignment &_path) : id(std::move(readId)), path(_path) {}
-    AlignedRead(std::string readId, CompactPath _path) : id(std::move(readId)), path(std::move(_path)) {}
+    AlignedRead(std::string readId, dbg::GraphAlignment &_path) : id(std::move(readId)), path(_path) {}
+    AlignedRead(std::string readId, dbg::CompactPath _path) : id(std::move(readId)), path(std::move(_path)) {}
 
     bool operator<(const AlignedRead& other) const {return id < other.id;}
 
@@ -22,7 +22,7 @@ public:
     bool checkCorrected() const {return corrected_path.valid();}
     bool valid() const {return path.valid();}
 
-    void correct(CompactPath &&cpath);
+    void correct(dbg::CompactPath &&cpath);
     void applyCorrection();
 };
 
@@ -32,7 +32,7 @@ struct VertexRecord {
 private:
     typedef std::vector<std::pair<Sequence, size_t>> Storage;
     typedef Storage::const_iterator const_iterator;
-    Vertex &v;
+    dbg::Vertex &v;
     Storage paths;
     size_t zero_cnt = 0;
     size_t cov = 0;
@@ -44,7 +44,7 @@ private:
     void removePath(const Sequence &seq);
     void clear() {paths.clear();}
 public:
-    explicit VertexRecord(Vertex &_v) : v(_v) {}
+    explicit VertexRecord(dbg::Vertex &_v) : v(_v) {}
     VertexRecord(const VertexRecord &) = delete;
     VertexRecord(VertexRecord &&other)  noexcept : v(other.v), paths(std::move(other.paths)),
                                                    zero_cnt(other.zero_cnt), cov(other.cov) {}
@@ -58,11 +58,11 @@ public:
 
     size_t countStartsWith(const Sequence &seq) const;
 
-    bool isDisconnected(const Edge &edge) const;
-    std::vector<GraphAlignment> getBulgeAlternatives(const Vertex &end, double threshold) const;
-    std::vector<GraphAlignment> getTipAlternatives(size_t len, double threshold) const;
+    bool isDisconnected(const dbg::Edge &edge) const;
+    std::vector<dbg::GraphAlignment> getBulgeAlternatives(const dbg::Vertex &end, double threshold) const;
+    std::vector<dbg::GraphAlignment> getTipAlternatives(size_t len, double threshold) const;
     unsigned char getUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
-    CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
+    dbg::CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
 };
 
 inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {return os << rec.str();}
@@ -100,7 +100,7 @@ public:
 
     void flush();
     void logRead(AlignedRead &alignedRead);
-    void logRerouting(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected, const std::string &message);
+    void logRerouting(AlignedRead &alignedRead, const dbg::GraphAlignment &initial, const dbg::GraphAlignment &corrected, const std::string &message);
     void logInvalidate(AlignedRead &alignedRead, const std::string &message) {
         CountingSS &ss = logs[omp_get_thread_num()];
         ss << alignedRead.id << " invalidated " << message << ")\n";
@@ -115,20 +115,21 @@ public:
 class RecordStorage {
 private:
     std::vector<AlignedRead> reads;
-    std::unordered_map<const Vertex *, VertexRecord> data;
+    std::unordered_map<const dbg::Vertex *, VertexRecord> data;
     ReadLogger *readLogger;
 public:
     size_t min_len;
     size_t max_len;
+    bool track_suffixes;
     bool track_cov;
     bool log_changes;
 
 private:
-    void processPath(const CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
-                            const std::function<void(Segment<Edge>)> &edge_task = [](Segment<Edge>){}) const;
+    void processPath(const dbg::CompactPath &cpath, const std::function<void(dbg::Vertex &, const Sequence &)> &task,
+                            const std::function<void(Segment<dbg::Edge>)> &edge_task = [](Segment<dbg::Edge>){}) const;
 public:
-    RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
-                  ReadLogger &readLogger, bool _track_cov = false, bool log_changes = false);
+    RecordStorage(dbg::SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
+                  ReadLogger &readLogger, bool _track_cov = false, bool log_changes = false, bool track_suffixes = true);
 
     typedef typename std::vector<AlignedRead>::iterator iterator;
     typedef typename std::vector<AlignedRead>::const_iterator const_iterator;
@@ -138,7 +139,7 @@ public:
     RecordStorage &operator=(RecordStorage &&other) = default;
     RecordStorage(RecordStorage &&other) = default;
 
-    const VertexRecord &getRecord(const Vertex &v) const {return data.find(&v)->second;}
+    const VertexRecord &getRecord(const dbg::Vertex &v) const;
     iterator begin() {return reads.begin();}
     iterator end() {return reads.end();}
     const_iterator begin() const {return reads.begin();}
@@ -147,19 +148,18 @@ public:
     const AlignedRead &operator[](size_t ind) const {return reads[ind];}
     size_t getMinLen() const {return min_len;}
     size_t getMaxLen() const {return max_len;}
-    bool getTrackCov() const {return track_cov;}
-
-
+    bool isTrackingCov() const {return track_cov;}
+    bool isTrackingSuffixes() const {return track_suffixes;}
     size_t size() const {return reads.size();}
 
-    std::function<std::string(Edge &)> labeler() const;
+    std::function<std::string(dbg::Edge &)> labeler() const;
 
-    void addSubpath(const CompactPath &cpath);
-    void removeSubpath(const CompactPath &cpath);
+    void addSubpath(const dbg::CompactPath &cpath);
+    void removeSubpath(const dbg::CompactPath &cpath);
     void addRead(AlignedRead &&read);
     void invalidateRead(AlignedRead &read, const std::string &message);
-    void reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected, const std::string &message);
-    void reroute(AlignedRead &alignedRead, const GraphAlignment &corrected, const std::string &message);
+    void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &initial, const dbg::GraphAlignment &corrected, const std::string &message);
+    void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &corrected, const std::string &message);
     bool apply(AlignedRead &alignedRead);
 
     void invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
@@ -167,37 +167,43 @@ public:
     void invalidateSubreads(logging::Logger &logger, size_t threads);
 
     template<class I>
-    void fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads);
-    void updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension);
+    void fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads);
+    void trackSuffixes(logging::Logger &logger, size_t threads);
+    void untrackSuffixes();
+
+    //    void updateExtensionSize(logging::Logger &logger, size_t threads, size_t new_max_extension);
     void applyCorrections(logging::Logger &logger, size_t threads);
-    void printAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
-    void printFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
+    void printReadAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
+    void printReadFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     void printFullAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     ReadLogger &getLogger() {return *readLogger;}
     void flush() {readLogger->flush();}
 };
 
 template<class I>
-void RecordStorage::fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads) {
+void RecordStorage::fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads) {
     if (track_cov) {
         logger.info() << "Cleaning edge coverages" << std::endl;
-        for(Edge & edge: dbg.edges()) {
+        for(dbg::Edge & edge: dbg.edges()) {
             edge.incCov(-edge.intCov());
         }
     }
     logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
-    ParallelRecordCollector<std::tuple<size_t, std::string, CompactPath>> tmpReads(threads);
+    if(track_suffixes) {
+        logger.info() << "Storing suffixes of read paths of length up to " << this->max_len << std::endl;
+    }
+    ParallelRecordCollector<std::tuple<size_t, std::string, dbg::CompactPath>> tmpReads(threads);
     ParallelCounter cnt(threads);
     std::function<void(size_t, StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt, &dbg](size_t pos, StringContig & scontig) {
         Contig contig = scontig.makeContig();
         if(contig.size() < min_read_size) {
-            tmpReads.emplace_back(pos, contig.id, CompactPath());
+            tmpReads.emplace_back(pos, contig.id, dbg::CompactPath());
             return;
         }
-        GraphAlignment path = GraphAligner(dbg).align(contig.seq);
-        GraphAlignment rcPath = path.RC();
-        CompactPath cpath(path);
-        CompactPath crcPath(rcPath);
+        dbg::GraphAlignment path = dbg::GraphAligner(dbg).align(contig.seq);
+        dbg::CompactPath cpath(path);
+        dbg::GraphAlignment rcPath = path.RC();
+        dbg::CompactPath crcPath(rcPath);
         addSubpath(cpath);
         addSubpath(crcPath);
         cnt += cpath.size();
@@ -217,7 +223,7 @@ void RecordStorage::fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, l
 //    size_t from;
 //    size_t to;
 //    size_t _size;
-//    GraphAlignment correction;
+//    dbg::GraphAlignment correction;
 //
 //    GraphError(AlignedRead *read, size_t from, size_t to, size_t size) :
 //            read(read), from(from), to(to), _size(size) {}
@@ -249,11 +255,11 @@ void RecordStorage::fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, l
 //            AlignedRead &alignedRead = recs[read_ind];
 //            std::stringstream ss;
 //            CompactPath &initial_cpath = alignedRead.path;
-//            GraphAlignment path = initial_cpath.getAlignment();
-//            GraphAlignment corrected_path(path.start());
+//            dbg::GraphAlignment path = initial_cpath.getAlignment();
+//            dbg::GraphAlignment corrected_path(path.start());
 //            for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
 //                VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos));
-//                Edge &edge = path[path_pos].contig();
+//                dbg::Edge &edge = path[path_pos].contig();
 //                if (edge.getCoverage() >= error_threshold) {
 //                    continue;
 //                }
@@ -305,9 +311,9 @@ void RecordStorage::fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, l
 //            }
 //            if(corrected_errors.empty())
 //                continue;
-//            GraphAlignment initial = read.path.getAlignment();
+//            dbg::GraphAlignment initial = read.path.getAlignment();
 //            std::vector<Segment<Edge>> corrected;
-//            Vertex &start = corrected_errors[0].from == 0 ? corrected_errors[0].correction.start() : initial.start();
+//            dbg::Vertex &start = corrected_errors[0].from == 0 ? corrected_errors[0].correction.start() : initial.start();
 //            size_t prev = 0;
 //            for(GraphError & error : corrected_errors) {
 //                for(size_t j = prev; j < error.from; j++) {
@@ -321,7 +327,7 @@ void RecordStorage::fill(I begin, I end, SparseDBG &dbg, size_t min_read_size, l
 //            for(size_t j = prev; j < initial.size(); j++) {
 //                corrected.emplace_back(initial[j]);
 //            }
-//            GraphAlignment corrected_alignment(&start, std::move(corrected));
+//            dbg::GraphAlignment corrected_alignment(&start, std::move(corrected));
 //            recs.reroute(read, initial, corrected_alignment, "unknown");
 //        }
 //    }

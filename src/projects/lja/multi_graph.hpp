@@ -19,6 +19,10 @@ namespace multigraph {
             outgoing.reserve(4);
         }
 
+        bool isCanonical() const {
+            return seq <= !seq;
+        }
+
         size_t inDeg() const {
             return rc->outgoing.size();
         }
@@ -74,15 +78,15 @@ namespace multigraph {
         MultiGraph &operator=(MultiGraph &&other) = default;
         MultiGraph(const MultiGraph &) = delete;
 
-        void LoadGFA(const std::experimental::filesystem::path &gfa_file) {
+        MultiGraph &LoadGFA(const std::experimental::filesystem::path &gfa_file, bool int_ids) {
             std::ifstream is;
             is.open(gfa_file);
             std::unordered_map<std::string, Vertex*> vmap;
             for( std::string line; getline(is, line); ) {
                 std::vector<std::string> tokens = ::split(line);
                 if(tokens[0] == "S") {
-                    Vertex &newV = addVertex(Sequence(tokens[2]));
                     std::string name = tokens[1];
+                    Vertex &newV = int_ids ? addVertex(Sequence(tokens[2]), std::stoi(name)) : addVertex(Sequence(tokens[2]));
                     VERIFY(vmap.find(name) == vmap.end());
                     vmap[name] = &newV;
                 } else if(tokens[0] == "L") {
@@ -101,6 +105,7 @@ namespace multigraph {
                 }
             }
             is.close();
+            return *this;
         }
 
         MultiGraph DBG() const {
@@ -244,7 +249,7 @@ namespace multigraph {
         }
 
         Vertex &addVertex(const Sequence &seq, int id = 0) {
-            if(id = 0) {
+            if(id == 0) {
                 id = maxVId + 1;
             }
             maxVId = std::max(std::abs(id), maxVId);
@@ -347,7 +352,7 @@ namespace multigraph {
             return std::move(res);
         }
 
-        std::vector<Contig> getCutEdges() {
+        std::vector<Contig> getEdges(bool cut_overlaps) {
             std::unordered_map<Vertex *, size_t> cut;
             for(Vertex *v : vertices) {
                 if(v->seq <= !v->seq) {
@@ -363,12 +368,18 @@ namespace multigraph {
             size_t cnt = 1;
             for(Edge *edge : edges) {
                 if(edge->isCanonical()) {
+                    if(edge->getId() < 0)
+                        edge = edge->rc;
                     size_t cut_left = edge->start->seq.size() * cut[edge->start];
                     size_t cut_right = edge->end->seq.size() * (1 - cut[edge->end]);
-                    if(cut_left + cut_right + 1000 >= edge->size()) {
+                    if(!cut_overlaps) {
+                        cut_left = 0;
+                        cut_right = 0;
+                    }
+                    if(cut_left + cut_right >= edge->size()) {
                         continue;
                     }
-                    res.emplace_back(edge->getSeq().Subseq(cut_left, edge->size() - cut_right), itos(cnt));
+                    res.emplace_back(edge->getSeq().Subseq(cut_left, edge->size() - cut_right), itos(edge->getId()));
                     cnt++;
                 }
             }
@@ -378,7 +389,7 @@ namespace multigraph {
         void printCutEdges(const std::experimental::filesystem::path &f) {
             std::ofstream os;
             os.open(f);
-            for(const Contig &contig : getCutEdges()) {
+            for(const Contig &contig : getEdges(true)) {
                 os << ">" << contig.id << "\n" << contig.seq << "\n";
             }
             os.close();
@@ -422,7 +433,7 @@ namespace multigraph {
                     }
                 }
             for (Vertex *vertex : component) {
-                if(!(vertex->seq <= !vertex->seq))
+                if(!vertex->isCanonical())
                     continue;
                 for (Edge *out_edge : vertex->outgoing) {
                     std::string outid = eids[out_edge];

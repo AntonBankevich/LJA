@@ -1,5 +1,5 @@
 #include "initial_correction.hpp"
-
+using namespace dbg;
 size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump) {
     size_t winner = 0;
     std::vector<size_t> dists;

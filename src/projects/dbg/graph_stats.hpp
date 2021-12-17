@@ -4,6 +4,26 @@
 #include "component.hpp"
 #include "sparse_dbg.hpp"
 
+inline void simpleStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
+    logger.trace() << "Graph statistics:\n";
+    logger << "Unique vertices: " << dbg.size() << std::endl;
+    size_t e_cnt = 0;
+    size_t elen = 0;
+    for(dbg::Vertex &v : dbg.vertices()) {
+        for(dbg::Edge &edge : v) {
+            if(edge.end() == nullptr || edge == edge.sparseRcEdge()) {
+                e_cnt += 2;
+                elen += 2 * edge.size();
+            } else {
+                e_cnt++;
+                elen += edge.size();
+            }
+        }
+    }
+    logger << "Unique edges: " << e_cnt / 2 << std::endl;
+    logger << "Unique edge total length: " << elen / 2 << std::endl;
+}
+
 inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     std::vector<size_t> arr(10);
     size_t isolated = 0;
