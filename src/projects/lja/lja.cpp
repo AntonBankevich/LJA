@@ -181,12 +181,11 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    // std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w,
-    //                                  &reads_lib, &pseudo_reads_lib, &paths_lib,
-    //                                  threads, threshold, reliable_coverage,
-    //                                  debug, unique_threshold, diploid, py_path]
-    //                                  {
-    {
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, kmdbg,
+                                     &reads_lib, &pseudo_reads_lib, &paths_lib,
+                                     threads, threshold, reliable_coverage,
+                                     debug, unique_threshold, diploid, py_path]
+                                     {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg =
             load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads,
@@ -294,16 +293,16 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         PrintAlignments(logger, threads, contigs, readStorage, k,
                         dir/"uncompressing");
         readStorage.printFasta(logger, dir/"corrected.fasta");
-    }
-    // };
-    // if (!skip)
-    //   runInFork(ic_task);
+    };
+    if (!skip)
+      runInFork(ic_task);
 
     std::experimental::filesystem::path res;
     res = dir/"corrected.fasta";
     logger.info() << "Second phase results with k = " << k << " printed to "
                   << res << std::endl;
-    return {res, dir/"uncompressing", dir/"compressed.gfa"};
+    return {res, dir/"uncompressing",
+            dir/"repeat_resolution"/"resolved_graph.gfa"};
 }
 
 std::experimental::filesystem::path
