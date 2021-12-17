@@ -7,16 +7,17 @@
 #include "multi_graph.hpp"
 
 struct OverlapRecord {
-    OverlapRecord(multigraph::Edge *left, multigraph::Edge *right, std::vector<cigar_pair> cigar) : left(left), right(right),
-                                                                                                    cigar(std::move(cigar)) {
-        if(!cigar.empty() && cigar.back().type == 'D')
+    OverlapRecord(multigraph::Edge *left, multigraph::Edge *right, const Sequence &seq_left, const Sequence &seq_right, std::vector<cigar_pair> _cigar) : left(left), right(right), seq_left(seq_left), seq_right(seq_right),
+                                                                                                    cigar(std::move(_cigar)) {
+        if(!cigar.empty() && cigar.back().type == 'I')
             cigar.pop_back();
-        if(!cigar.empty() && cigar.front().type == 'I')
+        if(!cigar.empty() && cigar.front().type == 'D')
             cigar = {cigar.begin() + 1, cigar.end()};
     }
 
     multigraph::Edge *left;
     multigraph::Edge *right;
+    Sequence seq_left, seq_right;
     std::vector<cigar_pair> cigar;
     std::string cigarString() const {
         std::stringstream ss;
@@ -46,27 +47,27 @@ struct OverlapRecord {
         return res;
     }
     std::pair<std::string, std::string> str() const {
-        size_t pos1 = left->getSeq().size() - endSize();
-        size_t pos2 = 0;
-        std::vector<char> s1;
-        std::vector<char> s2;
+        size_t pos_ref = seq_left.size() - endSize();
+        size_t pos_q = 0;
+        std::vector<char> s_ref;
+        std::vector<char> s_q;
         for(const cigar_pair &pair : cigar) {
             for(size_t i = 0; i < pair.length; i++) {
                 if(pair.type == 'I')
-                    s1.emplace_back('-');
+                    s_ref.emplace_back('-');
                 else
-                    s1.emplace_back(left->getSeq()[pos1 + i]);
+                    s_ref.emplace_back("ACGT"[seq_left[pos_ref + i]]);
                 if(pair.type == 'D')
-                    s2.emplace_back('-');
+                    s_q.emplace_back('-');
                 else
-                    s2.emplace_back(right->getSeq()[pos2 + i]);
+                    s_q.emplace_back("ACGT"[seq_right[pos_q + i]]);
             }
             if(pair.type != 'I')
-                pos1 += pair.length;
+                pos_ref += pair.length;
             if(pair.type != 'D')
-                pos2 += pair.length;
+                pos_q += pair.length;
         }
-        return {std::string(s1.begin(), s1.end()), std::string(s2.begin(), s2.end())};
+        return {std::string(s_q.begin(), s_q.end()), std::string(s_ref.begin(), s_ref.end())};
     }
 };
 
@@ -150,11 +151,12 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
                 VERIFY(inc_edge->getSeq().startsWith(!vertex.seq));
                 std::vector<cigar_pair> cigar = UncompressOverlap(graph.vertices[i]->seq, uncompression_results[inc_edge->rc->getId()],
                                                                   uncompression_results[out_edge->getId()]);
-                OverlapRecord overlapRecord(inc_edge, out_edge->rc, cigar);
+                OverlapRecord overlapRecord(inc_edge->rc, out_edge, uncompression_results[inc_edge->rc->getId()],
+                                                                  uncompression_results[out_edge->getId()], cigar);
                 if(debug) {
 #pragma omp critical
                     {
-                        std::cout << inc_edge->getId() << " " << std::endl << out_edge->getId() << std::endl;;
+                        std::cout << inc_edge->getId() << " " << std::endl << out_edge->getId() << " " <<overlapRecord.cigarString() << " " << overlapRecord.startSize() << " " << overlapRecord.endSize() << std::endl;
                         std::pair<std::string, std::string> al = overlapRecord.str();
                         std::cout << al.first << "\n" << al.second << std::endl;
                     }
@@ -183,7 +185,7 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
     os.close();
     std::ofstream os_cut;
     os_cut.open(out_dir / "assembly.fasta");
-    std::unordered_map<multigraph::Vertex *, size_t> cut;
+    std::unordered_map<multigraph::Vertex *, size_t> cut; //Choice of vertex side for cutting
     for(multigraph::Vertex *v : graph.vertices) {
         if(v->seq <= !v->seq) {
             if(v->outDeg() == 1) {
@@ -194,31 +196,27 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
             cut[v->rc] = 1 - cut[v];
         }
     }
-    std::unordered_map<multigraph::Edge*, size_t> cuts;
-    for(OverlapRecord &rec : cigars_collection) {
-        cuts[rec.left->rc] *= rec.endSize();
-        cuts[rec.right] = rec.startSize();
+    std::unordered_map<multigraph::Edge*, size_t> cuts; //Sizes of cuts from the edge start
+    for(multigraph::Edge *e : graph.edges) {
+        cuts[e] = 0;
     }
-
-    std::vector<Contig> res;
-    size_t cnt = 1;
+    for(OverlapRecord &rec : cigars_collection) {
+        cuts[rec.left->rc] = cut[rec.left->rc->start] * rec.endSize();
+        cuts[rec.right] = cut[rec.right->start] * rec.startSize();
+    }
     for(multigraph::Edge *edge : graph.edges) {
         if(edge->isCanonical()) {
-            size_t cut_left = 0;
-            if(edge->start->inDeg() != 0) {
-                cut_left = cuts[edge];
-            }
-            cut_left *= cut[edge->start];
-            size_t cut_right = 0;
-            if(edge->end->outDeg() != 0) {
-                cut_right = cuts[edge->rc];
-            }
-            cut_right *= (1 - cut[edge->end]);
-            if(cut_left + cut_right >= edge->size()) {
+            //TODO make canonical be the same as positive id
+            if(edge->getId() < 0)
+                edge = edge->rc;
+            size_t cut_left = cuts[edge];
+            size_t cut_right = cuts[edge->rc];
+            Sequence seq = uncompression_results[edge->getId()];
+            if(cut_left + cut_right >= seq.size()) {
                 continue;
             }
-            res.emplace_back(edge->getSeq().Subseq(cut_left, edge->size() - cut_right), itos(cnt));
-            cnt++;
+            os_cut << ">" << edge->getId() << "\n" << seq.Subseq(cut_left, seq.size() - cut_right) << "\n";
         }
     }
+    os_cut.close();
 }

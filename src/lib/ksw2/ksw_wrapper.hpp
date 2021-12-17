@@ -14,9 +14,6 @@ inline size_t MaxAlignmentShift(std::vector<cigar_pair> &cigars) {
     int min_shift = 0;
     int max_shift = 0;
     for(size_t i = 0; i + 1 < cigars.size(); i++) {
-        if (cigars[i].type != 'M' && cigars[i+1].type != 'M') {
-            return false;
-        }
         if (cigars[i].type == 'D') {
             shift -= cigars[i].length; // NOLINT(cppcoreguidelines-narrowing-conversions)
         } else if (cigars[i].type == 'I') {
@@ -95,6 +92,9 @@ public:
     }
 
     std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width, double max_divergence) const {
+        size_t l1 = strlen(tseq);
+        size_t l2 = strlen(qseq);
+        min_width = std::max<size_t>(min_width, std::max(l1, l2) - std::min(l1, l2));
         while(min_width < max_width) {
             auto res = align(tseq, qseq, min_width);
             if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {

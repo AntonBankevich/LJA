@@ -368,6 +368,8 @@ namespace multigraph {
             size_t cnt = 1;
             for(Edge *edge : edges) {
                 if(edge->isCanonical()) {
+                    if(edge->getId() < 0)
+                        edge = edge->rc;
                     size_t cut_left = edge->start->seq.size() * cut[edge->start];
                     size_t cut_right = edge->end->seq.size() * (1 - cut[edge->end]);
                     if(!cut_overlaps) {
@@ -377,7 +379,7 @@ namespace multigraph {
                     if(cut_left + cut_right >= edge->size()) {
                         continue;
                     }
-                    res.emplace_back(edge->getSeq().Subseq(cut_left, edge->size() - cut_right), itos(cnt));
+                    res.emplace_back(edge->getSeq().Subseq(cut_left, edge->size() - cut_right), itos(edge->getId()));
                     cnt++;
                 }
             }
