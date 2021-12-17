@@ -114,7 +114,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     logger.trace() << "Constructing subgraph" << std::endl;
     SparseDBG subgraph = dbg.Subgraph(segs);
     subgraph.checkConsistency(threads, logger);
-    subgraph.checkDBGConsistency(threads, logger);
+//    subgraph.checkDBGConsistency(threads, logger);
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
     for(const auto & vit : subgraph){
         if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
@@ -127,7 +127,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     mergeAll(logger, subgraph, threads);
     printStats(logger, subgraph);
     subgraph.fillAnchors(min_len, logger, threads, anchors);
-    subgraph.checkDBGConsistency(threads, logger);
+//    subgraph.checkDBGConsistency(threads, logger);
     logger.trace() << "Constructing embedding of old graph into new" << std::endl;
     std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
@@ -187,7 +187,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     mergeAll(logger, subgraph, threads);
     subgraph.fillAnchors(500, logger, threads);
     subgraph.checkConsistency(threads, logger);
-    subgraph.checkDBGConsistency(threads, logger);
+//    subgraph.checkDBGConsistency(threads, logger);
     GraphAligner aligner(subgraph);
     std::function<void(size_t, Edge &)> task = [&aligner](size_t num, Edge &edge) {
         GraphAlignment al = aligner.align(edge.start()->seq + edge.seq);
