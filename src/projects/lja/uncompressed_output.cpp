@@ -79,10 +79,12 @@ size_t compressedPrefixSize(const Sequence &hpcPrefix, const Sequence &seq) {
     size_t pos = 0;
     size_t hpc_pos = 0;
     while(hpc_pos < hpc_size) {
-        while(hpcSeq[hpc_pos] == seq[pos]) {
+        while(pos + 1 < seq.size() && hpcSeq[hpc_pos] == seq[pos]) {
             pos++;
         }
         hpc_pos++;
+        if(hpc_pos == hpc_size)
+            break;
         if(pos < seq.size() && hpc_pos < hpc_size && hpcSeq[hpc_pos] != seq[pos]) {
             VERIFY(hpc_pos >= 2 && seq[pos] == hpcSeq[hpc_pos - 2]);
             hpc_pos -= 2;
@@ -147,8 +149,8 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
             continue;
         for (multigraph::Edge *out_edge : vertex.outgoing) {
             for (multigraph::Edge *inc_edge : vertex.rc->outgoing) {
-                VERIFY(out_edge->getSeq().startsWith(vertex.seq));
-                VERIFY(inc_edge->getSeq().startsWith(!vertex.seq));
+                VERIFY_OMP(out_edge->getSeq().startsWith(vertex.seq));
+                VERIFY_OMP(inc_edge->getSeq().startsWith(!vertex.seq));
                 std::vector<cigar_pair> cigar = UncompressOverlap(graph.vertices[i]->seq, uncompression_results[inc_edge->rc->getId()],
                                                                   uncompression_results[out_edge->getId()]);
                 OverlapRecord overlapRecord(inc_edge->rc, out_edge, uncompression_results[inc_edge->rc->getId()],
