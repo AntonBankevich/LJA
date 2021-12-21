@@ -113,6 +113,19 @@ void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
     const RRVertexProperty &v_prop = graph.node_prop(vertex);
 
     auto[ac_s2e, ac_e2s] = graph.GetEdgepairsVertex(vertex);
+
+    /*
+    {
+        auto[in_edges, out_edges] = graph.GetNeighborEdgesIndexes(vertex);
+        for (const RREdgeIndexType &edge : in_edges) {
+            VERIFY(ac_s2e.find(edge) != ac_s2e.end())
+        }
+        for (const RREdgeIndexType &edge : out_edges) {
+            VERIFY(ac_e2s.find(edge) != ac_e2s.end())
+        }
+    }
+     */
+
     auto[edge2vertex, new_vertices] = SplitVertex(graph, vertex);
 
     for (const auto &[edge1, edge1_neighbors] : ac_s2e) {
@@ -123,8 +136,6 @@ void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
 
             // const RREdgeIndexType edge2 = FindMergeEdgeId(edge2_);
             const RRVertexType right_vertex = edge2vertex.at(edge2);
-            const std::unordered_set<RREdgeIndexType>
-                &edge2_neighbors = ac_e2s[edge2];
             auto e2_it = graph.FindOutEdgeIterator(right_vertex, edge2);
 
             graph.AddConnectingEdge(e1_it, right_vertex, e2_it);

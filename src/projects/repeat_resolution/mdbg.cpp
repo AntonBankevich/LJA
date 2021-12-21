@@ -19,13 +19,29 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
       return vert2ind;
     }();
 
+    /*
+    double av_cov = [&dbg] {
+      std::vector<double> covs;
+      for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
+          const dbg::Edge &edge = *it;
+          covs.push_back(edge.getCoverage());
+      }
+      return std::accumulate(covs.begin(), covs.end(), 0.0)/covs.size();
+    }();
+    std::cout << "av_cov = " << av_cov << "\n";
+     */
+
     std::vector<SuccinctEdgeInfo> edge_info;
     for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;
         const RRVertexType start_ind = vert2ind.at(edge.start()->getId());
         const RRVertexType end_ind = vert2ind.at(edge.end()->getId());
+        // bool unique = edge.getCoverage() <= av_cov*1.2;
         edge_info.push_back(
-            {start_ind, end_ind, &edge, classificator.isUnique(edge)});
+            {start_ind, end_ind, &edge, classificator.isUnique(edge),
+             edge.getCoverage()});
+        // edge_info.push_back(
+        //     {start_ind, end_ind, &edge, unique, edge.getCoverage()});
     }
     return edge_info;
 }
@@ -307,8 +323,11 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
         if (infix_size > 0) {
             edge_seq = MDBGSeq(edge, start_k, start_k + infix_size);
         }
-        RREdgeProperty edge_property(next_edge_index, std::move(edge_seq),
-                                     infix_size, edge_info.unique);
+        RREdgeProperty edge_property(next_edge_index,
+                                     std::move(edge_seq),
+                                     infix_size,
+                                     edge_info.unique,
+                                     edge_info.cov);
         add_edge_with_prop(edge_info.start_ind, edge_info.end_ind,
                            std::move(edge_property));
         ++next_edge_index;
@@ -598,7 +617,7 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
               }
           }
           for (const RREdgeIndexType &index : in_edges) {
-              if (ac_e2s.find(index)==ac_e2s.end()) {
+              if (ac_s2e.find(index)==ac_s2e.end()) {
                   unpaired_in.push_back(index);
               }
           }
@@ -619,8 +638,10 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
                           });
           if (unpaired_in.size()==1 and unpaired_out.size()==1 and
               (all_in_unique or all_out_unique)) {
-              ac_s2e.emplace(unpaired_in.front(), unpaired_out.front());
-              ac_e2s.emplace(unpaired_out.front(), unpaired_in.front());
+              VERIFY(ac_s2e.find(unpaired_in.front()) == ac_s2e.end());
+              VERIFY(ac_e2s.find(unpaired_out.front()) == ac_e2s.end());
+              ac_s2e[unpaired_in.front()] = {unpaired_out.front()};
+              ac_e2s[unpaired_out.front()] = {unpaired_in.front()};
           }
         };
 
@@ -826,4 +847,9 @@ std::vector<Contig> MultiplexDBG::ExportContigsAndGFA(
                 edge_can);
     return ExportContigs(contigs_fn, vertex_seqs, edge_seqs, vertex2rc,
                          vertex_can, edge_can);
+}
+
+void MultiplexDBG::ExportActiveTransitions(
+    const std::experimental::filesystem::path &path) const {
+    rr_paths->ExportActiveTransitions(path);
 }

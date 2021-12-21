@@ -99,6 +99,11 @@ class RRPaths {
 
     [[nodiscard]] bool ContainsPair(const RREdgeIndexType &lhs,
                                     const RREdgeIndexType &rhs) const;
+
+    [[nodiscard]] std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
+    GetActiveTransitions() const;
+
+    void ExportActiveTransitions(const std::experimental::filesystem::path &path) const;
 };
 
 class PathsBuilder {

@@ -77,6 +77,7 @@ void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
     if (rhs.unique) {
         unique = true;
     }
+    cov = std::min(cov, rhs.cov);
 }
 
 MDBGSeq RREdgeProperty::ExtractSeqPrefix(const size_t len) {
@@ -115,8 +116,12 @@ RREdgeProperty repeat_resolution::Add(const RRVertexProperty &lhs,
                                       const uint64_t index) {
     VERIFY(lhs.size()==rhs.size());
     // can assign uniqueness more carefully if we pass left&right edges
-    return RREdgeProperty(/*index=*/index, /*(inner)seq=*/{},
-        /*size=*/-((int64_t) lhs.size()) + 1, /*unique=*/false);
+    return RREdgeProperty(
+        /*index=*/index,
+        /*(inner)seq=*/{},
+        /*size=*/-((int64_t) lhs.size()) + 1,
+        /*unique=*/false,
+        /*cov=*/std::numeric_limits<double>::max());
 }
 
 // -------- SuccinctEdgeInfo -------
@@ -126,7 +131,8 @@ repeat_resolution::operator<<(std::ostream &os,
                               const RREdgeProperty &edge_property) {
     os << "index=" << edge_property.Index() << "\\n"
        << "size=" << edge_property.Size() << "\\n"
-       << "unique=" << edge_property.IsUnique();
+       << "unique=" << edge_property.IsUnique(); // << "\\n"
+       // << "cov=" << edge_property.Cov();
     return os;
 }
 

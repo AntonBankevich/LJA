@@ -61,13 +61,19 @@ class RREdgeProperty {
     MDBGSeq seq;
     int64_t size_{0};
     bool unique{false};
+    double cov{0};
 
  public:
     RREdgeProperty(const RREdgeIndexType index,
                    MDBGSeq seq,
                    const int64_t size_,
-                   bool unique)
-        : index{index}, seq{std::move(seq)}, size_{size_}, unique{unique} {}
+                   bool unique,
+                   double cov)
+        : index{index},
+          seq{std::move(seq)},
+          size_{size_},
+          unique{unique},
+          cov{cov} {}
 
     RREdgeProperty(const RREdgeProperty &) = delete;
     RREdgeProperty(RREdgeProperty &&) = default;
@@ -81,6 +87,7 @@ class RREdgeProperty {
     [[nodiscard]] const MDBGSeq &Seq() const { return seq; }
 
     [[nodiscard]] RREdgeIndexType Index() const { return index; }
+    [[nodiscard]] double Cov() const { return cov; }
 
     void Merge(RRVertexProperty vertex, RREdgeProperty rhs);
 
@@ -105,6 +112,7 @@ struct SuccinctEdgeInfo {
     RRVertexType end_ind{0};
     const dbg::Edge *edge{nullptr};
     bool unique{false};
+    double cov{0};
 };
 
 bool operator==(const SuccinctEdgeInfo &lhs, const SuccinctEdgeInfo &rhs);

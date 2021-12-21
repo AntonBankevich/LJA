@@ -158,6 +158,24 @@ const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
     return edgepair2pos.find(std::make_pair(lhs, rhs))!=edgepair2pos.end();
 }
 
+[[nodiscard]] std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
+RRPaths::GetActiveTransitions() const {
+    std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>> transitions;
+    for (const auto &[transition, pos] : edgepair2pos) {
+        transitions.push_back(transition);
+    }
+    return transitions;
+}
+
+void RRPaths::ExportActiveTransitions(const std::experimental::filesystem::path &path) const {
+    std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
+        transitions = GetActiveTransitions();
+    std::ofstream os(path);
+    for(const auto &transition : transitions) {
+        os << transition.first << " " << transition.second << "\n";
+    }
+}
+
 RRPaths PathsBuilder::FromPathVector(std::vector<RRPath> path_vec) {
     EdgeIndex2PosMap edge2pos;
     EdgeIndexPair2PosMap edgepair2pos;

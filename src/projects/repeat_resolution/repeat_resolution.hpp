@@ -79,6 +79,9 @@ class RepeatResolver {
         k_increaser.IncreaseUntilSaturation(mdbg, true);
         logger.info() << "Finished increasing k" << std::endl;
 
+        logger.info() << "Exporting remaining active transitions" << std::endl;
+        mdbg.ExportActiveTransitions(dir/"mdbg_remaining_trans.txt");
+
         logger.info() << "Export to Dot" << std::endl;
         mdbg.ExportToDot(dir/"mdbg.hpc.dot");
         logger.info() << "Export to GFA and compressed contigs" << std::endl;

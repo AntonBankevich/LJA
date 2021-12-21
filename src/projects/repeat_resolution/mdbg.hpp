@@ -166,6 +166,8 @@ class MultiplexDBG
     [[nodiscard]] std::vector<Contig>
     ExportContigsAndGFA(const std::experimental::filesystem::path &contigs_fn,
                         const std::experimental::filesystem::path &gfa_fn) const;
+
+    void ExportActiveTransitions(const std::experimental::filesystem::path &path) const;
 };
 
 template<typename IndexType>
