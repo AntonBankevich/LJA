@@ -18,7 +18,6 @@
 #include <lja/multi_graph.hpp>
 #include <lja/subdataset_processing.hpp>
 
-#include <lja/lja.hpp>
 #include <lja/pipeline.hpp>
 
 using std::vector;
