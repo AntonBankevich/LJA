@@ -141,7 +141,7 @@ namespace multigraph {
                 std::vector<std::string> tokens = ::split(line);
                 if(tokens[0] == "S") {
                     std::string name = tokens[1];
-                    Vertex &newV = int_ids ? addVertex(Sequence(tokens[2]), std::stoi(name), name): addVertex(Sequence(tokens[2]))
+                    Vertex &newV = int_ids ? addVertex(Sequence(tokens[2]), std::stoi(name), name): addVertex(Sequence(tokens[2]));
 
                     VERIFY(vmap.find(name) == vmap.end());
                     vmap[name] = &newV;

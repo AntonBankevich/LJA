@@ -17,6 +17,10 @@
 
 #include <lja/multi_graph.hpp>
 #include <lja/subdataset_processing.hpp>
+
+#include <lja/lja.hpp>
+#include <lja/pipeline.hpp>
+
 using std::vector;
 using std::pair;
 using std::array;
@@ -209,7 +213,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   const std::experimental::filesystem::path &haployak,
                                                   const char haplotype, io::Library & reads,   const std::experimental::filesystem::path &dir) {
     multigraph::MultiGraph mmg;
-    mmg.LoadGFA(diplo_graph);
+    mmg.LoadGFA(diplo_graph, true);
     multigraph::MultiGraph mg = mmg.DBG();
     mg.printEdgeGFA("tsat.gfa",true);
 
@@ -245,7 +249,13 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     out_name+=haplotype;
     std::string out_aligns = out_name; out_aligns += ".alignments";
     std::string out_contigs = out_name; out_contigs += ".fasta";
-
+    io::Library ref_lib;
+    multigraph::LJAPipeline pipeline (ref_lib);
+    std::vector<std::experimental::filesystem::path> uncompressed_results =
+           pipeline.PolishingPhase(logger, threads, dir/ "uncompressing", dir, dir,
+                           output_file,
+                           reads, StringContig::max_dimer_size / 2, 5001, false, true);
+/*
     hashing::RollingHash hasher(k, 239);
     SparseDBG dbg = DBGPipeline(logger, hasher, w, reads, dir, threads);
     dbg.fillAnchors(w, logger, threads);
@@ -258,5 +268,6 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     std::vector<Contig> contigs = mmg.getCutEdges();
     PrintAlignments(logger, threads, contigs, readStorage, k, dir / out_aligns );
     readStorage.printFasta(logger, dir / out_contigs);
+    */
     return output_file;
 }

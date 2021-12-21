@@ -1,3 +1,5 @@
+#pragma  once
+
 #include <common/omp_utils.hpp>
 #include "sequences/contigs.hpp"
 #include "common/rolling_hash.hpp"
@@ -34,7 +36,7 @@ struct AlignmentRecord {
     Segment<Contig> seg_to;
 };
 
-bool operator<(const AlignmentRecord &al1, const AlignmentRecord &al2) {
+inline bool operator<(const AlignmentRecord &al1, const AlignmentRecord &al2) {
     if(al1.readIntId != al2.readIntId)
         return al1.readIntId < al2.readIntId;
     if(al1.seg_from != al2.seg_from)
