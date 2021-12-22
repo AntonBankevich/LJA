@@ -33,7 +33,7 @@ struct EdgeSegment {
     void ExtendRight(const EdgeSegment &segment);
     [[nodiscard]] EdgeSegment RC() const;
     [[nodiscard]] Sequence ToSequence() const;
-
+    [[nodiscard]] double Cov() const;
     [[nodiscard]] bool operator==(const EdgeSegment &rhs) const;
 };
 
@@ -41,14 +41,15 @@ struct EdgeSegment {
 
 class MDBGSeq {
     std::list<EdgeSegment> segms{};
+    double cov{0};
+    uint64_t size{0};
+
+    static double CovListEdgeSegm(const std::list<EdgeSegment> &segms);
+    static void Swap(MDBGSeq &lhs, MDBGSeq &rhs);
 
  public:
-    MDBGSeq(const dbg::Edge *edge, const uint64_t start, const uint64_t end) {
-        segms.emplace_back(edge, start, end);
-    }
-
-    explicit MDBGSeq(const dbg::Edge *edge) : MDBGSeq(edge, 0, edge->size()) {}
-    explicit MDBGSeq(std::list<EdgeSegment> segms) : segms{std::move(segms)} {}
+    MDBGSeq(const dbg::Edge *edge, uint64_t start, uint64_t end);
+    explicit MDBGSeq(std::list<EdgeSegment> segms);
     MDBGSeq() = default;
 
     [[nodiscard]] Sequence ToSequence() const;
@@ -59,9 +60,10 @@ class MDBGSeq {
     [[nodiscard]] bool Empty() const;
     void Append(MDBGSeq mdbg_seq);
     void Prepend(MDBGSeq mdbg_seq);
-    void TrimLeft(uint64_t size);
-    void TrimRight(uint64_t size);
+    void TrimLeft(uint64_t size_);
+    void TrimRight(uint64_t size_);
     [[nodiscard]] MDBGSeq Substr(uint64_t pos, uint64_t len) const;
+    [[nodiscard]] double Cov() const;
     [[nodiscard]] bool operator==(const MDBGSeq &rhs) const;
 };
 

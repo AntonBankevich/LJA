@@ -19,29 +19,13 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
       return vert2ind;
     }();
 
-    /*
-    double av_cov = [&dbg] {
-      std::vector<double> covs;
-      for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
-          const dbg::Edge &edge = *it;
-          covs.push_back(edge.getCoverage());
-      }
-      return std::accumulate(covs.begin(), covs.end(), 0.0)/covs.size();
-    }();
-    std::cout << "av_cov = " << av_cov << "\n";
-     */
-
     std::vector<SuccinctEdgeInfo> edge_info;
     for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;
         const RRVertexType start_ind = vert2ind.at(edge.start()->getId());
         const RRVertexType end_ind = vert2ind.at(edge.end()->getId());
-        // bool unique = edge.getCoverage() <= av_cov*1.2;
         edge_info.push_back(
-            {start_ind, end_ind, &edge, classificator.isUnique(edge),
-             edge.getCoverage()});
-        // edge_info.push_back(
-        //     {start_ind, end_ind, &edge, unique, edge.getCoverage()});
+            {start_ind, end_ind, &edge, classificator.isUnique(edge)});
     }
     return edge_info;
 }
@@ -326,8 +310,7 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
         RREdgeProperty edge_property(next_edge_index,
                                      std::move(edge_seq),
                                      infix_size,
-                                     edge_info.unique,
-                                     edge_info.cov);
+                                     edge_info.unique);
         add_edge_with_prop(edge_info.start_ind, edge_info.end_ind,
                            std::move(edge_property));
         ++next_edge_index;

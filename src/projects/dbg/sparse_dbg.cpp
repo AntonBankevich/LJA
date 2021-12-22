@@ -86,7 +86,8 @@ size_t Edge::size() const {
 }
 
 double Edge::getCoverage() const {
-    return double(cov) / size();
+    size_t size_ = size();
+    return size_ ? double(cov) / size_ : 0;
 }
 
 size_t Edge::intCov() const {

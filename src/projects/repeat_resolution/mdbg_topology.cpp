@@ -35,9 +35,16 @@ MDBGSeq RRVertexProperty::GetSeqSuffix(size_t len, int64_t shift) const {
     return seq.Substr(pos, len);
 }
 
+[[nodiscard]] double RRVertexProperty::Cov() const {
+    return seq.Cov();
+}
+
 std::ostream &repeat_resolution::operator<<(std::ostream &os,
                                             const RRVertexProperty &vertex) {
     os << vertex.size();
+    // TODO show coverage
+    // os << "size=" << vertex.size() << "\\n"
+    //     << "cov=" << vertex.Cov();
     return os;
 }
 
@@ -77,7 +84,6 @@ void RREdgeProperty::Merge(RRVertexProperty vertex, RREdgeProperty rhs) {
     if (rhs.unique) {
         unique = true;
     }
-    cov = std::min(cov, rhs.cov);
 }
 
 MDBGSeq RREdgeProperty::ExtractSeqPrefix(const size_t len) {
@@ -101,6 +107,10 @@ void RREdgeProperty::ShortenWithEmptySeq(size_t len) {
     size_ -= len;
 }
 
+[[nodiscard]] double RREdgeProperty::Cov() const {
+    return seq.Cov();
+}
+
 bool repeat_resolution::operator==(const RREdgeProperty &lhs,
                                    const RREdgeProperty &rhs) {
     return lhs.Index()==rhs.Index();
@@ -120,8 +130,7 @@ RREdgeProperty repeat_resolution::Add(const RRVertexProperty &lhs,
         /*index=*/index,
         /*(inner)seq=*/{},
         /*size=*/-((int64_t) lhs.size()) + 1,
-        /*unique=*/false,
-        /*cov=*/std::numeric_limits<double>::max());
+        /*unique=*/false);
 }
 
 // -------- SuccinctEdgeInfo -------
@@ -131,7 +140,9 @@ repeat_resolution::operator<<(std::ostream &os,
                               const RREdgeProperty &edge_property) {
     os << "index=" << edge_property.Index() << "\\n"
        << "size=" << edge_property.Size() << "\\n"
-       << "unique=" << edge_property.IsUnique(); // << "\\n"
+       << "unique=" << edge_property.IsUnique();
+       // TODO allow coverage
+       // << "unique=" << edge_property.IsUnique() << "\\n"
        // << "cov=" << edge_property.Cov();
     return os;
 }
