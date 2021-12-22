@@ -64,6 +64,7 @@ namespace multigraph {
         }
 
         bool isCanonical() const {
+            VERIFY(canonical == (id > 0));
             return canonical;
         }
     };
@@ -270,6 +271,9 @@ namespace multigraph {
                 id = maxEId + 1;
             }
             maxEId = std::max(std::abs(id), maxEId);
+            if(!(seq <= !seq)) {
+                id = -id;
+            }
             edges.emplace_back(new Edge(seq, id));
             Edge *res = edges.back();
             res->start = &from;
@@ -368,8 +372,6 @@ namespace multigraph {
             size_t cnt = 1;
             for(Edge *edge : edges) {
                 if(edge->isCanonical()) {
-                    if(edge->getId() < 0)
-                        edge = edge->rc;
                     size_t cut_left = edge->start->seq.size() * cut[edge->start];
                     size_t cut_right = edge->end->seq.size() * (1 - cut[edge->end]);
                     if(!cut_overlaps) {
@@ -386,10 +388,10 @@ namespace multigraph {
             return std::move(res);
         }
 
-        void printCutEdges(const std::experimental::filesystem::path &f) {
+        void printEdges(const std::experimental::filesystem::path &f, bool cut_overlaps) {
             std::ofstream os;
             os.open(f);
-            for(const Contig &contig : getEdges(true)) {
+            for(const Contig &contig : getEdges(cut_overlaps)) {
                 os << ">" << contig.id << "\n" << contig.seq << "\n";
             }
             os.close();

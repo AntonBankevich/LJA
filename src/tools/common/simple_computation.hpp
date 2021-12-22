@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 #include <vector>
+#include <functional>
 
 template<class T>
 T CountSum(T const * from, const T * const to) {
@@ -32,6 +33,16 @@ std::vector<size_t> histogram(Iterator begin, Iterator end, size_t max_value, si
     while(begin != end) {
         res[std::min((*begin + bucket_size - 1) / bucket_size, res.size() - 1)] += 1;
         ++begin;
+    }
+    return res;
+}
+
+template<class T, typename N>
+size_t MinIndex(const std::vector<T> &list, const std::function<N(const T&)> &f) {
+    size_t res = 0;
+    for(size_t i = 1; i < list.size(); i++) {
+        if(f(list[i]) < f(list[res]))
+            res = i;
     }
     return res;
 }

@@ -1,5 +1,17 @@
 #include "component.hpp"
 
+std::vector<dbg::Vertex *> dbg::Component::borderVertices() const {
+    std::vector<dbg::Vertex *> res;
+    for (Vertex &vert : vertices()) {
+        for(Edge &edge : vert) {
+            if(!contains(*edge.end())) {
+                res.emplace_back(&vert);
+            }
+        }
+    }
+    return std::move(res);
+}
+
 size_t dbg::Component::countBorderEdges() const {
     size_t res = 0;
     for (Vertex &vert : vertices()) {

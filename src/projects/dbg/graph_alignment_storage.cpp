@@ -542,3 +542,41 @@ void RecordStorage::untrackSuffixes() {
         }
     }
 }
+
+void RecordStorage::Save(std::ostream &os) const {
+    os << size() << "\n";
+    for(const AlignedRead &alignedRead : *this) {
+        os << alignedRead << "\n";
+    }
+}
+
+void RecordStorage::Load(std::istream &is, SparseDBG &dbg) {
+    size_t sz;
+    is >> sz;
+    for(size_t i = 0; i < sz; i++) {
+        addRead(AlignedRead::Load(is, dbg));
+    }
+}
+
+void SaveAllReads(const std::experimental::filesystem::path &fname, const std::vector<RecordStorage *> &recs) {
+    std::ofstream os;
+    os.open(fname);
+    os << recs.size() << "\n";
+    for(RecordStorage *rs : recs) {
+        rs->Save(os);
+    }
+    os.close();
+}
+
+void LoadAllReads(const std::experimental::filesystem::path &fname, const std::vector<RecordStorage *> &recs,
+                  dbg::SparseDBG &dbg) {
+    std::ifstream is;
+    is.open(fname);
+    size_t sz;
+    is >> sz;
+    VERIFY(sz == recs.size())
+    for(RecordStorage *recordStorage : recs) {
+        recordStorage->Load(is, dbg);
+    }
+    is.close();
+}

@@ -30,7 +30,12 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path contigs_file(parser.getValue("contigs"));
     std::experimental::filesystem::path alignments_file(parser.getValue("alignments"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-    std::experimental::filesystem::path res(dir / "corrected_contigs.fasta");
     std::vector<Contig> assembly = io::SeqReader(contigs_file).readAllContigs();
-    Polish(logger, threads, assembly, alignments_file, reads_lib, dicompress);
+    std::vector<Contig> res = Polish(logger, threads, assembly, alignments_file, reads_lib, dicompress);
+    std::ofstream res_os;
+    res_os.open(dir / "corrected_contigs.fasta");
+    for(Contig &contig : res) {
+        res_os << ">" << contig.getId() << "\n" << contig.seq << "\n";
+    }
+    res_os.close();
 }

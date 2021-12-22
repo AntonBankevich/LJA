@@ -24,7 +24,17 @@ public:
 
     void correct(dbg::CompactPath &&cpath);
     void applyCorrection();
+
+    static AlignedRead Load(std::istream &is, dbg::SparseDBG &dbg) {
+        std::string id;
+        is >> id;
+        return {id, dbg::CompactPath::Load(is, dbg)};
+    }
 };
+
+inline std::ostream& operator<<(std::ostream  &os, const AlignedRead &alignedRead) {
+    return os << alignedRead.id << " " << alignedRead.path;
+}
 
 class RecordStorage;
 struct VertexRecord {
@@ -178,7 +188,15 @@ public:
     void printFullAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
     ReadLogger &getLogger() {return *readLogger;}
     void flush() {readLogger->flush();}
+
+    void Save(std::ostream &os) const;
+
+    void Load(std::istream &is, dbg::SparseDBG &dbg);
 };
+
+void SaveAllReads(const std::experimental::filesystem::path &fname, const std::vector<RecordStorage *> &recs);
+
+void LoadAllReads(const std::experimental::filesystem::path &fname, const std::vector<RecordStorage *> &recs, dbg::SparseDBG &dbg);
 
 template<class I>
 void RecordStorage::fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads) {

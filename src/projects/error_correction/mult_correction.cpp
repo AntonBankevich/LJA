@@ -369,9 +369,10 @@ RecordStorage MultCorrect(SparseDBG &dbg, logging::Logger &logger, const std::ex
         DrawMult(multiplicity_figures / "round1", dbg, unique_threshold, reads_storage, classificator);
     CorrectBasedOnUnique(logger, threads, dbg, reads_storage, classificator, dump_dir/"round1.txt");
     SetUniquenessStorage more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, classificator);
+    SetUniquenessStorage more_more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, more_unique);
     if(debug)
-        DrawMult(multiplicity_figures / "round2", dbg, unique_threshold, reads_storage, more_unique);
-    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_unique, dump_dir/"round2.txt");
+        DrawMult(multiplicity_figures / "round2", dbg, unique_threshold, reads_storage, more_more_unique);
+    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_more_unique, dump_dir/"round2.txt");
     if(debug)
         DrawMult(multiplicity_figures / "final", dbg, unique_threshold, reads_storage, more_unique);
     return std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
