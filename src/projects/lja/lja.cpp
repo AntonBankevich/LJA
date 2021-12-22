@@ -200,7 +200,6 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
                                              k, kmdbg, dir, unique_threshold,
                                              diploid, debug, logger);
         rr.ResolveRepeats(logger);
-
         readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     };
     if(!skip)

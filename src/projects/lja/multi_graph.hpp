@@ -386,10 +386,10 @@ namespace multigraph {
             return std::move(res);
         }
 
-        void printCutEdges(const std::experimental::filesystem::path &f) {
+        void printEdges(const std::experimental::filesystem::path &f, bool cut_overlaps) {
             std::ofstream os;
             os.open(f);
-            for(const Contig &contig : getEdges(true)) {
+            for(const Contig &contig : getEdges(cut_overlaps)) {
                 os << ">" << contig.id << "\n" << contig.seq << "\n";
             }
             os.close();
