@@ -399,21 +399,13 @@ namespace multigraph {
             std::ofstream os;
             os.open(f);
             os << "digraph {\nnodesep = 0.5;\n";
-            std::unordered_map<Vertex *, int> vmap;
             for(Vertex *vertex : vertices) {
-                if(vertex->seq <= !vertex->seq) {
-                    vmap[vertex] = vmap.size() + 1;
-                    if(vertex->rc != vertex)
-                        vmap[vertex->rc] = -vmap[vertex];
-                }
-            }
-            for(Vertex *vertex : vertices) {
-                os << vmap[vertex] << " [label=\"" << vertex->seq.size() << "\" style=filled fillcolor=\"white\"]\n";
+                os << vertex->id << " [label=\"" << vertex->seq.size() << "\" style=filled fillcolor=\"white\"]\n";
             }
             std::unordered_map<Edge *, std::string> eids;
             for (Edge *edge : edges) {
-                os << "\"" << vmap[edge->start] << "\" -> \"" << vmap[edge->end] <<
-                   "\" [label=\"" << edge->size() << "\" color = \"black\"]\n" ;
+                os << "\"" << edge->start->id << "\" -> \"" << edge->end->id <<
+                   "\" [label=\"" << edge->getId() << "(" << edge->size() << ")\" color = \"black\"]\n" ;
             }
             os << "}\n";
             os.close();
