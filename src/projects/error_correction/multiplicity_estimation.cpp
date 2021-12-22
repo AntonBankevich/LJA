@@ -368,6 +368,11 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
 std::vector<const dbg::Edge *>
 UniqueClassificator::processComponent(logging::Logger &logger, const Component &component) const {
     std::unordered_set<const dbg::Edge *> unique_in_component;
+    logger.trace() << "Component: ";
+    for(Vertex &vertex : component.verticesUnique()) {
+        logger << " " << vertex.getShortId();
+    }
+    logger << std::endl;
     double rel_coverage = 0;
     std::function<bool(const dbg::Edge &)> is_unique = [this](const dbg::Edge &edge) {
         return isUnique(edge);

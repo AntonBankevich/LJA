@@ -87,6 +87,24 @@ public:
         return res;
     }
 
+    size_t bulgeLength() const {
+        size_t res = 0;
+        for(auto & p : path) {
+            if(p.first != p.second)
+                res += std::max(p.first->size(), p.second->size());
+        }
+        return res;
+    }
+
+    size_t conservativeLength() const {
+        size_t res = 0;
+        for(auto & p : path) {
+            if(p.first == p.second)
+                res += std::max(p.first->size(), p.second->size());
+        }
+        return res;
+    }
+
     std::string str() const {
         std::stringstream ss;
         ss << start().getShortId();
@@ -159,6 +177,7 @@ public:
                 }
                 if(new_path.length() < min_len)
                     continue;
+
                 for(size_t i = 1; i + 1 <= new_path.size(); i++) {
                     visited.emplace(&new_path.vertexAt(i));
                     visited.emplace(&new_path.vertexAt(i).rc());
@@ -167,8 +186,16 @@ public:
                     visited.emplace(&new_path.start());
                     visited.emplace(&new_path.start().rc());
                 }
-                paths.emplace_back(new_path.RC());
-                paths.emplace_back(std::move(new_path));
+                if(new_path.conservativeLength() > new_path.length()  / 2) {
+                    for(auto &ep : new_path) {
+                        if(ep.first == ep.second) {
+                            paths.emplace_back(*ep.first);
+                        }
+                    }
+                } else {
+                    paths.emplace_back(new_path.RC());
+                    paths.emplace_back(std::move(new_path));
+                }
             }
         }
         for(auto &it : dbg) {
