@@ -142,7 +142,7 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
     }
     ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(graph, cigars_collection, uncompression_results, debug, std::cout)
+#pragma omp parallel for default(none) shared(graph, cigars_collection, uncompression_results, logger, debug, std::cout)
     for(size_t i = 0; i < graph.vertices.size(); i++) {
         multigraph::Vertex &vertex = *graph.vertices[i];
         if(!vertex.isCanonical())
@@ -158,9 +158,9 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
                 if(debug) {
 #pragma omp critical
                     {
-                        std::cout << inc_edge->getId() << " " << std::endl << out_edge->getId() << " " <<overlapRecord.cigarString() << " " << overlapRecord.startSize() << " " << overlapRecord.endSize() << std::endl;
+                        logger.debug() << inc_edge->getId() << " " << std::endl << out_edge->getId() << " " <<overlapRecord.cigarString() << " " << overlapRecord.startSize() << " " << overlapRecord.endSize() << std::endl;
                         std::pair<std::string, std::string> al = overlapRecord.str();
-                        std::cout << al.first << "\n" << al.second << std::endl;
+                        logger.debug() << al.first << "\n" << al.second << std::endl;
                     }
                 }
                 cigars_collection.emplace_back(std::move(overlapRecord));
