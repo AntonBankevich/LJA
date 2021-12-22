@@ -173,7 +173,7 @@ void MultiplexDBGIncreaser::IncreaseN(MultiplexDBG &graph, uint64_t N,
     N = std::min(N, saturating_k - start_k - init_n_iter);
     while (not graph.IsFrozen() and start_k + graph.n_iter < saturating_k and
         graph.n_iter - init_n_iter < N) {
-        std::cout << start_k + graph.n_iter << "\n";
+        logger.trace() << "k = " << start_k + graph.n_iter << "\n";
         const uint64_t remain_max_iter = N - (graph.n_iter - init_n_iter);
         Increase(graph, unite_simple, remain_max_iter);
     }
