@@ -209,8 +209,6 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
     for(multigraph::Edge *edge : graph.edges) {
         if(edge->isCanonical()) {
             //TODO make canonical be the same as positive id
-            if(edge->getId() < 0)
-                edge = edge->rc;
             size_t cut_left = cuts[edge];
             size_t cut_right = cuts[edge->rc];
             Sequence seq = uncompression_results[edge->getId()];
