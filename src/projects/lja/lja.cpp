@@ -196,17 +196,9 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         printGFA(dir / "final_dbg.gfa", Component(dbg), true);
 
-        repeat_resolution::RepeatResolver rr(
-            dbg,
-            &readStorage,
-            {&extra_reads},
-            k,
-            kmdbg,
-            dir,
-            unique_threshold,
-            diploid,
-            debug,
-            logger);
+        repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
+                                             k, kmdbg, dir, unique_threshold,
+                                             diploid, debug, logger);
         rr.ResolveRepeats(logger);
 
         readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
@@ -264,7 +256,7 @@ int main(int argc, char **argv) {
                      "k-mer-size=501",
                      "window=2000",
                      "K-mer-size=5001",
-                     "KmDBG=100001",
+                     "KmDBG=40001",
                      "Window=500",
                      "cov-threshold=3",
                      "rel-threshold=10",
