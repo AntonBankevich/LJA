@@ -95,7 +95,7 @@ TEST(MDBGSeq, SeveralSegments) {
     dbg::Edge edge1(&st1, nullptr, s1.Subseq(k));
     MDBGSeq seq1(&edge1, 0, s1.size());
 
-    Sequence s2("AC");
+    Sequence s2("ACC");
     Vertex st2(0);
     st2.seq = s2.Prefix(k);
     dbg::Edge edge2(&st2, nullptr, s2.Subseq(k));
