@@ -175,9 +175,6 @@ public:
                     BulgePath p3 = p2.RC();
                     new_path = p3 + new_path;
                 }
-                if(new_path.length() < min_len)
-                    continue;
-
                 for(size_t i = 1; i + 1 <= new_path.size(); i++) {
                     visited.emplace(&new_path.vertexAt(i));
                     visited.emplace(&new_path.vertexAt(i).rc());
@@ -186,51 +183,49 @@ public:
                     visited.emplace(&new_path.start());
                     visited.emplace(&new_path.start().rc());
                 }
-                if(new_path.conservativeLength() > new_path.length()  / 2) {
-                    for(auto &ep : new_path) {
-                        if(ep.first == ep.second) {
-                            paths.emplace_back(*ep.first);
-                        }
-                    }
-                } else {
-                    paths.emplace_back(new_path.RC());
-                    paths.emplace_back(std::move(new_path));
-                }
+                paths.emplace_back(new_path.RC());
+                paths.emplace_back(std::move(new_path));
             }
         }
-        for(auto &it : dbg) {
-            if(visited.find(&it.second) != visited.end())
-                continue;
-            for(dbg::Vertex * vit : {&it.second, &it.second.rc()}) {
-                for(dbg::Edge & edge : *vit) {
-                    if(edge.size() > min_len || (
-                            (edge.start()->inDeg() == 0 || edge.end()->outDeg() == 0) &&
-                            edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
-                        paths.emplace_back(edge);
-                    }
-                }
-            }
+        for(dbg::Edge &edge : dbg.edges()) {
+            if(visited.find(edge.end()) != visited.end() || visited.find((edge.start())) != visited.end())
+                paths.emplace_back(edge);
         }
+//        for(auto &it : dbg) {
+//            if(visited.find(&it.second) != visited.end())
+//                continue;
+//            for(dbg::Vertex * vit : {&it.second, &it.second.rc()}) {
+//                for(dbg::Edge & edge : *vit) {
+//                    if(edge.size() > min_len || (
+//                            (edge.start()->inDeg() == 0 || edge.end()->outDeg() == 0) &&
+//                            edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
+//                        paths.emplace_back(edge);
+//                    }
+//                }
+//            }
+//        }
     }
 
     SetUniquenessStorage uniqueEdges() const {
         std::vector<dbg::Edge *> res;
         for(const BulgePath &bp : paths) {
-            if(bp.isBad(dbg.hasher().getK())) {
-                for (auto & p : bp) {
-                    if(p.first == p.second && p.first->size() > min_len * 2) {
-                        res.emplace_back(p.first);
+            if(bp.size() == 1) {
+                dbg::Edge &edge = *bp[0].first;
+                if(edge.size() > min_len || (
+                        (edge.start()->inDeg() == 0 || edge.end()->outDeg() == 0) &&
+                        edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
+                    res.emplace_back(&edge);
+                }
+            } else {
+                if(!bp.isBad(dbg.hasher().getK()) && bp.conservativeLength() < bp.length() / 2) {
+                    for (auto &p : bp) {
+                        if (p.first != p.second) {
+                            res.emplace_back(p.first);
+                            res.emplace_back(p.second);
+                        }
                     }
                 }
-            } else if(bp.size() > 1) {
-                for (auto &p : bp) {
-                    if (p.first != p.second) {
-                        res.emplace_back(p.first);
-                        res.emplace_back(p.second);
-                    }
-                }
-            } else
-                res.emplace_back(bp[0].first);
+            }
         }
         return {res.begin(), res.end()};
     }
