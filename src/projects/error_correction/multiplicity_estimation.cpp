@@ -1,3 +1,4 @@
+#include <common/simple_computation.hpp>
 #include "diploidy_analysis.hpp"
 #include "multiplicity_estimation.hpp"
 using namespace dbg;
@@ -203,6 +204,78 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
                      this->labeler() + reads_storage.labeler(), this->colorer());
     }
     logger.info() << "Finished unique edges search. Found " << cnt << " unique edges" << std::endl;
+    logger.info() << "Analysing repeats of multiplicity 2 and looking for additional unique edges" << std::endl;
+    std::function<bool(const dbg::Edge &)> mult2 = [this](const dbg::Edge &edge) {
+        return MultiplicityBounds::lowerBound(edge) == 2 && MultiplicityBounds::lowerBound(edge) == 2;
+    };
+    split = ConditionSplitter(mult2).splitGraph(dbg);
+    cnt = 0;
+    for(Component &component : split) {
+        if(component.size() != 8 || !component.isAcyclic() || component.realCC() != 2 || component.borderVertices().size() != 2) {
+            continue;
+        }
+        logger.trace() << "Found suspicious repeat of multiplicity 2: ";
+        for(Vertex &vertex : component.verticesUnique()) {
+            logger << " " << vertex.getShortId();
+        }
+        logger << std::endl;
+        bool success = processSimpleRepeat(component);
+        if(success) {
+            cnt++;
+            logger.trace() << "Found erroneous edge" << std::endl;
+        }
+    }
+    logger.info() << "Finished processing of repeats of multiplicity 2. Found " << cnt << " erroneous edges." << std::endl;
+}
+
+bool UniqueClassificator::processSimpleRepeat(const Component &component) {
+    std::vector<Vertex *> border = component.borderVertices();
+    Vertex &start = border[0]->rc();
+    Vertex &end = *border[1];
+    if(start.outDeg() !=2 || end.inDeg() != 2)
+        return false;
+    std::vector<Edge *> bad_candidates;
+    if(start[0].end() == &end || start[1].end() == &end) {
+        size_t ind = start[0].end() == &end ? 0 : 1;
+        Edge &e1 = start[ind];
+        Edge &e21 = start[1 - ind];
+        if(e21.end()->outDeg() != 2)
+            return false;
+        Edge &e221 = e21.end()->operator[](0);
+        Edge &e222 = e21.end()->operator[](1);
+        if(e221.end() != e222.end())
+            return false;
+        if(e221.end()->outDeg() != 1)
+            return false;
+        Edge &e23 = e221.end()->operator[](0);
+        if(e23.end() != &end)
+            return false;
+        if(!component.contains(*e21.end()) || !component.contains(*e23.start()))
+            return false;
+        bad_candidates = {&e221, &e222};
+    } else {
+        size_t ind1 = start[0].size() > start[1].size() ? 0 : 1;
+        Edge &e11 = start[ind1];
+        Edge &e12 = start[1 - ind1];
+        if(end.rc().inDeg() != 2)
+            return false;
+        size_t ind2 = end.rc()[0].size() > end.rc()[1].size() ? 1 : 0;
+        Edge &e31 = start[ind1];
+        Edge &e32 = start[1 - ind1];
+        if(e12.end()->outDeg() != 2 || e31.start()->inDeg() != 2 || e11.end() != e31.start() || e12.end() != e32.start())
+            return false;
+        Edge &e2 = e12.end()->operator[](0).end() == e31.start() ? e12.end()->operator[](0) : e12.end()->operator[](1);
+        if(!component.contains(*e2.start()) || ! component.contains(*e2.end()))
+            return false;
+        bad_candidates = {&e11, &e2, &e32};
+    }
+    std::function<double(Edge* const &)> f = [](Edge * const &edge){return edge->getCoverage();};
+    Edge &bad = *bad_candidates[MinIndex<Edge *, double>(bad_candidates, f)];
+    for(Edge &edge : component.edgesInner()) {
+        if(edge != bad && edge != bad.rc())
+            updateBounds(edge, 1, 1);
+    }
+    return true;
 }
 
 size_t UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,

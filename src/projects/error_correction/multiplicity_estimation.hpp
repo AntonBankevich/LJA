@@ -50,6 +50,7 @@ public:
     size_t ProcessUsingCoverage(logging::Logger &logger, const dbg::Component &subcomponent,
                               const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage);
     void processSimpleComponent(logging::Logger &logger, const dbg::Component &component) const;
+    bool processSimpleRepeat(const dbg::Component &component);
     size_t processComponent(logging::Logger &logger, const dbg::Component &component);
 };
 
