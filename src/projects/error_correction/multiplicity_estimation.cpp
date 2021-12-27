@@ -164,26 +164,29 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         SetUniquenessStorage duninque = BulgePathAnalyser(dbg, unique_len).uniqueEdges();
         for (Edge &edge : dbg.edges()) {
             if (duninque.isUnique(edge)) {
-                addUnique(edge);
+                updateBounds(edge, 1, 1);
+                cnt++;
             }
         }
     } else {
         for (Edge &edge : dbg.edges()) {
             if(edge.size() > unique_len || (edge.start()->inDeg() == 0 && edge.size() > unique_len / 3)) {
-                addUnique(edge);
+                updateBounds(edge, 1, 1);
+                cnt++;
             }
         }
     }
-    logger.info() << "Marked " << size() << " long edges as unique" << std::endl;
+    logger.info() << "Marked " << cnt << " long edges as unique" << std::endl;
     logger.trace() << "Marking bulges to collapse" << std::endl;
     markPseudoHets();
     logger.info() << "Splitting graph with unique edges" << std::endl;
     std::vector<Component> split = UniqueSplitter(*this).split(Component(dbg));
-    logger.info() << "Processing components" << std::endl;
+    logger.info() << "Processing " << split.size() << " components" << std::endl;
+    size_t component_cnt = 0;
     for(Component &component : split) {
-        cnt += 1;
+        component_cnt += 1;
         if(debug)
-            printDot(dir / (std::to_string(cnt) + ".dot"), component, reads_storage.labeler());
+            printDot(dir / (std::to_string(component_cnt) + ".dot"), component, reads_storage.labeler());
         //TODO make parallel trace
         logger.trace() << "Component parameters: size=" << component.size() << " border=" << component.countBorderEdges() <<
                       " tips=" << component.countTips() <<
@@ -192,30 +195,21 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
            component.realCC() == 2 && component.isAcyclic()) {
             processSimpleComponent(logger, component);
         }
-        std::vector<const Edge *> new_unique = processComponent(logger, component);
-        addUnique(new_unique.begin(), new_unique.end());
+        cnt += processComponent(logger, component);
         if(debug)
-            logger.trace() << "Printing component to " << (dir / (std::to_string(cnt) + ".dot")) << std::endl;
-        const std::function<std::string(Edge &)> labeler = [](Edge &) {return "";};
-        const std::function<std::string(Edge &)> colorer = [this](Edge &edge) {
-            if(isUnique(edge)) {
-                return "black";
-            }
-            if(!edge.is_reliable) {
-                return "red";
-            }
-            return "blue";
-        };
+            logger.trace() << "Printing component to " << (dir / (std::to_string(component_cnt) + ".dot")) << std::endl;
         if(debug)
-            printDot(dir / (std::to_string(cnt) + ".dot"), component, reads_storage.labeler(), colorer);
+            printDot(dir / (std::to_string(component_cnt) + ".dot"), component,
+                     this->labeler() + reads_storage.labeler(), this->colorer());
     }
-    logger.info() << "Finished unique edges search. Found " << size() << " unique edges" << std::endl;
+    logger.info() << "Finished unique edges search. Found " << cnt << " unique edges" << std::endl;
 }
 
-std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
+size_t UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
                                           const Component &subcomponent,
                                           const std::function<bool(const dbg::Edge &)> &is_unique,
-                                          double rel_coverage) const {
+                                          double rel_coverage) {
+    size_t ucnt = 0;
     std::pair<double, double> tmp = minmaxCov(subcomponent, reads_storage, is_unique);
     double min_cov = tmp.first;
     double max_cov = tmp.second;
@@ -231,10 +225,14 @@ std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logg
 //    rel_coverage = 0;
     MappedNetwork net2(subcomponent, is_unique, rel_coverage, threshold);
     bool res = net2.fillNetwork();
-    std::vector<Edge *> unique = {};
     if (res) {
         logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
-        unique = net2.getUnique(logger);
+        for(auto rec : net2.findBounds()) {
+            if(!MultiplicityBounds::isUnique(*net2.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
+                ucnt++;
+            }
+            updateBounds(*net2.edge_mapping[rec.first], rec.second.first, rec.second.second);
+        }
     } else {
         logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
         if(rel_coverage == 0) {
@@ -245,7 +243,12 @@ std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logg
             res = net3.fillNetwork();
             if (res) {
                 logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
-                unique = net3.getUnique(logger);
+                for(auto rec : net3.findBounds()) {
+                    if(!MultiplicityBounds::isUnique(*net3.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
+                        ucnt++;
+                    }
+                    updateBounds(*net3.edge_mapping[rec.first], rec.second.first, rec.second.second);
+                }
             } else {
                 logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
             }
@@ -254,13 +257,18 @@ std::vector<dbg::Edge *> UniqueClassificator::ProcessUsingCoverage(logging::Logg
     MappedNetwork net4(subcomponent, is_unique, rel_coverage, threshold, double_threshold);
     res = net4.fillNetwork();
     if(res) {
-        unique = net4.getUnique(logger);
+        for(auto rec : net4.findBounds()) {
+            if(!MultiplicityBounds::isUnique(*net4.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
+                ucnt++;
+            }
+            updateBounds(*net4.edge_mapping[rec.first], rec.second.first, rec.second.second);
+        }
     } else {
         double_threshold = 0;
     }
     logger.trace() << "Succeeded to use coverage for multiplicity estimation with rel_coverage = " << rel_coverage
                    << " threshold = " << threshold << " double_threshold = " << double_threshold << std::endl;
-    return std::move(unique);
+    return ucnt;
 }
 
 std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordStorage &reads_storage,
@@ -365,9 +373,8 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
     }
 }
 
-std::vector<const dbg::Edge *>
-UniqueClassificator::processComponent(logging::Logger &logger, const Component &component) const {
-    std::unordered_set<const dbg::Edge *> unique_in_component;
+size_t UniqueClassificator::processComponent(logging::Logger &logger, const Component &component) {
+    size_t ucnt = 0;
     logger.trace() << "Component: ";
     for(Vertex &vertex : component.verticesUnique()) {
         logger << " " << vertex.getShortId();
@@ -382,7 +389,8 @@ UniqueClassificator::processComponent(logging::Logger &logger, const Component &
     if(res) {
         logger.trace() << "Found unique edges in component" << std::endl;
         for(Edge * edge : net.getUnique(logger)) {
-            unique_in_component.emplace(edge);
+            updateBounds(*edge, 1, 1);
+            ucnt++;
         }
     } else {
         logger.trace() << "Could not find unique edges in component" << std::endl;
@@ -393,26 +401,21 @@ UniqueClassificator::processComponent(logging::Logger &logger, const Component &
         if(res) {
             logger.trace() << "Found unique edges in component" << std::endl;
             for(Edge * edge : net1.getUnique(logger)) {
-                unique_in_component.emplace(edge);
+                updateBounds(*edge, 1, 1);
+                ucnt++;
             }
         } else {
             logger.trace() << "Could not find unique edges with relaxed conditions in component" << std::endl;
         }
     }
     if(res) {
-        std::function<bool(const dbg::Edge &)> is_unique1 = [&unique_in_component, this](const dbg::Edge &edge){
-            return isUnique(edge) || unique_in_component.find(&edge) != unique_in_component.end();
-        };
-        std::vector<Component> subsplit = ConditionSplitter(is_unique1).split(component);
+        std::vector<Component> subsplit = ConditionSplitter(this->asFunction()).split(component);
+        logger.trace() << "Component was split into " << subsplit.size() << " subcompenents" << std::endl;
         for(Component &subcomponent : subsplit) {
-            std::vector<dbg::Edge *> extra_unique = ProcessUsingCoverage(logger, subcomponent, is_unique1, rel_coverage);
-            unique_in_component.insert(extra_unique.begin(), extra_unique.end());
+            ucnt += ProcessUsingCoverage(logger, subcomponent, this->asFunction(), rel_coverage);
         }
     }
-    std::function<std::string(Edge &)> colorer = [this, &unique_in_component](Edge &edge) {
-        return (isUnique(edge) || unique_in_component.find(&edge) == unique_in_component.end()) ? "blue" : "black";
-    };
-    return {unique_in_component.begin(), unique_in_component.end()};
+    return ucnt;
 }
 
 std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {

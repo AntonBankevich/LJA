@@ -217,7 +217,7 @@ public:
                     res.emplace_back(&edge);
                 }
             } else {
-                if(!bp.isBad(dbg.hasher().getK()) && bp.conservativeLength() < bp.length() / 2) {
+                if(!bp.isBad(dbg.hasher().getK()) && (bp.conservativeLength() < bp.length() / 2 || bp.size() >= 4)) {
                     for (auto &p : bp) {
                         if (p.first != p.second) {
                             res.emplace_back(p.first);

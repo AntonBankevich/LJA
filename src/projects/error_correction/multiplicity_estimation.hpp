@@ -33,7 +33,7 @@ public:
 std::pair<double, double> minmaxCov(const dbg::Component &subcomponent, const RecordStorage &reads_storage,
                                     const std::function<bool(const dbg::Edge &)> &is_unique);
 
-class UniqueClassificator : public SetUniquenessStorage{
+class UniqueClassificator : public MultiplicityBounds {
 private:
     dbg::SparseDBG &dbg;
     bool diploid;
@@ -47,10 +47,10 @@ public:
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir);
     explicit UniqueClassificator(dbg::SparseDBG &dbg, const RecordStorage &reads_storage, bool diploid, bool debug) :
                     dbg(dbg), reads_storage(reads_storage), diploid(diploid), debug(debug) {}
-    std::vector<dbg::Edge *> ProcessUsingCoverage(logging::Logger &logger, const dbg::Component &subcomponent,
-                              const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage) const;
+    size_t ProcessUsingCoverage(logging::Logger &logger, const dbg::Component &subcomponent,
+                              const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage);
     void processSimpleComponent(logging::Logger &logger, const dbg::Component &component) const;
-    std::vector<const dbg::Edge *> processComponent(logging::Logger &logger, const dbg::Component &component) const;
+    size_t processComponent(logging::Logger &logger, const dbg::Component &component);
 };
 
 RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage,
