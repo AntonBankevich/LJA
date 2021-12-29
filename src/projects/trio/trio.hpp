@@ -16,5 +16,5 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                            const std::experimental::filesystem::path &output_file,
                                            const std::experimental::filesystem::path &diplo_graph,
                                            const std::experimental::filesystem::path &haployak,
-                                           const char haplotype, io::Library & reads,const std::experimental::filesystem::path &dir);
+                                           const char haplotype, const std::experimental::filesystem::path &corrected_reads, io::Library & reads,const std::experimental::filesystem::path &dir);
 

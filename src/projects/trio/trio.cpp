@@ -210,7 +210,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   const std::experimental::filesystem::path &output_file,
                                                   const std::experimental::filesystem::path &diplo_graph,
                                                   const std::experimental::filesystem::path &haployak,
-                                                  const char haplotype, io::Library & reads,   const std::experimental::filesystem::path &dir) {
+                                                  const char haplotype,  const std::experimental::filesystem::path &corrected_reads, io::Library & reads,   const std::experimental::filesystem::path &dir) {
     multigraph::MultiGraph mmg;
     mmg.LoadGFA(diplo_graph, true);
     multigraph::MultiGraph mg = mmg.DBG();
@@ -251,9 +251,8 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     io::Library ref_lib;
     multigraph::LJAPipeline pipeline (ref_lib);
     std::vector<std::experimental::filesystem::path> uncompressed_results =
-           pipeline.PolishingPhase(logger, threads, dir/ "uncompressing", dir, dir,
-                           output_file,
-                           reads, StringContig::max_dimer_size / 2, 5001, false, true);
+           pipeline.PolishingPhase(logger, threads, dir/ out_name, dir / out_name, output_file,
+                           corrected_reads, reads, StringContig::max_dimer_size / 2, 5001, false, true);
 /*
     hashing::RollingHash hasher(k, 239);
     SparseDBG dbg = DBGPipeline(logger, hasher, w, reads, dir, threads);
