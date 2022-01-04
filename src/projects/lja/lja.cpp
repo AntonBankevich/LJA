@@ -285,6 +285,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if(parser.getListValue("reads").size() == 0) {
+        std::cout << "Please provide at least one file with reads." << std::endl;
+        std::cout << parser.message() << std::endl;
+        return 1;
+    }
+
     bool debug = parser.getCheck("debug");
     StringContig::homopolymer_compressing = true;
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
