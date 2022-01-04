@@ -32,5 +32,5 @@ int main(int argc, char **argv) {
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     std::experimental::filesystem::path res(dir / "corrected_contigs.fasta");
     std::vector<Contig> assembly = io::SeqReader(contigs_file).readAllContigs();
-    Polish(logger, threads, res, assembly, alignments_file, reads_lib, dicompress);
+    Polish(logger, threads, assembly, alignments_file, reads_lib, dicompress);
 }
