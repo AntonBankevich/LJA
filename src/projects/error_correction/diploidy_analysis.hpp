@@ -188,7 +188,7 @@ public:
             }
         }
         for(dbg::Edge &edge : dbg.edges()) {
-            if(visited.find(edge.end()) != visited.end() || visited.find((edge.start())) != visited.end())
+            if(visited.find(edge.end()) == visited.end() && visited.find((edge.start())) == visited.end())
                 paths.emplace_back(edge);
         }
 //        for(auto &it : dbg) {
@@ -217,7 +217,7 @@ public:
                     res.emplace_back(&edge);
                 }
             } else {
-                if(!bp.isBad(dbg.hasher().getK()) && (bp.conservativeLength() < bp.length() / 2 || bp.size() >= 4)) {
+                if(!bp.isBad(dbg.hasher().getK()) && (bp.conservativeLength() < bp.length() / 2 || bp.size() >= 4) && bp.length() > min_len && bp.conservativeLength() < bp.length() * 95 / 100) {
                     for (auto &p : bp) {
                         if (p.first != p.second) {
                             res.emplace_back(p.first);

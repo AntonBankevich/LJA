@@ -211,7 +211,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     split = ConditionSplitter(mult2).splitGraph(dbg);
     cnt = 0;
     for(Component &component : split) {
-        if(component.size() != 8 || !component.isAcyclic() || component.realCC() != 2 || component.borderVertices().size() != 2) {
+        if(component.size() != 4 || !component.isAcyclic() || component.realCC() != 2 || component.borderVertices().size() != 2) {
             continue;
         }
         logger.trace() << "Found suspicious repeat of multiplicity 2: ";
@@ -257,11 +257,11 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
         size_t ind1 = start[0].size() > start[1].size() ? 0 : 1;
         Edge &e11 = start[ind1];
         Edge &e12 = start[1 - ind1];
-        if(end.rc().inDeg() != 2)
+        if(end.inDeg() != 2)
             return false;
         size_t ind2 = end.rc()[0].size() > end.rc()[1].size() ? 1 : 0;
-        Edge &e31 = start[ind1];
-        Edge &e32 = start[1 - ind1];
+        Edge &e31 = end.rc().operator[](ind1).rc();
+        Edge &e32 = end.rc().operator[](1 - ind1).rc();
         if(e12.end()->outDeg() != 2 || e31.start()->inDeg() != 2 || e11.end() != e31.start() || e12.end() != e32.start())
             return false;
         Edge &e2 = e12.end()->operator[](0).end() == e31.start() ? e12.end()->operator[](0) : e12.end()->operator[](1);
@@ -271,8 +271,21 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
     }
     std::function<double(Edge* const &)> f = [](Edge * const &edge){return edge->getCoverage();};
     Edge &bad = *bad_candidates[MinIndex<Edge *, double>(bad_candidates, f)];
+    std::unordered_set<Edge *> nonUnique = {&bad, &bad.rc()};
+    if(*bad.start() == start) {
+        nonUnique.emplace(&start[0]);
+        nonUnique.emplace(&start[1]);
+        nonUnique.emplace(&start[0].rc());
+        nonUnique.emplace(&start[1].rc());
+    }
+    if(*bad.end() == end) {
+        nonUnique.emplace(&end.rc()[0]);
+        nonUnique.emplace(&end.rc()[1]);
+        nonUnique.emplace(&end.rc()[0].rc());
+        nonUnique.emplace(&end.rc()[1].rc());
+    }
     for(Edge &edge : component.edgesInner()) {
-        if(edge != bad && edge != bad.rc())
+        if(nonUnique.find(&edge) == nonUnique.end())
             updateBounds(edge, 1, 1);
     }
     return true;
@@ -308,39 +321,59 @@ size_t UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
         }
     } else {
         logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
-        if(rel_coverage == 0) {
-            logger.trace() << "Adjusted reliable edge threshold from " << rel_coverage << " to " <<
+    }
+    if(!res && rel_coverage == 0) {
+        logger.trace() << "Attempting to adjust adjusted reliable edge threshold from " << rel_coverage << " to " <<
                            adjusted_rel_coverage << std::endl;
-            rel_coverage = adjusted_rel_coverage;
-            MappedNetwork net3(subcomponent, is_unique, rel_coverage, threshold);
-            res = net3.fillNetwork();
-            if (res) {
-                logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
-                for(auto rec : net3.findBounds()) {
-                    if(!MultiplicityBounds::isUnique(*net3.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
-                        ucnt++;
-                    }
-                    updateBounds(*net3.edge_mapping[rec.first], rec.second.first, rec.second.second);
+        rel_coverage = adjusted_rel_coverage;
+        MappedNetwork net3(subcomponent, is_unique, rel_coverage, threshold);
+        res = net3.fillNetwork();
+        if (res) {
+            logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
+            for(auto rec : net3.findBounds()) {
+                if(!MultiplicityBounds::isUnique(*net3.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
+                    ucnt++;
                 }
-            } else {
-                logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
+                updateBounds(*net3.edge_mapping[rec.first], rec.second.first, rec.second.second);
             }
+        } else {
+            logger.trace() << "Failed to use adjusted reliable coverage for multiplicity estimation" << std::endl;
         }
     }
-    MappedNetwork net4(subcomponent, is_unique, rel_coverage, threshold, double_threshold);
-    res = net4.fillNetwork();
+    if(!res) {
+        logger.trace() << "Setting unique threshold to 0" << std::endl;
+        threshold = 0;
+        MappedNetwork net4(subcomponent, is_unique, rel_coverage, threshold);
+        res = net4.fillNetwork();
+        if (res) {
+            logger.trace() << "Succeeded to use coverage for multiplicity estimation" << std::endl;
+            for(auto rec : net4.findBounds()) {
+                if(!MultiplicityBounds::isUnique(*net4.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
+                    ucnt++;
+                }
+                updateBounds(*net4.edge_mapping[rec.first], rec.second.first, rec.second.second);
+            }
+        } else {
+            logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
+        }
+    }
+    if(!res)
+        return ucnt;
+    logger.trace() << "Attempting to set additional condition for edges of multiplicity 2" << std::endl;
+    MappedNetwork net5(subcomponent, is_unique, rel_coverage, threshold, double_threshold);
+    res = net5.fillNetwork();
     if(res) {
-        for(auto rec : net4.findBounds()) {
-            if(!MultiplicityBounds::isUnique(*net4.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
+        for(auto rec : net5.findBounds()) {
+            if(!MultiplicityBounds::isUnique(*net5.edge_mapping[rec.first]) && rec.second.first == 1 && rec.second.second == 1) {
                 ucnt++;
             }
-            updateBounds(*net4.edge_mapping[rec.first], rec.second.first, rec.second.second);
+            updateBounds(*net5.edge_mapping[rec.first], rec.second.first, rec.second.second);
         }
     } else {
         double_threshold = 0;
     }
-    logger.trace() << "Succeeded to use coverage for multiplicity estimation with rel_coverage = " << rel_coverage
-                   << " threshold = " << threshold << " double_threshold = " << double_threshold << std::endl;
+    logger.trace() << "Final multiplicity estimation with reliable coverage threshold = " << rel_coverage
+                   << " unique coverage threshold = " << threshold << " double coverage threshold = " << double_threshold << std::endl;
     return ucnt;
 }
 
