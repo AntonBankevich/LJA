@@ -89,8 +89,13 @@ MDBGComplexVertexProcessor::SplitVertex(MultiplexDBG &graph,
     RRVertexProperty &v_prop = graph.node_prop(vertex);
     std::unordered_map<RREdgeIndexType, RRVertexType> edge2vertex;
     std::vector<RRVertexType> new_vertices;
+
     auto[in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
+    std::vector<decltype(in_nbr_begin)> in_neighbors_its;
     for (auto it = in_nbr_begin; it!=in_nbr_end; ++it) {
+        in_neighbors_its.emplace_back(it);
+    }
+    for (auto it : in_neighbors_its) {
         const RRVertexType &neighbor = it->first;
         const RREdgeIndexType edge_index = it->second.prop().Index();
         RRVertexType new_vertex = graph.GetNewVertex(v_prop.Seq());
@@ -105,7 +110,12 @@ MDBGComplexVertexProcessor::SplitVertex(MultiplexDBG &graph,
     }
 
     auto[out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
+
+    std::vector<decltype(out_nbr_begin)> out_neighbors_its;
     for (auto it = out_nbr_begin; it!=out_nbr_end; ++it) {
+        out_neighbors_its.emplace_back(it);
+    }
+    for (auto it : out_neighbors_its) {
         const RREdgeIndexType edge_index = it->second.prop().Index();
         RRVertexType new_vertex = graph.GetNewVertex(v_prop.Seq());
         new_vertices.emplace_back(new_vertex);
