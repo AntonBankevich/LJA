@@ -754,11 +754,12 @@ TEST(DBBuldges1, Basic) {
     MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
     k_increaser.IncreaseUntilSaturation(mdbg);
     {
-        RawVertexInfo vertex_info{{6, {"ACA", false}}, {3, {"CGC", false}},
-                                  {7, {"ACT", false}}, {4, {"TGC", false}},
-                                  {8, {"ACA", false}}, {5, {"TGC", false}}};
+        RawVertexInfo vertex_info{{16, {"ACA", false}}, {3, {"CGC", false}},
+                                  {17, {"ACT", false}}, {4, {"TGC", false}},
+                                  {18, {"ACA", false}}, {5, {"TGC", false}}};
         std::vector<std::tuple<uint64_t, uint64_t, std::string>> post_raw_edge{
-            {6, 3, "ACAAAGAACGC"}, {7, 4, "ACTAAAAATGC"}, {8, 5, "ACAAATGC"}};
+            {16, 3, "ACAAAGAACGC"}, {17, 4, "ACTAAAAATGC"},
+            {18, 5, "ACAAATGC"}};
 
         auto[VertexIndexSetsEqual, VertexPropsEquals] =
         CompareVertexes(mdbg, vertex_info);
