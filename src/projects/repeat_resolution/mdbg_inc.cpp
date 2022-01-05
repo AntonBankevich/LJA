@@ -40,9 +40,12 @@ void MultiplexDBGIncreaser::CollapseEdge(MultiplexDBG &graph,
     graph.remove_edge(s_it, e_it);
 
     auto[out_nbr_begin, out_nbr_end] = graph.out_neighbors(e);
-    for (auto out_nbr_it = out_nbr_begin; out_nbr_it!=out_nbr_end;
-         ++out_nbr_it) {
-        graph.MoveEdge(e, out_nbr_it, s, out_nbr_it->first);
+    std::vector<decltype(out_nbr_begin)> neighbors_its;
+    for (auto it = out_nbr_begin; it!=out_nbr_end; ++it) {
+        neighbors_its.emplace_back(it);
+    }
+    for (auto it : neighbors_its) {
+        graph.MoveEdge(e, it, s, it->first);
     }
     VERIFY(graph.count_in_neighbors(e)==0 and
         graph.count_out_neighbors(e)==0);
