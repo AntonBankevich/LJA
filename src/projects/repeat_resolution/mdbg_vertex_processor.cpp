@@ -10,7 +10,12 @@ void MDBGSimpleVertexProcessor::Process0In1Pout(MultiplexDBG &graph,
                                                 const RRVertexType &vertex) {
     RRVertexProperty &v_prop = graph.node_prop(vertex);
     auto[out_nbr_begin, out_nbr_end] = graph.out_neighbors(vertex);
+    std::vector<decltype(out_nbr_begin)> neighbors_its;
     for (auto it = out_nbr_begin; it!=out_nbr_end; ++it) {
+        neighbors_its.emplace_back(it);
+    }
+    for (auto it : neighbors_its) {
+    // for (auto it = out_nbr_begin; it!=out_nbr_end; ++it) {
         RRVertexType new_vertex = graph.GetNewVertex(v_prop.Seq());
         graph.MoveEdge(vertex, it, new_vertex, it->first);
         graph.IncreaseVertex(new_vertex, 1);
@@ -22,7 +27,12 @@ void MDBGSimpleVertexProcessor::Process1Pin0Out(MultiplexDBG &graph,
                                                 const RRVertexType &vertex) {
     RRVertexProperty &v_prop = graph.node_prop(vertex);
     auto[in_nbr_begin, in_nbr_end] = graph.in_neighbors(vertex);
+    std::vector<decltype(in_nbr_begin)> neighbors_its;
     for (auto it = in_nbr_begin; it!=in_nbr_end; ++it) {
+        neighbors_its.emplace_back(it);
+    }
+    for (auto it : neighbors_its) {
+    // for (auto it = in_nbr_begin; it!=in_nbr_end; ++it) {
         RREdgeIndexType edge_index = it->second.prop().Index();
         RRVertexType new_vertex = graph.GetNewVertex(v_prop.Seq());
         // need to construct a NeighborIterator pointing to vertex
