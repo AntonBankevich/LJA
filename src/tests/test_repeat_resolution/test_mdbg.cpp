@@ -721,6 +721,7 @@ TEST(DBComplexVertexLoop5, Basic) {
     }
 }
 
+/*
 // graph with two buldges and loops inside
 TEST(DBBuldges1, Basic) {
     const size_t k = 2;
@@ -768,6 +769,7 @@ TEST(DBBuldges1, Basic) {
         ASSERT_TRUE(CompareEdges(mdbg, post_raw_edge));
     }
 }
+*/
 
 // graph with complex vertex and 4 connections
 TEST(DBComplexVertexConn4, Basic) {
