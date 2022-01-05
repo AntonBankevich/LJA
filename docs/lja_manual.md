@@ -6,7 +6,7 @@ Requirements
 
 * 64 bit Linux OS
 * CMake version 3.1 or above
-* C++ compiler with C++14 support (GCC 5.0+)
+* C++ compiler with C++17 support (GCC-7+)
 * GNU make
 * zlib
 * python3 with the following packages installed: networkx, pyyaml, llist, numpy, edlib, joblib, Bio, pydot
