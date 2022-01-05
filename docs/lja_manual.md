@@ -21,8 +21,7 @@ To build from source code run the following commands from code directory.
 ``` bash
 
     cmake .
-    make 
-    make install
+    make
 ```
 
 Binary files will be stored in the bin subdirectory.
