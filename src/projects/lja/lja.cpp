@@ -132,10 +132,8 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
 std::vector<std::experimental::filesystem::path> SecondPhase(
     logging::Logger &logger, const std::experimental::filesystem::path &dir,
     const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-    const io::Library &paths_lib, size_t threads, size_t k, size_t w,
-    size_t kmdbg, double threshold, double reliable_coverage,
-    size_t unique_threshold, const std::experimental::filesystem::path &py_path,
-    bool diploid, bool skip, bool debug, bool load) {
+    const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+    size_t unique_threshold, bool diploid, bool skip, bool debug, bool load) {
     logger.info() << "Performing second phase of correction with k = " << k
                   << std::endl;
     if (k%2==0) {
@@ -145,10 +143,10 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, kmdbg,
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w,
                                      &reads_lib, &pseudo_reads_lib, &paths_lib,
                                      threads, threshold, reliable_coverage,
-                                     debug, unique_threshold, diploid, py_path]
+                                     debug, unique_threshold, diploid]
                                      {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg =
@@ -157,7 +155,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
                                (dir/"vertices.save").string())
                  : DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        size_t extension_size = 100000;
+        size_t extension_size = 10000000;
         ReadLogger readLogger(threads, dir/"read_log.txt");
         RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
@@ -195,11 +193,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         dbg.printFastaOld(dir / "final_dbg.fasta");
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         printGFA(dir / "final_dbg.gfa", Component(dbg), true);
-
-        repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
-                                             k, kmdbg, dir, unique_threshold,
-                                             diploid, debug, logger);
-        rr.ResolveRepeats(logger);
+        SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
         readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     };
     if(!skip)
@@ -208,7 +202,31 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
     res = dir / "corrected_reads.fasta";
     logger.info() << "Second phase results with k = " << k << " printed to "
                   << res << std::endl;
-    return {res, dir / "mdbg.hpc.gfa"};
+    return {res, dir / "final_dbg.fasta", dir / "final_dbg.aln"};
+}
+
+std::vector<std::experimental::filesystem::path> MDBGPhase(
+        logging::Logger &logger, size_t threads, size_t k, size_t kmdbg, size_t w, size_t unique_threshold, bool diploid,
+        const std::experimental::filesystem::path &dir,
+        const std::experimental::filesystem::path &graph_fasta,
+        const std::experimental::filesystem::path &read_paths, bool skip, bool debug) {
+    logger.info() << "Performing repeat resolution by transforming de Bruijn graph into Multiplex de Bruijn graph" << std::endl;
+    std::function<void()> ic_task = [&logger, threads, debug, k, kmdbg, &graph_fasta, unique_threshold, diploid, &read_paths, &dir] {
+        hashing::RollingHash hasher(k, 239);
+        SparseDBG dbg = dbg::LoadDBGFromFasta({graph_fasta}, hasher, logger, threads);
+        size_t extension_size = 10000000;
+        ReadLogger readLogger(threads, dir/"read_log.txt");
+        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
+        RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, debug);
+        LoadAllReads(read_paths, {&readStorage, &extra_reads}, dbg);
+        repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
+                                             k, kmdbg, dir, unique_threshold,
+                                             diploid, debug, logger);
+        rr.ResolveRepeats(logger);
+    };
+    if(!skip)
+        runInFork(ic_task);
+    return {dir / "assembly.hpc.fasta", dir / "mdbg.hpc.gfa"};
 }
 
 std::vector<std::experimental::filesystem::path> PolishingPhase(
@@ -305,7 +323,7 @@ int main(int argc, char **argv) {
     logger << std::endl;
     logger.info() << "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads\n";
     logging::logGit(logger, dir / "version.txt");
-    bool diplod = parser.getCheck("diploid");
+    bool diploid = parser.getCheck("diploid");
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";
     bool load = parser.getCheck("load");
@@ -341,24 +359,30 @@ int main(int argc, char **argv) {
 
     if(first_stage == "phase2")
         skip = false;
-    std::experimental::filesystem::path executable(argv[0]);
-    std::experimental::filesystem::path py_path = executable.parent_path() / "run_rr.py";
-    logger.trace() << "py_path set to " << py_path.string() << std::endl;
     std::vector<std::experimental::filesystem::path> corrected2 =
             SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
-                        threads, K, W, KmDBG, Threshold, Reliable_coverage, unique_threshold, py_path, diplod, skip, debug, load);
+                        threads, K, W, Threshold, Reliable_coverage, unique_threshold, diploid, skip, debug, load);
     if(first_stage == "phase2")
         load = false;
+
+    if(first_stage == "rr")
+        skip = false;
+    std::vector<std::experimental::filesystem::path> resolved =
+            MDBGPhase(logger, threads, K, KmDBG, W, unique_threshold, diploid, dir / "mdbg", corrected2[1],
+                      corrected2[2], skip, debug);
+    if(first_stage == "rr")
+        load = false;
+
     if(first_stage == "polishing")
         skip = false;
     std::vector<std::experimental::filesystem::path> uncompressed_results =
-            PolishingPhase(logger, threads, dir/ "uncompressing", dir, corrected2[1],
+            PolishingPhase(logger, threads, dir/ "uncompressing", dir, resolved[1],
                            corrected2[0],
                             lib, StringContig::max_dimer_size / 2, K, skip, debug);
     if(first_stage == "polishing")
         load = false;
     logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2[0] << std::endl;
-    logger.info() << "Final graph with homopolymer compressed edges can be found here: " << corrected2[1] << std::endl;
+    logger.info() << "Final graph with homopolymer compressed edges can be found here: " << resolved[1] << std::endl;
     logger.info() << "Final graph can be found here: " << uncompressed_results[1] << std::endl;
     logger.info() << "Final assembly can be found here: " << uncompressed_results[0] << std::endl;
     logger.info() << "LJA pipeline finished" << std::endl;

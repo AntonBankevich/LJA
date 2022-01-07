@@ -113,8 +113,25 @@ namespace dbg {
         unsigned char operator[](size_t ind) const {
             return _edges[ind];
         }
+
+        static CompactPath Load(std::istream &os, SparseDBG &dbg) {
+            hashing::htype hash;
+            bool canonical;
+            size_t left = 0;
+            size_t right = 0;
+            std::string path;
+            os >> hash >> canonical >> path >> left >> right;
+            path = path.substr(2);
+            if(hash == 0 && path.size() == 0) {
+                return {};
+            }
+            return {dbg.getVertex(hash, canonical), Sequence(path), left, right};
+        }
     };
 }
 inline std::ostream& operator<<(std::ostream  &os, const dbg::CompactPath &cpath) {
-    return os << cpath.start().hash() << cpath.start().isCanonical() << " " << cpath.cpath() << " " << cpath.leftSkip() << " " << cpath.rightSkip();
+    if(cpath.valid())
+        return os << cpath.start().hash() << " " << cpath.start().isCanonical() << " P:" << cpath.cpath() << " " << cpath.leftSkip() << " " << cpath.rightSkip();
+    else
+        return os << "0 0 P: 0 0";
 }

@@ -181,7 +181,7 @@ namespace dbg {
         bool containsVertex(const hashing::htype &hash) const {return v.find(hash) != v.end();}
         Vertex &getVertex(const hashing::KWH &kwh);
         Vertex &getVertex(const Sequence &seq);
-        Vertex &getVertex(hashing::htype hash) {return v.find(hash)->second;}
+        Vertex &getVertex(hashing::htype hash, bool canonical = true) {return canonical ? v.find(hash)->second : v.find(hash)->second.rc();}
         Vertex &getVertex(const Vertex &other_graph_vertex);
         std::array<Vertex *, 2> getVertices(hashing::htype hash);
 //        const Vertex &getVertex(const hashing::KWH &kwh) const;
