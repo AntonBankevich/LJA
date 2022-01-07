@@ -69,9 +69,9 @@ void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::pa
 
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path>
 AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
-                size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-                bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
+            const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
+        size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -129,12 +129,50 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
     return {res, dir / "graph.fasta"};
 }
 
+std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+                const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
+                size_t threads, size_t k, size_t w, bool skip, bool debug, bool load) {
+    logger.info() << "Performing initial correction with k = " << k << std::endl;
+    if (k % 2 == 0) {
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        k += 1;
+    }
+    ensure_dir_existance(dir);
+    hashing::RollingHash hasher(k, 239);
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib,
+            &pseudo_reads_lib, &paths_lib, threads, debug] {
+        io::Library construction_lib = reads_lib + pseudo_reads_lib;
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+                        DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        dbg.fillAnchors(w, logger, threads);
+        size_t extension_size = std::max<size_t>(k * 2, 1000);
+        ReadLogger readLogger(threads, dir/"read_log.txt");
+        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
+        RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, true, false);
+        io::SeqReader reader(reads_lib);
+        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        coverageStats(logger, dbg);
+        if(debug) {
+            PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
+        }
+        dbg.printFastaOld(dir / "final_dbg.fasta");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
+        printGFA(dir / "final_dbg.gfa", Component(dbg), true);
+        SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
+        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
+    };
+    if(!skip)
+        runInFork(ic_task);
+
+    return {dir/"corrected_reads.fasta", dir / "final_dbg.fasta", dir / "final_dbg.aln"};
+}
+
 std::vector<std::experimental::filesystem::path> SecondPhase(
     logging::Logger &logger, const std::experimental::filesystem::path &dir,
     const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
     const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
     size_t unique_threshold, bool diploid, bool skip, bool debug, bool load) {
-    logger.info() << "Performing second phase of correction with k = " << k
+    logger.info() << "Constructing garph with k = " << k
                   << std::endl;
     if (k%2==0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1)
@@ -284,6 +322,7 @@ int main(int argc, char **argv) {
                      "dimer-compress=32,32,1",
                      "restart-from=none",
                      "load",
+                     "noec",
                      "alternative",
                      "diploid",
                      "debug",
@@ -327,6 +366,7 @@ int main(int argc, char **argv) {
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";
     bool load = parser.getCheck("load");
+    bool noec = parser.getCheck("noec");
     logger.info() << "LJA pipeline started" << std::endl;
 
     size_t threads = std::stoi(parser.getValue("threads"));
@@ -340,36 +380,41 @@ int main(int argc, char **argv) {
     ref = io::SeqReader(ref_lib).readAllContigs();
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     size_t w = std::stoi(parser.getValue("window"));
-    double threshold = std::stod(parser.getValue("cov-threshold"));
-    double reliable_coverage = std::stod(parser.getValue("rel-threshold"));
-    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1;
-    if (first_stage == "alternative")
-        skip = false;
-    corrected1 = AlternativeCorrection(logger, dir / ("k" + itos(k)), lib, {}, paths, threads, k, w,
-                                  threshold, reliable_coverage, false, false, skip, debug, load);
-    if (first_stage == "alternative" || first_stage == "none")
-        load = false;
     size_t K = std::stoi(parser.getValue("K-mer-size"));
     size_t W = std::stoi(parser.getValue("Window"));
     size_t KmDBG = std::stoi(parser.getValue("KmDBG"));
-
-    double Threshold = std::stod(parser.getValue("Cov-threshold"));
-    double Reliable_coverage = std::stod(parser.getValue("Rel-threshold"));
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
 
-    if(first_stage == "phase2")
-        skip = false;
-    std::vector<std::experimental::filesystem::path> corrected2 =
-            SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
-                        threads, K, W, Threshold, Reliable_coverage, unique_threshold, diploid, skip, debug, load);
-    if(first_stage == "phase2")
-        load = false;
+    std::vector<std::experimental::filesystem::path> corrected_final;
+    if(noec) {
+        corrected_final = NoCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
+                                       skip, debug, load);
+    } else {
+        double threshold = std::stod(parser.getValue("cov-threshold"));
+        double reliable_coverage = std::stod(parser.getValue("rel-threshold"));
+        std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1;
+        if (first_stage == "alternative")
+            skip = false;
+        corrected1 = AlternativeCorrection(logger, dir / ("k" + itos(k)), lib, {}, paths, threads, k, w,
+                                           threshold, reliable_coverage, false, false, skip, debug, load);
+        if (first_stage == "alternative" || first_stage == "none")
+            load = false;
 
+        double Threshold = std::stod(parser.getValue("Cov-threshold"));
+        double Reliable_coverage = std::stod(parser.getValue("Rel-threshold"));
+
+        if (first_stage == "phase2")
+            skip = false;
+        corrected_final = SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
+                            threads, K, W, Threshold, Reliable_coverage, unique_threshold, diploid, skip, debug, load);
+        if (first_stage == "phase2")
+            load = false;
+    }
     if(first_stage == "rr")
         skip = false;
     std::vector<std::experimental::filesystem::path> resolved =
-            MDBGPhase(logger, threads, K, KmDBG, W, unique_threshold, diploid, dir / "mdbg", corrected2[1],
-                      corrected2[2], skip, debug);
+            MDBGPhase(logger, threads, K, KmDBG, W, unique_threshold, diploid, dir / "mdbg", corrected_final[1],
+                      corrected_final[2], skip, debug);
     if(first_stage == "rr")
         load = false;
 
@@ -377,11 +422,11 @@ int main(int argc, char **argv) {
         skip = false;
     std::vector<std::experimental::filesystem::path> uncompressed_results =
             PolishingPhase(logger, threads, dir/ "uncompressing", dir, resolved[1],
-                           corrected2[0],
-                            lib, StringContig::max_dimer_size / 2, K, skip, debug);
+                           corrected_final[0],
+                           lib, StringContig::max_dimer_size / 2, K, skip, debug);
     if(first_stage == "polishing")
         load = false;
-    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected2[0] << std::endl;
+    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected_final[0] << std::endl;
     logger.info() << "Final graph with homopolymer compressed edges can be found here: " << resolved[1] << std::endl;
     logger.info() << "Final graph can be found here: " << uncompressed_results[1] << std::endl;
     logger.info() << "Final assembly can be found here: " << uncompressed_results[0] << std::endl;
