@@ -8,13 +8,17 @@ using namespace repeat_resolution;
 
 void MultiplexDBGIncreaser::ProcessVertex(MultiplexDBG &graph,
                                           const RRVertexType &vertex,
-                                          uint64_t n_iter) {
+                                          uint64_t n_iter,
+                                          const MultiplexDBG::EdgeNeighborMap &vertex2conn,
+                                          std::unordered_map<RREdgeIndexType,
+                                                             RREdgeIndexType> &merged_edges) {
     if (graph.node_prop(vertex).IsFrozen()) {
         return;
     }
     if (graph.IsVertexComplex(vertex)) {
         VERIFY(n_iter==1);
-        complex_vertex_processor.Process(graph, vertex);
+        complex_vertex_processor
+            .Process(graph, vertex, vertex2conn, merged_edges);
     } else {
         simple_vertex_processor.Process(graph, vertex, n_iter);
     }
@@ -156,8 +160,18 @@ void MultiplexDBGIncreaser::Increase(MultiplexDBG &graph,
 
     uint64_t n_iter =
         unite_simple ? std::min(max_iter, GetNiterWoComplex(graph) + 1) : 1;
+
+    std::unordered_map<RRVertexType, MultiplexDBG::EdgeNeighborMap> vertex2conn;
     for (const auto &vertex : vertexes) {
-        ProcessVertex(graph, vertex, n_iter);
+        vertex2conn.emplace(vertex, graph.GetEdgepairsVertex(vertex).first);
+    }
+    std::unordered_map<RREdgeIndexType, RREdgeIndexType> merged_edges;
+    for (const auto &vertex : vertexes) {
+        ProcessVertex(graph,
+                      vertex,
+                      n_iter,
+                      vertex2conn.at(vertex),
+                      merged_edges);
     }
     graph.n_iter += n_iter;
 

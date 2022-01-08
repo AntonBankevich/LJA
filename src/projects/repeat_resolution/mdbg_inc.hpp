@@ -18,8 +18,11 @@ class MultiplexDBGIncreaser {
     MDBGComplexVertexProcessor complex_vertex_processor;
 
  private:
-    void ProcessVertex(MultiplexDBG &graph, const RRVertexType &vertex,
-                       uint64_t max_iter);
+    void ProcessVertex(
+        MultiplexDBG &graph, const RRVertexType &vertex,
+        uint64_t max_iter,
+        const MultiplexDBG::EdgeNeighborMap &vertex2conn,
+        std::unordered_map<RREdgeIndexType, RREdgeIndexType> &merged_edges);
     static void CollapseShortEdgesIntoVertices(MultiplexDBG &graph);
     static void CollapseEdge(MultiplexDBG &graph,
                              MultiplexDBG::ConstIterator s_it,
