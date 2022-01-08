@@ -195,6 +195,83 @@ void MultiplexDBG::FreezeUnpairedVertices() {
     }
 }
 
+void MultiplexDBG::SpreadUniqueness() {
+    auto is_balanced = [this](const RRVertexType &vertex) {
+      return count_in_neighbors(vertex)==count_out_neighbors(vertex);
+    };
+    std::vector<RRVertexType> active_vertices;
+    for (const auto &vertex : *this) {
+        if (not IsVertexFrozen(vertex) and is_balanced(vertex)) {
+            active_vertices.push_back(vertex);
+        }
+    }
+
+    auto all_unique =
+        [this](const NeighborsIterator begin, const NeighborsIterator end) {
+          for (auto it = begin; it!=end; ++it) {
+              if (not it->second.prop().IsUnique()) {
+                  return false;
+              }
+          }
+          return true;
+        };
+
+    auto all_in_unique = [this, &all_unique](const RRVertexType &vertex) {
+      auto[begin, end] = in_neighbors(vertex);
+      return all_unique(begin, end);
+    };
+
+    auto all_out_unique = [this, &all_unique](const RRVertexType &vertex) {
+      auto[begin, end] = out_neighbors(vertex);
+      return all_unique(begin, end);
+    };
+
+    auto set_unique =
+        [this](const NeighborsIterator begin, const NeighborsIterator end) {
+          for (auto it = begin; it!=end; ++it) {
+              it->second.prop().MakeUnique();
+          }
+        };
+
+    auto set_in_unique = [this, &set_unique](const RRVertexType &vertex) {
+      auto[begin, end] = in_neighbors(vertex);
+      set_unique(begin, end);
+    };
+
+    auto set_out_unique = [this, &set_unique](const RRVertexType &vertex) {
+      auto[begin, end] = out_neighbors(vertex);
+      set_unique(begin, end);
+    };
+
+    std::unordered_set<RRVertexType> processed_vertices;
+    int cnt = 0;
+    int nbalanced = active_vertices.size();
+    while (not active_vertices.empty()) {
+        const RRVertexType vertex = active_vertices.back();
+        active_vertices.pop_back();
+        bool all_in = all_in_unique(vertex);
+        bool all_out = all_out_unique(vertex);
+        if (all_in or all_out) {
+            cnt++;
+            all_in ? set_out_unique(vertex) : set_in_unique(vertex);
+            processed_vertices.insert(vertex);
+            auto[begin, end] =
+            all_in ? out_neighbors(vertex) : in_neighbors(vertex);
+            for (auto it = begin; it!=end; ++it) {
+                const RRVertexType neighbor = it->first;
+                if (is_balanced(neighbor)
+                    and processed_vertices.count(neighbor)==0) {
+                    active_vertices.push_back(neighbor);
+                }
+            }
+        }
+    }
+    if (cnt > 0) {
+        std::cout << "# balanced vertices " << nbalanced << " vertices\n";
+        std::cout << "spread uniqueness for " << cnt << " vertices\n\n";
+    }
+}
+
 std::unordered_map<RREdgeIndexType, Sequence>
 MultiplexDBG::GetEdgeSeqs(size_t threads) const {
     ParallelRecordCollector<std::pair<RREdgeIndexType, Sequence>> res(threads);
@@ -445,6 +522,11 @@ bool MultiplexDBG::IsVertexSimple(const RRVertexType &vertex) const {
 bool MultiplexDBG::IsVertexCanonical(const RRVertexType &vertex) const {
     const RRVertexProperty &vertex_prop = node_prop(vertex);
     return vertex_prop.IsCanonical();
+}
+
+bool MultiplexDBG::IsVertexFrozen(const RRVertexType &vertex) const {
+    const RRVertexProperty &vertex_prop = node_prop(vertex);
+    return vertex_prop.IsFrozen();
 }
 
 bool MultiplexDBG::IsEdgeCanonical(ConstIterator vertex,

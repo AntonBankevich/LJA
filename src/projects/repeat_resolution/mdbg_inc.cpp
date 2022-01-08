@@ -162,6 +162,7 @@ void MultiplexDBGIncreaser::Increase(MultiplexDBG &graph,
     graph.n_iter += n_iter;
 
     CollapseShortEdgesIntoVertices(graph);
+    graph.SpreadUniqueness();
     graph.FreezeUnpairedVertices();
     graph.SpreadFrost();
 

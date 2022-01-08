@@ -36,6 +36,8 @@ class MultiplexDBG
     void SpreadFrost();
     void FreezeUnpairedVertices();
 
+    void SpreadUniqueness();
+
     [[nodiscard]] std::unordered_map<RREdgeIndexType, Sequence>
     GetEdgeSeqs(size_t threads) const;
     [[nodiscard]] std::unordered_map<RRVertexType, Sequence>
@@ -98,6 +100,7 @@ class MultiplexDBG
     [[nodiscard]] bool IsVertexSimple(const RRVertexType &vertex) const;
 
     [[nodiscard]] bool IsVertexCanonical(const RRVertexType &vertex) const;
+    [[nodiscard]] bool IsVertexFrozen(const RRVertexType &vertex) const;
     [[nodiscard]] bool IsEdgeCanonical(ConstIterator vertex,
                                        NeighborsConstIterator e_it) const;
 

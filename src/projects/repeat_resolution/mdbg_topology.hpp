@@ -83,6 +83,7 @@ class RREdgeProperty {
 
     [[nodiscard]] bool IsCanonical() const;
     [[nodiscard]] bool IsUnique() const { return unique; }
+    void MakeUnique() { unique = true; }
     [[nodiscard]] const MDBGSeq &Seq() const { return seq; }
 
     [[nodiscard]] RREdgeIndexType Index() const { return index; }

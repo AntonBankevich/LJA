@@ -106,7 +106,7 @@ MDBGSeq::MDBGSeq(std::list<EdgeSegment> segms) : segms{std::move(segms)},
 
 [[nodiscard]] Sequence MDBGSeq::ToSequence() const {
     std::vector<Sequence> sec_vec;
-    for (const EdgeSegment segm : segms) {
+    for (const EdgeSegment &segm : segms) {
         sec_vec.emplace_back(segm.ToSequence());
     }
     return Sequence::Concat(sec_vec);
