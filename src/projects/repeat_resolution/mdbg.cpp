@@ -86,28 +86,17 @@ void MultiplexDBG::AssertValidity() const {
     }
 
     if (contains_rc) {
-        std::set<Sequence> seq_vertex;
-        for (const RRVertexType &vertex : *this) {
-            const RRVertexProperty &vertex_prop = node_prop(vertex);
-            Sequence seq = vertex_prop.Seq().ToSequence();
-            seq_vertex.emplace(std::move(seq));
-        }
-
-        for (const RRVertexType &vertex : *this) {
-            const RRVertexProperty &vertex_prop = node_prop(vertex);
-            VERIFY(seq_vertex.count(vertex_prop.Seq().RC().ToSequence())==1);
-        }
-
-        std::set<Sequence> seq_edge;
+        std::map<Sequence, RREdgeIndexType> seq_edge;
+        std::unordered_map<RREdgeIndexType, bool> is_unique_edge;
         for (const RRVertexType &vertex : *this) {
             auto[begin, end] = out_neighbors(vertex);
             for (auto it = begin; it!=end; ++it) {
                 const RREdgeProperty &edge_prop = it->second.prop();
-                if (edge_prop.Size() > 0) {
-                    seq_edge.emplace(
-                        GetEdgeSequence(find(vertex), it, false, false)
-                            .ToSequence());
-                }
+                seq_edge.emplace(
+                    GetEdgeSequence(find(vertex), it, false, false)
+                        .ToSequence(),
+                    edge_prop.Index());
+                is_unique_edge.emplace(edge_prop.Index(), edge_prop.IsUnique());
             }
         }
 
@@ -115,12 +104,16 @@ void MultiplexDBG::AssertValidity() const {
             auto[begin, end] = out_neighbors(vertex);
             for (auto it = begin; it!=end; ++it) {
                 const RREdgeProperty &edge_prop = it->second.prop();
-                if (edge_prop.Size() > 0) {
-                    const Sequence seq =
-                        GetEdgeSequence(find(vertex), it, false, false)
-                            .ToSequence();
-                    VERIFY(seq_edge.count(seq)==1);
-                }
+                const Sequence seq =
+                    GetEdgeSequence(find(vertex), it, false, false)
+                        .ToSequence();
+                VERIFY_MSG(seq_edge.find(!seq)!=seq_edge.end(),
+                           "no rev comp for edge " + itos(edge_prop.Index()));
+                VERIFY_MSG(is_unique_edge.at(edge_prop.Index())
+                               ==is_unique_edge.at(seq_edge.at(!seq)),
+                           "edge_prop " + itos(edge_prop.Index()) + ", unique: "
+                               + itos(is_unique_edge.at(edge_prop.Index()))
+                               + " . rev compl uniqueness not equal");
             }
         }
     }
@@ -196,18 +189,25 @@ void MultiplexDBG::FreezeUnpairedVertices() {
 }
 
 std::unordered_map<RREdgeIndexType, Sequence>
-MultiplexDBG::GetEdgeSeqs() const {
-    std::unordered_map<RREdgeIndexType, Sequence> seqs;
+MultiplexDBG::GetEdgeSeqs(size_t threads) const {
+    ParallelRecordCollector<std::pair<RREdgeIndexType, Sequence>> res(threads);
+    std::vector<ConstIterator> vits;
     for (auto v_it = begin(); v_it!=end(); ++v_it) {
+        vits.emplace_back(v_it);
+    }
+    omp_set_num_threads(threads);
+#pragma omp parallel for default(none) shared(vits, res)
+    for (size_t i = 0; i < vits.size(); i++) {
+        ConstIterator v_it = vits[i];
         auto[e_begin, e_end] = out_neighbors(v_it);
         for (auto e_it = e_begin; e_it!=e_end; ++e_it) {
             const RREdgeProperty &prop = e_it->second.prop();
-            seqs.emplace(prop.Index(),
-                         GetEdgeSequence(v_it, e_it, false, false)
-                             .ToSequence());
+            res.emplace_back(prop.Index(),
+                             GetEdgeSequence(v_it, e_it, false, false)
+                                 .ToSequence());
         }
     }
-    return seqs;
+    return {res.begin(), res.end()};
 }
 
 std::unordered_map<RRVertexType, Sequence> MultiplexDBG::GetVertexSeqs(
@@ -329,21 +329,24 @@ MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
 void MultiplexDBG::ExportToDot(
     const std::experimental::filesystem::path &path) const {
     graph_lite::Serializer serializer(*this);
+    serializer.set_max_num_nodes_per_line(1);
+    serializer.set_max_num_edges_per_line(1);
     std::ofstream dot_os(path);
     serializer.serialize_to_dot(dot_os);
 }
 
 void MultiplexDBG::ExportToGFA(
-    const std::experimental::filesystem::path &path) const {
+    const std::experimental::filesystem::path &path, size_t threads,
+    logging::Logger &logger) const {
     const std::unordered_map<RREdgeIndexType, Sequence>
-        edge_seqs = GetEdgeSeqs();
+        edge_seqs = GetEdgeSeqs(threads);
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
 
     const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
-        MapSeqs2RC<RRVertexType>(vertex_seqs);
+        MapSeqs2RC<RRVertexType>(vertex_seqs, logger);
     const std::unordered_map<RREdgeIndexType, RREdgeIndexType> edge2rc =
-        MapSeqs2RC<RREdgeIndexType>(edge_seqs);
+        MapSeqs2RC<RREdgeIndexType>(edge_seqs, logger);
 
     const std::unordered_map<RRVertexType, bool> vertex_can =
         AreSeqsCanonical<RRVertexType>(vertex_seqs);
@@ -621,10 +624,12 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
                           });
           if (unpaired_in.size()==1 and unpaired_out.size()==1 and
               (all_in_unique or all_out_unique)) {
-              VERIFY(ac_s2e.find(unpaired_in.front()) == ac_s2e.end());
-              VERIFY(ac_e2s.find(unpaired_out.front()) == ac_e2s.end());
-              ac_s2e[unpaired_in.front()] = {unpaired_out.front()};
-              ac_e2s[unpaired_out.front()] = {unpaired_in.front()};
+              const RRVertexType unp_in = unpaired_in.front();
+              const RRVertexType unp_out = unpaired_out.front();
+              VERIFY(ac_s2e.find(unp_in)==ac_s2e.end());
+              VERIFY(ac_e2s.find(unp_out)==ac_e2s.end());
+              ac_s2e[unp_in] = {unp_out};
+              ac_e2s[unp_out] = {unp_in};
           }
         };
 
@@ -720,14 +725,14 @@ MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
 }
 
 std::vector<Contig>
-MultiplexDBG::GetContigs() const {
+MultiplexDBG::GetContigs(size_t threads, logging::Logger &logger) const {
     const std::unordered_map<RREdgeIndexType, Sequence>
-        edge_seqs = GetEdgeSeqs();
+        edge_seqs = GetEdgeSeqs(threads);
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
 
     const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
-        MapSeqs2RC<RRVertexType>(vertex_seqs);
+        MapSeqs2RC<RRVertexType>(vertex_seqs, logger);
 
     std::unordered_map<RRVertexType, bool> vertex_can =
         AreSeqsCanonical<RRVertexType>(vertex_seqs);
@@ -809,25 +814,56 @@ std::vector<Contig> MultiplexDBG::ExportContigs(
 
 std::vector<Contig> MultiplexDBG::ExportContigsAndGFA(
     const std::experimental::filesystem::path &contigs_fn,
-    const std::experimental::filesystem::path &gfa_fn) const {
+    const std::experimental::filesystem::path &gfa_fn, size_t threads,
+    logging::Logger &logger) const {
 
+    auto export2fasta =
+        [](const std::unordered_map<RREdgeIndexType, Sequence> &seqs,
+           const std::experimental::filesystem::path &path) {
+          std::ofstream os;
+          os.open(path);
+          for (const auto &[index, seq] : seqs) {
+              os << ">" << index << "\n" << seq << "\n";
+          }
+          os.close();
+        };
+
+    logger.trace() << "Getting edge sequences" << std::endl;
     const std::unordered_map<RREdgeIndexType, Sequence>
-        edge_seqs = GetEdgeSeqs();
+        edge_seqs = GetEdgeSeqs(threads);
+    const std::experimental::filesystem::path edge_seqs_path =
+        contigs_fn.parent_path()/"mdbg_edge_seqs.fasta";
+    logger.trace() << "Exporting edge sequences to " << edge_seqs_path
+                   << std::endl;
+    export2fasta(edge_seqs, edge_seqs_path);
+
+    logger.trace() << "Getting vertex sequences" << std::endl;
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
+    const std::experimental::filesystem::path vertex_seqs_path =
+        contigs_fn.parent_path()/"mdbg_vertex_seqs.fasta";
+    logger.trace() << "Exporting vertex sequences to " << vertex_seqs_path
+                   << std::endl;
+    export2fasta(vertex_seqs, vertex_seqs_path);
 
+    logger.trace() << "Mapping reverse complementary vertexes" << std::endl;
     const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
-        MapSeqs2RC<RRVertexType>(vertex_seqs);
+        MapSeqs2RC<RRVertexType>(vertex_seqs, logger);
+    logger.trace() << "Mapping reverse complementary edges" << std::endl;
     const std::unordered_map<RREdgeIndexType, RREdgeIndexType> edge2rc =
-        MapSeqs2RC<RREdgeIndexType>(edge_seqs);
+        MapSeqs2RC<RREdgeIndexType>(edge_seqs, logger);
 
+    logger.trace() << "Finding canonical vertexes" << std::endl;
     std::unordered_map<RRVertexType, bool> vertex_can =
         AreSeqsCanonical<RRVertexType>(vertex_seqs);
+    logger.trace() << "Finding canonical edges" << std::endl;
     std::unordered_map<RREdgeIndexType, bool> edge_can =
         AreSeqsCanonical<RREdgeIndexType>(edge_seqs);
 
+    logger.trace() << "Exporting GFA to " << gfa_fn << std::endl;
     ExportToGFA(gfa_fn, vertex_seqs, edge_seqs, vertex2rc, edge2rc, vertex_can,
                 edge_can);
+    logger.trace() << "Exporting contigs to " << contigs_fn << std::endl;
     return ExportContigs(contigs_fn, vertex_seqs, edge_seqs, vertex2rc,
                          vertex_can, edge_can);
 }

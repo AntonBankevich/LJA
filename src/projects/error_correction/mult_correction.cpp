@@ -377,17 +377,3 @@ RecordStorage MultCorrect(SparseDBG &dbg, logging::Logger &logger, const std::ex
         DrawMult(multiplicity_figures / "final", dbg, unique_threshold, reads_storage, more_unique);
     return std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
 }
-
-void NewMultCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                    RecordStorage &reads_storage, size_t unique_threshold, size_t threads, bool dump) {
-    const std::experimental::filesystem::path fig_before = dir / "before.dot";
-    const std::experimental::filesystem::path fig_after = dir / "after.dot";
-    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
-    const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
-    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
-
-    recreate_dir(multiplicity_figures);
-    SetUniquenessStorage initial_unique = BulgePathAnalyser(sdbg, unique_threshold).uniqueEdges();
-    MultiplicityBoundsEstimator estimator(sdbg, initial_unique);
-    estimator.update(logger, 3, multiplicity_figures);
-}

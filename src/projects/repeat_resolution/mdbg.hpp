@@ -37,13 +37,14 @@ class MultiplexDBG
     void FreezeUnpairedVertices();
 
     [[nodiscard]] std::unordered_map<RREdgeIndexType, Sequence>
-    GetEdgeSeqs() const;
+    GetEdgeSeqs(size_t threads) const;
     [[nodiscard]] std::unordered_map<RRVertexType, Sequence>
     GetVertexSeqs(const std::unordered_map<RREdgeIndexType, Sequence> &) const;
 
     template<typename IndexType>
     [[nodiscard]] std::unordered_map<IndexType, IndexType>
-    MapSeqs2RC(const std::unordered_map<IndexType, Sequence> &seqs) const;
+    MapSeqs2RC(const std::unordered_map<IndexType, Sequence> &seqs,
+               logging::Logger &logger) const;
 
     template<typename IndexType>
     [[nodiscard]] std::unordered_map<IndexType, bool>
@@ -89,7 +90,9 @@ class MultiplexDBG
     void AssertValidity() const;
 
     void ExportToDot(const std::experimental::filesystem::path &path) const;
-    void ExportToGFA(const std::experimental::filesystem::path &path) const;
+    void ExportToGFA(const std::experimental::filesystem::path &path,
+                     size_t threads,
+                     logging::Logger &logger) const;
 
     [[nodiscard]] bool IsFrozen() const;
 
@@ -161,18 +164,20 @@ class MultiplexDBG
                                           bool trim_left,
                                           bool trim_right) const;
     [[nodiscard]] std::vector<Contig>
-    GetContigs() const;
+    GetContigs(size_t threads, logging::Logger &logger) const;
 
     [[nodiscard]] std::vector<Contig>
     ExportContigsAndGFA(const std::experimental::filesystem::path &contigs_fn,
-                        const std::experimental::filesystem::path &gfa_fn) const;
+                        const std::experimental::filesystem::path &gfa_fn, size_t threads,
+                        logging::Logger &logger) const;
 
     void ExportActiveTransitions(const std::experimental::filesystem::path &path) const;
 };
 
 template<typename IndexType>
 std::unordered_map<IndexType, IndexType> MultiplexDBG::MapSeqs2RC(
-    const std::unordered_map<IndexType, Sequence> &seqs) const {
+    const std::unordered_map<IndexType, Sequence> &seqs,
+    logging::Logger &logger) const {
     std::map<Sequence, IndexType> seq2ind;
     for (auto &[ind, seq] : seqs) {
         seq2ind.emplace(seq, ind);
@@ -180,6 +185,9 @@ std::unordered_map<IndexType, IndexType> MultiplexDBG::MapSeqs2RC(
 
     std::unordered_map<IndexType, IndexType> fwd2rc;
     for (const auto &[seq, ind] : seq2ind) {
+        if (seq2ind.count(!seq) == 0) {
+            logger.trace() << "Ind = " << ind << "\n";
+        }
         const IndexType rc_ind = seq2ind.at(!seq);
         fwd2rc.emplace(ind, rc_ind);
         fwd2rc.emplace(rc_ind, ind);

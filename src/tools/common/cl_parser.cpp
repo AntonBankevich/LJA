@@ -68,7 +68,7 @@ const std::string &CLParser::getValue(const std::string &s) const {
 }
 
 bool CLParser::getCheck(const std::string &s) const {
-    VERIFY(checks.find(s) != checks.end());
+    VERIFY_MSG(checks.find(s) != checks.end(), s);
     return checks.find(s)->second;
 }
 

@@ -172,8 +172,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
     const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
     const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
     size_t unique_threshold, bool diploid, bool skip, bool debug, bool load) {
-    logger.info() << "Constructing garph with k = " << k
-                  << std::endl;
+    logger.info() << "Performing second phase of error correction using k = " << k << std::endl;
     if (k%2==0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1)
                       << " to make it odd" << std::endl;
@@ -260,7 +259,7 @@ std::vector<std::experimental::filesystem::path> MDBGPhase(
         repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
                                              k, kmdbg, dir, unique_threshold,
                                              diploid, debug, logger);
-        rr.ResolveRepeats(logger);
+        rr.ResolveRepeats(logger, threads);
     };
     if(!skip)
         runInFork(ic_task);
@@ -282,7 +281,15 @@ std::vector<std::experimental::filesystem::path> PolishingPhase(
         std::vector<Contig> contigs = edge_graph.getEdges(false);
         auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
         std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
-        printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir, debug);
+        std::vector<Contig> assembly = printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir, debug);
+        logger.info() << "Printing final assembly to " << (output_dir / "assembly.fasta") << std::endl;
+        std::ofstream os_cut;
+        os_cut.open(output_dir / "assembly.fasta");
+        for(Contig &contig : assembly) {
+            if(contig.size() > 1500)
+                os_cut << ">" << contig.id << "\n" << contig.seq << "\n";
+        }
+        os_cut.close();
     };
     if(!skip)
         runInFork(ic_task);

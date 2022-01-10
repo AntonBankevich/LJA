@@ -8,13 +8,16 @@ using namespace repeat_resolution;
 
 void MultiplexDBGIncreaser::ProcessVertex(MultiplexDBG &graph,
                                           const RRVertexType &vertex,
-                                          uint64_t n_iter) {
+                                          uint64_t n_iter,
+                                          std::set<Sequence> &merged_self_loops) {
     if (graph.node_prop(vertex).IsFrozen()) {
         return;
     }
     if (graph.IsVertexComplex(vertex)) {
         VERIFY(n_iter==1);
-        complex_vertex_processor.Process(graph, vertex);
+        complex_vertex_processor.Process(graph,
+                                         vertex,
+                                         merged_self_loops);
     } else {
         simple_vertex_processor.Process(graph, vertex, n_iter);
     }
@@ -60,6 +63,13 @@ void MultiplexDBGIncreaser::CollapseShortEdgesIntoVertices(
             continue;
         }
         auto[out_it_begin, out_it_end] = graph.out_neighbors(v1);
+        if (graph.count_out_neighbors(v1)==1 and
+            graph.count_in_neighbors(v1)==1) {
+            if (graph.in_neighbors(v1).first->first == v1) {
+                // self-loop
+                continue;
+            }
+        }
         std::vector<RREdgeIndexType> edges2collapse;
         for (auto it = out_it_begin; it!=out_it_end; ++it) {
             const RRVertexType &v2 = it->first;
@@ -156,8 +166,12 @@ void MultiplexDBGIncreaser::Increase(MultiplexDBG &graph,
 
     uint64_t n_iter =
         unite_simple ? std::min(max_iter, GetNiterWoComplex(graph) + 1) : 1;
+    std::set<Sequence> merged_self_loops;
     for (const auto &vertex : vertexes) {
-        ProcessVertex(graph, vertex, n_iter);
+        ProcessVertex(graph,
+                      vertex,
+                      n_iter,
+                      merged_self_loops);
     }
     graph.n_iter += n_iter;
 

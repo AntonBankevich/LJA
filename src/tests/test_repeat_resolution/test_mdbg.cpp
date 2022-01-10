@@ -1012,11 +1012,127 @@ TEST(DBComplexVertexLoop8, Basic) {
         std::vector<std::tuple<uint64_t, uint64_t, std::string>> post_raw_edge{
             {0, 2, "ACAAATGC"}, {6, 6, "AAGAAG"}};
 
+//        {
+//            for (auto vertex : mdbg) {
+//                auto [begin, end] = mdbg.out_neighbors(vertex);
+//                for (auto it = begin; it != end; ++it) {
+//                    std::cout << vertex << " " << it->first << " " << it->second.prop().Size() << " " <<
+//                        mdbg.GetEdgeSequence(mdbg.find(vertex), it, false, false).ToSequence().str() << "\n";
+//                }
+//            }
+//        }
         auto[VertexIndexSetsEqual, VertexPropsEquals] =
         CompareVertexes(mdbg, vertex_info);
         ASSERT_TRUE(VertexIndexSetsEqual);
         ASSERT_TRUE(VertexPropsEquals);
         ASSERT_TRUE(CompareEdges(mdbg, post_raw_edge));
+    }
+}
+
+/*
+// graph with a complex vertex (loop) + rc
+TEST(DBComplexVertexLoop9RC, Basic) {
+    const size_t k = 2;
+
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 1, "ACAAA"}, {1, 1, "AACGTTGCAA"}, {1, 2, "AATGC"},
+        {3, 4, "GCATT"}, {4, 4, "TTGCAACGTT"}, {4, 5, "TTTGT"},};
+    std::map<RRVertexType, dbg::Vertex> vertexes;
+    std::vector<dbg::Edge> edges;
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
+
+    RRPaths paths = []() {
+      std::vector<RRPath> _path_vector;
+      _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 2}});
+      _path_vector.emplace_back(RRPath{"0", std::list<size_t>{1, 1}});
+      _path_vector.emplace_back(RRPath{"0", std::list<size_t>{3, 5}});
+      _path_vector.emplace_back(RRPath{"0", std::list<size_t>{4, 4}});
+
+      return PathsBuilder::FromPathVector(_path_vector);
+    }();
+
+    MultiplexDBG mdbg(edge_info, k, &paths, true);
+    logging::Logger logger;
+
+    MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+    k_increaser.IncreaseUntilSaturation(mdbg);
+    {
+        RawVertexInfo vertex_info{{0, {"ACA", false}},
+                                  {2, {"TGC", false}},
+                                  {9, {"AAC", true}},
+                                  {3, {"GCA", false}},
+                                  {5, {"TGT", false}},
+                                  {11, {"GTT", true}}};
+        std::vector<std::tuple<uint64_t, uint64_t, std::string>> post_raw_edge{
+            {0, 2, "ACAAATGC"}, {9, 9,   "AACGTTGCAAC"},
+            {3, 5, "GCATTTGT"}, {11, 11, "GTTGCAACGTT"}};
+
+//        {
+//            for (auto vertex : mdbg) {
+//                auto [begin, end] = mdbg.out_neighbors(vertex);
+//                for (auto it = begin; it != end; ++it) {
+//                    std::cout << vertex << " " << it->first << " " <<
+//                        mdbg.GetEdgeSequence(mdbg.find(vertex), it, false, false).ToSequence().str() << "\n";
+//                }
+//            }
+//        }
+        auto[VertexIndexSetsEqual, VertexPropsEquals] =
+        CompareVertexes(mdbg, vertex_info);
+        ASSERT_TRUE(VertexIndexSetsEqual);
+        ASSERT_TRUE(VertexPropsEquals);
+        ASSERT_TRUE(CompareEdges(mdbg, post_raw_edge));
+        mdbg.AssertValidity();
+    }
+}
+ */
+
+// graph with a two loops + rc
+TEST(DBDoubleLoopRC, Basic) {
+    const size_t k = 2;
+
+    std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        {0, 0, "AACGTCGCAA"}, {1, 1, "TTGCGACGTT"},
+        {0, 0, "AAA"}, {1, 1, "TTT"}};
+    std::map<RRVertexType, dbg::Vertex> vertexes;
+    std::vector<dbg::Edge> edges;
+    std::vector<SuccinctEdgeInfo> edge_info =
+        GetEdgeInfo(vertexes, edges, raw_edge_info, k, false);
+
+    RRPaths paths = []() {
+      std::vector<RRPath> _path_vector;
+      _path_vector.emplace_back(RRPath{"0", std::list<size_t>{0, 2, 0}});
+      _path_vector.emplace_back(RRPath{"0", std::list<size_t>{1, 3, 1}});
+
+      return PathsBuilder::FromPathVector(_path_vector);
+    }();
+
+    MultiplexDBG mdbg(edge_info, k, &paths, true);
+    logging::Logger logger;
+
+    MultiplexDBGIncreaser k_increaser{k, k + 1, logger, true};
+    k_increaser.IncreaseUntilSaturation(mdbg);
+    {
+        RawVertexInfo vertex_info{{9, {"AAA", true}},
+                                  {5, {"TTT", true}}};
+        std::vector<std::tuple<uint64_t, uint64_t, std::string>> post_raw_edge{
+            {9, 9, "AAACGTCGCAAA"}, {5, 5, "TTTGCGACGTTT"}};
+
+//        {
+//            for (auto vertex : mdbg) {
+//                auto [begin, end] = mdbg.out_neighbors(vertex);
+//                for (auto it = begin; it != end; ++it) {
+//                    std::cout << vertex << " " << it->first << " " <<
+//                              mdbg.GetEdgeSequence(mdbg.find(vertex), it, false, false).ToSequence().str() << "\n";
+//                }
+//            }
+//        }
+        auto[VertexIndexSetsEqual, VertexPropsEquals] =
+        CompareVertexes(mdbg, vertex_info);
+        ASSERT_TRUE(VertexIndexSetsEqual);
+        ASSERT_TRUE(VertexPropsEquals);
+        ASSERT_TRUE(CompareEdges(mdbg, post_raw_edge));
+        mdbg.AssertValidity();
     }
 }
 
