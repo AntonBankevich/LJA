@@ -128,7 +128,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
 
 std::string constructMessage() {
     std::stringstream ss;
-    ss << "JumboDB: a tool for constructing de Bruijn graph for arbitrarily large value of k\n";
+    ss << "JumboDBG: a tool for constructing de Bruijn graph for arbitrarily large value of k\n";
     ss << "Usage: dbg [options] -o <output-dir> -k <int> --reads <reads_file> [--reads <reads_file2> ...]\n\n";
     ss << "Basic options:\n";
     ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
     const size_t w = std::stoi(parser.getValue("window"));
     logger << std::endl;
     logger.info() << "Hello! You are running jumboDBG, a tool for construction of de Bruijn graphs for arbitrarily large values of k\n";
-    logger.info() << "Note that jumboDB does not perform any error correction and ignores all reads shorter than k + w = " << k + w << std::endl;
+    logger.info() << "Note that jumboDBG does not perform any error correction and ignores all reads shorter than k + w = " << k + w << std::endl;
     if(parser.getCheck("extract-subdatasets")) {
         logger.info() << "Enabled subdataset extraction" << std::endl;
     }

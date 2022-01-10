@@ -336,6 +336,8 @@ MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
 void MultiplexDBG::ExportToDot(
     const std::experimental::filesystem::path &path) const {
     graph_lite::Serializer serializer(*this);
+    serializer.set_max_num_nodes_per_line(1);
+    serializer.set_max_num_edges_per_line(1);
     std::ofstream dot_os(path);
     serializer.serialize_to_dot(dot_os);
 }

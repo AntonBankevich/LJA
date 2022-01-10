@@ -9,7 +9,7 @@ Running jumboDBG
 Input
 -------------------------------------
 Input reads can be in fasta or fastq format and can be compressed using gzip.
-Make sure that file name extensions correspond to contents of files since they are used to determine file format.
+Make sure that file name extensions correspond to contents of files since they are used to determine file formats.
 E.g. uncompressed fasta reads are expected to be stored in files with name extensions ".fasta" or ".fa" while compressed fastq reads are expected to be stored in files with name extensions ".fq.gz" or "fastq.gz".
 
 Command line
@@ -63,7 +63,7 @@ Feedback and bug reports
 
 Your comments, bug reports, and suggestions are very welcomed.
 They will help us to further improve de Bruijn graph construction tool.
-If you have any trouble running graph construction, please send us `dbg.log` file from the directory `<output_dir>`.
+If you have any trouble running jumboDBG, please send us `dbg.log` file from the directory `<output_dir>`.
 
 You can send your comments and bug reports via e-mail: [anton.bankevich@gmail.com](mailto:anton.bankevich@gmail.com).
 

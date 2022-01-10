@@ -9,12 +9,12 @@ Requirements
 * C++ compiler with C++17 support (GCC-7+)
 * GNU make
 * zlib
-* python3 with the following packages installed: networkx, pyyaml, llist, numpy, edlib, joblib, Bio, pydot
 
 
 Downloading and compiling from source code
 -------------------------------------
 
+You can download LJA source code [here](https://github.com/AntonBankevich/LJA).
 To build from source code run the following commands from code directory.
 
 
@@ -64,7 +64,7 @@ To run LJA use the following command line
 Value of k (vertex size) to be used for the initial error correction. k should be odd (otherwise k + 1 is used instead).
 
 `-K <int>`
-Value of k (vertex size) to be used for the final error correction and initialization of multiDBG. K should be odd (otherwise K + 1 is used instead).
+Value of k (vertex size) to be used for the final error correction and initialization of Multiplex de Bruijn graph. K should be odd (otherwise K + 1 is used instead).
 
 `--diploid`
 Use this option for diploid genome. By default, LJA assumes that the genome is haploid or inbred.
@@ -75,8 +75,9 @@ Output of La Jolla Assembler
 All output files are stored in <output_dir> `, which is set by the user.
 
 -   `<output_dir>/assembly.fasta` final assembly file in fasta format.
--   `<output_dir>/k5001/compressed.fasta` sequences of final multiplex de Bruijn graph before homopolymer uncompression and cutting of overlaps.
--   `<output_dir>/k5001/compressed.gfa` final multiplex de Bruijn graph in gfa format (with homopolymer compressed edge sequences).
+-   `<output_dir>/mdbg.gfa` final multiplex de Bruijn graph in gfa format (experimental feature).
+-   `<output_dir>/mdbg/assembly.hpc.fasta` final assembly file before homopolymer uncompression.
+-   `<output_dir>/mdbg/mdbg.hpc.gfa` final multiplex de Bruijn graph in gfa format with homopolymer compressed edge sequences.
 -   `<output_dir>/dbg.log` log file for the run
 
 Feedback and bug reports
@@ -84,7 +85,7 @@ Feedback and bug reports
 
 Your comments, bug reports, and suggestions are very welcomed.
 They will help us to further improve La Jolla Assembler.
-If you have any troubles  LJA, please send us `dbg.log` file from the directory `<output_dir>`.
+If you have any trouble running LJA, please send us `dbg.log` file from the directory `<output_dir>`.
 
 You can send your comments and bug reports via e-mail: [anton.bankevich@gmail.com](mailto:anton.bankevich@gmail.com).
 
