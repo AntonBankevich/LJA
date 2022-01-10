@@ -5,7 +5,7 @@
 class AbstractUniquenessStorage {
 private:
     bool checkEdge(const dbg::Edge &edge) const {
-        if(edge.end()->outDeg() + 1 != edge.end()->inDeg())
+        if(edge.end()->outDeg() == 0 || edge.end()->outDeg() + 1 != edge.end()->inDeg())
             return false;
         for(const dbg::Edge &e : *edge.end()) {
             if(!isUnique(e))
@@ -140,19 +140,32 @@ public:
     }
 
     void updateLowerBound(const dbg::Edge &edge, size_t val) {
+        if(&edge == nullptr)
+            return;
         BoundRecord &bounds = multiplicity_bounds[&edge];
         bounds.updateLowerBound(val);
+        BoundRecord &rc_bounds = multiplicity_bounds[&edge.rc()];
+        rc_bounds.updateLowerBound(val);
     }
 
     void updateUpperBound(const dbg::Edge &edge, size_t val) {
+        if(&edge == nullptr)
+            return;
         BoundRecord &bounds = multiplicity_bounds[&edge];
         bounds.updateUpperBound(val);
+        BoundRecord &rc_bounds = multiplicity_bounds[&edge.rc()];
+        rc_bounds.updateUpperBound(val);
     }
 
     void updateBounds(const dbg::Edge &edge, size_t lower, size_t upper) {
+        if(&edge == nullptr)
+            return;
         BoundRecord &bounds = multiplicity_bounds[&edge];
         bounds.updateLowerBound(lower);
         bounds.updateUpperBound(upper);
+        BoundRecord &rc_bounds = multiplicity_bounds[&edge.rc()];
+        rc_bounds.updateLowerBound(lower);
+        rc_bounds.updateUpperBound(upper);
     }
 
     bool isUnique(const dbg::Edge &edge) const override {

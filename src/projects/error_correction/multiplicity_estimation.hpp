@@ -17,6 +17,16 @@ public:
                   double rel_coverage = 1000, double unique_coverage = 0, double double_coverage = 0);
     size_t addTipSinks();
     std::vector<dbg::Edge*> getUnique(logging::Logger &logger);
+    std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> findBounds() {
+        std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> res;
+        for(const auto &rec : Network::findBounds()) {
+            auto it = edge_mapping.find(rec.first);
+            if(it != edge_mapping.end()) {
+                res.emplace(it->second, rec.second);
+            }
+        }
+        return std::move(res);
+    }
 };
 
 class MultiplicityBoundsEstimator {
