@@ -196,18 +196,25 @@ void MultiplexDBG::FreezeUnpairedVertices() {
 }
 
 std::unordered_map<RREdgeIndexType, Sequence>
-MultiplexDBG::GetEdgeSeqs() const {
-    std::unordered_map<RREdgeIndexType, Sequence> seqs;
+MultiplexDBG::GetEdgeSeqs(size_t threads) const {
+    ParallelRecordCollector<std::pair<RREdgeIndexType, Sequence>> res(threads);
+    std::vector<ConstIterator> vits;
     for (auto v_it = begin(); v_it!=end(); ++v_it) {
+        vits.emplace_back(v_it);
+    }
+    omp_set_num_threads(threads);
+#pragma omp parallel for default(none) shared(vits, res)
+    for(size_t i = 0; i < vits.size(); i++) {
+        ConstIterator v_it = vits[i];
         auto[e_begin, e_end] = out_neighbors(v_it);
         for (auto e_it = e_begin; e_it!=e_end; ++e_it) {
             const RREdgeProperty &prop = e_it->second.prop();
-            seqs.emplace(prop.Index(),
+            res.emplace_back(prop.Index(),
                          GetEdgeSequence(v_it, e_it, false, false)
-                             .ToSequence());
+                         .ToSequence());
         }
     }
-    return seqs;
+    return {res.begin(), res.end()};
 }
 
 std::unordered_map<RRVertexType, Sequence> MultiplexDBG::GetVertexSeqs(
@@ -334,9 +341,9 @@ void MultiplexDBG::ExportToDot(
 }
 
 void MultiplexDBG::ExportToGFA(
-    const std::experimental::filesystem::path &path) const {
+    const std::experimental::filesystem::path &path, size_t threads) const {
     const std::unordered_map<RREdgeIndexType, Sequence>
-        edge_seqs = GetEdgeSeqs();
+        edge_seqs = GetEdgeSeqs(threads);
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
 
@@ -720,9 +727,9 @@ MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
 }
 
 std::vector<Contig>
-MultiplexDBG::GetContigs() const {
+MultiplexDBG::GetContigs(size_t threads) const {
     const std::unordered_map<RREdgeIndexType, Sequence>
-        edge_seqs = GetEdgeSeqs();
+        edge_seqs = GetEdgeSeqs(threads);
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
 
@@ -809,10 +816,10 @@ std::vector<Contig> MultiplexDBG::ExportContigs(
 
 std::vector<Contig> MultiplexDBG::ExportContigsAndGFA(
     const std::experimental::filesystem::path &contigs_fn,
-    const std::experimental::filesystem::path &gfa_fn) const {
+    const std::experimental::filesystem::path &gfa_fn, size_t threads) const {
 
     const std::unordered_map<RREdgeIndexType, Sequence>
-        edge_seqs = GetEdgeSeqs();
+        edge_seqs = GetEdgeSeqs(threads);
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
 

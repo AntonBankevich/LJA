@@ -133,8 +133,9 @@ std::vector<cigar_pair> UncompressOverlap(const Sequence &hpcOverlap, const Sequ
     return kswAligner.iterativeBandAlign(left_seq.str(), right_seq.str(), 5, 100, 0.01);
 }
 
-void printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
+std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
                               const std::vector<Contig> &uncompressed, const std::experimental::filesystem::path &out_dir, bool debug) {
+    logger.info() << "Calculating overlaps between adjacent uncompressed edges" << std::endl;
     std::unordered_map<int, Sequence> uncompression_results;
     for(const Contig &contig : uncompressed) {
         uncompression_results[std::stoi(contig.id)] = contig.seq;
@@ -167,6 +168,7 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
             }
         }
     }
+    logger.info() << "Printing final gfa file to " << (out_dir / "mdbg.gfa") << std::endl;
     std::ofstream os;
     os.open(out_dir / "mdbg.gfa");
     os << "H\tVN:Z:1.0" << std::endl;
@@ -186,7 +188,6 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
     }
     os.close();
     std::ofstream os_cut;
-    os_cut.open(out_dir / "assembly.fasta");
     std::unordered_map<multigraph::Vertex *, size_t> cut; //Choice of vertex side for cutting
     for(multigraph::Vertex *v : graph.vertices) {
         if(v->seq <= !v->seq) {
@@ -206,6 +207,7 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
         cuts[rec.left->rc] = cut[rec.left->rc->start] * rec.endSize();
         cuts[rec.right] = cut[rec.right->start] * rec.startSize();
     }
+    std::vector<Contig> res;
     for(multigraph::Edge *edge : graph.edges) {
         if(edge->isCanonical()) {
             //TODO make canonical be the same as positive id
@@ -215,8 +217,8 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
             if(cut_left + cut_right >= seq.size()) {
                 continue;
             }
-            os_cut << ">" << edge->getId() << "\n" << seq.Subseq(cut_left, seq.size() - cut_right) << "\n";
+            res.emplace_back(seq.Subseq(cut_left, seq.size() - cut_right), itos(edge->getId()));
         }
     }
-    os_cut.close();
+    return std::move(res);
 }

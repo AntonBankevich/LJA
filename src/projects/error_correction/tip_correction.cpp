@@ -133,7 +133,6 @@ void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
         }
         storageIt->applyCorrections(logger, threads);
     }
-    logger.info() << "Corrected tips for " << cnt.get() << " reads" << std::endl;
 }
 
 void TipCorrectionPipeline(logging::Logger &logger, dbg::SparseDBG &dbg, RecordStorage &reads, size_t threads,
