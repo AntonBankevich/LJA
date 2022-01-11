@@ -183,6 +183,9 @@ std::unordered_map<IndexType, IndexType> MultiplexDBG::MapSeqs2RC(
 
     std::unordered_map<IndexType, IndexType> fwd2rc;
     for (const auto &[seq, ind] : seq2ind) {
+        if (seq2ind.find(!seq) == seq2ind.end()) {
+            std::cout << "Ind = " << ind << "\n";
+        }
         const IndexType rc_ind = seq2ind.at(!seq);
         fwd2rc.emplace(ind, rc_ind);
         fwd2rc.emplace(rc_ind, ind);
