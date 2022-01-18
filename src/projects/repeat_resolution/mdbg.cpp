@@ -86,28 +86,17 @@ void MultiplexDBG::AssertValidity() const {
     }
 
     if (contains_rc) {
-        std::set<Sequence> seq_vertex;
-        for (const RRVertexType &vertex : *this) {
-            const RRVertexProperty &vertex_prop = node_prop(vertex);
-            Sequence seq = vertex_prop.Seq().ToSequence();
-            seq_vertex.emplace(std::move(seq));
-        }
-
-        for (const RRVertexType &vertex : *this) {
-            const RRVertexProperty &vertex_prop = node_prop(vertex);
-            VERIFY(seq_vertex.count(vertex_prop.Seq().RC().ToSequence())==1);
-        }
-
-        std::set<Sequence> seq_edge;
+        std::map<Sequence, RREdgeIndexType> seq_edge;
+        std::unordered_map<RREdgeIndexType, bool> is_unique_edge;
         for (const RRVertexType &vertex : *this) {
             auto[begin, end] = out_neighbors(vertex);
             for (auto it = begin; it!=end; ++it) {
                 const RREdgeProperty &edge_prop = it->second.prop();
-                if (edge_prop.Size() > 0) {
-                    seq_edge.emplace(
-                        GetEdgeSequence(find(vertex), it, false, false)
-                            .ToSequence());
-                }
+                seq_edge.emplace(
+                    GetEdgeSequence(find(vertex), it, false, false)
+                        .ToSequence(),
+                        edge_prop.Index());
+                is_unique_edge.emplace(edge_prop.Index(), edge_prop.IsUnique());
             }
         }
 
@@ -115,12 +104,16 @@ void MultiplexDBG::AssertValidity() const {
             auto[begin, end] = out_neighbors(vertex);
             for (auto it = begin; it!=end; ++it) {
                 const RREdgeProperty &edge_prop = it->second.prop();
-                if (edge_prop.Size() > 0) {
-                    const Sequence seq =
-                        GetEdgeSequence(find(vertex), it, false, false)
-                            .ToSequence();
-                    VERIFY(seq_edge.count(seq)==1);
-                }
+                const Sequence seq =
+                    GetEdgeSequence(find(vertex), it, false, false)
+                        .ToSequence();
+                VERIFY_MSG(seq_edge.find(!seq)!=seq_edge.end(),
+                           "no rev comp for edge " + itos(edge_prop.Index()));
+                VERIFY_MSG(is_unique_edge.at(edge_prop.Index())
+                               ==is_unique_edge.at(seq_edge.at(!seq)),
+                           "edge_prop " + itos(edge_prop.Index()) + ", unique: "
+                               + itos(is_unique_edge.at(edge_prop.Index()))
+                               + " . rev compl uniqueness not equal");
             }
         }
     }
@@ -204,7 +197,7 @@ MultiplexDBG::GetEdgeSeqs(size_t threads) const {
     }
     omp_set_num_threads(threads);
 #pragma omp parallel for default(none) shared(vits, res)
-    for(size_t i = 0; i < vits.size(); i++) {
+    for (size_t i = 0; i < vits.size(); i++) {
         ConstIterator v_it = vits[i];
         auto[e_begin, e_end] = out_neighbors(v_it);
         for (auto e_it = e_begin; e_it!=e_end; ++e_it) {
@@ -630,10 +623,12 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
                           });
           if (unpaired_in.size()==1 and unpaired_out.size()==1 and
               (all_in_unique or all_out_unique)) {
-              VERIFY(ac_s2e.find(unpaired_in.front()) == ac_s2e.end());
-              VERIFY(ac_e2s.find(unpaired_out.front()) == ac_e2s.end());
-              ac_s2e[unpaired_in.front()] = {unpaired_out.front()};
-              ac_e2s[unpaired_out.front()] = {unpaired_in.front()};
+              const RRVertexType unp_in = unpaired_in.front();
+              const RRVertexType unp_out = unpaired_out.front();
+              VERIFY(ac_s2e.find(unp_in)==ac_s2e.end());
+              VERIFY(ac_e2s.find(unp_out)==ac_e2s.end());
+              ac_s2e[unp_in] = {unp_out};
+              ac_e2s[unp_out] = {unp_in};
           }
         };
 

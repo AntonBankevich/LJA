@@ -129,7 +129,8 @@ MDBGComplexVertexProcessor::SplitVertex(MultiplexDBG &graph,
 }
 
 void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
-                                         const RRVertexType &vertex) {
+                                         const RRVertexType &vertex,
+                                         std::set<Sequence> &merged_self_loops) {
     const RRVertexProperty &v_prop = graph.node_prop(vertex);
 
     auto[ac_s2e, ac_e2s] = graph.GetEdgepairsVertex(vertex);
@@ -161,16 +162,38 @@ void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
             graph.AddConnectingEdge(e1_it, right_vertex, e2_it);
         }
     }
+
     for (const RRVertexType &new_vertex : new_vertices) {
         const uint64_t indegree = graph.count_in_neighbors(new_vertex);
         const uint64_t outdegree = graph.count_out_neighbors(new_vertex);
         if (indegree==1 and outdegree==1) {
             auto in_rev_it = graph.in_neighbors(new_vertex).first;
             const RRVertexType &left_vertex = in_rev_it->first;
+            auto out_rev_it = graph.out_neighbors(new_vertex).first;
+            const RRVertexType &right_vertex = out_rev_it->first;
+
             if (left_vertex==new_vertex) {
                 // self-loop should be skipped
+                Sequence seq = graph.node_prop(new_vertex).Seq().ToSequence();
+                merged_self_loops.emplace(std::move(seq));
                 continue;
             }
+            {
+                RRVertexType v = right_vertex;
+                while (v!=new_vertex and graph.count_out_neighbors(v)==1
+                    and graph.count_in_neighbors(v)==1) {
+                    v = graph.out_neighbors(v).first->first;
+                }
+                if (v==new_vertex) {
+                    // cycle
+                    Sequence s = graph.node_prop(new_vertex).Seq().ToSequence();
+                    if (merged_self_loops.count(!s)) {
+                        // rev-compl of this vertex in graph — not merge
+                        continue;
+                    }
+                }
+            }
+
             auto in_it = graph.FindOutEdgeIterator(left_vertex,
                                                    in_rev_it->second.prop()
                                                        .Index());

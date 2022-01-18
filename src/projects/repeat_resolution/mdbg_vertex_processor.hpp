@@ -25,7 +25,9 @@ class MDBGComplexVertexProcessor {
     SplitVertex(MultiplexDBG &graph, const RRVertexType &vertex);
 
  public:
-    void Process(MultiplexDBG &graph, const RRVertexType &vertex);
+    void Process(MultiplexDBG &graph,
+                 const RRVertexType &vertex,
+                 std::set<Sequence> &merged_self_loops);
 };
 
 } // End namespace repeat_resolution

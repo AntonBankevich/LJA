@@ -19,7 +19,8 @@ class MultiplexDBGIncreaser {
 
  private:
     void ProcessVertex(MultiplexDBG &graph, const RRVertexType &vertex,
-                       uint64_t max_iter);
+                       uint64_t max_iter,
+                       std::set<Sequence> &merged_self_loops);
     static void CollapseShortEdgesIntoVertices(MultiplexDBG &graph);
     static void CollapseEdge(MultiplexDBG &graph,
                              MultiplexDBG::ConstIterator s_it,
