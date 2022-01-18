@@ -22,9 +22,7 @@ struct OverlapRecord {
     std::string cigarString() const {
         std::stringstream ss;
         for(auto &pair : cigar) {
-            if(pair.length > 1) {
-                ss << pair.length;
-            }
+            ss << pair.length;
             ss << pair.type;
         }
         return ss.str();
