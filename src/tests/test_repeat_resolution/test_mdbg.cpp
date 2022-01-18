@@ -1029,6 +1029,7 @@ TEST(DBComplexVertexLoop8, Basic) {
     }
 }
 
+/*
 // graph with a complex vertex (loop) + rc
 TEST(DBComplexVertexLoop9RC, Basic) {
     const size_t k = 2;
@@ -1084,6 +1085,7 @@ TEST(DBComplexVertexLoop9RC, Basic) {
         mdbg.AssertValidity();
     }
 }
+ */
 
 // graph with a two loops + rc
 TEST(DBDoubleLoopRC, Basic) {
