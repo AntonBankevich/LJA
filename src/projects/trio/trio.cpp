@@ -29,6 +29,16 @@ using logging::Logger;
 using std::cout;
 using std::cerr;
 
+inline char other_haplo(char c) {
+    if (c == 'm') return 'p';
+    else if (c == 'p') return 'm';
+    else VERIFY(false);
+}
+
+inline char is_defined_haplo(char c){
+    return (c == 'm' || c == 'p');
+}
+
 struct HaplotypeStats {
     char haplotype;
     std::string label;
@@ -71,16 +81,22 @@ void cleanGraph(multigraph::MultiGraph &graph) {
         for (auto eid: eids){
             if (graph.edges.find(eid) == graph.edges.end())
                 continue;
+            std::cout<< eid << endl;
             if (graph.edges[eid]->start->outDeg() == 2) {
+                std::cout << "is being deleted as bulge\n";
                 auto first_e = graph.edges[eid]->start->outgoing[0];
                 auto second_e = graph.edges[eid]->start->outgoing[1];
                 if (first_e->end == second_e->end && first_e != second_e->rc) {
+                    std::cout << "is deleted as bulge\n";
+
                     graph.deleteEdgeById(first_e->getId());
                     changed = true;
                     bulges ++;
                 }
             } else if (graph.edges[eid]->isTip()) {
+                std::cout << "is being deleted as tip\n";
                 if (graph.edges[eid]->size() < MAX_TIP_LENGTH) {
+                    std::cout << "is deleted as tip\n";
                     graph.deleteEdgeById(eid);
                     changed = true;
                     tips ++;
@@ -214,7 +230,6 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     multigraph::MultiGraph mmg;
     mmg.LoadGFA(diplo_graph, true);
     multigraph::MultiGraph mg = mmg.DBG();
-    mg.printEdgeGFA("tsat.gfa",true);
 
     auto bulges = getBulgeLabels(mg);
     logger.info() << "got "<< bulges.size() << " bulges\n";
@@ -226,33 +241,32 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
         HaplotypeStats h(s);
         haplotypes[h.label] = h;
     }
+    std::string out_name = "corrected_";
+    size_t k = 5001;
+    out_name+=other_haplo(haplotype);
+    std::experimental::filesystem::path out_dir = dir / out_name;
+    ensure_dir_existance(out_dir);
 
     updateFixableHaplotypes(bulges, haplotypes);
-    cout << "updated simple\n";
     updateAmbiguousHaplotypes(bulges, haplotypes, mg);
-    cout << "updated complex\n";
     for (auto p: haplotypes)
         logger.debug() << p.second.label << " " << p.second.haplotype << endl;
     removeHaplotype(haplotypes, mg, haplotype, logger);
     cout << "removed \n";
-    mg.printEdgeGFA("before_clean.gfa", true);
+    mg.printEdgeGFA(out_dir / "before_clean.gfa", true);
     cleanGraph(mg);
     cout << "cleaned \n";
-    mg.printEdgeGFA("after_clean.gfa", true);
+    mg.printEdgeGFA(out_dir / "after_clean.gfa", true);
     mg.printEdgeGFA(output_file, true);
 
 //printing alignments and contigs, should be refactored
-    std::string out_name = "corrected_";
-    size_t k = 5001;
-    size_t w = 500;
-    out_name+=haplotype;
     std::string out_aligns = out_name; out_aligns += ".alignments";
     std::string out_contigs = out_name; out_contigs += ".fasta";
     io::Library ref_lib;
     multigraph::LJAPipeline pipeline (ref_lib);
     std::vector<std::experimental::filesystem::path> uncompressed_results =
-           pipeline.PolishingPhase(logger, threads, dir/ out_name, dir / out_name, output_file,
-                           corrected_reads, reads, StringContig::max_dimer_size / 2, 5001, false, true);
+           pipeline.PolishingPhase(logger, threads, out_dir, out_dir, output_file,
+                           corrected_reads, reads, StringContig::max_dimer_size / 2, k, false, true);
 /*
     hashing::RollingHash hasher(k, 239);
     SparseDBG dbg = DBGPipeline(logger, hasher, w, reads, dir, threads);
