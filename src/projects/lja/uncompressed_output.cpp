@@ -86,6 +86,7 @@ size_t compressedPrefixSize(const Sequence &hpcPrefix, const Sequence &seq) {
         if(pos < seq.size() && hpc_pos < hpc_size && hpcSeq[hpc_pos] != seq[pos]) {
             VERIFY(hpc_pos >= 2 && seq[pos] == hpcSeq[hpc_pos - 2]);
             hpc_pos -= 2;
+
         } else {
             VERIFY(hpcSeq[hpc_pos] == seq[pos]);
         }
@@ -141,16 +142,19 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     }
     ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(graph, cigars_collection, uncompression_results, logger, debug, std::cout)
-    for(size_t i = 0; i < graph.vertices.size(); i++) {
-        multigraph::Vertex &vertex = *graph.vertices[i];
+    std::vector<size_t> v_ids;
+    for (auto p: graph.vertices)
+        v_ids.push_back(p.first);
+#pragma omp parallel for default(none) shared(graph, v_ids, cigars_collection, uncompression_results, logger, debug, std::cout)
+    for(size_t i = 0; i < v_ids.size(); i++) {
+        multigraph::Vertex &vertex = *graph.vertices[v_ids[i]];
         if(!vertex.isCanonical())
             continue;
         for (multigraph::Edge *out_edge : vertex.outgoing) {
             for (multigraph::Edge *inc_edge : vertex.rc->outgoing) {
                 VERIFY_OMP(out_edge->getSeq().startsWith(vertex.seq));
                 VERIFY_OMP(inc_edge->getSeq().startsWith(!vertex.seq));
-                std::vector<cigar_pair> cigar = UncompressOverlap(graph.vertices[i]->seq, uncompression_results[inc_edge->rc->getId()],
+                std::vector<cigar_pair> cigar = UncompressOverlap(graph.vertices[v_ids[i]]->seq, uncompression_results[inc_edge->rc->getId()],
                                                                   uncompression_results[out_edge->getId()]);
                 OverlapRecord overlapRecord(inc_edge->rc, out_edge, uncompression_results[inc_edge->rc->getId()],
                                                                   uncompression_results[out_edge->getId()], cigar);

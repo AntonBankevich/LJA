@@ -20,6 +20,7 @@ int main(int argc, char **argv) {
     logger << join(" ", argv, argv + argc);
     size_t threads = std::stoull(parser.getValue("threads"));
     omp_set_num_threads(threads);
+    StringContig::homopolymer_compressing = true;
 
     std::experimental::filesystem::path graph(parser.getValue("diplo_graph"));
     std::experimental::filesystem::path haplo(parser.getValue("haployak"));

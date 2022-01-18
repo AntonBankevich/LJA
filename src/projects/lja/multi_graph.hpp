@@ -84,11 +84,12 @@ namespace multigraph {
         }
 
         bool isTip() const {
-            if (start->inDeg() == 0 && end->inDeg() > 1 && end->outDeg() > 0)
+/*            if (start->inDeg() == 0 && end->inDeg() > 1 && end->outDeg() > 0)
                 return true;
             if (end->outDeg() == 0 && start->outDeg() > 1 && start->inDeg() > 0)
                 return true;
-            return false;
+            return false;*/
+            return (start->inDeg() == 0  || end->outDeg() == 0);
         }
 
 //simplified check, works only for trivial cases
