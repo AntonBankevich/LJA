@@ -86,7 +86,7 @@ class RepeatResolver {
         mdbg.ExportToDot(dir/"mdbg.hpc.dot");
         logger.info() << "Export to GFA and compressed contigs" << std::endl;
         std::vector<Contig> contigs = mdbg.ExportContigsAndGFA(
-            dir/"assembly.hpc.fasta", dir/"mdbg.hpc.gfa", threads);
+            dir/"assembly.hpc.fasta", dir/"mdbg.hpc.gfa", threads, logger);
         logger.info() << "Finished repeat resolution" << std::endl;
     }
 };

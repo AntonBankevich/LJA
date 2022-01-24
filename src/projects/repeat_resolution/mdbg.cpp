@@ -95,7 +95,7 @@ void MultiplexDBG::AssertValidity() const {
                 seq_edge.emplace(
                     GetEdgeSequence(find(vertex), it, false, false)
                         .ToSequence(),
-                        edge_prop.Index());
+                    edge_prop.Index());
                 is_unique_edge.emplace(edge_prop.Index(), edge_prop.IsUnique());
             }
         }
@@ -203,8 +203,8 @@ MultiplexDBG::GetEdgeSeqs(size_t threads) const {
         for (auto e_it = e_begin; e_it!=e_end; ++e_it) {
             const RREdgeProperty &prop = e_it->second.prop();
             res.emplace_back(prop.Index(),
-                         GetEdgeSequence(v_it, e_it, false, false)
-                         .ToSequence());
+                             GetEdgeSequence(v_it, e_it, false, false)
+                                 .ToSequence());
         }
     }
     return {res.begin(), res.end()};
@@ -336,16 +336,17 @@ void MultiplexDBG::ExportToDot(
 }
 
 void MultiplexDBG::ExportToGFA(
-    const std::experimental::filesystem::path &path, size_t threads) const {
+    const std::experimental::filesystem::path &path, size_t threads,
+    logging::Logger &logger) const {
     const std::unordered_map<RREdgeIndexType, Sequence>
         edge_seqs = GetEdgeSeqs(threads);
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
 
     const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
-        MapSeqs2RC<RRVertexType>(vertex_seqs);
+        MapSeqs2RC<RRVertexType>(vertex_seqs, logger);
     const std::unordered_map<RREdgeIndexType, RREdgeIndexType> edge2rc =
-        MapSeqs2RC<RREdgeIndexType>(edge_seqs);
+        MapSeqs2RC<RREdgeIndexType>(edge_seqs, logger);
 
     const std::unordered_map<RRVertexType, bool> vertex_can =
         AreSeqsCanonical<RRVertexType>(vertex_seqs);
@@ -724,14 +725,14 @@ MDBGSeq MultiplexDBG::GetEdgeSequence(ConstIterator vertex,
 }
 
 std::vector<Contig>
-MultiplexDBG::GetContigs(size_t threads) const {
+MultiplexDBG::GetContigs(size_t threads, logging::Logger &logger) const {
     const std::unordered_map<RREdgeIndexType, Sequence>
         edge_seqs = GetEdgeSeqs(threads);
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
 
     const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
-        MapSeqs2RC<RRVertexType>(vertex_seqs);
+        MapSeqs2RC<RRVertexType>(vertex_seqs, logger);
 
     std::unordered_map<RRVertexType, bool> vertex_can =
         AreSeqsCanonical<RRVertexType>(vertex_seqs);
@@ -813,25 +814,56 @@ std::vector<Contig> MultiplexDBG::ExportContigs(
 
 std::vector<Contig> MultiplexDBG::ExportContigsAndGFA(
     const std::experimental::filesystem::path &contigs_fn,
-    const std::experimental::filesystem::path &gfa_fn, size_t threads) const {
+    const std::experimental::filesystem::path &gfa_fn, size_t threads,
+    logging::Logger &logger) const {
 
+    auto export2fasta =
+        [](const std::unordered_map<RREdgeIndexType, Sequence> &seqs,
+           const std::experimental::filesystem::path &path) {
+          std::ofstream os;
+          os.open(path);
+          for (const auto &[index, seq] : seqs) {
+              os << ">" << index << "\n" << seq << "\n";
+          }
+          os.close();
+        };
+
+    logger.trace() << "Getting edge sequences" << std::endl;
     const std::unordered_map<RREdgeIndexType, Sequence>
         edge_seqs = GetEdgeSeqs(threads);
+    const std::experimental::filesystem::path edge_seqs_path =
+        contigs_fn.parent_path()/"mdbg_edge_seqs.fasta";
+    logger.trace() << "Exporting edge sequences to " << edge_seqs_path
+                   << std::endl;
+    export2fasta(edge_seqs, edge_seqs_path);
+
+    logger.trace() << "Getting vertex sequences" << std::endl;
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
+    const std::experimental::filesystem::path vertex_seqs_path =
+        contigs_fn.parent_path()/"mdbg_vertex_seqs.fasta";
+    logger.trace() << "Exporting vertex sequences to " << vertex_seqs_path
+                   << std::endl;
+    export2fasta(vertex_seqs, vertex_seqs_path);
 
+    logger.trace() << "Mapping reverse complementary vertexes" << std::endl;
     const std::unordered_map<RRVertexType, RRVertexType> vertex2rc =
-        MapSeqs2RC<RRVertexType>(vertex_seqs);
+        MapSeqs2RC<RRVertexType>(vertex_seqs, logger);
+    logger.trace() << "Mapping reverse complementary edges" << std::endl;
     const std::unordered_map<RREdgeIndexType, RREdgeIndexType> edge2rc =
-        MapSeqs2RC<RREdgeIndexType>(edge_seqs);
+        MapSeqs2RC<RREdgeIndexType>(edge_seqs, logger);
 
+    logger.trace() << "Finding canonical vertexes" << std::endl;
     std::unordered_map<RRVertexType, bool> vertex_can =
         AreSeqsCanonical<RRVertexType>(vertex_seqs);
+    logger.trace() << "Finding canonical edges" << std::endl;
     std::unordered_map<RREdgeIndexType, bool> edge_can =
         AreSeqsCanonical<RREdgeIndexType>(edge_seqs);
 
+    logger.trace() << "Exporting GFA to " << gfa_fn << std::endl;
     ExportToGFA(gfa_fn, vertex_seqs, edge_seqs, vertex2rc, edge2rc, vertex_can,
                 edge_can);
+    logger.trace() << "Exporting contigs to " << contigs_fn << std::endl;
     return ExportContigs(contigs_fn, vertex_seqs, edge_seqs, vertex2rc,
                          vertex_can, edge_can);
 }
