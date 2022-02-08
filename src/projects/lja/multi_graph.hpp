@@ -111,6 +111,8 @@ namespace multigraph {
 
     };
 
+    typedef std::unordered_map<int, std::pair<int, int>> deleted_edges_map;
+    
     struct MultiGraph {
         int maxVId = 0;
         int maxEId = 0;
@@ -425,6 +427,7 @@ namespace multigraph {
                     HaplotypeStats new_haplo(new_label, (haplo_map_->find(e_in->getLabel())->second),
                                              (haplo_map_->find(e_out->getLabel()))->second);
                     haplo_map_->insert(make_pair(new_label, new_haplo));
+//                    logger.info() << new_label << endl;
                 }
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
                 for (auto eid: edgeids_to_remove){

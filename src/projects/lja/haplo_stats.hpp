@@ -25,6 +25,7 @@ inline char is_defined_haplo(char c){
     return (c == 'm' || c == 'p');
 }
 
+
 struct HaplotypeStats {
     char haplotype;
     std::string label;
@@ -69,6 +70,23 @@ struct HaplotypeStats {
     }
 
 };
+
+
+inline char AssignBulge(HaplotypeStats top_h, HaplotypeStats bottom_h) {
+    size_t pat_count = top_h.decisive_counts[0] * bottom_h.decisive_counts[1];
+    size_t mat_count = top_h.decisive_counts[1] * bottom_h.decisive_counts[0];
+    size_t top_total = top_h.decisive_counts[0] + top_h.decisive_counts[1];
+    size_t bottom_total = bottom_h.decisive_counts[0] + bottom_h.decisive_counts[1];
+    char decision = 'a';
+
+    if (mat_count > pat_count || (top_total == 0 && bottom_h.decisive_counts[0] >  bottom_h.decisive_counts[1])
+        || (bottom_total == 0 && top_h.decisive_counts[1] > top_h.decisive_counts[0]))
+        decision = 'm';
+    else if (mat_count < pat_count || (top_total == 0 && bottom_h.decisive_counts[1] >  bottom_h.decisive_counts[0])
+             || (bottom_total == 0 && top_h.decisive_counts[0] > top_h.decisive_counts[1]))
+        decision = 'p';
+    return decision;
+}
 
 typedef  std::unordered_map<std::string, HaplotypeStats> haplo_map_type;
 //primitive clean graph

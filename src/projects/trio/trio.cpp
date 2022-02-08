@@ -30,7 +30,7 @@ using std::cout;
 using std::cerr;
 
 
-void cleanGraph(multigraph::MultiGraph &graph) {
+void cleanGraph(multigraph::MultiGraph &graph, char haplo_to_remove) {
     bool changed = true;
     size_t MAX_TIP_LENGTH = 1000000;
     size_t tips = 0;
@@ -44,19 +44,8 @@ void cleanGraph(multigraph::MultiGraph &graph) {
         for (auto eid: eids){
             if (graph.edges.find(eid) == graph.edges.end())
                 continue;
-            std::cout<< eid << endl;
-            if (graph.edges[eid]->start->outDeg() == 2) {
-                std::cout << "is being deleted as bulge\n";
-                auto first_e = graph.edges[eid]->start->outgoing[0];
-                auto second_e = graph.edges[eid]->start->outgoing[1];
-                if (first_e->end == second_e->end && first_e != second_e->rc) {
-                    std::cout << "is deleted as bulge\n";
-
-                    graph.deleteEdgeById(first_e->getId());
-                    changed = true;
-                    bulges ++;
-                }
-            } else if (graph.edges[eid]->isTip()) {
+            std::cout<< "considering " <<eid << " label " << graph.edges[eid]->getLabel() <<endl;
+            if (graph.edges[eid]->isTip()) {
                 std::cout << "is being deleted as tip\n";
                 if (graph.edges[eid]->size() < MAX_TIP_LENGTH) {
                     std::cout << "is deleted as tip\n";
@@ -64,7 +53,23 @@ void cleanGraph(multigraph::MultiGraph &graph) {
                     changed = true;
                     tips ++;
                 }
+            } else if (graph.edges[eid]->start->outDeg() == 2) {
+                std::cout << "is being deleted as bulge\n";
+                auto first_e = graph.edges[eid]->start->outgoing[0];
+                auto second_e = graph.edges[eid]->start->outgoing[1];
+                if (first_e->end == second_e->end && first_e != second_e->rc
+                && first_e->size() < 1.2 * second_e->size() &&  second_e->size() < 1.2 * first_e->size()) {
+                    std::cout << "is deleted as bulge\n";
+                    char decision = AssignBulge((*graph.haplo_map_)[first_e->getLabel()], (*graph.haplo_map_)[second_e->getLabel()]);
+                    if (decision == haplo_to_remove)
+                        graph.deleteEdgeById(first_e->getId());
+                    else
+                        graph.deleteEdgeById(second_e->getId());
+                    changed = true;
+                    bulges ++;
+                }
             }
+
         }
     }
     std::cout << "Deleted tips "<< tips << " Bulges " << bulges << endl;
@@ -122,25 +127,10 @@ void updateAmbiguousHaplotypes(std::unordered_map<std::string, std::string> & bu
         if (haplotypes[e_label].is_undefined() && haplotypes[alt_label].is_undefined()) {
             auto top_h = haplotypes[e_label];
             auto bottom_h = haplotypes[alt_label];
-            size_t pat_count = top_h.decisive_counts[0] * bottom_h.decisive_counts[1];
-            size_t mat_count = top_h.decisive_counts[1] * bottom_h.decisive_counts[0];
-            size_t top_total = top_h.decisive_counts[0] + top_h.decisive_counts[1];
-            size_t bottom_total = bottom_h.decisive_counts[0] + bottom_h.decisive_counts[1];
-            char decision = 'a';
-            if (mat_count > pat_count || (top_total == 0 && bottom_h.decisive_counts[0] >  bottom_h.decisive_counts[1])
-                || (bottom_total == 0 && top_h.decisive_counts[1] > top_h.decisive_counts[0]))
-                decision = 'm';
-            else if (mat_count < pat_count || (top_total == 0 && bottom_h.decisive_counts[1] >  bottom_h.decisive_counts[0])
-                     || (bottom_total == 0 && top_h.decisive_counts[0] > top_h.decisive_counts[1]))
-                decision = 'p';
-            if (decision == 'm') {
-                haplotypes[e_label].haplotype = 'm';
-                haplotypes[alt_label].haplotype = 'p';
-                count ++;
-            }
-            if (decision == 'p') {
-                haplotypes[e_label].haplotype = 'p';
-                haplotypes[alt_label].haplotype = 'm';
+            char decision = AssignBulge(top_h, bottom_h);
+            if (decision != 'a') {
+                haplotypes[e_label].haplotype = decision;
+                haplotypes[alt_label].haplotype = other_haplo(decision);
                 count ++;
             }
         }
@@ -165,16 +155,22 @@ void removeHaplotype(haplo_map_type &haplotypes, multigraph::MultiGraph &graph, 
             auto label = graph.edges[eid]->getLabel();
             if (haplotypes.find(label) != haplotypes.end()) {
                 if (haplotypes[label].haplotype == haplo_to_remove) {
-                    if (graph.edges[eid]->isBridge()) {
+                    if (graph.edges[eid]->isBridge() && graph.edges[eid]->size() < 100000) {
                         bridges ++;
+                        logger.info() << "Skipping edge " << eid << " as bridge\n";
                         continue;
                     }
                     removed_len += graph.edges[eid]->size();
                     graph.deleteEdgeById(eid);
-                    logger.trace() << "removing " << eid << endl;
+                    logger.trace() << "removing " << eid  << " label " << label << endl;
                     removed ++;
                     changed = true;
+                } else { 
+                    logger.trace() << "skipping edge label" << label <<" "<< haplotypes[label].haplotype << endl;
                 }
+            } else {
+                logger.trace() << "skipping edge NOT FOUND label" << label << endl;
+                
             }
         }
     }
@@ -204,6 +200,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
         HaplotypeStats h(s);
         haplotypes[h.label] = h;
     }
+    mg.InitHaplo(haplotypes);
     std::string out_name = "corrected_";
     size_t k = 5001;
     out_name+=other_haplo(haplotype);
@@ -217,7 +214,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     removeHaplotype(haplotypes, mg, haplotype, logger);
     cout << "removed \n";
     mg.printEdgeGFA(out_dir / "before_clean.gfa", true);
-    cleanGraph(mg);
+    cleanGraph(mg, haplotype);
     cout << "cleaned \n";
     mg.printEdgeGFA(out_dir / "after_clean.gfa", true);
     mg.printEdgeGFA(output_file, true);
@@ -230,6 +227,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     std::vector<std::experimental::filesystem::path> uncompressed_results =
            pipeline.PolishingPhase(logger, threads, out_dir, out_dir, output_file,
                            corrected_reads, reads, StringContig::max_dimer_size / 2, k, false, true);
+
 /*
     hashing::RollingHash hasher(k, 239);
     SparseDBG dbg = DBGPipeline(logger, hasher, w, reads, dir, threads);
