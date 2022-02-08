@@ -8,8 +8,10 @@
 #include <fstream>
 #include <common/string_utils.hpp>
 #include <sequences/contigs.hpp>
+#include "haplo_stats.hpp"
 
 namespace multigraph {
+
     class Edge;
     struct Vertex {
         Sequence seq;
@@ -117,6 +119,7 @@ namespace multigraph {
 //To canonic ID
         std::unordered_map<std::string, int> label_to_id;
 //        std::unordered_map<int, Edge* > id_to_edge;
+        haplo_map_type* haplo_map_;
 
 
         MultiGraph() = default;
@@ -203,9 +206,13 @@ namespace multigraph {
             }
             std::cout <<"loaded V/E " << vertices.size() << " " << edges.size() << endl;
             std::cout <<"transformed V/E " << dbg.vertices.size() << " " << dbg.edges.size() << endl;
+            dbg.haplo_map_ = nullptr;
             return std::move(dbg);
         }
 
+        void InitHaplo(haplo_map_type &haplo_map) {
+            haplo_map_ = &haplo_map;
+        }
         ~MultiGraph() {
             for(auto p : vertices) {
                 delete p.second;
@@ -414,6 +421,11 @@ namespace multigraph {
                 }
                 Sequence new_seq = e_in->getSeq().Prefix(pref) + e_out->getSeq();
                 string new_label = e_in->getLabel()+ "_"+ e_out->getLabel();
+                if (haplo_map_ != nullptr) {
+                    HaplotypeStats new_haplo(new_label, (haplo_map_->find(e_in->getLabel())->second),
+                                             (haplo_map_->find(e_out->getLabel()))->second);
+                    haplo_map_->insert(make_pair(new_label, new_haplo));
+                }
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
                 for (auto eid: edgeids_to_remove){
                     internalRemoveEdge(eid);
