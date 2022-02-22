@@ -211,8 +211,7 @@ int main(int argc, char **argv) {
     bool calculate_alignments = parser.getCheck("initial-correct") ||
             parser.getCheck("mult-correct") || parser.getCheck("print-alignments") || parser.getCheck("split");
     bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
-            parser.getCheck("correct") || parser.getValue("reference") != "none" ||
-            parser.getCheck("tip-correct") ||
+            parser.getValue("reference") != "none" || parser.getCheck("tip-correct") ||
             parser.getCheck("initial-correct") || parser.getCheck("mult-correct") || !paths_lib.empty();
     calculate_coverage = calculate_coverage && !calculate_alignments;
     if (!parser.getListValue("align").empty() || parser.getCheck("print-alignments") ||
