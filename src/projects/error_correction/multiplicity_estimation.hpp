@@ -10,36 +10,16 @@
 
 class MappedNetwork : public Network {
 public:
-    std::unordered_map<int, dbg::Edge *> edge_mapping;
+    std::vector<dbg::Edge *> edge_mapping;
     std::unordered_map<dbg::Vertex *, int> vertex_mapping;
 
     MappedNetwork(const dbg::Component &component, const std::function<bool(const dbg::Edge &)> &unique,
                   double rel_coverage = 1000, double unique_coverage = 0, double double_coverage = 0);
     size_t addTipSinks();
     std::vector<dbg::Edge*> getUnique(logging::Logger &logger);
-    std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> findBounds() {
-        std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> res;
-        for(const auto &rec : Network::findBounds()) {
-            auto it = edge_mapping.find(rec.first);
-            if(it != edge_mapping.end()) {
-                res.emplace(it->second, rec.second);
-            }
-        }
-        return std::move(res);
-    }
+    std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> findBounds();
 };
 
-class MultiplicityBoundsEstimator {
-private:
-    dbg::SparseDBG &dbg;
-    MultiplicityBounds bounds;
-public:
-    MultiplicityBoundsEstimator(dbg::SparseDBG &dbg, const AbstractUniquenessStorage &uniquenessStorage);
-
-    bool updateComponent(logging::Logger &logger, const dbg::Component &component, const AbstractUniquenessStorage &uniquenessStorage,
-                                double rel_coverage, double unique_coverage = 0);
-    void update(logging::Logger &logger, double rel_coverage, const std::experimental::filesystem::path &dir);
-};
 std::pair<double, double> minmaxCov(const dbg::Component &subcomponent, const RecordStorage &reads_storage,
                                     const std::function<bool(const dbg::Edge &)> &is_unique);
 

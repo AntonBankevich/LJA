@@ -246,10 +246,6 @@ int main(int argc, char **argv) {
         refStorage.fill(refReader.begin(), refReader.end(), dbg, w + k - 1, logger, threads);
     }
 
-    if(parser.getCheck("mult-analyse")) {
-        NewMultCorrect(dbg, logger, dir, readStorage, 70000, threads, parser.getCheck("dump"));
-    }
-
     if(parser.getCheck("mult-correct")) {
         MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"), debug);
     }
