@@ -322,26 +322,6 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(parser.getCheck("split")) {
-        std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
-        ensure_dir_existance(subdatasets_dir);
-        std::experimental::filesystem::path executable(argv[0]);
-        std::experimental::filesystem::path py_path = executable.parent_path() / "run_rr.py";
-        logger.trace() << "py_path set to " << py_path.string() << std::endl;
-        RepeatResolver rr(dbg, {&readStorage}, subdatasets_dir, py_path, true);
-        logger.info() << "Extracting subdatasets for connected components" << std::endl;
-        std::function<bool(const Edge &)> is_unique = [](const Edge &){return false;};
-        std::vector<RepeatResolver::Subdataset> subdatasets = rr.SplitDataset(is_unique);
-#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, logger, rr)
-        for(size_t snum = 0; snum < subdatasets.size(); snum++) {
-            RepeatResolver::Subdataset &subdataset = subdatasets[snum];
-            std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
-            ensure_dir_existance(outdir);
-            rr.prepareDataset(subdataset);
-        }
-        logger.info() << "Finished extracting subdatasets for connected components" << std::endl;
-    }
-
     if(parser.getCheck("extract-subdatasets")) {
         std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
         ensure_dir_existance(subdatasets_dir);
