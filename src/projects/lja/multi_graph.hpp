@@ -110,8 +110,8 @@ namespace multigraph {
         }
 
     };
-
-    typedef std::unordered_map<int, std::pair<int, int>> deleted_edges_map;
+//Not ids but label, whether it is OK?..
+    typedef std::unordered_map<std::string, std::pair<std::string, std::string>> deleted_edges_map;
     
     struct MultiGraph {
         int maxVId = 0;
@@ -396,13 +396,14 @@ namespace multigraph {
             edges.erase(rcid);
         }
 
-        void compressVertex(int vid) {
+        deleted_edges_map compressVertex(int vid) {
+            deleted_edges_map result_map;
             if (vertices.find(vid) != vertices.end() && vertices[vid]->outDeg() == 1 && vertices[vid]->inDeg() == 1) {
 //Do not compress 1-1 loops and RC loops
                 if (vertices[vid]->outgoing[0] == vertices[vid]->rc->outgoing[0]->rc)
-                    return;
+                    return result_map;
                 if (vertices[vid]->outgoing[0] == vertices[vid]->rc->outgoing[0])
-                    return;
+                    return result_map;
                 int rcid = vertices[vid]->rc->id;
                 std::set<int> edgeids_to_remove;
                 Edge* e_out =  vertices[vid]->outgoing[0];
@@ -423,12 +424,13 @@ namespace multigraph {
                 }
                 Sequence new_seq = e_in->getSeq().Prefix(pref) + e_out->getSeq();
                 string new_label = e_in->getLabel()+ "_"+ e_out->getLabel();
-                if (haplo_map_ != nullptr) {
+/*                if (haplo_map_ != nullptr) {
                     HaplotypeStats new_haplo(new_label, (haplo_map_->find(e_in->getLabel())->second),
                                              (haplo_map_->find(e_out->getLabel()))->second);
                     haplo_map_->insert(make_pair(new_label, new_haplo));
 //                    logger.info() << new_label << endl;
-                }
+                } */
+                result_map[new_label] = std::make_pair(e_in->getLabel(), e_out->getLabel());
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
                 for (auto eid: edgeids_to_remove){
                     internalRemoveEdge(eid);
@@ -439,14 +441,17 @@ namespace multigraph {
                 vertices.erase(vid);
                 vertices.erase(rcid);
             }
+            return result_map;
         }
 
-        void deleteEdgeById(int eid){
+        deleted_edges_map deleteEdgeById(int eid){
             Vertex* start_v = edges[eid]->start;
             Vertex* end_v = edges[eid]->end;
             internalRemoveEdge(eid);
-            compressVertex(start_v->id);
-            compressVertex(end_v->id);
+            auto res = compressVertex(start_v->id);
+            auto comp_res = compressVertex(end_v->id);
+            res.insert(comp_res.begin(), comp_res.end());
+            return res;
         }
 
 
