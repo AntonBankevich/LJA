@@ -6,7 +6,7 @@
 using namespace dbg;
 std::string RepeatResolver::COMMAND = "{} {} -i {} -o {} > {}";
 
-std::vector<RepeatResolver::Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
+std::vector<Subdataset> RepeatResolver::SplitDataset(const std::function<bool(const Edge &)> &is_unique) {
     size_t k = dbg.hasher().getK();
     std::vector<Component> comps = ConditionSplitter(is_unique).splitGraph(dbg);
     std::vector<Subdataset> result;

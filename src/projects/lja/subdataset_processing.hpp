@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../dbg/component.hpp"
+#include "../dbg/subdatasets.hpp"
 #include "../dbg/sparse_dbg.hpp"
 #include "../dbg/graph_alignment_storage.hpp"
 #include "../dbg/graph_printing.hpp"
@@ -18,15 +19,6 @@ private:
     std::string command_pattern;
     bool debug;
 public:
-    struct Subdataset {
-        Subdataset(size_t id, dbg::Component component, std::experimental::filesystem::path dir) :
-                            id(id), component(std::move(component)), dir(std::move(dir)) {}
-        size_t id;
-        dbg::Component component;
-        std::vector<AlignedRead *> reads;
-        std::experimental::filesystem::path dir;
-        bool operator<(const Subdataset &other) const;
-    };
 
     RepeatResolver(dbg::SparseDBG &dbg, std::vector<RecordStorage *> storages, const std::experimental::filesystem::path &dir,
                     const std::experimental::filesystem::path &py_path, bool debug) : dbg(dbg), storages(std::move(storages)), dir(dir),
