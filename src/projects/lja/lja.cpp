@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
 
     std::vector<std::experimental::filesystem::path> corrected_final;
     if(noec) {
-        corrected_final = NoCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
+        corrected_final = pipeline.NoCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
                                        skip, debug, load);
     } else {
         double threshold = std::stod(parser.getValue("cov-threshold"));
@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
         std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path> corrected1;
         if (first_stage == "alternative")
             skip = false;
-        corrected1 = AlternativeCorrection(logger, dir / ("k" + itos(k)), lib, {}, paths, threads, k, w,
+        corrected1 = pipeline.AlternativeCorrection(logger, dir / ("k" + itos(k)), lib, {}, paths, threads, k, w,
                                            threshold, reliable_coverage, false, false, skip, debug, load);
         if (first_stage == "alternative" || first_stage == "none")
             load = false;
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
 
         if (first_stage == "phase2")
             skip = false;
-        corrected_final = SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
+        corrected_final = pipeline.SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
                             threads, K, W, Threshold, Reliable_coverage, unique_threshold, diploid, skip, debug, load);
         if (first_stage == "phase2")
             load = false;
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
     if(first_stage == "rr")
         skip = false;
     std::vector<std::experimental::filesystem::path> resolved =
-            MDBGPhase(logger, threads, K, KmDBG, W, unique_threshold, diploid, dir / "mdbg", corrected_final[1],
+            pipeline.MDBGPhase(logger, threads, K, KmDBG, W, unique_threshold, diploid, dir / "mdbg", corrected_final[1],
                       corrected_final[2], skip, debug);
     if(first_stage == "rr")
         load = false;
@@ -133,8 +133,8 @@ int main(int argc, char **argv) {
     if(first_stage == "polishing")
         skip = false;
     std::vector<std::experimental::filesystem::path> uncompressed_results =
-            pipeline.PolishingPhase(logger, threads, dir/ "uncompressing", dir, corrected2[1],
-                           corrected2[0],
+            pipeline.PolishingPhase(logger, threads, dir/ "uncompressing", dir, corrected_final[1],
+                           corrected_final[0],
                             lib, StringContig::max_dimer_size / 2, K, skip, debug);
     if(first_stage == "polishing")
         load = false;

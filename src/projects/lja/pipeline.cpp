@@ -1,4 +1,5 @@
 #include "pipeline.hpp"
+#include "repeat_resolution/repeat_resolution.hpp"
 
 using namespace dbg;
 void multigraph::LJAPipeline::PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
@@ -106,27 +107,70 @@ multigraph::LJAPipeline::AlternativeCorrection(logging::Logger &logger, const st
     return {res, dir / "graph.fasta"};
 }
 
-std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::SecondPhase(
-        logging::Logger &logger, const std::experimental::filesystem::path &dir,
-        const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-        const io::Library &paths_lib, size_t threads, size_t k, size_t w,
-        double threshold, double reliable_coverage, size_t unique_threshold,
-        const std::experimental::filesystem::path &py_path,
-        bool diploid, bool skip, bool debug, bool load) {
-    logger.info() << "Performing second phase of correction with k = " << k << std::endl;
+std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+                                                              const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
+                                                              size_t threads, size_t k, size_t w, bool skip, bool debug, bool load) {
+    logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib, &pseudo_reads_lib, &paths_lib,
-            threads, threshold, reliable_coverage, debug, unique_threshold, diploid, py_path, this] {
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib,
+            &pseudo_reads_lib, &paths_lib, threads, debug, this] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
-        size_t extension_size = 100000;
+        size_t extension_size = std::max<size_t>(k * 2, 1000);
+        ReadLogger readLogger(threads, dir/"read_log.txt");
+        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
+        RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, true, false);
+        io::SeqReader reader(reads_lib);
+        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        coverageStats(logger, dbg);
+        if(debug) {
+            PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
+        }
+        dbg.printFastaOld(dir / "final_dbg.fasta");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
+        printGFA(dir / "final_dbg.gfa", Component(dbg), true);
+        SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
+        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
+    };
+    if(!skip)
+        runInFork(ic_task);
+
+    return {dir/"corrected_reads.fasta", dir / "final_dbg.fasta", dir / "final_dbg.aln"};
+}
+
+std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::SecondPhase(
+        logging::Logger &logger, const std::experimental::filesystem::path &dir,
+        const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
+        const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+        size_t unique_threshold, bool diploid, bool skip, bool debug, bool load) {
+    logger.info() << "Performing second phase of error correction using k = " << k << std::endl;
+    if (k%2==0) {
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1)
+                      << " to make it odd" << std::endl;
+        k += 1;
+    }
+    ensure_dir_existance(dir);
+    hashing::RollingHash hasher(k, 239);
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w,
+            &reads_lib, &pseudo_reads_lib, &paths_lib,
+            threads, threshold, reliable_coverage,
+            debug, unique_threshold, diploid, this]
+    {
+        io::Library construction_lib = reads_lib + pseudo_reads_lib;
+        SparseDBG dbg =
+                load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads,
+                                   (dir/"disjointigs.fasta").string(),
+                                   (dir/"vertices.save").string())
+                     : DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        dbg.fillAnchors(w, logger, threads);
+        size_t extension_size = 10000000;
         ReadLogger readLogger(threads, dir/"read_log.txt");
         RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
@@ -161,32 +205,43 @@ std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::Second
             PrintPaths(logger, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
             DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
         }
-        RepeatResolver rr(dbg, {&readStorage, &extra_reads}, dir / "split", py_path, debug);
-        std::function<bool(const dbg::Edge &)> is_unique = [unique_threshold](const dbg::Edge &edge) {
-            return edge.size() > unique_threshold;
-        };
         dbg.printFastaOld(dir / "final_dbg.fasta");
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         printGFA(dir / "final_dbg.gfa", Component(dbg), true);
-        std::vector<Contig> partial_contigs = rr.ResolveRepeats(logger, threads, is_unique);
-        logger.info()<< "Printing partial repeat resolution results to " << (dir / "partial.fasta") << std::endl;
-        PrintFasta(partial_contigs, dir / "partial.fasta");
-//        std::vector<Contig> contigs = rr.CollectResults(logger, threads, partial_contigs, dir / "merging.txt", is_unique);
-        multigraph::MultiGraph mg = rr.ConstructMultiGraph(partial_contigs);
-//        mg.printEdgeGFA(dir / "partial.gfa");
-//        mg.printDot(dir / "partial.dot");
-        multigraph::MultiGraph mmg = mg.Merge();
-        mmg.printEdgeGFA(dir / "mdbg.hpc.gfa");
-        mmg.printDot(dir / "mdbg.hpc.dot");
-        mmg.printCutEdges(dir / "mdbg.hpc.fasta");
+        SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
         readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     };
     if(!skip)
         runInFork(ic_task);
     std::experimental::filesystem::path res;
     res = dir / "corrected_reads.fasta";
-    logger.info() << "Second phase results with k = " << k << " printed to "    << res << std::endl;
-    return {res, dir / "mdbg.hpc.gfa"};
+    logger.info() << "Second phase results with k = " << k << " printed to "
+                  << res << std::endl;
+    return {res, dir / "final_dbg.fasta", dir / "final_dbg.aln"};
+}
+
+std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::MDBGPhase(
+        logging::Logger &logger, size_t threads, size_t k, size_t kmdbg, size_t w, size_t unique_threshold, bool diploid,
+        const std::experimental::filesystem::path &dir,
+        const std::experimental::filesystem::path &graph_fasta,
+        const std::experimental::filesystem::path &read_paths, bool skip, bool debug) {
+    logger.info() << "Performing repeat resolution by transforming de Bruijn graph into Multiplex de Bruijn graph" << std::endl;
+    std::function<void()> ic_task = [&logger, threads, debug, k, kmdbg, &graph_fasta, unique_threshold, diploid, &read_paths, &dir] {
+        hashing::RollingHash hasher(k, 239);
+        SparseDBG dbg = dbg::LoadDBGFromFasta({graph_fasta}, hasher, logger, threads);
+        size_t extension_size = 10000000;
+        ReadLogger readLogger(threads, dir/"read_log.txt");
+        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
+        RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, debug);
+        LoadAllReads(read_paths, {&readStorage, &extra_reads}, dbg);
+        repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
+                                             k, kmdbg, dir, unique_threshold,
+                                             diploid, debug, logger);
+        rr.ResolveRepeats(logger, threads);
+    };
+    if(!skip)
+        runInFork(ic_task);
+    return {dir / "assembly.hpc.fasta", dir / "mdbg.hpc.gfa"};
 }
 
 std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::PolishingPhase(
@@ -204,9 +259,18 @@ std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::Polish
         std::vector<Contig> contigs = edge_graph.getEdges(false);
         auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
         std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
-        printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir, debug);
+        std::vector<Contig> assembly = printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir, debug);
+        logger.info() << "Printing final assembly to " << (output_dir / "assembly.fasta") << std::endl;
+        std::ofstream os_cut;
+        os_cut.open(output_dir / "assembly.fasta");
+        for(Contig &contig : assembly) {
+            if(contig.size() > 1500)
+                os_cut << ">" << contig.id << "\n" << contig.seq << "\n";
+        }
+        os_cut.close();
     };
     if(!skip)
         runInFork(ic_task);
     return {output_dir / "assembly.fasta", output_dir / "mdbg.gfa"};
 }
+
