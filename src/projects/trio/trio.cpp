@@ -171,7 +171,7 @@ void HaplotypeRemover::removeHaplotype(haplo_map_type &haplotypes, multigraph::M
             auto label = graph.edges[eid]->getLabel();
             if (haplotypes.find(label) != haplotypes.end()) {
                 if (haplotypes[label].haplotype == haplo_to_remove) {
-                    if (graph.edges[eid]->isBridge() /*&& graph.edges[eid]->size() < 100000 */) {
+                    if (graph.edges[eid]->isBridge() && graph.edges[eid]->size() < 100000) {
                         bridges ++;
                         logger.info() << "Skipping edge " << eid << " as bridge\n";
                         continue;
