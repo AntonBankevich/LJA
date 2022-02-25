@@ -45,6 +45,7 @@ struct HaplotypeStats {
         decisive_counts = std::array<int,2>{stoi(tokens[4]), stoi(tokens[5])};
         total_kmers = stoi(tokens[8]);
     }
+
     HaplotypeStats (std::string label, HaplotypeStats a, HaplotypeStats b):label(label) {
         for (size_t i = 0; i < 2; i++) {
             decisive_counts[i] = a.decisive_counts[i] + b.decisive_counts[i];
@@ -62,8 +63,27 @@ struct HaplotypeStats {
             if (!is_defined_haplo(haplotype))
                 haplotype = b.haplotype;
         }
+    }
+
+    void appendKmerStats(HaplotypeStats other) {
+        for (size_t i = 0; i < 2; i++) {
+            decisive_counts[i] += other.decisive_counts[i];
+            decisive_strips[i] += other.decisive_strips[i];
+        }
+        if (is_defined_haplo(haplotype) && is_defined_haplo(other.haplotype)) {
+            if (haplotype == other.haplotype) {
+                haplotype = other.haplotype;
+            } else {
+                std::cout << "Merging different haplotypes " << label << " " << other.label << endl;
+                haplotype = 'a';
+            }
+        } else {
+            if (!is_defined_haplo(haplotype))
+                haplotype = other.haplotype;
+        }
 
     }
+
     HaplotypeStats():haplotype('u'),label(""), decisive_counts{0,0}, decisive_strips{0,0}, total_kmers(0) {}
     bool is_undefined() {
         return (haplotype != 'm' and haplotype != 'p');

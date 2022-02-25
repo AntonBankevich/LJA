@@ -32,9 +32,11 @@ using std::cerr;
 void deleteEdgeHaplo(multigraph::MultiGraph &graph, int eid, haplo_map_type &haplotypes) {
     auto to_merge = graph.deleteEdgeById(eid);
     for (auto p: to_merge){
-        HaplotypeStats new_haplo(p.first, haplotypes.find(p.second.first)->second,
-                                 haplotypes.find(p.second.second)->second);
-        haplotypes.insert(make_pair(p.first, new_haplo));
+        HaplotypeStats new_haplo(haplotypes[p.second[0]]);
+        new_haplo.label = p.first;
+        haplotypes.insert(std::make_pair(p.first, new_haplo));
+        for (size_t i = 1; i < p.second.size(); i++)
+            haplotypes[p.first].appendKmerStats(p.second[i]);
     }
 }
 

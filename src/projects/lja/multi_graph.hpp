@@ -111,7 +111,9 @@ namespace multigraph {
 
     };
 //Not ids but label, whether it is OK?..
-    typedef std::unordered_map<std::string, std::pair<std::string, std::string>> deleted_edges_map;
+//From new edges to old ones containing it.
+
+    typedef std::unordered_map<std::string, std::vector<std::string>> deleted_edges_map;
     
     struct MultiGraph {
         int maxVId = 0;
@@ -430,7 +432,8 @@ namespace multigraph {
                     haplo_map_->insert(make_pair(new_label, new_haplo));
 //                    logger.info() << new_label << endl;
                 } */
-                result_map[new_label] = std::make_pair(e_in->getLabel(), e_out->getLabel());
+
+                result_map[new_label] = {e_in->getLabel(), e_out->getLabel()};
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
                 for (auto eid: edgeids_to_remove){
                     internalRemoveEdge(eid);
@@ -448,9 +451,21 @@ namespace multigraph {
             Vertex* start_v = edges[eid]->start;
             Vertex* end_v = edges[eid]->end;
             internalRemoveEdge(eid);
+
             auto res = compressVertex(start_v->id);
+
+//this compression may contain edges that result from first one, so additional ugly processing required.
             auto comp_res = compressVertex(end_v->id);
-            res.insert(comp_res.begin(), comp_res.end());
+            for (auto p: comp_res) {
+                std::vector<std::string> patched_old;
+                for (auto comp_edge: p.second) {
+                    if (res.find(comp_edge) != res.end()) {
+                        patched_old.insert(patched_old.end(), res[comp_edge].begin(), res[comp_edge].end());
+                    } else
+                        patched_old.push_back(comp_edge);
+                }
+                res[p.first] = patched_old;
+            }
             return res;
         }
 
