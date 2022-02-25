@@ -173,7 +173,7 @@ std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double 
     size_t cnt = 0;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i > 0 && candidates[i - 1].first != candidates[i].first) {
-            if(cnt >= threshold) {
+            if(cnt > threshold) {
                 GraphAlignment cp = CompactPath(v, candidates[i - 1].first).getAlignment();
                 cp.cutBack(cp.len() - len);
                 res.emplace_back(cp);
@@ -182,7 +182,7 @@ std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double 
         }
         cnt += candidates[i].second;
     }
-    if(cnt >= threshold) {
+    if(cnt > threshold) {
         GraphAlignment cp = CompactPath(v, candidates.back().first).getAlignment();
         cp.cutBack(cp.len() - len);
         res.emplace_back(cp);

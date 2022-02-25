@@ -12,8 +12,8 @@
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none",
-                     "reference=none", "compress", "dimer-compress=1000000000,1000000000,1", "unique-threshold=40000", "bad-cov=7"},
-                    {"reads"},
+                     "reference=none", "compress", "dimer-compress=1000000000,1000000000,1", "unique-threshold=40000", "radius=1000", "bad-cov=7"},
+                    {"paths", "reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size", "w=window"},
                     "");
     parser.parseCL(argc, argv);
@@ -41,6 +41,7 @@ int main(int argc, char **argv) {
     double bad_cov = std::stod(parser.getValue("bad-cov"));
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
+    io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
     std::string disjointigs_file = parser.getValue("disjointigs");
     std::string vertices_file = parser.getValue("vertices");
     std::string dbg_file = parser.getValue("dbg");
@@ -57,7 +58,34 @@ int main(int argc, char **argv) {
     readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
-    std::vector<Subdataset> all = SubdatasetSplit(dbg, {&readStorage}, unique_threshold, true);
+    std::vector<Subdataset> subdatasets;
+    GraphAlignmentStorage storage(dbg);
+    if(paths_lib.empty()) {
+        logger.info() << "No paths provided. Splitting the whole graph and using components with suspicious edges." << std::endl;
+        std::function<bool(const dbg::Component&)> f = [bad_cov](const dbg::Component &component) {
+            for(dbg::Edge &edge : component.edgesInnerUnique()) {
+                if(edge.getCoverage() >= 2 && edge.getCoverage() < bad_cov) {
+                    return false;
+                    break;
+                }
+            }
+            return true;
+        };
+        std::vector<dbg::Component> components = oneline::filter(dbg::LengthSplitter(unique_threshold).splitGraph(dbg), f);
+        subdatasets = oneline::initialize<Subdataset>(components);
+    } else {
+        logger.info() << "Extracting subdatasets around contigs" << std::endl;
+        logger.info() << "Aligning paths" << std::endl;
+        io::SeqReader reader(paths_lib);
+        size_t radius = std::stoull(parser.getValue("subdataset-radius"));
+        for(StringContig scontig : io::SeqReader(paths_lib)) {
+            Contig contig = scontig.makeContig();
+            storage.fill(contig);
+            subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
+            subdatasets.back().id = contig.id;
+        }
+    }
+    std::vector<Subdataset> all = FillSubdatasets(subdatasets, {&readStorage}, true);
     size_t cnt = 0;
     for(const Subdataset &subdataset: all) {
         bool ok = false;
@@ -74,7 +102,7 @@ int main(int argc, char **argv) {
             logger << " " << v.getShortId();
         }
         logger << "\n";
-        subdataset.Save(subdir / itos(cnt));
+        subdataset.Save(subdir / itos(cnt), storage.labeler() + readStorage.labeler());
         cnt++;
     }
     return 0;

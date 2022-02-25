@@ -75,7 +75,7 @@ public:
         }
     }
 
-    std::function<std::string(const dbg::Edge &edge)> labeler() const {
+    std::function<std::string(dbg::Edge &edge)> labeler() const {
         std::function<std::string(const dbg::Edge &edge)> res = [this](const dbg::Edge &edge) {
             if (alignments.find(&edge) == alignments.end())
                 return std::string("");
@@ -110,7 +110,11 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
 namespace std {
     inline std::function<std::string(dbg::Edge &)> operator+(const std::function<std::string(dbg::Edge &)> &l1, const std::function<std::string(dbg::Edge &)> &l2) {
         return [l1, l2](dbg::Edge &edge) ->std::string {
-            return l1(edge) + "\n" + l2(edge);
+            std::string s1 = l1(edge);
+            std::string s2 = l2(edge);
+            if(s1.empty())
+                return s2;
+            return s1 + "\n" + s2;
         };
     }
 }
