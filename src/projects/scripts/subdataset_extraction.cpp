@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
         io::SeqReader reader(paths_lib);
-        size_t radius = std::stoull(parser.getValue("subdataset-radius"));
+        size_t radius = std::stoull(parser.getValue("radius"));
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
             storage.fill(contig);
