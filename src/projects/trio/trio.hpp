@@ -22,7 +22,7 @@ struct HaplotypeRemover {
     HaplotypeRemover(logging::Logger &logger, multigraph::MultiGraph &mg,
                      const std::experimental::filesystem::path &haployak, const char haplotype, const std::experimental::filesystem::path &out_dir):logger_(logger), mg(mg), haplotype_(haplotype), out_dir(out_dir) {
 
-        auto bulges = getBulgeLabels(mg);
+        auto bulges = getBulgeLabels();
         logger_.info() << "got "<< bulges.size() << " bulges\n";
 //to_separate_fucntion
         haplo_map_type haplotypes;
@@ -38,12 +38,12 @@ struct HaplotypeRemover {
 
 
     void process();
-    void deleteEdgeHaplo(multigraph::MultiGraph &graph, int eid, haplo_map_type &haplotypes, logging::Logger &logger);
-    void cleanGraph(multigraph::MultiGraph &graph, char haplo_to_remove, haplo_map_type &haplotypes, logging::Logger &logger);
-    std::unordered_map<std::string, std::string> getBulgeLabels(multigraph::MultiGraph &graph);
-    void updateFixableHaplotypes(std::unordered_map<std::string, std::string> & bulges, haplo_map_type &haplostats);
-    void updateAmbiguousHaplotypes(std::unordered_map<std::string, std::string> & bulges, haplo_map_type &haplotypes, multigraph::MultiGraph &graph);
-    void removeHaplotype(haplo_map_type &haplotypes, multigraph::MultiGraph &graph, char haplo_to_remove, logging::Logger &logger);
+    void deleteEdgeHaplo(int eid);
+    void cleanGraph();
+    std::unordered_map<std::string, std::string> getBulgeLabels();
+    void updateFixableHaplotypes();
+    void updateAmbiguousHaplotypes();
+    void removeHaplotype();
 };
 
 std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_t threads,
