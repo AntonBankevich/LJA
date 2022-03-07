@@ -507,41 +507,25 @@ int main(int argc, char **argv) {
     }
     if (parser.getCheck("simplify")) {
         logger.info() << "Removing low covered edges" << std::endl;
-        size_t threshold = std::stoull(parser.getValue("cov-threshold"));
+        double threshold = std::stod(parser.getValue("cov-threshold"));
         std::vector<Sequence> edges;
-        std::vector<hashing::htype> vertices_again;
-        for(auto & it : dbg) {
-            Vertex &vert = it.second;
-            bool add = false;
-            for(Edge & edge : vert) {
-                if (edge.getCoverage() >= threshold) {
-                    edges.push_back(vert.seq + edge.seq);
-                    add = true;
-                }
+        for(Edge& edge : dbg.edgesUnique()) {
+            if (edge.getCoverage() >= threshold) {
+                edges.push_back(edge.start()->seq + edge.seq);
             }
-            for(Edge & edge : vert.rc()) {
-                if (edge.getCoverage() >= threshold){
-                    edges.push_back(vert.rc().seq + edge.seq);
-                    add = true;
-                }
-            }
-            if (add)
-                vertices_again.push_back(vert.hash());
         }
-        SparseDBG simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
+        SparseDBG simp_dbg(hasher);
+        for(Vertex & v : dbg.verticesUnique()) {
+            simp_dbg.addVertex(v.seq);
+        }
         FillSparseDBGEdges(simp_dbg, edges.begin(), edges.end(), logger, threads, 0);
-        for(auto & it : simp_dbg) {
-            Vertex &vert = it.second;
-            Vertex &other = dbg.getVertex(vert.hash());
-            for(Edge & edge : vert) {
-                edge.incCov(other.getOutgoing(edge.seq[0]).intCov());
-            }
-            for(Edge & edge : vert.rc()) {
-                edge.incCov(other.rc().getOutgoing(edge.seq[0]).intCov());
-            }
+        for(Edge & edge : simp_dbg.edges()) {
+            Edge & edge1 = dbg.getVertex(edge.start()->seq).getOutgoing(edge.seq[0]);
+            edge.incCov(edge1.intCov());
         }
-        printDot(dir / "simp_graph1.dot", Component(simp_dbg));
         mergeAll(logger, simp_dbg, threads);
+        simp_dbg.removeIsolated();
+        printGFA(dir / "simp_graph.gfa", Component(simp_dbg), true);
         printFasta(dir / "simp_graph.fasta", Component(simp_dbg));
         printDot(dir / "simp_graph.dot", Component(simp_dbg));
     }

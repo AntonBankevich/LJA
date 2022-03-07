@@ -167,6 +167,42 @@ std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &l
     return {dir/"corrected_reads.fasta", dir / "final_dbg.fasta", dir / "final_dbg.aln"};
 }
 
+std::vector<std::experimental::filesystem::path> SimpleCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+                                                              const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
+                                                              size_t threads, size_t k, size_t w, double threshold, bool skip, bool debug, bool load) {
+    logger.info() << "Performing initial correction with k = " << k << std::endl;
+    if (k % 2 == 0) {
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
+        k += 1;
+    }
+    ensure_dir_existance(dir);
+    hashing::RollingHash hasher(k, 239);
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib,
+            &pseudo_reads_lib, &paths_lib, threads, debug, threshold] {
+        io::Library construction_lib = reads_lib + pseudo_reads_lib;
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+                        DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        dbg.fillAnchors(w, logger, threads);
+        size_t extension_size = std::max<size_t>(k * 2, 1000);
+        ReadLogger readLogger(threads, dir/"read_log.txt");
+        RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
+        RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, true, false);
+        io::SeqReader reader(reads_lib);
+        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        coverageStats(logger, dbg);
+        readStorage.invalidateBad(logger, threads, threshold, "LowCoverage");
+        dbg.printFastaOld(dir / "final_dbg.fasta");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
+        printGFA(dir / "final_dbg.gfa", Component(dbg), true);
+        SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
+        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
+    };
+    if(!skip)
+        runInFork(ic_task);
+
+    return {dir/"corrected_reads.fasta", dir / "final_dbg.fasta", dir / "final_dbg.aln"};
+}
+
 std::vector<std::experimental::filesystem::path> SecondPhase(
     logging::Logger &logger, const std::experimental::filesystem::path &dir,
     const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
@@ -330,6 +366,7 @@ int main(int argc, char **argv) {
                      "restart-from=none",
                      "load",
                      "noec",
+                     "simpleec",
                      "alternative",
                      "diploid",
                      "debug",
@@ -374,6 +411,7 @@ int main(int argc, char **argv) {
     bool skip = first_stage != "none";
     bool load = parser.getCheck("load");
     bool noec = parser.getCheck("noec");
+    bool simpleec = parser.getCheck("simpleec");
     logger.info() << "LJA pipeline started" << std::endl;
 
     size_t threads = std::stoi(parser.getValue("threads"));
@@ -396,6 +434,10 @@ int main(int argc, char **argv) {
     if(noec) {
         corrected_final = NoCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
                                        skip, debug, load);
+    } else if(simpleec) {
+        double Threshold = std::stod(parser.getValue("Cov-threshold"));
+        corrected_final = SimpleCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
+                                           Threshold, skip, debug, load);
     } else {
         double threshold = std::stod(parser.getValue("cov-threshold"));
         double reliable_coverage = std::stod(parser.getValue("rel-threshold"));
