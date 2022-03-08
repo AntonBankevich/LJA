@@ -191,6 +191,7 @@ std::vector<std::experimental::filesystem::path> SimpleCorrection(logging::Logge
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
         coverageStats(logger, dbg);
         readStorage.invalidateBad(logger, threads, threshold, "LowCoverage");
+        RemoveUncovered(logger, threads, dbg, {&readStorage});
         dbg.printFastaOld(dir / "final_dbg.fasta");
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         printGFA(dir / "final_dbg.gfa", Component(dbg), true);
