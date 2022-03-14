@@ -271,15 +271,15 @@ std::vector<std::experimental::filesystem::path> PolishingPhase(
         const std::experimental::filesystem::path &output_dir,
         const std::experimental::filesystem::path &gfa_file,
         const std::experimental::filesystem::path &corrected_reads,
-        const io::Library &reads, size_t dicompress, size_t min_alignment, bool skip, bool debug) {
+        const io::Library &reads, size_t dicompress, size_t K, bool skip, bool debug) {
     logger.info() << "Performing polishing and homopolymer uncompression" << std::endl;
-    std::function<void()> ic_task = [&logger, threads, &output_dir, debug, &gfa_file, &corrected_reads, &reads, dicompress, min_alignment, &dir] {
+    std::function<void()> ic_task = [&logger, threads, &output_dir, debug, &gfa_file, &corrected_reads, &reads, dicompress, &dir, K] {
         io::SeqReader reader(corrected_reads);
         multigraph::MultiGraph vertex_graph;
         vertex_graph.LoadGFA(gfa_file, true);
-        multigraph::MultiGraph edge_graph = vertex_graph.DBG();
+        multigraph::MultiGraph edge_graph = vertex_graph.DBG(K);
         std::vector<Contig> contigs = edge_graph.getEdges(false);
-        auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
+        auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), K, dir);
         std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
         std::vector<Contig> assembly = printUncompressedResults(logger, threads, edge_graph, uncompressed, output_dir, debug);
         logger.info() << "Printing final assembly to " << (output_dir / "assembly.fasta") << std::endl;
