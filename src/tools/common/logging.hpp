@@ -5,12 +5,9 @@
 #include "output_utils.hpp"
 #include "dir_utils.hpp"
 #include "string_utils.hpp"
-#include "sys/types.h"
-#include "sys/sysinfo.h"
-#include <sys/resource.h>
+#include "malloc.h"
 #include <omp.h>
 #include <experimental/filesystem>
-#include <ctime>
 #include <string>
 #include <sstream>
 #include <utility>
@@ -18,6 +15,7 @@
 #include <iostream>
 #include <ostream>
 #include <fstream>
+#include <chrono>
 
 namespace logging {
 
@@ -25,29 +23,33 @@ namespace logging {
 
     class TimeSpace {
     private:
-        timespec start{};
+        std::chrono::time_point<std::chrono::system_clock> start;
     public:
-        TimeSpace() {
-            clock_gettime(CLOCK_MONOTONIC, &start);
+        TimeSpace() : start(std::chrono::system_clock::now()) {
         }
 
         std::string get() const {
-            timespec finish{};
-            clock_gettime(CLOCK_MONOTONIC, &finish);
-            auto worktime = size_t(double(finish.tv_sec - start.tv_sec) + double(finish.tv_nsec - start.tv_nsec) / 1000000000.0);
-            struct sysinfo memInfo;
-            sysinfo (&memInfo);
-            struct rusage usage;
-            getrusage(RUSAGE_SELF, &usage);
-            std::stringstream ss;
-            double mem = size_t(usage.ru_maxrss * 0.001);
-            std::string t = "Mb";
-            if (mem > 500) {
-                mem = size_t(mem) / 100 * 0.1;
-                t = "Gb";
+            std::chrono::time_point<std::chrono::system_clock> finish = std::chrono::system_clock::now();
+            std::chrono::duration<double> seconds = finish - start;
+            auto full_seconds = size_t(seconds.count());
+            struct mallinfo m = mallinfo();
+            double used = double(m.arena - m.fordblks + m.hblkhd) / 1024 / 1024;
+            double all =  double(m.arena + m.hblkhd) / 1024 / 1024;
+            std::string t_used = "Mb";
+            if (used > 500) {
+                used = used / 1024;
+                t_used = "Gb";
             }
-            ss << itos(worktime / 60 / 60, 2) << ":" << itos(worktime / 60 % 60, 2) << ":"
-                    << itos(worktime % 60, 2) << " " << mem << t << " ";
+            std::string t_all = "Mb";
+            if (all > 700) {
+                all = all / 1024;
+                t_all = "Gb";
+            }
+            used = size_t(used * 100) * 0.01;
+            all = size_t(all * 100) * 0.01;
+            std::stringstream ss;
+            ss << itos(full_seconds / 60 / 60, 2) << ":" << itos(full_seconds / 60 % 60, 2) << ":"
+                    << itos(full_seconds % 60, 2) << " " << used << t_used << "/" << all << t_all << " ";
             return ss.str();
         }
     };
