@@ -44,7 +44,7 @@ void HaplotypeRemover::deleteEdgeHaplo(int eid) {
 
 void HaplotypeRemover::cleanGraph() {
     bool changed = true;
-    size_t MAX_TIP_LENGTH = 1000000;
+//    size_t MAX_TIP_LENGTH = 1000000;
     size_t tips = 0;
     size_t bulges = 0;
     while (changed) {
@@ -58,29 +58,26 @@ void HaplotypeRemover::cleanGraph() {
                 continue;
             logger_.debug() << "considering " <<eid << " label " << mg.edges[eid]->getLabel() <<endl;
             if (mg.edges[eid]->isTip()) {
-                std::cout << "is being deleted as tip\n";
+                logger_.debug() << "is being deleted as tip\n";
                 if (mg.edges[eid]->size() < MAX_TIP_LENGTH) {
-                    std::cout << "is deleted as tip\n";
+                    logger_.debug() << "is deleted as tip\n";
                     deleteEdgeHaplo(eid);
 //                    mg.deleteEdgeById(eid);
                     changed = true;
                     tips ++;
                 }
             } else if (mg.edges[eid]->start->outDeg() == 2) {
-                std::cout << "is being deleted as bulge\n";
+                logger_.debug() << "is being deleted as bulge\n";
                 auto first_e = mg.edges[eid]->start->outgoing[0];
                 auto second_e = mg.edges[eid]->start->outgoing[1];
                 if (first_e->end == second_e->end && first_e != second_e->rc
-                && first_e->size() < 1.2 * second_e->size() &&  second_e->size() < 1.2 * first_e->size()) {
-                    std::cout << "is deleted as bulge\n";
+                && first_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * second_e->size() &&  second_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * first_e->size()) {
+                    logger_.debug() << "is deleted as bulge\n";
                     char decision = AssignBulge(haplotypes[first_e->getLabel()], haplotypes[second_e->getLabel()]);
                     if (decision == haplotype_)
                         deleteEdgeHaplo(first_e->getId());
-//                        mg.deleteEdgeById(first_e->getId());
                     else
                         deleteEdgeHaplo(second_e->getId());
-
-//                    mg.deleteEdgeById(second_e->getId());
                     changed = true;
                     bulges ++;
                 }
@@ -88,7 +85,7 @@ void HaplotypeRemover::cleanGraph() {
 
         }
     }
-    std::cout << "Deleted tips "<< tips << " Bulges " << bulges << endl;
+    logger_.info() << "Deleted tips "<< tips << " Bulges " << bulges << endl;
 }
 
 std::unordered_map<std::string, std::string> HaplotypeRemover::getBulgeLabels() {
@@ -118,7 +115,6 @@ void HaplotypeRemover::updateFixableHaplotypes() {
     for (auto p: bulges) {
         std::string e_label = p.first;
         std::string alt_label = p.second;
-//        cerr << e_label << " " << alt_label << " " << haplotypes[e_label].haplotype << " " << haplotypes[alt_label].haplotype << endl;
         if (haplotypes.find(e_label) != haplotypes.end() && haplotypes[e_label].is_undefined()) {
             if (haplotypes[alt_label].haplotype == 'm') {
                 haplotypes[e_label].haplotype = 'p';
@@ -130,13 +126,11 @@ void HaplotypeRemover::updateFixableHaplotypes() {
             }
         }
     }
-    std::cout << "Updated " << count << " fixable bulges";
+    logger_.info() << "Updated " << count << " fixable bulges";
 }
 
 void HaplotypeRemover::updateAmbiguousHaplotypes() {
     size_t count = 0;
-//size_t short_length = 100
-//Currently removed
     for (auto p: bulges) {
         std::string e_label = p.first;
         std::string alt_label = p.second;
@@ -170,9 +164,8 @@ void HaplotypeRemover::removeHaplotype() {
                 continue;
             auto label = mg.edges[eid]->getLabel();
             if (haplotypes.find(label) != haplotypes.end()) {
-
                 if (haplotypes[label].haplotype == haplotype_) {
-                    if (mg.edges[eid]->isBridge() && mg.edges[eid]->size() < 100000) {
+                    if (mg.edges[eid]->isBridge() && mg.edges[eid]->size() < SAVED_BRIDGE_CUTOFF) {
                         bridges ++;
                         logger_.info() << "Skipping edge " << eid << " as bridge\n";
                         continue;
@@ -180,7 +173,6 @@ void HaplotypeRemover::removeHaplotype() {
                     removed_len += mg.edges[eid]->size();
                     deleteEdgeHaplo(eid);
 
-//                    mg.deleteEdgeById(eid);
                     logger_.trace() << "removing " << eid  << " label " << label << endl;
                     removed ++;
                     changed = true;

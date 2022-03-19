@@ -46,25 +46,6 @@ struct HaplotypeStats {
         total_kmers = stoi(tokens[8]);
     }
 
-    HaplotypeStats (std::string label, HaplotypeStats a, HaplotypeStats b):label(label) {
-        for (size_t i = 0; i < 2; i++) {
-            decisive_counts[i] = a.decisive_counts[i] + b.decisive_counts[i];
-            decisive_strips[i] = a.decisive_strips[i] + b.decisive_strips[i];
-        }
-        if (is_defined_haplo(a.haplotype) && is_defined_haplo(b.haplotype)) {
-            if (a.haplotype == b.haplotype) {
-                haplotype = a.haplotype;
-            } else {
-                std::cout << "Merging different haplotypes " << a.label << " " << b.label << endl;
-                haplotype = 'a';
-            }
-        } else {
-            haplotype = a.haplotype;
-            if (!is_defined_haplo(haplotype))
-                haplotype = b.haplotype;
-        }
-    }
-
     void appendKmerStats(HaplotypeStats other) {
         for (size_t i = 0; i < 2; i++) {
             decisive_counts[i] += other.decisive_counts[i];
