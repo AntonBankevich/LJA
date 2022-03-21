@@ -115,21 +115,17 @@ namespace io {
             while (stream != nullptr){
                 std::string id, seq;
                 std::getline(*stream, id);
-                std::getline(*stream, seq);
-                trim(seq);
-                if (!id.empty() and !seq.empty()) {
+                if (!id.empty()) {
                     std::stringstream ss;
-                    ss << seq;
-                    size_t cnt = 0;
                     while(stream->peek() != EOF && stream->peek() != '>' && stream->peek() != '+') {
                         std::getline(*stream, seq);
                         trim(seq);
-                        if (seq.empty()) {
-                            next = {};
-                            break;
-                        }
-                        ss << seq;
-                        cnt += 1;
+//                        if (seq.empty()) {
+//                            next = {};
+//                            break;
+//                        }
+                        if(!seq.empty())
+                            ss << seq;
                     }
                     next = {ss.str(), std::move(trim(id.substr(1, id.size() - 1)))};
                     choose_next_pos(0);
