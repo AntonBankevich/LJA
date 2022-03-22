@@ -7,6 +7,8 @@
 #include "string_utils.hpp"
 #include "malloc.h"
 #include <omp.h>
+#include "sys/sysinfo.h"
+#include <sys/resource.h>
 #include <experimental/filesystem>
 #include <string>
 #include <sstream>
@@ -32,24 +34,21 @@ namespace logging {
             std::chrono::time_point<std::chrono::system_clock> finish = std::chrono::system_clock::now();
             std::chrono::duration<double> seconds = finish - start;
             auto full_seconds = size_t(seconds.count());
-            struct mallinfo m = mallinfo();
-            double used = double(m.arena - m.fordblks + m.hblkhd) / 1024 / 1024;
-            double all =  double(m.arena + m.hblkhd) / 1024 / 1024;
+            struct sysinfo memInfo;
+            sysinfo (&memInfo);
+            struct rusage usage;
+            getrusage(RUSAGE_SELF, &usage);
+            double all = double(usage.ru_maxrss) / 1024;
             std::string t_used = "Mb";
-            if (used > 500) {
-                used = used / 1024;
-                t_used = "Gb";
-            }
             std::string t_all = "Mb";
             if (all > 700) {
                 all = all / 1024;
                 t_all = "Gb";
             }
-            used = size_t(used * 100) * 0.01;
             all = size_t(all * 100) * 0.01;
             std::stringstream ss;
             ss << itos(full_seconds / 60 / 60, 2) << ":" << itos(full_seconds / 60 % 60, 2) << ":"
-                    << itos(full_seconds % 60, 2) << " " << used << t_used << "/" << all << t_all << " ";
+                    << itos(full_seconds % 60, 2) << " "  << all << t_all << " ";
             return ss.str();
         }
     };
