@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
     if(!io::CheckLibrary(lib + paths +ref_lib)) {
         exit(1);
     }
-    multigraph::LJAPipeline pipeline (ref_lib);
+    pipeline::LJAPipeline pipeline (ref_lib);
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     size_t w = std::stoi(parser.getValue("window"));
     size_t K = std::stoi(parser.getValue("K-mer-size"));

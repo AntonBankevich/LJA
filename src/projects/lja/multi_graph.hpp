@@ -8,7 +8,6 @@
 #include <fstream>
 #include <common/string_utils.hpp>
 #include <sequences/contigs.hpp>
-#include "haplo_stats.hpp"
 
 namespace multigraph {
 
@@ -95,7 +94,7 @@ namespace multigraph {
         }
 
 //simplified check, works only for trivial cases
-        bool isBridge() const {
+        bool isSimpleBridge() const {
             if (isTip())
                 return false;
             for (auto alt_e: start->outgoing) {
@@ -112,7 +111,7 @@ namespace multigraph {
     };
 //Not ids but label, whether it is OK?..
 //From new edges to old ones containing it.
-
+//TODO:: ids or Edge*
     typedef std::unordered_map<std::string, std::vector<std::string>> deleted_edges_map;
     
     struct MultiGraph {
@@ -120,26 +119,11 @@ namespace multigraph {
         int maxEId = 0;
         std::unordered_map<int, Vertex *> vertices;
         std::unordered_map<int, Edge *> edges;
-//To canonic ID
-        std::unordered_map<std::string, int> label_to_id;
-//        std::unordered_map<int, Edge* > id_to_edge;
-        haplo_map_type* haplo_map_;
-
 
         MultiGraph() = default;
         MultiGraph(MultiGraph &&other) = default;
         MultiGraph &operator=(MultiGraph &&other) = default;
         MultiGraph(const MultiGraph &) = delete;
-
-        void FillMaps() {
-            for (auto p: edges) {
-                Edge * e = p.second;
-                if (e->isCanonical()) {
-                    label_to_id[e->getLabel()] = e->getId();
-                }
-//                id_to_edge[e->getId()] = e;
-            }
-        }
 
         MultiGraph &LoadGFA(const std::experimental::filesystem::path &gfa_file, bool int_ids) {
             std::ifstream is;
@@ -172,7 +156,6 @@ namespace multigraph {
             return *this;
         }
 
-//Is it obsolate?
         MultiGraph DBG() const {
             MultiGraph dbg;
             std::unordered_map<Edge *, Vertex *> emap;
@@ -210,13 +193,9 @@ namespace multigraph {
             }
             std::cout <<"loaded V/E " << vertices.size() << " " << edges.size() << endl;
             std::cout <<"transformed V/E " << dbg.vertices.size() << " " << dbg.edges.size() << endl;
-            dbg.haplo_map_ = nullptr;
             return std::move(dbg);
         }
 
-        void InitHaplo(haplo_map_type &haplo_map) {
-            haplo_map_ = &haplo_map;
-        }
         ~MultiGraph() {
             for(auto p : vertices) {
                 delete p.second;
@@ -378,6 +357,7 @@ namespace multigraph {
         }
 
         void internalRemoveEdge (int eid) {
+            VERIFY(edges.find(eid) != edges.end());
             Edge * edge = edges[eid];
             Edge * rc_edge = edge->rc;
             int rcid = rc_edge->getId();
@@ -411,11 +391,9 @@ namespace multigraph {
                 Edge* e_out =  vertices[vid]->outgoing[0];
                 Vertex* end_v = e_out->end;
                 edgeids_to_remove.insert(e_out->getId());
-//                edgeids_to_remove.insert(e_out->rc->id)
                 Edge* e_in = vertices[vid]->rc->outgoing[0]->rc;
                 Vertex* start_v = e_in->start;
                 edgeids_to_remove.insert(e_in->getId());
-//                edgeids_to_remove.insert(e_out->rc->id);
                 size_t overlap = vertices[vid]->k();
                 size_t pref = e_in->getSeq().size();
                 if (pref >= overlap )
@@ -426,12 +404,6 @@ namespace multigraph {
                 }
                 Sequence new_seq = e_in->getSeq().Prefix(pref) + e_out->getSeq();
                 string new_label = e_in->getLabel()+ "_"+ e_out->getLabel();
-/*                if (haplo_map_ != nullptr) {
-                    HaplotypeStats new_haplo(new_label, (haplo_map_->find(e_in->getLabel())->second),
-                                             (haplo_map_->find(e_out->getLabel()))->second);
-                    haplo_map_->insert(make_pair(new_label, new_haplo));
-//                    logger.info() << new_label << endl;
-                } */
 
                 result_map[new_label] = {e_in->getLabel(), e_out->getLabel()};
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
@@ -467,14 +439,6 @@ namespace multigraph {
                 res[p.first] = patched_old;
             }
             return res;
-        }
-
-
-        void deleteEdgeByLabel(std::string label){
-            if (label_to_id.find(label) != label_to_id.end()) {
-                int eid = label_to_id[label];
-                deleteEdgeById(eid);
-            }
         }
 
         std::vector<Edge *> uniquePathForward(Edge &edge) {

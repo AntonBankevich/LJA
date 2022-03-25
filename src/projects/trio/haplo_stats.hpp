@@ -15,16 +15,18 @@
 #include <common/string_utils.hpp>
 #include <common/verify.hpp>
 
+namespace trio {
+
 inline char other_haplo(char c) {
     if (c == 'm') return 'p';
     else if (c == 'p') return 'm';
-    else VERIFY(false);
+    else
+        VERIFY(false);
 }
 
-inline char is_defined_haplo(char c){
+inline char is_defined_haplo(char c) {
     return (c == 'm' || c == 'p');
 }
-
 
 struct HaplotypeStats {
     char haplotype;
@@ -41,8 +43,10 @@ struct HaplotypeStats {
         std::vector<std::string> tokens = ::split(s);
         haplotype = tokens[1][0];
         label = tokens[0];
-        decisive_strips = std::array<int,2>{stoi(tokens[2]), stoi(tokens[3])};
-        decisive_counts = std::array<int,2>{stoi(tokens[4]), stoi(tokens[5])};
+//Numbers of distinctive kmers in strips longer than k - eps
+        decisive_strips = std::array<int, 2>{stoi(tokens[2]), stoi(tokens[3])};
+//Numbers of distinctive kmers
+        decisive_counts = std::array<int, 2>{stoi(tokens[4]), stoi(tokens[5])};
         total_kmers = stoi(tokens[8]);
     }
 
@@ -52,10 +56,7 @@ struct HaplotypeStats {
             decisive_strips[i] += other.decisive_strips[i];
         }
         if (is_defined_haplo(haplotype) && is_defined_haplo(other.haplotype)) {
-            if (haplotype == other.haplotype) {
-                haplotype = other.haplotype;
-            } else {
-                std::cout << "Merging different haplotypes " << label << " " << other.label << endl;
+            if (haplotype != other.haplotype) {
                 haplotype = 'a';
             }
         } else {
@@ -65,7 +66,8 @@ struct HaplotypeStats {
 
     }
 
-    HaplotypeStats():haplotype('u'),label(""), decisive_counts{0,0}, decisive_strips{0,0}, total_kmers(0) {}
+    HaplotypeStats() : haplotype('u'), label(""), decisive_counts{0, 0}, decisive_strips{0, 0}, total_kmers(0) {}
+
     bool is_undefined() {
         return (haplotype != 'm' and haplotype != 'p');
     }
@@ -80,14 +82,15 @@ inline char AssignBulge(HaplotypeStats top_h, HaplotypeStats bottom_h) {
     size_t bottom_total = bottom_h.decisive_counts[0] + bottom_h.decisive_counts[1];
     char decision = 'a';
 
-    if (mat_count > pat_count || (top_total == 0 && bottom_h.decisive_counts[0] >  bottom_h.decisive_counts[1])
+    if (mat_count > pat_count || (top_total == 0 && bottom_h.decisive_counts[0] > bottom_h.decisive_counts[1])
         || (bottom_total == 0 && top_h.decisive_counts[1] > top_h.decisive_counts[0]))
         decision = 'm';
-    else if (mat_count < pat_count || (top_total == 0 && bottom_h.decisive_counts[1] >  bottom_h.decisive_counts[0])
+    else if (mat_count < pat_count || (top_total == 0 && bottom_h.decisive_counts[1] > bottom_h.decisive_counts[0])
              || (bottom_total == 0 && top_h.decisive_counts[0] > top_h.decisive_counts[1]))
         decision = 'p';
     return decision;
 }
 
-typedef  std::unordered_map<std::string, HaplotypeStats> haplo_map_type;
+typedef std::unordered_map<std::string, HaplotypeStats> haplo_map_type;
 //primitive clean graph
+}

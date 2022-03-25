@@ -1,6 +1,8 @@
 #include <common/cl_parser.hpp>
 #include "trio.hpp"
 
+using namespace trio;
+
 int main(int argc, char **argv) {
     CLParser parser({"diplo_graph=", "haployak=", "output=", "debug=none", "threads=8", "corrected_reads="}, {"reads"},
                     {});

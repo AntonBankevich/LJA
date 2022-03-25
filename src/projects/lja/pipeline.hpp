@@ -26,46 +26,47 @@
 #include <utility>
 #include <ksw2/ksw_wrapper.hpp>
 
-namespace  multigraph {
-    struct LJAPipeline {
+namespace pipeline {
 
-        std::vector<Contig> ref;
-        size_t stage_num;
-        LJAPipeline(io::Library ref_lib) {
-            ref = io::SeqReader(ref_lib).readAllContigs();
-            stage_num = 0;
+struct LJAPipeline {
+
+    std::vector<Contig> ref;
+    size_t stage_num;
+    LJAPipeline(io::Library ref_lib) {
+        ref = io::SeqReader(ref_lib).readAllContigs();
+        stage_num = 0;
     }
 
-    void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
-                dbg::SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small);
+void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
+            dbg::SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small);
 
-    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path>
+std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path>
 
-    AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                          const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-                          const io::Library &paths_lib,
-                          size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-                          bool close_gaps, bool remove_bad, bool skip, bool debug, bool load);
-    std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                                                                                               const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
-                                                                                               size_t threads, size_t k, size_t w, bool skip, bool debug, bool load);
-    std::vector<std::experimental::filesystem::path> SecondPhase(
-                logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-                const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-                size_t unique_threshold, bool diploid, bool skip, bool debug, bool load);
+AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+                      const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
+                      const io::Library &paths_lib,
+                      size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+                      bool close_gaps, bool remove_bad, bool skip, bool debug, bool load);
+std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+                                                                                           const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
+                                                                                           size_t threads, size_t k, size_t w, bool skip, bool debug, bool load);
+std::vector<std::experimental::filesystem::path> SecondPhase(
+            logging::Logger &logger, const std::experimental::filesystem::path &dir,
+            const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
+            const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+            size_t unique_threshold, bool diploid, bool skip, bool debug, bool load);
 
-    std::vector<std::experimental::filesystem::path> PolishingPhase(
-            logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
-            const std::experimental::filesystem::path &output_dir,
-            const std::experimental::filesystem::path &gfa_file,
-            const std::experimental::filesystem::path &corrected_reads,
-            const io::Library &reads, size_t dicompress, size_t min_alignment, bool skip, bool debug);
+std::vector<std::experimental::filesystem::path> PolishingPhase(
+        logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+        const std::experimental::filesystem::path &output_dir,
+        const std::experimental::filesystem::path &gfa_file,
+        const std::experimental::filesystem::path &corrected_reads,
+        const io::Library &reads, size_t dicompress, size_t min_alignment, bool skip, bool debug);
 
-    std::vector<std::experimental::filesystem::path> MDBGPhase(
-            logging::Logger &logger, size_t threads, size_t k, size_t kmdbg, size_t w, size_t unique_threshold, bool diploid,
-            const std::experimental::filesystem::path &dir,
-            const std::experimental::filesystem::path &graph_fasta,
-            const std::experimental::filesystem::path &read_paths, bool skip, bool debug);
-    };
+std::vector<std::experimental::filesystem::path> MDBGPhase(
+        logging::Logger &logger, size_t threads, size_t k, size_t kmdbg, size_t w, size_t unique_threshold, bool diploid,
+        const std::experimental::filesystem::path &dir,
+        const std::experimental::filesystem::path &graph_fasta,
+        const std::experimental::filesystem::path &read_paths, bool skip, bool debug);
+};
 }

@@ -2,7 +2,7 @@
 #include "repeat_resolution/repeat_resolution.hpp"
 
 using namespace dbg;
-void multigraph::LJAPipeline::PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
+void pipeline::LJAPipeline::PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
                 SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small) {
     stage_num += 1;
     std::string stage_name = itos(stage_num) + "_" + stage;
@@ -46,7 +46,7 @@ void multigraph::LJAPipeline::PrintPaths(logging::Logger &logger, const std::exp
 }
 
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path>
-multigraph::LJAPipeline::AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+pipeline::LJAPipeline::AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                       const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
                       size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
                       bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
@@ -107,7 +107,7 @@ multigraph::LJAPipeline::AlternativeCorrection(logging::Logger &logger, const st
     return {res, dir / "graph.fasta"};
 }
 
-std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
+std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                                                               const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
                                                               size_t threads, size_t k, size_t w, bool skip, bool debug, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
@@ -145,7 +145,7 @@ std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::NoCorr
     return {dir/"corrected_reads.fasta", dir / "final_dbg.fasta", dir / "final_dbg.aln"};
 }
 
-std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::SecondPhase(
+std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::SecondPhase(
         logging::Logger &logger, const std::experimental::filesystem::path &dir,
         const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
         const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
@@ -220,7 +220,7 @@ std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::Second
     return {res, dir / "final_dbg.fasta", dir / "final_dbg.aln"};
 }
 
-std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::MDBGPhase(
+std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::MDBGPhase(
         logging::Logger &logger, size_t threads, size_t k, size_t kmdbg, size_t w, size_t unique_threshold, bool diploid,
         const std::experimental::filesystem::path &dir,
         const std::experimental::filesystem::path &graph_fasta,
@@ -244,7 +244,7 @@ std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::MDBGPh
     return {dir / "assembly.hpc.fasta", dir / "mdbg.hpc.gfa"};
 }
 
-std::vector<std::experimental::filesystem::path> multigraph::LJAPipeline::PolishingPhase(
+std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::PolishingPhase(
         logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
         const std::experimental::filesystem::path &output_dir,
         const std::experimental::filesystem::path &gfa_file,

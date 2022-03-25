@@ -20,14 +20,32 @@
 
 #include <lja/pipeline.hpp>
 
+using namespace trio;
 using std::vector;
 using std::pair;
 using std::array;
 using std::sort;
 using logging::Logger;
-
 using std::cout;
 using std::cerr;
+
+HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, multigraph::MultiGraph &mg,
+                                            const std::experimental::filesystem::path &haployak, const char haplotype,
+                                            const std::experimental::filesystem::path &out_dir) : logger_(logger), mg(mg),
+                                                                                                  haplotype_(haplotype), out_dir(out_dir) {
+
+    auto bulges = getBulgeLabels();
+    logger_.info() << "got " << bulges.size() << " bulges\n";
+    haplo_map_type haplotypes;
+    string s;
+    std::ifstream haplo_file(haployak);
+    while (std::getline(haplo_file, s)) {
+        HaplotypeStats h(s);
+        haplotypes[h.label] = h;
+    }
+    std::string out_name = "haplotype_";
+    ensure_dir_existance(out_dir);
+}
 
 void HaplotypeRemover::deleteEdgeHaplo(int eid) {
     logger_.debug() << "Removing " << eid << endl;
@@ -37,6 +55,10 @@ void HaplotypeRemover::deleteEdgeHaplo(int eid) {
         new_haplo.label = p.first;
         haplotypes.insert(std::make_pair(p.first, new_haplo));
         for (size_t i = 1; i < p.second.size(); i++) {
+            if (haplotypes[p.first].haplotype != haplotypes[p.second[i]].haplotype) {
+                logger_.trace() << "Merging different haplotypes " << haplotypes[p.first].label <<
+                " " << haplotypes[p.second[i]].label << endl;
+            }
             haplotypes[p.first].appendKmerStats(haplotypes[p.second[i]]);
         }
     }
@@ -44,7 +66,6 @@ void HaplotypeRemover::deleteEdgeHaplo(int eid) {
 
 void HaplotypeRemover::cleanGraph() {
     bool changed = true;
-//    size_t MAX_TIP_LENGTH = 1000000;
     size_t tips = 0;
     size_t bulges = 0;
     while (changed) {
@@ -56,13 +77,12 @@ void HaplotypeRemover::cleanGraph() {
         for (auto eid: eids){
             if (mg.edges.find(eid) == mg.edges.end())
                 continue;
-            logger_.debug() << "considering " <<eid << " label " << mg.edges[eid]->getLabel() <<endl;
+            logger_.debug() << "considering " << eid << " label " << mg.edges[eid]->getLabel() << endl;
             if (mg.edges[eid]->isTip()) {
                 logger_.debug() << "is being deleted as tip\n";
                 if (mg.edges[eid]->size() < MAX_TIP_LENGTH) {
                     logger_.debug() << "is deleted as tip\n";
                     deleteEdgeHaplo(eid);
-//                    mg.deleteEdgeById(eid);
                     changed = true;
                     tips ++;
                 }
@@ -165,7 +185,7 @@ void HaplotypeRemover::removeHaplotype() {
             auto label = mg.edges[eid]->getLabel();
             if (haplotypes.find(label) != haplotypes.end()) {
                 if (haplotypes[label].haplotype == haplotype_) {
-                    if (mg.edges[eid]->isBridge() && mg.edges[eid]->size() < SAVED_BRIDGE_CUTOFF) {
+                    if (mg.edges[eid]->isSimpleBridge() && mg.edges[eid]->size() < SAVED_BRIDGE_CUTOFF) {
                         bridges ++;
                         logger_.info() << "Skipping edge " << eid << " as bridge\n";
                         continue;
@@ -200,8 +220,8 @@ void HaplotypeRemover::process() {
 
 }
 
-
-std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_t threads,
+//TODO:: хорошо бы чтоб все кроме этого не обращалось с файлами
+std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger, size_t threads,
                                                   const std::experimental::filesystem::path &output_file,
                                                   const std::experimental::filesystem::path &diplo_graph,
                                                   const std::experimental::filesystem::path &haployak,
@@ -209,6 +229,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   io::Library & reads,   const std::experimental::filesystem::path &dir) {
     multigraph::MultiGraph mmg;
     mmg.LoadGFA(diplo_graph, true);
+//TODO:: it would be cool not to create twice
     multigraph::MultiGraph mg = mmg.DBG();
     std::string out_name = "haplotype_";
     out_name += other_haplo(haplotype);
@@ -221,7 +242,8 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     std::string out_aligns = out_name; out_aligns += ".alignments";
     std::string out_contigs = out_name; out_contigs += ".fasta";
     io::Library ref_lib;
-    multigraph::LJAPipeline pipeline (ref_lib);
+    pipeline::LJAPipeline pipeline (ref_lib);
+//TODO:: get rid of this magic const
     size_t k = 5001;
     std::vector<std::experimental::filesystem::path> uncompressed_results =
            pipeline.PolishingPhase(logger, threads, out_dir, out_dir, output_file,
