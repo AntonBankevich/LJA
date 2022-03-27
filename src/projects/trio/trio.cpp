@@ -34,9 +34,8 @@ HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, multigraph::MultiGra
                                             const std::experimental::filesystem::path &out_dir) : logger_(logger), mg(mg),
                                                                                                   haplotype_(haplotype), out_dir(out_dir) {
 
-    auto bulges = getBulgeLabels();
+    bulges = getBulgeLabels();
     logger_.info() << "got " << bulges.size() << " bulges\n";
-    haplo_map_type haplotypes;
     string s;
     std::ifstream haplo_file(haployak);
     while (std::getline(haplo_file, s)) {
