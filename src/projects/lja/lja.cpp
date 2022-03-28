@@ -19,6 +19,7 @@
 #include <error_correction/dimer_correction.hpp>
 #include <polishing/homopolish.hpp>
 #include <ksw2/ksw_wrapper.hpp>
+#include <error_correction/parameter_estimator.hpp>
 
 using namespace dbg;
 
@@ -100,6 +101,8 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         readStorage.trackSuffixes(logger, threads);
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, readStorage, k, threads);
+        DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
+        params.Print(logger);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk800", dbg, readStorage, paths_lib, true);
