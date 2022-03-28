@@ -1,6 +1,7 @@
 #include <dbg/paths.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include "precorrection.hpp"
+#include "correction_utils.hpp"
 #include "dbg/sparse_dbg.hpp"
 
 dbg::GraphAlignment FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, size_t max_size, dbg::Vertex *finish = nullptr) {
@@ -49,8 +50,13 @@ dbg::GraphAlignment PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) 
         res = FindOnlyPathForward(bulge.end()->rc(), reliable_coverage, bulge.size() + 20, &bulge.start()->rc()).RC();
         if(&res.start() == bulge.start() && res.startClosed() && res.len() + 20 > bulge.size())
             return std::move(res);
-        else
+        else {
+            std::vector<dbg::GraphAlignment> candidates = FindPlausibleBulgeAlternatives(dbg::GraphAlignment() + bulge, 10, reliable_coverage);
+            if(candidates.size() == 1 && candidates[0].len() + 20 > bulge.size() && candidates[0].len() < bulge.size() + 20) {
+                return std::move(candidates[0]);
+            }
             return dbg::GraphAlignment() + bulge;
+        }
     }
 }
 
