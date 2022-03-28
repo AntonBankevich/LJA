@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     dbg.fillAnchors(w, logger, threads);
     size_t extension_size = 100000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
+    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, true);
     io::SeqReader reader(reads_lib);
     readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
     std::experimental::filesystem::path subdir = dir / "subdatasets";
@@ -80,29 +80,24 @@ int main(int argc, char **argv) {
         size_t radius = std::stoull(parser.getValue("radius"));
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
+            std::cout << contig.id << " " << contig.size() << " " << dbg::GraphAligner(dbg).carefulAlign(contig).size() << std::endl;
             storage.fill(contig);
             subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
             subdatasets.back().id = contig.id;
         }
     }
-    std::vector<Subdataset> all = FillSubdatasets(subdatasets, {&readStorage}, true);
+    FillSubdatasets(subdatasets, {&readStorage}, true);
     size_t cnt = 0;
-    for(const Subdataset &subdataset: all) {
-        bool ok = false;
-        for(dbg::Edge &edge : subdataset.component.edgesInnerUnique()) {
-            if(edge.getCoverage() >= 2 && edge.getCoverage() < bad_cov) {
-                ok = true;
-                break;
-            }
-        }
-        if(!ok)
-            continue;
-        logger.info() << "Printing subdataset " << cnt << ":";
+    for(const Subdataset &subdataset: subdatasets) {
+        logger.info() << "Printing subdataset " << cnt << " " << subdataset.id << ":";
         for(dbg::Vertex &v : subdataset.component.verticesUnique()) {
             logger << " " << v.getShortId();
         }
         logger << "\n";
-        subdataset.Save(subdir / itos(cnt), storage.labeler() + readStorage.labeler());
+        std::string name = itos(cnt);
+        if(!subdataset.id.empty())
+            name += "_" + name;
+        subdataset.Save(subdir / name, storage.labeler() + readStorage.labeler());
         cnt++;
     }
     return 0;

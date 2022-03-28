@@ -32,6 +32,17 @@ public:
         return *start_;
     }
 
+    dbg::Vertex &getVertex(size_t ind) const {
+        VERIFY(ind <= size());
+        if(ind == size())
+            return finish();
+        return *path[ind].first->start();
+    }
+
+    bool isBulge(size_t ind) const {
+        return path[ind].first != path[ind].second;
+    }
+
     void extend() {
         dbg::Vertex &last = finish();
         size_t deg = last.outDeg();
@@ -136,19 +147,19 @@ public:
 class BulgePathAnalyser {
 private:
 
-    static bool checkVertex(const dbg::Vertex &v) {
+    static bool checkVertexForward(const dbg::Vertex &v) {
         return v.outDeg() == 1 ||
                (v.outDeg() == 2 && v[0].end() == v[1].end() && v[0].size() < v[1].size() * 1.3 && v[1].size() < v[0].size() * 1.3);
     }
 
     static bool isInner(const dbg::Vertex &v) {
-        return checkVertex(v) && checkVertex(v.rc());
+        return checkVertexForward(v) && checkVertexForward(v.rc());
     }
 
     static BulgePath forwardPath(dbg::Vertex &start) {
         BulgePath res(start);
         dbg::Vertex * cur = &start;
-        while(checkVertex(*cur) && checkVertex(cur->rc())) {
+        while(isInner(*cur)) {
             res.extend();
             cur = &res.finish();
             if(cur == &start)
@@ -158,16 +169,15 @@ private:
     }
 
     dbg::SparseDBG &dbg;
-    size_t min_len;
 public:
     std::vector<BulgePath> paths;
 
-    explicit BulgePathAnalyser(dbg::SparseDBG &dbg, size_t min_len = 100000) : dbg(dbg), min_len(min_len) {
+    explicit BulgePathAnalyser(dbg::SparseDBG &dbg) : dbg(dbg) {
         std::unordered_set<dbg::Vertex *> visited;
         for(auto &it : dbg) {
             if(visited.find(&it.second) != visited.end())
                 continue;
-            if(checkVertex(it.second) && checkVertex(it.second.rc())) {
+            if(isInner(it.second)) {
                 BulgePath new_path = forwardPath(it.second);
                 VERIFY(new_path.size() > 0);
                 if(new_path.start() != new_path.finish()) {
@@ -191,22 +201,9 @@ public:
             if(visited.find(edge.end()) == visited.end() && visited.find((edge.start())) == visited.end())
                 paths.emplace_back(edge);
         }
-//        for(auto &it : dbg) {
-//            if(visited.find(&it.second) != visited.end())
-//                continue;
-//            for(dbg::Vertex * vit : {&it.second, &it.second.rc()}) {
-//                for(dbg::Edge & edge : *vit) {
-//                    if(edge.size() > min_len || (
-//                            (edge.start()->inDeg() == 0 || edge.end()->outDeg() == 0) &&
-//                            edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
-//                        paths.emplace_back(edge);
-//                    }
-//                }
-//            }
-//        }
     }
 
-    SetUniquenessStorage uniqueEdges() const {
+    SetUniquenessStorage uniqueEdges(size_t min_len) const {
         std::vector<dbg::Edge *> res;
         for(const BulgePath &bp : paths) {
             if(bp.size() == 1) {

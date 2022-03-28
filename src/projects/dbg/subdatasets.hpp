@@ -26,7 +26,7 @@ struct Subdataset {
     }
 };
 
-std::vector<Subdataset> FillSubdatasets(std::vector<Subdataset> &result, const std::vector<RecordStorage *> &storages, bool add_out_edges = true) {
+void FillSubdatasets(std::vector<Subdataset> &result, const std::vector<RecordStorage *> &storages, bool add_out_edges = true) {
     std::unordered_map<dbg::Vertex *, std::vector<size_t>> cmap;
     for(size_t i = 0; i < result.size(); i++) {
         for(dbg::Vertex &vert : result.back().component.vertices()) {
@@ -53,5 +53,4 @@ std::vector<Subdataset> FillSubdatasets(std::vector<Subdataset> &result, const s
                 result[cid].reads.emplace_back(&read);
             }
         }
-    return std::move(result);
 }

@@ -290,7 +290,7 @@ GraphAlignment ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bul
     size_t blen = bulge.bulge.len();
     GraphAlignment left_ext = uniqueExtension(bulge.left, blen + 100).subalignment(bulge.left.size());
     GraphAlignment right_ext = uniqueExtension(bulge.right.RC(), blen + 100).subalignment(bulge.right.size()).RC();
-    if(left_ext.len() + right_ext.len() < blen + std::min<size_t>(blen, 500))
+    if(left_ext.len() + right_ext.len() < blen + std::min<size_t>(blen, 100) && std::max(left_ext.len(), right_ext.len()) + 100 > blen)
         return bulge.bulge;
     GraphAlignment candidate;
     for(int shift = -int(right_ext.size()) + 1; shift < int(left_ext.size()); shift++) {
@@ -366,7 +366,7 @@ size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &read
         std::string message;
         GraphAlignment corrected = corrector.correctRead(initial_cpath.getAlignment(), message);
         if(!message.empty()) {
-            reads_storage.reroute(alignedRead, corrected, message);
+            reads_storage.reroute(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + message);
             cnt += 1;
         }
     }

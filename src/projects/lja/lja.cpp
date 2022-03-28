@@ -19,6 +19,8 @@
 #include <error_correction/dimer_correction.hpp>
 #include <polishing/homopolish.hpp>
 #include <ksw2/ksw_wrapper.hpp>
+#include <error_correction/parameter_estimator.hpp>
+#include <error_correction/partial_rr.hpp>
 
 using namespace dbg;
 
@@ -82,8 +84,8 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
     std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, load, remove_bad, k, w, &reads_lib,
             &pseudo_reads_lib, &paths_lib, threads, threshold, reliable_coverage, debug] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
-                        DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+                        DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ReadLogger readLogger(threads, dir/"read_log.txt");
@@ -95,11 +97,15 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         if(debug) {
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
         }
-        Precorrect(logger, threads, dbg, readStorage, reliable_coverage);
+        Precorrect(logger, threads, dbg, readStorage, 2);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         readStorage.trackSuffixes(logger, threads);
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, readStorage, k, threads);
+        Precorrect(logger, threads, dbg, readStorage, 2);
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
+        DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
+        params.Print(logger);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk800", dbg, readStorage, paths_lib, true);
@@ -112,21 +118,25 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         correctAT(logger, readStorage, k, threads);
         correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, false);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
+        std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
+        printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         coverageStats(logger, dbg);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
-        readStorage.printReadFasta(logger, dir / "corrected.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
         if(debug)
             DrawSplit(Component(dbg), dir / "split");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         dbg.printFastaOld(dir / "graph.fasta");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     };
     if(!skip)
         runInFork(ic_task);
     std::experimental::filesystem::path res;
-    res = dir / "corrected.fasta";
+    res = dir / "corrected_reads.fasta";
     logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;
-    return {res, dir / "graph.fasta"};
+    return {res, dir / "pseudoreads.fasta"};
 }
 
 std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
@@ -142,8 +152,8 @@ std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &l
     std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib,
             &pseudo_reads_lib, &paths_lib, threads, debug] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
-                        DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+                        DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ReadLogger readLogger(threads, dir/"read_log.txt");
@@ -187,10 +197,10 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
                                      {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg =
-            load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads,
+            load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
                                (dir/"disjointigs.fasta").string(),
                                (dir/"vertices.save").string())
-                 : DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+                 : DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = 10000000;
         ReadLogger readLogger(threads, dir/"read_log.txt");
@@ -278,6 +288,8 @@ std::vector<std::experimental::filesystem::path> PolishingPhase(
         multigraph::MultiGraph vertex_graph;
         vertex_graph.LoadGFA(gfa_file, true);
         multigraph::MultiGraph edge_graph = vertex_graph.DBG();
+        logger.info() << "Multigraph statistics:" << std::endl;
+        edge_graph.printStats(logger);
         std::vector<Contig> contigs = edge_graph.getEdges(false);
         auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
         std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
