@@ -17,19 +17,28 @@
 
 namespace trio {
 
-inline char other_haplo(char c) {
-    if (c == 'm') return 'p';
-    else if (c == 'p') return 'm';
+
+enum Haplotype: char {
+    Paternal = 'p',
+    Maternal = 'm',
+    Shared = 'a',
+    Unknown = '0'
+};
+inline Haplotype other_haplo(Haplotype c) {
+    if (c == Haplotype::Maternal) return Haplotype::Paternal;
+    else if (c == Haplotype::Paternal) return Haplotype::Maternal;
     else
         VERIFY(false);
 }
 
-inline char is_defined_haplo(char c) {
-    return (c == 'm' || c == 'p');
+inline bool is_defined_haplo(Haplotype c) {
+    return (c == Haplotype::Maternal || c == Haplotype::Paternal);
 }
 
+
 struct HaplotypeStats {
-    char haplotype;
+
+    Haplotype haplotype;
     std::string label;
 //order: p, m, as in file;
     std::array<int, 2> decisive_strips;
@@ -41,7 +50,7 @@ struct HaplotypeStats {
 //TODO: arr 6, 7, 9
     HaplotypeStats(std::string s) {
         std::vector<std::string> tokens = ::split(s);
-        haplotype = tokens[1][0];
+        haplotype = Haplotype(tokens[1][0]);
         label = tokens[0];
 //Numbers of distinctive kmers in strips longer than k - eps
         decisive_strips = std::array<int, 2>{stoi(tokens[2]), stoi(tokens[3])};
@@ -57,7 +66,7 @@ struct HaplotypeStats {
         }
         if (is_defined_haplo(haplotype) && is_defined_haplo(other.haplotype)) {
             if (haplotype != other.haplotype) {
-                haplotype = 'a';
+                haplotype = Haplotype::Shared;
             }
         } else {
             if (!is_defined_haplo(haplotype))
@@ -66,28 +75,28 @@ struct HaplotypeStats {
 
     }
 
-    HaplotypeStats() : haplotype('u'), label(""), decisive_counts{0, 0}, decisive_strips{0, 0}, total_kmers(0) {}
+    HaplotypeStats() : haplotype(Haplotype::Unknown), label(""), decisive_counts{0, 0}, decisive_strips{0, 0}, total_kmers(0) {}
 
     bool is_undefined() {
-        return (haplotype != 'm' and haplotype != 'p');
+        return (haplotype != Haplotype::Maternal and haplotype != Haplotype::Paternal);
     }
 
 };
 
 
-inline char AssignBulge(HaplotypeStats top_h, HaplotypeStats bottom_h) {
+inline Haplotype AssignBulge(HaplotypeStats top_h, HaplotypeStats bottom_h) {
     size_t pat_count = top_h.decisive_counts[0] * bottom_h.decisive_counts[1];
     size_t mat_count = top_h.decisive_counts[1] * bottom_h.decisive_counts[0];
     size_t top_total = top_h.decisive_counts[0] + top_h.decisive_counts[1];
     size_t bottom_total = bottom_h.decisive_counts[0] + bottom_h.decisive_counts[1];
-    char decision = 'a';
+    Haplotype decision = Haplotype::Shared;
 
     if (mat_count > pat_count || (top_total == 0 && bottom_h.decisive_counts[0] > bottom_h.decisive_counts[1])
         || (bottom_total == 0 && top_h.decisive_counts[1] > top_h.decisive_counts[0]))
-        decision = 'm';
+        decision = Haplotype::Maternal;
     else if (mat_count < pat_count || (top_total == 0 && bottom_h.decisive_counts[1] > bottom_h.decisive_counts[0])
              || (bottom_total == 0 && top_h.decisive_counts[0] > top_h.decisive_counts[1]))
-        decision = 'p';
+        decision = Haplotype::Paternal;
     return decision;
 }
 

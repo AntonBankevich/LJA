@@ -30,7 +30,7 @@ using std::cout;
 using std::cerr;
 
 HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, multigraph::MultiGraph &mg,
-                                            const std::experimental::filesystem::path &haployak, const char haplotype,
+                                            const std::experimental::filesystem::path &haployak, const Haplotype haplotype,
                                             const std::experimental::filesystem::path &out_dir) : logger_(logger), mg(mg),
                                                                                                   haplotype_(haplotype), out_dir(out_dir) {
 
@@ -92,7 +92,7 @@ void HaplotypeRemover::cleanGraph() {
                 if (first_e->end == second_e->end && first_e != second_e->rc
                 && first_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * second_e->size() &&  second_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * first_e->size()) {
                     logger_.debug() << "is deleted as bulge\n";
-                    char decision = AssignBulge(haplotypes[first_e->getLabel()], haplotypes[second_e->getLabel()]);
+                    Haplotype decision = AssignBulge(haplotypes[first_e->getLabel()], haplotypes[second_e->getLabel()]);
                     if (decision == haplotype_)
                         deleteEdgeHaplo(first_e->getId());
                     else
@@ -135,12 +135,12 @@ void HaplotypeRemover::updateFixableHaplotypes() {
         std::string e_label = p.first;
         std::string alt_label = p.second;
         if (haplotypes.find(e_label) != haplotypes.end() && haplotypes[e_label].is_undefined()) {
-            if (haplotypes[alt_label].haplotype == 'm') {
-                haplotypes[e_label].haplotype = 'p';
+            if (haplotypes[alt_label].haplotype == Haplotype::Maternal) {
+                haplotypes[e_label].haplotype = Haplotype::Paternal;
                 count++;
             }
-            if (haplotypes[alt_label].haplotype == 'p') {
-                haplotypes[e_label].haplotype = 'm';
+            if (haplotypes[alt_label].haplotype == Haplotype::Paternal) {
+                haplotypes[e_label].haplotype = Haplotype::Maternal;
                 count++;
             }
         }
@@ -156,8 +156,8 @@ void HaplotypeRemover::updateAmbiguousHaplotypes() {
         if (haplotypes[e_label].is_undefined() && haplotypes[alt_label].is_undefined()) {
             auto top_h = haplotypes[e_label];
             auto bottom_h = haplotypes[alt_label];
-            char decision = AssignBulge(top_h, bottom_h);
-            if (decision != 'a') {
+            Haplotype decision = AssignBulge(top_h, bottom_h);
+            if (decision != Haplotype::Shared) {
                 haplotypes[e_label].haplotype = decision;
                 haplotypes[alt_label].haplotype = other_haplo(decision);
                 count ++;
@@ -231,9 +231,9 @@ std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger,
 //TODO:: it would be cool not to create twice
     multigraph::MultiGraph mg = mmg.DBG();
     std::string out_name = "haplotype_";
-    out_name += other_haplo(haplotype);
+    out_name += other_haplo(Haplotype(haplotype));
     std::experimental::filesystem::path out_dir = dir / out_name;
-    HaplotypeRemover hr(logger, mg, haployak, haplotype, out_dir);
+    HaplotypeRemover hr(logger, mg, haployak, Haplotype(haplotype), out_dir);
     hr.process();
     mg.printEdgeGFA(output_file, true);
 
