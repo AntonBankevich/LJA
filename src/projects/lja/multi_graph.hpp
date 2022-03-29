@@ -109,6 +109,25 @@ namespace multigraph {
             return *this;
         }
 
+        void printStats(std::ostream &os) {
+            size_t tips = 0;
+            size_t total_length = 0;
+            size_t total_clean_length = 0;
+            for(Vertex *v : vertices) {
+                for(Edge *edge : v->outgoing) {
+                    total_length += edge->size();
+                    total_clean_length += edge->size() - v->seq.size();
+                }
+                if(v->outDeg() == 1 && v->inDeg() == 0) {
+                    tips += 2;
+                    total_clean_length += v->seq.size();
+                }
+            }
+            os << "Vertices: " << vertices.size() << "\nEdges: " << edges.size() << "\n";
+            os << "Total edge length: " << total_length << "Total clean edge length: " << total_clean_length << "\n";
+            os << "Number of tips: " << tips << "\n";
+        }
+
         MultiGraph DBG() const {
             MultiGraph dbg;
             std::unordered_map<Edge *, Vertex *> emap;

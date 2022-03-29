@@ -284,6 +284,8 @@ std::vector<std::experimental::filesystem::path> PolishingPhase(
         multigraph::MultiGraph vertex_graph;
         vertex_graph.LoadGFA(gfa_file, true);
         multigraph::MultiGraph edge_graph = vertex_graph.DBG();
+        logger.info() << "Multigraph statistics:" << std::endl;
+        edge_graph.printStats(logger);
         std::vector<Contig> contigs = edge_graph.getEdges(false);
         auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
         std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
