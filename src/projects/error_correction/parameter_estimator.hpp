@@ -54,7 +54,8 @@ public:
     double getPoissonLogPDiff(size_t length, double cov, size_t mult) const {
         size_t events = std::max<size_t>(1ull, length / len_step);
         auto observed_coverage = size_t(cov * events);
-        return (log(1 + 1. / double(mult))* cov - avg_cov) * events;
+        double dmult = mult;
+        return (log(1 + 1. / double(dmult))* cov - avg_cov) * events;
     }
 
     double getNormalLogPDiff(size_t length, double cov, size_t mult) const {

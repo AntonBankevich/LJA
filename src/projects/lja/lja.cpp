@@ -20,6 +20,7 @@
 #include <polishing/homopolish.hpp>
 #include <ksw2/ksw_wrapper.hpp>
 #include <error_correction/parameter_estimator.hpp>
+#include <error_correction/partial_rr.hpp>
 
 using namespace dbg;
 
@@ -115,6 +116,8 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         correctAT(logger, readStorage, k, threads);
         correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, false);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
+        std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
+        printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         coverageStats(logger, dbg);
         if(debug)
@@ -129,7 +132,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
     std::experimental::filesystem::path res;
     res = dir / "corrected.fasta";
     logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;
-    return {res, dir / "graph.fasta"};
+    return {res, dir / "pseudoreads.fasta"};
 }
 
 std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
