@@ -61,9 +61,9 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
         VERIFY(sv == *path2.back().contig().start());
         const VertexRecord &vrec = reads.getRecord(sv);
         path1 += vrec.getFullUniqueExtension(path1.back().contig().seq.Subseq(0, 1), 2,
-                                            1).getAlignment();
-        path2 = vrec.getFullUniqueExtension(path2.back().contig().seq.Subseq(0, 1), 2,
-                                            1).getAlignment();
+                                            1).getAlignment().subalignment(1);
+        path2 += vrec.getFullUniqueExtension(path2.back().contig().seq.Subseq(0, 1), 2,
+                                            1).getAlignment().subalignment(1);
         res.emplace_back(std::move(path1));
         res.emplace_back(std::move(path2));
     }
