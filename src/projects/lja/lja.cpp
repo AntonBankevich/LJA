@@ -122,7 +122,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         coverageStats(logger, dbg);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
-        readStorage.printReadFasta(logger, dir / "corrected.fasta");
+        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
         if(debug)
             DrawSplit(Component(dbg), dir / "split");
         dbg.printFastaOld(dir / "graph.fasta");
@@ -130,7 +130,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
     if(!skip)
         runInFork(ic_task);
     std::experimental::filesystem::path res;
-    res = dir / "corrected.fasta";
+    res = dir / "corrected_reads.fasta";
     logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;
     return {res, dir / "pseudoreads.fasta"};
 }

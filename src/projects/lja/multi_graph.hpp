@@ -124,7 +124,7 @@ namespace multigraph {
                 }
             }
             os << "Vertices: " << vertices.size() << "\nEdges: " << edges.size() << "\n";
-            os << "Total edge length: " << total_length << "Total clean edge length: " << total_clean_length << "\n";
+            os << "Total edge length: " << total_length << "\nTotal clean edge length: " << total_clean_length << "\n";
             os << "Number of tips: " << tips << "\n";
         }
 
