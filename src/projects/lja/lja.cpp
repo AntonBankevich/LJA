@@ -125,6 +125,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
         if(debug)
             DrawSplit(Component(dbg), dir / "split");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         dbg.printFastaOld(dir / "graph.fasta");
     };
     if(!skip)

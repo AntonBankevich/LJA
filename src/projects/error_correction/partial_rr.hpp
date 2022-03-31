@@ -26,10 +26,10 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
         if(!bulgePath.isBulge(i))
             s = s + bulgePath[i].first->seq.Subseq(0, 1);
         else {
-            Sequence s11 = path1.back().contig().seq.Subseq(0, 1) + bulgePath[i].first->seq.Subseq(0, 1);
-            Sequence s12 = path1.back().contig().seq.Subseq(0, 1) + bulgePath[i].second->seq.Subseq(0, 1);
-            Sequence s21 = path2.back().contig().seq.Subseq(0, 1) + bulgePath[i].first->seq.Subseq(0, 1);
-            Sequence s22 = path2.back().contig().seq.Subseq(0, 1) + bulgePath[i].second->seq.Subseq(0, 1);
+            Sequence s11 = path1.back().contig().seq.Subseq(0, 1) + s + bulgePath[i].first->seq.Subseq(0, 1);
+            Sequence s12 = path1.back().contig().seq.Subseq(0, 1) + s + bulgePath[i].second->seq.Subseq(0, 1);
+            Sequence s21 = path2.back().contig().seq.Subseq(0, 1) + s + bulgePath[i].first->seq.Subseq(0, 1);
+            Sequence s22 = path2.back().contig().seq.Subseq(0, 1) + s + bulgePath[i].second->seq.Subseq(0, 1);
             const VertexRecord &vrec = reads.getRecord(*path1.back().contig().start());
             size_t n11 = vrec.countStartsWith(s11);
             size_t n12 = vrec.countStartsWith(s12);
