@@ -76,19 +76,19 @@ void HaplotypeRemover::cleanGraph() {
         for (auto eid: eids){
             if (mg.edges.find(eid) == mg.edges.end())
                 continue;
-            logger_.debug() << "considering " << eid << " label " << mg.edges[eid]->getLabel() << endl;
-            if (mg.edges[eid]->isTip()) {
+            logger_.debug() << "considering " << eid << " label " << mg.edges[eid].getLabel() << endl;
+            if (mg.edges[eid].isTip()) {
                 logger_.debug() << "is being deleted as tip\n";
-                if (mg.edges[eid]->size() < MAX_TIP_LENGTH) {
+                if (mg.edges[eid].size() < MAX_TIP_LENGTH) {
                     logger_.debug() << "is deleted as tip\n";
                     deleteEdgeHaplo(eid);
                     changed = true;
                     tips ++;
                 }
-            } else if (mg.edges[eid]->start->outDeg() == 2) {
+            } else if (mg.edges[eid].start->outDeg() == 2) {
                 logger_.debug() << "is being deleted as bulge\n";
-                auto first_e = mg.edges[eid]->start->outgoing[0];
-                auto second_e = mg.edges[eid]->start->outgoing[1];
+                auto first_e = mg.edges[eid].start->outgoing[0];
+                auto second_e = mg.edges[eid].start->outgoing[1];
                 if (first_e->end == second_e->end && first_e != second_e->rc
                 && first_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * second_e->size() &&  second_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * first_e->size()) {
                     logger_.debug() << "is deleted as bulge\n";
@@ -112,7 +112,7 @@ std::unordered_map<std::string, std::string> HaplotypeRemover::getBulgeLabels() 
     std::unordered_map<std::string, std::string> res;
     for (auto p : mg.vertices) {
         int vid = p.first;
-        multigraph::Vertex* v = p.second;
+        multigraph::Vertex* v = &p.second;
         if (v->outDeg() == 2) {
             multigraph::Edge *e1 = v->outgoing[0];
             multigraph::Edge *e2 = v->outgoing[1];
@@ -181,15 +181,15 @@ void HaplotypeRemover::removeHaplotype() {
         for (auto eid:eids){
             if (mg.edges.find(eid) == mg.edges.end())
                 continue;
-            auto label = mg.edges[eid]->getLabel();
+            auto label = mg.edges[eid].getLabel();
             if (haplotypes.find(label) != haplotypes.end()) {
                 if (haplotypes[label].haplotype == haplotype_) {
-                    if (mg.edges[eid]->isSimpleBridge() && mg.edges[eid]->size() < SAVED_BRIDGE_CUTOFF) {
+                    if (mg.edges[eid].isSimpleBridge() && mg.edges[eid].size() < SAVED_BRIDGE_CUTOFF) {
                         bridges ++;
                         logger_.info() << "Skipping edge " << eid << " as bridge\n";
                         continue;
                     }
-                    removed_len += mg.edges[eid]->size();
+                    removed_len += mg.edges[eid].size();
                     deleteEdgeHaplo(eid);
 
                     logger_.trace() << "removing " << eid  << " label " << label << endl;

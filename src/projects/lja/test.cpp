@@ -16,8 +16,8 @@ int main(int argc, char **argv) {
     mg.printVertexGFA("vertex.gfa");
     std::cout<<mg.vertices.size() << " v/e " << mg.edges.size() << endl;
     std::cout.flush();
-    std::cout <<"in/out degs" << mg.vertices[23]->inDeg() << " " <<mg.vertices[23]->outDeg() << endl;
-    std::cout << mg.edges[239]->start->id << " " << mg.edges[239]->end->id << endl;
+    std::cout <<"in/out degs" << mg.vertices[23].inDeg() << " " <<mg.vertices[23].outDeg() << endl;
+    std::cout << mg.edges[239].start->id << " " << mg.edges[239].end->id << endl;
     mg.printEdges("edges.fasta", false);
     mg.deleteEdgeById(239);
     mg.printEdgeGFA("ad.gfa");

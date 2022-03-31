@@ -204,7 +204,7 @@ namespace multigraph {
             std::cout <<"transformed V/E " << dbg.vertices.size() << " " << dbg.edges.size() << endl;
             return std::move(dbg);
         }
-        
+
         MultiGraph DeleteEdges(const std::unordered_set<Edge *> &to_delete) const {
             MultiGraph mg;
             std::unordered_map<Vertex *, Vertex *> vmap;
