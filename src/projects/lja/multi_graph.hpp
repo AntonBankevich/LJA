@@ -56,6 +56,11 @@ namespace multigraph {
         Edge *rc = nullptr;
         explicit Edge(const Sequence &seq, int id = 0, std::string label = "") : seq(seq), id(id), sz(seq.size()), canonical(seq <= !seq), label(label) {
         }
+
+        Edge() {
+            VERIFY(false);
+        }
+
         Sequence getSeq() const {
             if(seq.empty())
                 return start->seq + end->seq.Subseq(sz);
@@ -122,7 +127,7 @@ namespace multigraph {
         int maxVId = 0;
         int maxEId = 0;
         std::unordered_map<int, Vertex> vertices;
-        std::unordered_map<int, Edge *> edges;
+        std::unordered_map<int, Edge> edges;
 
         MultiGraph() = default;
         MultiGraph(MultiGraph &&other) = default;
@@ -199,18 +204,7 @@ namespace multigraph {
             std::cout <<"transformed V/E " << dbg.vertices.size() << " " << dbg.edges.size() << endl;
             return std::move(dbg);
         }
-
-        ~MultiGraph() {
-            /*for(auto p : vertices) {
-                delete p.second;
-                p.second = nullptr;
-            } */
-            for(auto p : edges) {
-                delete p.second;
-                p.second = nullptr;
-            }
-        }
-
+        
         MultiGraph DeleteEdges(const std::unordered_set<Edge *> &to_delete) const {
             MultiGraph mg;
             std::unordered_map<Vertex *, Vertex *> vmap;
@@ -224,7 +218,7 @@ namespace multigraph {
                 vmap[v->rc] = vmap[v]->rc;
             }
             for(auto p : edges) {
-                Edge * edge = p.second;
+                Edge * edge = &p.second;
                 if(!edge->isCanonical() || to_delete.find(edge) != to_delete.end())
                     continue;
                 mg.addEdge(*vmap[edge->start], *vmap[edge->end], edge->getSeq(), edge->getId(), edge->getLabel());
@@ -290,13 +284,13 @@ namespace multigraph {
             std::unordered_set<Edge const *> eset;
             std::unordered_set<Vertex const *> vset;
             for(const auto p: edges) {
-                Edge * edge = p.second;
+                const Edge * edge = &p.second;
                 eset.emplace(edge);
                 VERIFY(edge->rc->start == edge->end->rc);
                 VERIFY(edge->rc->rc == edge);
             }
             for(const auto p: edges) {
-                Edge * edge = p.second;
+                const Edge * edge = &p.second;
                 VERIFY(eset.find(edge->rc) != eset.end());
             }
             for(const auto p : vertices) {
@@ -343,14 +337,14 @@ namespace multigraph {
                 id = std::abs(id);
             }
 
-            edges[id] = new Edge(seq, id, label);
-            Edge *res = edges[id];
+            edges.emplace(id, Edge(seq, id, label));
+            Edge *res = &edges[id];
             res->start = &from;
             res->end = &to;
             res->start->outgoing.emplace_back(res);
             if(seq != !seq) {
-                edges[-id] = new Edge(!seq, -id, label);
-                Edge *rc = edges[-id];
+                edges.emplace(-id, Edge(!seq, -id, label));
+                Edge *rc = &edges[-id];
                 rc->start = to.rc;
                 rc->end = from.rc;
                 res->rc = rc;
@@ -364,7 +358,7 @@ namespace multigraph {
 
         void internalRemoveEdge (int eid) {
             VERIFY(edges.find(eid) != edges.end());
-            Edge * edge = edges[eid];
+            Edge * edge = &edges[eid];
             Edge * rc_edge = edge->rc;
             int rcid = rc_edge->getId();
             std::unordered_map<Vertex* , Edge*> to_delete;
@@ -378,10 +372,10 @@ namespace multigraph {
                 d_vertex->outgoing.erase(std::remove(d_vertex->outgoing.begin(), d_vertex->outgoing.end(), rc_edge),
                         d_vertex->outgoing.end());
             }
-            delete edge;
+//            delete edge;
             edges.erase(eid);
             if (rcid != eid) {
-                delete rc_edge;
+//                delete rc_edge;
                 edges.erase(rcid);
             }
         }
@@ -428,8 +422,8 @@ namespace multigraph {
         }
 
         deleted_edges_map deleteEdgeById(int eid){
-            Vertex* start_v = edges[eid]->start;
-            Vertex* end_v = edges[eid]->end;
+            Vertex* start_v = edges[eid].start;
+            Vertex* end_v = edges[eid].end;
             internalRemoveEdge(eid);
 
             auto res = compressVertex(start_v->id);
@@ -469,7 +463,7 @@ namespace multigraph {
             std::unordered_set<Edge *> used;
             std::unordered_map<Vertex *, Vertex *> old_to_new;
             for(auto p: edges) {
-                Edge *edge = p.second;
+                Edge *edge = &p.second;
                 if(used.find(edge) != used.end())
                     continue;
                 std::vector<Edge *> unique = uniquePath(*edge);
@@ -532,7 +526,7 @@ namespace multigraph {
             std::vector<Contig> res;
             size_t cnt = 1;
             for(auto p: edges) {
-                Edge *edge = p.second;
+                Edge *edge = &p.second;
                 if(edge->isCanonical()) {
                     size_t cut_left = edge->start->seq.size() * cut[edge->start];
                     size_t cut_right = edge->end->seq.size() * (1 - cut[edge->end]);
@@ -570,7 +564,7 @@ namespace multigraph {
             }
             std::unordered_map<Edge *, std::string> eids;
             for (auto p : edges) {
-                Edge *edge = p.second;
+                Edge *edge = &p.second;
                 os << "\"" << edge->start->id << "\" -> \"" << edge->end->id <<
                    "\" [label=\"" << edge->getId() << "(" << edge->size() << ")\" color = \"black\"]\n" ;
 

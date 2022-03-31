@@ -176,7 +176,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     os << "H\tVN:Z:1.0" << std::endl;
     std::unordered_map<multigraph::Edge *, std::string> eids;
     for(auto p : graph.edges){
-        multigraph::Edge *edge = p.second;
+        multigraph::Edge *edge = &p.second;
         if (edge->isCanonical()) {
             os << "S\t" << itos(edge->getId()) << "\t" << uncompression_results[edge->getId()] << "\n";
         }
@@ -205,7 +205,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     }
     std::unordered_map<multigraph::Edge*, size_t> cuts; //Sizes of cuts from the edge start
     for(auto p : graph.edges) {
-        multigraph::Edge *e = p.second;
+        multigraph::Edge *e = &p.second;
         cuts[e] = 0;
     }
     for(OverlapRecord &rec : cigars_collection) {
@@ -214,7 +214,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     }
     std::vector<Contig> res;
     for(auto p : graph.edges) {
-        multigraph::Edge *edge = p.second;
+        multigraph::Edge *edge = &p.second;
         if(edge->isCanonical()) {
             //TODO make canonical be the same as positive id
             size_t cut_left = cuts[edge];
