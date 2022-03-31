@@ -84,7 +84,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
     std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, load, remove_bad, k, w, &reads_lib,
             &pseudo_reads_lib, &paths_lib, threads, threshold, reliable_coverage, debug] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
@@ -149,7 +149,7 @@ std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &l
     std::function<void()> ic_task = [&dir, &logger, &hasher, load, k, w, &reads_lib,
             &pseudo_reads_lib, &paths_lib, threads, debug] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+        SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                         DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
@@ -194,7 +194,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
                                      {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg =
-            load ? DBGPipeline(logger, hasher, w, reads_lib, dir, threads,
+            load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
                                (dir/"disjointigs.fasta").string(),
                                (dir/"vertices.save").string())
                  : DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
