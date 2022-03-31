@@ -334,7 +334,9 @@ namespace multigraph {
             }
             maxEId = std::max(std::abs(id), maxEId);
             if(!(seq <= !seq)) {
-                id = -id;
+                id = -(std::abs(id));
+            } else {
+                id = std::abs(id);
             }
 
             edges[id] = new Edge(seq, id, label);
@@ -373,9 +375,11 @@ namespace multigraph {
                         d_vertex->outgoing.end());
             }
             delete edge;
-            delete rc_edge;
             edges.erase(eid);
-            edges.erase(rcid);
+            if (rcid != eid) {
+                delete rc_edge;
+                edges.erase(rcid);
+            }
         }
 
         deleted_edges_map compressVertex(int vid) {
@@ -576,7 +580,7 @@ namespace multigraph {
             os.open(f);
             os << "H\tVN:Z:1.0" << std::endl;
             std::unordered_map<Edge *, std::string> eids;
-            for(Vertex *v : component)
+            for(Vertex *v : component) {
                 for (Edge *edge : v->outgoing) {
                     if (edge->isCanonical()) {
                         if (labels) {
@@ -587,12 +591,12 @@ namespace multigraph {
                             eids[edge->rc] = itos(edge->getId());
 
                         }
-                        std::cerr<< edge->getId()<< " " << edge->getLabel() << endl;
                         if (edges.find(edge->getId()) == edges.end())
                             std::cerr << "OOOOOPS";
                         os << "S\t" << eids[edge] << "\t" << edge->getSeq() << "\n";
                     }
                 }
+            }
             for (Vertex *vertex : component) {
                 if(!vertex->isCanonical())
                     continue;
