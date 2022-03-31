@@ -85,7 +85,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
             &pseudo_reads_lib, &paths_lib, threads, threshold, reliable_coverage, debug] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
-                        DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+                        DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ReadLogger readLogger(threads, dir/"read_log.txt");
@@ -150,7 +150,7 @@ std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &l
             &pseudo_reads_lib, &paths_lib, threads, debug] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
-                        DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+                        DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ReadLogger readLogger(threads, dir/"read_log.txt");
@@ -197,7 +197,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
             load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
                                (dir/"disjointigs.fasta").string(),
                                (dir/"vertices.save").string())
-                 : DBGPipeline(logger, hasher, w, reads_lib, dir, threads);
+                 : DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         dbg.fillAnchors(w, logger, threads);
         size_t extension_size = 10000000;
         ReadLogger readLogger(threads, dir/"read_log.txt");
