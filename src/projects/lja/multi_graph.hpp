@@ -24,12 +24,13 @@ namespace multigraph {
 
         Vertex(const Vertex &) = delete;
 
-        Vertex(Vertex && v): seq(v.seq), id(id), label(label) {
+        Vertex(Vertex && v) = default; /* { //: seq(v.seq), id(id), label(label) {
+            std::cerr << "v.seq " << v.seq.size() << endl;
             if (v.outgoing.size() > 0 || v.rc != nullptr) {
                 VERIFY(false);
             }
         }
-
+            */
         Vertex(): seq(""), id(0), label("") {
             VERIFY(false);
         }
@@ -67,11 +68,12 @@ namespace multigraph {
 
         Edge(const Vertex &) = delete;
 
-        Edge(Edge && e): seq(e.seq), id(id), label(label) {
+        Edge(Edge && e) = default; /*{//: seq(e.seq), id(id), label(label) {
+            std::cerr << "e.seq " << e.seq.size() << endl;
             if (e.start != nullptr || e.rc != nullptr) {
                 VERIFY(false);
             }
-        }
+        }*/
 
         Edge() {
             VERIFY(false);
@@ -369,10 +371,10 @@ namespace multigraph {
             } else {
                 res->rc = res;
             }
-            std::cerr << res->start << " " << &from  << " "<< res->start->outgoing.size() << " " << res->start->id << endl;
+/*            std::cerr << res->start << " " << &from  << " "<< res->start->outgoing.size() << " " << res->start->id << endl;
             for (size_t i = 0; i < res->start->outgoing.size() ; i++ ){
                 std::cerr<<"edge " <<vertices[23].outgoing[i]->getId() << endl;
-            }
+            } */
             return *res;
         }
 
@@ -599,10 +601,7 @@ namespace multigraph {
             os << "H\tVN:Z:1.0" << std::endl;
             std::unordered_map<Edge *, std::string> eids;
             for(const Vertex *v : component) {
-                std::cerr << v->id << " " << v << endl;
-                std::cerr << v->outgoing.size() << endl;
                 for (Edge *edge : v->outgoing) {
-                    std::cerr << edge->getId() << endl;
                     if (edge->isCanonical()) {
                         if (labels) {
                             eids[edge] = edge->getLabel();
