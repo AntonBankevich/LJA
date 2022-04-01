@@ -143,7 +143,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
     omp_set_num_threads(threads);
     std::vector<size_t> v_ids;
-    for (auto p: graph.vertices)
+    for (auto &p: graph.vertices)
         v_ids.push_back(p.first);
 #pragma omp parallel for default(none) shared(graph, v_ids, cigars_collection, uncompression_results, logger, debug, std::cout)
     for(size_t i = 0; i < v_ids.size(); i++) {
@@ -175,7 +175,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     os.open(out_dir / "mdbg.gfa");
     os << "H\tVN:Z:1.0" << std::endl;
     std::unordered_map<multigraph::Edge *, std::string> eids;
-    for(auto p : graph.edges){
+    for(auto &p : graph.edges){
         multigraph::Edge *edge = &p.second;
         if (edge->isCanonical()) {
             os << "S\t" << itos(edge->getId()) << "\t" << uncompression_results[edge->getId()] << "\n";
@@ -192,7 +192,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     os.close();
     std::ofstream os_cut;
     std::unordered_map<multigraph::Vertex *, size_t> cut; //Choice of vertex side for cutting
-    for(auto p : graph.vertices) {
+    for(auto &p : graph.vertices) {
         multigraph::Vertex *v = &p.second;
         if(v->seq <= !v->seq) {
             if(v->outDeg() == 1) {
@@ -204,7 +204,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
         }
     }
     std::unordered_map<multigraph::Edge*, size_t> cuts; //Sizes of cuts from the edge start
-    for(auto p : graph.edges) {
+    for(auto &p : graph.edges) {
         multigraph::Edge *e = &p.second;
         cuts[e] = 0;
     }
@@ -213,7 +213,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
         cuts[rec.right] = cut[rec.right->start] * rec.startSize();
     }
     std::vector<Contig> res;
-    for(auto p : graph.edges) {
+    for(auto &p : graph.edges) {
         multigraph::Edge *edge = &p.second;
         if(edge->isCanonical()) {
             //TODO make canonical be the same as positive id

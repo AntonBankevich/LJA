@@ -70,7 +70,7 @@ void HaplotypeRemover::cleanGraph() {
     while (changed) {
         changed = false;
         std::vector<int> eids;
-        for (auto p: mg.edges) {
+        for (auto &p: mg.edges) {
             eids.push_back(p.first);
         }
         for (auto eid: eids){
@@ -110,7 +110,7 @@ void HaplotypeRemover::cleanGraph() {
 std::unordered_map<std::string, std::string> HaplotypeRemover::getBulgeLabels() {
     std::set<int> used;
     std::unordered_map<std::string, std::string> res;
-    for (auto p : mg.vertices) {
+    for (auto &p : mg.vertices) {
         int vid = p.first;
         multigraph::Vertex* v = &p.second;
         if (v->outDeg() == 2) {
@@ -175,7 +175,7 @@ void HaplotypeRemover::removeHaplotype() {
     while (changed) {
         changed = false;
         std::vector<int> eids;
-        for (auto p: mg.edges) {
+        for (auto &p: mg.edges) {
             eids.push_back(p.first);
         }
         for (auto eid:eids){

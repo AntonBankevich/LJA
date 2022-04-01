@@ -10,8 +10,13 @@ int main(int argc, char **argv) {
     //multigraph::MultiGraph mg = mmg.DBG();
 
     multigraph::Vertex &v = mg.addVertex(Sequence("AT"), 23, "vertex");
-    auto e1 = mg.addEdge(v, v, Sequence("ATATAT"), 239, "e1");
-    auto e2 = mg.addEdge(v, v, Sequence("ATCAT"), 240, "e2");
+    std::cerr <<&v << " "<< &mg.vertices[23] << endl;
+    auto &e1 = mg.addEdge(v, v, Sequence("ATATAT"), 239, "e1");
+    auto &e2 = mg.addEdge(v, v, Sequence("ATCAT"), 240, "e2");
+    std::cerr << &mg.vertices[23] << endl;
+    for (size_t i = 0; i < mg.vertices[23].outgoing.size() ; i++ ){
+        std::cerr<<"EEEdge " <<mg.vertices[23].outgoing[i]->getId() << endl;
+    }
     mg.printEdgeGFA("bd.gfa");
     mg.printVertexGFA("vertex.gfa");
     std::cout<<mg.vertices.size() << " v/e " << mg.edges.size() << endl;
