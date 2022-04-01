@@ -24,13 +24,10 @@ namespace multigraph {
 
         Vertex(const Vertex &) = delete;
 
-        Vertex(Vertex && v) = default; /* { //: seq(v.seq), id(id), label(label) {
-            std::cerr << "v.seq " << v.seq.size() << endl;
-            if (v.outgoing.size() > 0 || v.rc != nullptr) {
-                VERIFY(false);
-            }
+        Vertex(Vertex && v): seq(std::move(v.seq)), id(std::move(v.id)), label(std::move(label)) {
+            VERIFY (v.outgoing.size() == 0 && v.rc == nullptr);
         }
-            */
+
         Vertex(): seq(""), id(0), label("") {
             VERIFY(false);
         }
@@ -68,12 +65,9 @@ namespace multigraph {
 
         Edge(const Vertex &) = delete;
 
-        Edge(Edge && e) = default; /*{//: seq(e.seq), id(id), label(label) {
-            std::cerr << "e.seq " << e.seq.size() << endl;
-            if (e.start != nullptr || e.rc != nullptr) {
-                VERIFY(false);
-            }
-        }*/
+        Edge(Edge && e): seq(std::move(e.seq)), id(std::move(id)), label(std::move(label)) {
+            VERIFY(e.start == nullptr && e.end == nullptr && e.rc == nullptr);
+        }
 
         Edge() {
             VERIFY(false);
@@ -371,10 +365,6 @@ namespace multigraph {
             } else {
                 res->rc = res;
             }
-/*            std::cerr << res->start << " " << &from  << " "<< res->start->outgoing.size() << " " << res->start->id << endl;
-            for (size_t i = 0; i < res->start->outgoing.size() ; i++ ){
-                std::cerr<<"edge " <<vertices[23].outgoing[i]->getId() << endl;
-            } */
             return *res;
         }
 
