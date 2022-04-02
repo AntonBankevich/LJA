@@ -60,3 +60,6 @@ add_executable(sdbg_stats sdbg_stats.cpp)
 target_link_libraries(sdbg_stats lja_common lja_sequence lja_dbg)
 add_executable(dot_bulge_stats dot_bulge_stats.cpp)
 target_link_libraries(dot_bulge_stats lja_common)
+add_executable(test_mg test.cpp)
+target_link_libraries(test_mg lja_pipeline)
+
