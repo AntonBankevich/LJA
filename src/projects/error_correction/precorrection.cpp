@@ -35,7 +35,8 @@ dbg::GraphAlignment FindOnlyPathForward(dbg::Vertex &start, double reliable_cove
 
 dbg::GraphAlignment PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
     dbg::GraphAlignment res = FindOnlyPathForward(*seg.contig().start(), reliable_coverage, seg.size());
-    if(res.len() == seg.size()) {
+    if(res.len() >= seg.size()) {
+        res.cutBack(res.len() - seg.size());
         return std::move(res);
     } else {
         return dbg::GraphAlignment({seg});

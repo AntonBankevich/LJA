@@ -97,11 +97,13 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         if(debug) {
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
         }
-        Precorrect(logger, threads, dbg, readStorage, reliable_coverage);
+        Precorrect(logger, threads, dbg, readStorage, 2);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         readStorage.trackSuffixes(logger, threads);
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, readStorage, k, threads);
+        Precorrect(logger, threads, dbg, readStorage, 2);
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.Print(logger);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
@@ -127,6 +129,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
             DrawSplit(Component(dbg), dir / "split");
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         dbg.printFastaOld(dir / "graph.fasta");
+        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     };
     if(!skip)
         runInFork(ic_task);

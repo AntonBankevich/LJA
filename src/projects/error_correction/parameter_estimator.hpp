@@ -35,7 +35,7 @@ public:
 
     void Print(std::ostream &os) {
         os << "Average: " << avg_cov << " variance2: " << sigma2 << " using length step: " << len_step << "\n";
-        for(double cov : {5., 10., 20.}) {
+        for(double cov : {1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 12., 14., 16., 18.,  20., 25., 30., 40., 50., 60., 80., 100.}) {
             os << "Penalties for " << cov << "\n";
             for (size_t i = 0; i < 20; i++)
                 os << getPoissonLogPDiff(len_step, cov, i);
