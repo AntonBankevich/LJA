@@ -43,11 +43,20 @@ public:
         return path[ind].first != path[ind].second;
     }
 
-    void extend() {
+    void extend(double threshold) {
         dbg::Vertex &last = finish();
         size_t deg = last.outDeg();
-        VERIFY(deg == 1 || deg == 2);
-        path.emplace_back(&last[0], &last[deg - 1]);
+        if(last[0].getCoverage() > threshold && last[deg - 1].getCoverage() > 0)
+            path.emplace_back(&last[0], &last[deg - 1]);
+        else {
+            for(dbg::Edge &edge: last) {
+                if(edge.getCoverage() > threshold) {
+                    path.emplace_back(&edge, &edge);
+                    return;
+                }
+            }
+            VERIFY_MSG(false, "inner vertex did not satisfy conditions");
+        }
     }
 
     BulgePath RC() {
@@ -141,26 +150,41 @@ public:
         }
         return true;
     }
+
+    dbg::Path randomPath() const {
+        dbg::Path res(start());
+        for(const std::pair<dbg::Edge *, dbg::Edge *> &pair: path) {
+            res += *pair.first;
+        }
+        return std::move(res);
+    }
 };
 
 
 class BulgePathAnalyser {
 private:
 
-    static bool checkVertexForward(const dbg::Vertex &v) {
-        return v.outDeg() == 1 ||
+    bool checkVertexForward(const dbg::Vertex &v) {
+        size_t cnt = 0;
+        for(dbg::Edge &edge : v) {
+            if(edge.getCoverage() > threshold)
+                cnt++;
+        }
+        if(cnt > 1 && cnt != v.outDeg())
+            return false;
+        return cnt == 1 ||
                (v.outDeg() == 2 && v[0].end() == v[1].end() && v[0].size() < v[1].size() * 1.3 && v[1].size() < v[0].size() * 1.3);
     }
 
-    static bool isInner(const dbg::Vertex &v) {
+    bool isInner(const dbg::Vertex &v) {
         return checkVertexForward(v) && checkVertexForward(v.rc());
     }
 
-    static BulgePath forwardPath(dbg::Vertex &start) {
+    BulgePath forwardPath(dbg::Vertex &start) {
         BulgePath res(start);
         dbg::Vertex * cur = &start;
         while(isInner(*cur)) {
-            res.extend();
+            res.extend(threshold);
             cur = &res.finish();
             if(cur == &start)
                 return std::move(res);
@@ -169,10 +193,11 @@ private:
     }
 
     dbg::SparseDBG &dbg;
+    double threshold;
 public:
     std::vector<BulgePath> paths;
 
-    explicit BulgePathAnalyser(dbg::SparseDBG &dbg) : dbg(dbg) {
+    explicit BulgePathAnalyser(dbg::SparseDBG &dbg, double threshold = 0) : dbg(dbg), threshold(threshold) {
         std::unordered_set<dbg::Vertex *> visited;
         for(auto &it : dbg) {
             if(visited.find(&it.second) != visited.end())

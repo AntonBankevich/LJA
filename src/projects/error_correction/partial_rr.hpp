@@ -10,8 +10,11 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
         return {dbg::GraphAlignment() + *bulgePath[0].first};
     std::vector<dbg::GraphAlignment> res;
     size_t left = 0;
-    if(bulgePath[left].first == bulgePath[left].second)
+    while(left < bulgePath.size() && bulgePath[left].first == bulgePath[left].second)
         left++;
+    if(left == bulgePath.size()) {
+        return {dbg::GraphAlignment(bulgePath.randomPath())};
+    }
     dbg::GraphAlignment path1, path2;
     {
         dbg::Vertex &sv = bulgePath.getVertex(left + 1);
@@ -71,7 +74,7 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
 }
 
 std::vector<dbg::GraphAlignment> PartialRR(dbg::SparseDBG &dbg, const RecordStorage &reads) {
-    BulgePathAnalyser bulges(dbg);
+    BulgePathAnalyser bulges(dbg, 1);
     std::vector<dbg::GraphAlignment> res;
     for(BulgePath &bulgePath : bulges.paths) {
         std::vector<dbg::GraphAlignment> resolved = ResolveBulgePath(bulgePath, reads);

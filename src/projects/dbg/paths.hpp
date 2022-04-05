@@ -22,8 +22,8 @@ namespace dbg {
         Vertex &finish() const {return path.empty() ? start() : *path.back()->end();}
         size_t find(Edge &edge, size_t pos = 0) const;
         size_t find(Vertex &v, size_t pos = 0) const;
-        Edge &back() {return *path.back();}
-        Edge &front() {return *path.front();}
+        Edge &back() const {return *path.back();}
+        Edge &front() const {return *path.front();}
         size_t size() const {return path.size();}
         iterator begin() {return path.begin();}
         iterator end() {return path.end();}
@@ -57,6 +57,7 @@ namespace dbg {
                 start_ = als.front().contig().start();
         }
         explicit GraphAlignment(std::vector<Segment<Edge>> &&_path) : start_(_path.front().contig().start()), als(std::move(_path)) {}
+        explicit GraphAlignment(const Path &_path);
         GraphAlignment(Vertex *_start, std::vector<Segment<Edge>> &&_path) : start_(_start), als(std::move(_path)) {}
         explicit GraphAlignment(Vertex &_start) : start_(&_start) {}
         GraphAlignment() : start_(nullptr) {}
