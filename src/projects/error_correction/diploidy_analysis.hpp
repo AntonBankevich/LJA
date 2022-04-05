@@ -51,7 +51,7 @@ public:
         else {
             for(dbg::Edge &edge: last) {
                 if(edge.getCoverage() > threshold) {
-                    path.emplace_back(&edge);
+                    path.emplace_back(&edge, &edge);
                     return;
                 }
             }
@@ -176,7 +176,7 @@ private:
         BulgePath res(start);
         dbg::Vertex * cur = &start;
         while(isInner(*cur)) {
-            res.extend();
+            res.extend(threshold);
             cur = &res.finish();
             if(cur == &start)
                 return std::move(res);
