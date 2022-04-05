@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     size_t radius = std::stoull(parser.getValue("radius"));
     radius -= std::min(radius, k);
     std::ofstream os;
-    os.open(dir / "tips.fasta", 'w');
+    os.open(dir / "tips.fasta");
     for(dbg::Edge &edge : dbg.edges()) {
         if(edge.start()->inDeg() == 0) {
             os << ">" << edge.getShortId() << "\n" << edge.start()->seq << edge.seq.Subseq(std::min(edge.size(), radius)) << "\n";
