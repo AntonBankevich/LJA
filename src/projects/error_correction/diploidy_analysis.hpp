@@ -150,6 +150,14 @@ public:
         }
         return true;
     }
+
+    dbg::Path randomPath() const {
+        dbg::Path res(start());
+        for(const std::pair<dbg::Edge *, dbg::Edge *> &pair: path) {
+            res += *pair.first;
+        }
+        return std::move(res);
+    }
 };
 
 

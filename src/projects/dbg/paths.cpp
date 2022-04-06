@@ -439,6 +439,10 @@ size_t dbg::GraphAlignment::find(dbg::Vertex &v, size_t pos) const {
     return pos;
 }
 
+GraphAlignment::GraphAlignment(const Path &_path) : start_(_path.front().start()) {
+    operator+=(_path);
+}
+
 dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to) {
     size_t k = dbg.hasher().getK();
     size_t cur = k;
