@@ -426,9 +426,13 @@ namespace multigraph {
                     std::cerr << " wrong overlap " << overlap << " " << e_in->getSeq().size() << endl;
                 }
                 Sequence new_seq = e_in->getSeq().Prefix(pref) + e_out->getSeq();
-                string new_label = ((e_in->isCanonical()?e_in->getLabel(): e_in->getReverseLabel()) + "_" +
+                string new_label;
+                if (new_seq <= !new_seq)
+                    new_label = ((e_in->isCanonical()?e_in->getLabel(): e_in->getReverseLabel()) + "_" +
                         (e_out->isCanonical()?e_out->getLabel(): e_out->getReverseLabel()));
-
+                else
+                    new_label = ((!e_out->isCanonical()?e_out->getLabel(): e_out->getReverseLabel())  + "_" +
+                            (!e_in->isCanonical()?e_in->getLabel(): e_in->getReverseLabel()));
                 result_map[new_label] = {e_in->getLabel(), e_out->getLabel()};
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
                 for (auto eid: edgeids_to_remove){
