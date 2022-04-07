@@ -87,6 +87,15 @@ namespace multigraph {
             return label;
         }
 
+        std::string getReverseLabel() const {
+            std::vector<std::string> tokens = ::split(label, "_");
+            std::string res;
+            for (size_t i = tokens.size() -1; i > 0; i --)
+                res += tokens[i] + "_";
+            res += tokens[0];
+            return res;
+        }
+
         size_t size() const {
             return sz;
         }
@@ -417,7 +426,8 @@ namespace multigraph {
                     std::cerr << " wrong overlap " << overlap << " " << e_in->getSeq().size() << endl;
                 }
                 Sequence new_seq = e_in->getSeq().Prefix(pref) + e_out->getSeq();
-                string new_label = e_in->getLabel()+ "_"+ e_out->getLabel();
+                string new_label = ((e_in->isCanonical()?e_in->getLabel(): e_in->getReverseLabel()) + "_" +
+                        (e_out->isCanonical()?e_out->getLabel(): e_out->getReverseLabel()));
 
                 result_map[new_label] = {e_in->getLabel(), e_out->getLabel()};
                 addEdge(*start_v, *end_v, new_seq, 0, new_label);
