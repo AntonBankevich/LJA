@@ -24,7 +24,7 @@ namespace multigraph {
 
         Vertex(const Vertex &) = delete;
 
-        Vertex(Vertex && v): seq(std::move(v.seq)), id(std::move(v.id)), label(std::move(label)) {
+        Vertex(Vertex && v): seq(std::move(v.seq)), id(v.id), label(std::move(v.label)) {
             VERIFY (v.outgoing.size() == 0 && v.rc == nullptr);
         }
 
@@ -65,7 +65,7 @@ namespace multigraph {
 
         Edge(const Vertex &) = delete;
 
-        Edge(Edge && e): seq(std::move(e.seq)), id(std::move(id)), label(std::move(label)) {
+        Edge(Edge && e): seq(std::move(e.seq)), id(e.id), sz(e.sz), canonical(e.canonical), label(std::move(e.label)) {
             VERIFY(e.start == nullptr && e.end == nullptr && e.rc == nullptr);
         }
 
