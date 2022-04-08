@@ -93,6 +93,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        printDot(dir / "initial_dbg.dot", Component(dbg));
         coverageStats(logger, dbg);
         if(debug) {
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
@@ -208,6 +209,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
         io::SeqReader reader(reads_lib);
         readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        printDot(dir / "initial_dbg.dot", Component(dbg));
         if(debug) {
             DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, false);

@@ -46,7 +46,7 @@ public:
     void extend(double threshold) {
         dbg::Vertex &last = finish();
         size_t deg = last.outDeg();
-        if(last[0].getCoverage() > threshold && last[deg - 1].getCoverage() > 0)
+        if(last[0].getCoverage() > threshold && last[deg - 1].getCoverage() > threshold)
             path.emplace_back(&last[0], &last[deg - 1]);
         else {
             for(dbg::Edge &edge: last) {
@@ -55,7 +55,8 @@ public:
                     return;
                 }
             }
-            VERIFY_MSG(false, "inner vertex did not satisfy conditions");
+            VERIFY(last.outDeg() == 2 && last[0].end() == last[1].end());
+            path.emplace_back(&last[0], &last[1]);
         }
     }
 
