@@ -224,6 +224,7 @@ void HaplotypeRemover::removeHaplotype() {
                 
             }
         }
+        compressAllVertices();
     }
     logger_.info() << "Saved " << bridges << "bridges\n";
     logger_.info() << "Removed " << removed << " edges of haplo " << haplotype_  << " total len " << removed_len << endl;
