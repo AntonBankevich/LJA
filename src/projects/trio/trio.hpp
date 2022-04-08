@@ -33,6 +33,8 @@ struct HaplotypeRemover {
 
     void deleteEdgeHaplo(int eid);
 
+    void compressAllVertices();
+
     void cleanGraph();
 
     std::unordered_map<std::string, std::string> getBulgeLabels();

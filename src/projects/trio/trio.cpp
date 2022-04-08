@@ -48,6 +48,8 @@ HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, multigraph::MultiGra
 
 void HaplotypeRemover::deleteEdgeHaplo(int eid) {
     logger_.debug() << "Removing " << eid << endl;
+    mg.internalRemoveEdge(eid);
+    return;
     auto to_merge = mg.deleteEdgeById(eid);
     for (auto p: to_merge){
         HaplotypeStats new_haplo(haplotypes[p.second[0]]);
@@ -63,6 +65,24 @@ void HaplotypeRemover::deleteEdgeHaplo(int eid) {
     }
 }
 
+
+void HaplotypeRemover::compressAllVertices() {
+    for (auto &v: mg.vertices) {
+        auto to_merge = mg.compressVertex(v.first);
+        for (auto p: to_merge){
+            HaplotypeStats new_haplo(haplotypes[p.second[0]]);
+            new_haplo.label = p.first;
+            haplotypes.insert(std::make_pair(p.first, new_haplo));
+            for (size_t i = 1; i < p.second.size(); i++) {
+                if (haplotypes[p.first].haplotype != haplotypes[p.second[i]].haplotype) {
+                    logger_.trace() << "Merging different haplotypes " << haplotypes[p.first].label <<
+                                    " " << haplotypes[p.second[i]].label << endl;
+                }
+                haplotypes[p.first].appendKmerStats(haplotypes[p.second[i]]);
+            }
+        }
+    }
+}
 void HaplotypeRemover::cleanGraph() {
     bool changed = true;
     size_t tips = 0;
@@ -103,6 +123,7 @@ void HaplotypeRemover::cleanGraph() {
             }
 
         }
+        compressAllVertices();
     }
     logger_.info() << "Deleted tips "<< tips << " Bulges " << bulges << endl;
 }
