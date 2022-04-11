@@ -105,7 +105,7 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;
     }
-    os << "\" color=\"" + color + "\"]\n";
+    os << " color=\"" + color + "\"]\n";
 }
 
 namespace std {
@@ -115,7 +115,7 @@ namespace std {
             std::string s2 = l2(edge);
             if(s1.empty())
                 return s2;
-            return s1 + "\n" + s2;
+            return s1 + "\\n" + s2;
         };
     }
 }
