@@ -100,11 +100,12 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
                const std::string &color = "black") {
     dbg:: Vertex &end = *edge.end();
     os << "\"" << edge.start()->getShortId() << "\" -> \"" << end.getShortId() <<
-       "\" [label=\"" << "ACGT"[edge.seq[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")";
+       "\" [label=\"" << "ACGT"[edge.seq[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
-        os << "\\n"<<extra_label;
+        os << " labeltooltip=\"" << extra_label << "\"";
+//        os << "\\n"<<extra_label;
     }
-    os << "\", color=\"" + color + "\"]\n";
+    os << "\" color=\"" + color + "\"]\n";
 }
 
 namespace std {

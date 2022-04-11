@@ -130,6 +130,7 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
     }
     out << " " << read_alternatives.size() << " " << genome_support << " "
         << read_alternatives_filtered.size() << " " << filtered_genome_support;
+    size_t alt_size = read_alternatives_filtered.size();
     if(read_alternatives_filtered.size() > 1) {
         if(dump)
             logger << "Multiple choice in bulge " << read_alternatives_filtered.size() << std::endl << bulge.truncSeq() << std::endl;
@@ -158,7 +159,7 @@ GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, 
     out << " " << (read_alternatives_filtered.size() == 1 ? "+" : "-");
     out << "\n";
     if(read_alternatives_filtered.size() == 1) {
-        if(read_alternatives_filtered.size() > 1)
+        if(alt_size > 1)
             message += "m";
         else
             message += "s";

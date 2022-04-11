@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     dbg.fillAnchors(100, logger, threads);
     radius -= std::min(radius, k);
     std::ofstream os;
-    os.open(dir / "tips.fasta");
+    os.open(dir / "breaks.fasta");
     dbg::GraphAligner aligner(dbg);
     for(StringContig sc : io::SeqReader(paths_lib)) {
         Contig contig = sc.makeContig();

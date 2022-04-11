@@ -54,9 +54,9 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
     for(Edge &edge : dbg.edges()) {
-        edge.extraInfo = 0;
+        edge.mark(EdgeMarker::common);
         if(!edge.start()->isJunction() || !edge.end()->isJunction())
-            edge.extraInfo = 1;
+            edge.mark(EdgeMarker::correct);
     }
     for(RecordStorage *rit : storages) {
         RecordStorage &storage = *rit;
@@ -74,7 +74,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                         segmentStorage.emplace_back(seg.RC());
                 } else {
                     seg.contig().start()->lock();
-                    seg.contig().extraInfo = 1;
+                    seg.contig().mark(EdgeMarker::correct);
                     seg.contig().start()->unlock();
                 }
             }
@@ -85,10 +85,10 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     for(Edge &edge : dbg.edges()) {
         if(edge < edge.rc())
             continue;
-        if(edge.extraInfo == 1 || (edge.getCoverage() > 2 && edge.size() > k * 2 + 5000)) {
+        if(edge.getMarker() == EdgeMarker::correct || (edge.getCoverage() > 2 && edge.size() > k * 2 + 5000)) {
             segmentStorage.emplace_back(edge, 0, edge.size());
         }
-        edge.extraInfo = 0;
+        edge.mark(EdgeMarker::common);
     }
     size_t min_len = 100000;
     for(size_t len : lenStorage) {
