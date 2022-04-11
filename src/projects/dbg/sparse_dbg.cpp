@@ -3,6 +3,10 @@ using namespace dbg;
 
 Edge Edge::_fake = Edge(nullptr, nullptr, Sequence());
 
+bool IsMarkerCorrect(EdgeMarker marker) {
+    return marker == EdgeMarker::correct || marker == EdgeMarker::unique || marker == EdgeMarker::repeat;
+}
+
 size_t Edge::updateTipSize() const {
     size_t new_val = 0;
     if(extraInfo == size_t(-1) && end_->inDeg() == 1) {
@@ -71,14 +75,6 @@ Vertex *Edge::start() const {
 
 Vertex *Edge::end() const {
     return end_;
-}
-
-size_t Edge::common(const Sequence &other) const {
-    size_t res = 0;
-    while(res < seq.size() && res < other.size() && seq[res] == other[res]) {
-        res += 1;
-    }
-    return res;
 }
 
 size_t Edge::size() const {

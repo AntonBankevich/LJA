@@ -117,8 +117,8 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 5000));
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, readStorage, k, threads);
-        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null", threshold, reliable_coverage, k, threads, false);
-        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 4, threads);
+        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null" , threshold, reliable_coverage, k, threads, false);
+        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 3, threads);
         std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
         printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
