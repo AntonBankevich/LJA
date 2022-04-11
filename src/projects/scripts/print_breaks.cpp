@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
                 continue;
             if(al[i].seg_to.contig().end()->outDeg() == 0 || al[i + 1].seg_to.contig().start()->inDeg() == 0) {
                 logger.trace() << "Possible break " << al[i] << " " << al[i + 1] << std::endl;
-                Segment<Contig> seg = al[i].seg_from.unite(al[i + 1].seg_from).extendRight(k).extendBy(5000);
+                Segment<Contig> seg = al[i].seg_from.unite(al[i + 1].seg_from).extendRight(k).extendBy(radius);
                 logger.trace() << "Printing segment " << seg << std::endl;
                 os << ">" << seg.contig().id << "_" << seg.left << "_" << seg.right << "\n" << seg.seq() << "\n";
             }
