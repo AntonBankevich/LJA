@@ -872,3 +872,18 @@ void MultiplexDBG::ExportActiveTransitions(
     const std::experimental::filesystem::path &path) const {
     rr_paths->ExportActiveTransitions(path);
 }
+
+void MultiplexDBG::ExportUniqueEdges(const std::experimental::filesystem::path &path) const {
+    std::ofstream os(path);
+    for (const RRVertexType &vertex : *this) {
+        auto vertex_it = find(vertex);
+        const RRVertexProperty &v_prop = node_prop(vertex_it);
+        auto[out_begin, out_end] = out_neighbors(vertex);
+        for (auto it = out_begin; it!=out_end; ++it) {
+            const RREdgeProperty &e_prop = it->second.prop();
+            const RREdgeIndexType e_ind = e_prop.Index();
+            bool is_unique = e_prop.IsUnique();
+            os << e_ind << "\t" << is_unique << "\n";
+        }
+    }
+}

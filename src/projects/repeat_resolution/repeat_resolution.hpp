@@ -84,6 +84,8 @@ class RepeatResolver {
 
         logger.info() << "Export to Dot" << std::endl;
         mdbg.ExportToDot(dir/"mdbg.hpc.dot");
+        logger.info() << "Export of unique edges" << std::endl;
+        mdbg.ExportUniqueEdges(dir/"mdbg_is_edge_unique.tsv");
         logger.info() << "Export to GFA and compressed contigs" << std::endl;
         std::vector<Contig> contigs = mdbg.ExportContigsAndGFA(
             dir/"assembly.hpc.fasta", dir/"mdbg.hpc.gfa", threads, logger);
