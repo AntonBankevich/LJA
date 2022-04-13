@@ -67,8 +67,12 @@ void HaplotypeRemover::deleteEdgeHaplo(int eid) {
 
 
 void HaplotypeRemover::compressAllVertices() {
-    for (auto &v: mg.vertices) {
-        auto to_merge = mg.compressVertex(v.first);
+    size_t all_count = 0;
+    std::unordered_set<int> ids;
+    for (auto &v: mg.vertices) 
+        ids.insert(v.first);
+    for (auto id: ids) {
+        auto to_merge = mg.compressVertex(id);
         for (auto p: to_merge){
             HaplotypeStats new_haplo(haplotypes[p.second[0]]);
             new_haplo.label = p.first;
@@ -80,15 +84,19 @@ void HaplotypeRemover::compressAllVertices() {
                 }
                 haplotypes[p.first].appendKmerStats(haplotypes[p.second[i]]);
             }
+            all_count ++;
         }
     }
+    logger_.info() << "Compressing all " << all_count << endl;
 }
 void HaplotypeRemover::cleanGraph() {
     bool changed = true;
     size_t tips = 0;
     size_t bulges = 0;
+    size_t iter = 0;
     while (changed) {
         changed = false;
+        logger_.info() << "Iter " << ++iter << endl;
         std::vector<int> eids;
         for (auto &p: mg.edges) {
             eids.push_back(p.first);
