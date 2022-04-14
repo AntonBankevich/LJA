@@ -21,6 +21,7 @@ namespace dbg {
         incorrect,
         suspicious,
         common,
+        possible_break,
         correct,
         unique,
         repeat
@@ -55,6 +56,7 @@ namespace dbg {
         Vertex *end() const;
         Vertex *start() const;
         size_t getTipSize() const;
+        void  setTipSize(size_t val) const;
         size_t updateTipSize() const;
         size_t size() const;
         double getCoverage() const;
@@ -214,6 +216,8 @@ namespace dbg {
         Vertex &bindTip(Vertex &start, Edge &tip);
         void removeIsolated();
         void removeMarked();
+
+        void resetMarkers();
 
         void addVertex(hashing::htype h) {innerAddVertex(h);}
         Vertex &addVertex(const hashing::KWH &kwh);

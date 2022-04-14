@@ -69,6 +69,10 @@ size_t Edge::getTipSize() const {
     return extraInfo;
 }
 
+void Edge::setTipSize(size_t val) const {
+    extraInfo = val;
+}
+
 Vertex *Edge::start() const {
     return start_;
 }
@@ -819,6 +823,11 @@ void SparseDBG::removeMarked() {
             ++it;
         }
     }
+}
+
+void SparseDBG::resetMarkers() {
+    for(dbg::Edge &edge: edges())
+        edge.mark(dbg::EdgeMarker::common);
 }
 
 //const Vertex &SparseDBG::getVertex(const hashing::KWH &kwh) const {

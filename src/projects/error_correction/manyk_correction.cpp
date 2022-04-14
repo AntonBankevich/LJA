@@ -322,6 +322,12 @@ GraphAlignment ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bul
 GraphAlignment ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
     size_t blen = bulge.bulge.len();
     std::vector<dbg::GraphAlignment> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, std::max<size_t>(blen / 100, 20), 3);
+    if(blen > dbg.hasher().getK() && alternatives.empty()) {
+        alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, blen / 10 + 32, 3);
+        if(alternatives.empty()) {
+            alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, blen / 5 + 32, 3);
+        }
+    }
     if(alternatives.size() == 1)
         return alternatives[0];
     else

@@ -28,7 +28,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
                                 double threshold, size_t k, size_t threads);
-size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads);
+size_t correctAT(logging::Logger &logger, size_t threads, RecordStorage &reads_storage, size_t max_at);
 void initialCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     RecordStorage &reads_storage,

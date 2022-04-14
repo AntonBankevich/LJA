@@ -21,6 +21,7 @@
 #include <ksw2/ksw_wrapper.hpp>
 #include <error_correction/parameter_estimator.hpp>
 #include <error_correction/partial_rr.hpp>
+#include <error_correction/bulge_path_fixer.hpp>
 
 using namespace dbg;
 
@@ -102,7 +103,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         readStorage.trackSuffixes(logger, threads);
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
-        correctAT(logger, readStorage, k, threads);
+        correctAT(logger, threads, readStorage, StringContig::max_dimer_size);
         Precorrect(logger, threads, dbg, readStorage, 2);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
@@ -116,9 +117,10 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
             PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 5000));
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
-        correctAT(logger, readStorage, k, threads);
-        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null" , threshold, reliable_coverage, k, threads, false);
+        correctAT(logger, threads, readStorage, StringContig::max_dimer_size);
+//        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 3, threads);
+        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null" , threshold, reliable_coverage, k, threads, false);
         std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
         printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});

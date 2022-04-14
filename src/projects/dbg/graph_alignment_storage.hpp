@@ -72,7 +72,7 @@ public:
     std::vector<dbg::GraphAlignment> getBulgeAlternatives(const dbg::Vertex &end, double threshold) const;
     std::vector<dbg::GraphAlignment> getTipAlternatives(size_t len, double threshold) const;
     unsigned char getUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
-    dbg::CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
+    dbg::CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov, size_t max_size = size_t(-1)) const;
 };
 
 inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {return os << rec.str();}
