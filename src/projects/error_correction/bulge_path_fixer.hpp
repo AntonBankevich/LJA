@@ -20,7 +20,7 @@ private:
     bool checkBulgeIdeal(const BulgePath &bulgePath, size_t index) {
         if(!bulgePath.isBulge(index))
             return false;
-        return checkBulgeForward(bulgePath[i]) && checkBulgeForward({&bulgePath[i].first->rc(), &bulgePath[i].second->rc()});
+        return checkBulgeForward(bulgePath[index]) && checkBulgeForward({&bulgePath[index].first->rc(), &bulgePath[index].second->rc()});
     }
 public:
     BulgePathFixer(dbg::SparseDBG &dbg, RecordStorage &reads) : dbg(dbg), reads(reads) {

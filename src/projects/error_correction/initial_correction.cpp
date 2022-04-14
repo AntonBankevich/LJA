@@ -542,16 +542,16 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experim
                     RecordStorage &reads_storage, RecordStorage &ref_storage, double threshold, double bulge_threshold,
                     double reliable_coverage, size_t threads, bool dump) {
     size_t k = sdbg.hasher().getK();
-    correctAT(logger, reads_storage, k, threads);
+    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
     correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     sdbg.checkConsistency(threads, logger);
     logger.info() << "Running second round of error correction" << std::endl;
-    correctAT(logger, reads_storage, k, threads);
-    correctAT(logger, reads_storage, k, threads);
+    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
+    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
     correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
-    correctAT(logger, reads_storage, k, threads);
+    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
     TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
