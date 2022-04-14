@@ -585,8 +585,8 @@ size_t correctATinPath(logging::Logger &logger, const RecordStorage &reads_stora
         size_t at_cnt1 = 2;
         while (at_cnt1 < k && seq[k - at_cnt1 - 1] == seq[k - at_cnt1 + 1])
             at_cnt1 += 1;
-        VERIFY_OMP(at_cnt1 <= max_at,
-                   "at_cnt1 < max_at failed"); // ATAT should be compressed in reads to some length < k
+        VERIFY_MSG(at_cnt1 <= max_at,
+                   "at_cnt1 < max_at failed " + itos(at_cnt1) + " " + itos(max_at)); // ATAT should be compressed in reads to some length < k
         if (at_cnt1 < 4) //Tandem repeat should be at least 4 nucleotides long
             continue;
         Sequence unit = seq.Subseq(k - 2);
@@ -598,14 +598,14 @@ size_t correctATinPath(logging::Logger &logger, const RecordStorage &reads_stora
         size_t at_cnt2 = 0;
         while (at_cnt2 < extension.size() && extension[at_cnt2] == seq[seq.size() - 2 + at_cnt2 % 2])
             at_cnt2 += 1;
-        VERIFY_OMP(at_cnt2 >= max_at,
+        VERIFY_MSG(at_cnt2 <= max_at,
                    "at_cnt2 < max_at failed");// ATAT should be compressed in reads to some length max_at < k
         if (at_cnt2 % 2 != 0 || extension.size() < at_cnt2 + k - at_cnt1)
             continue;
         extension = extension.Subseq(0, at_cnt2 + k - at_cnt1);
         GraphAlignment bulgeSide(path.getVertex(path_pos));
         bulgeSide.extend(extension);
-        VERIFY_OMP(bulgeSide.valid(), "Extension along an existing path failed");
+        VERIFY_MSG(bulgeSide.valid(), "Extension along an existing path failed");
         if (!bulgeSide.endClosed())
             continue;
         Sequence end_seq = extension.Subseq(at_cnt2);
@@ -628,6 +628,8 @@ size_t correctATinPath(logging::Logger &logger, const RecordStorage &reads_stora
                     VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 2");
                     candidates.emplace_back(candidate);
                 }
+                atPrefix.extend(unit);
+                len += 2;
             }
         }
         if (candidates.size() == 1)
