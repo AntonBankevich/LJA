@@ -557,106 +557,117 @@ void initialCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experim
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
 }
 
-size_t correctAT(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads) {
+bool isATFork(Edge &edge, size_t min_len) {
+    size_t cnt = 2;
+    size_t k = edge.end()->seq.size();
+    while(cnt < min_len && cnt < k && edge.end()->seq[k - cnt - 1] == edge.end()->seq[k - cnt + 1])
+        cnt++;
+    if(cnt < min_len)
+        return false;
+    if(!edge.end()->hasOutgoing(edge.end()->seq[k - cnt - 2]))
+        return false;
+    Edge &next = edge.end()->getOutgoing(edge.end()->seq[k - cnt - 2]);
+    if(next.size() >= 2 && next.seq[1] == edge.end()->seq[k - cnt - 1])
+        return true;
+    if(next.size() == 1 && next.end()->hasOutgoing(edge.end()->seq[k - cnt - 1]))
+        return true;
+    return false;
+}
+
+size_t correctATinPath(logging::Logger &logger, const RecordStorage &reads_storage, GraphAlignment &path, size_t max_at) {
+    size_t corrected = 0;
+    size_t k = path.start().seq.size();
+    Sequence remaining_seq = path.truncSeq();
+    for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {
+        if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().size())
+            continue;
+        Sequence seq = path.getVertex(path_pos).seq;
+        size_t at_cnt1 = 2;
+        while (at_cnt1 < k && seq[k - at_cnt1 - 1] == seq[k - at_cnt1 + 1])
+            at_cnt1 += 1;
+        VERIFY_OMP(at_cnt1 <= max_at,
+                   "at_cnt1 < max_at failed"); // ATAT should be compressed in reads to some length < k
+        if (at_cnt1 < 4) //Tandem repeat should be at least 4 nucleotides long
+            continue;
+        Sequence unit = seq.Subseq(k - 2);
+        GraphAlignment atPrefix(path.getVertex(path_pos));
+        atPrefix.extend(unit);
+        if (!atPrefix.valid())
+            continue;
+        Sequence extension = path.truncSeq(path_pos, k + max_at);
+        size_t at_cnt2 = 0;
+        while (at_cnt2 < extension.size() && extension[at_cnt2] == seq[seq.size() - 2 + at_cnt2 % 2])
+            at_cnt2 += 1;
+        VERIFY_OMP(at_cnt2 >= max_at,
+                   "at_cnt2 < max_at failed");// ATAT should be compressed in reads to some length max_at < k
+        if (at_cnt2 % 2 != 0 || extension.size() < at_cnt2 + k - at_cnt1)
+            continue;
+        extension = extension.Subseq(0, at_cnt2 + k - at_cnt1);
+        GraphAlignment bulgeSide(path.getVertex(path_pos));
+        bulgeSide.extend(extension);
+        VERIFY_OMP(bulgeSide.valid(), "Extension along an existing path failed");
+        if (!bulgeSide.endClosed())
+            continue;
+        Sequence end_seq = extension.Subseq(at_cnt2);
+        std::vector<CompactPath> candidates = {CompactPath(bulgeSide)};
+        if (at_cnt2 > 0) {
+            GraphAlignment candidate(path.getVertex(path_pos));
+            candidate.extend(end_seq);
+            if (!candidate.valid())
+                continue;
+            VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 1");
+            candidates.emplace_back(candidate);
+        } else {
+            size_t max_variation = std::max<size_t>(3, (at_cnt1 + at_cnt2) / 6);
+            max_variation = std::min(max_variation, at_cnt1 / 2);
+            size_t len = 2;
+            while (len <= max_variation && atPrefix.valid()) {
+                GraphAlignment candidate = atPrefix;
+                candidate.extend(end_seq);
+                if (candidate.valid()) {
+                    VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 2");
+                    candidates.emplace_back(candidate);
+                }
+            }
+        }
+        if (candidates.size() == 1)
+            continue;
+        size_t best_val = 0;
+        size_t best = 0;
+        const VertexRecord &rec = reads_storage.getRecord(path.getVertex(path_pos));
+        for (size_t i = 0; i < candidates.size(); i++) {
+            size_t support = rec.countStartsWith(candidates[i].cpath());
+            if (support > best_val) {
+                best_val = support;
+                best = i;
+            }
+        }
+        if (best_val == 0) {
+#pragma omp critical
+            logger.trace() << "Unsupported path during dinucleotide correction" << std::endl;
+        }
+        if (best == 0)
+            continue;
+        path = path.reroute(path_pos, path_pos + candidates[0].size(), candidates[best].getPath());
+        corrected++;
+    }
+    return corrected;
+}
+
+size_t correctAT(logging::Logger &logger, size_t threads, RecordStorage &reads_storage, size_t max_at) {
     logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
     ParallelCounter cnt(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, k, logger, cnt, std::cout)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, max_at, logger, cnt, std::cout)
     for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
         AlignedRead &alignedRead = reads_storage[read_ind];
         if(!alignedRead.valid())
             continue;
         CompactPath &initial_cpath = alignedRead.path;
         GraphAlignment path = initial_cpath.getAlignment();
-        size_t corrected = 0;
-        for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-            if(path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().size())
-                continue;
-//            std::cout << alignedRead.id << " " << path_pos << " " << path.size() << std::endl;
-            Sequence seq = path.getVertex(path_pos).seq;
-            size_t at_cnt1 = 2;
-            while (at_cnt1 < seq.size() && seq[seq.size() - at_cnt1 - 1] == seq[seq.size() - at_cnt1 + 1])
-                at_cnt1 += 1;
-            if (at_cnt1 == seq.size())
-                continue;
-            if(at_cnt1 < 4)
-                continue;
-            Sequence extension = path.truncSeq(path_pos, k * 2);
-            size_t at_cnt2 = 0;
-            while (at_cnt2 < extension.size() && extension[at_cnt2] == seq[seq.size() - 2 + at_cnt2 % 2])
-                at_cnt2 += 1;
-            if(at_cnt2 >= k)
-                continue;
-            size_t max_variation = std::max<size_t>(3, (at_cnt1 + at_cnt2) / 6);
-            if (extension.size() < k + max_variation * 2 || at_cnt2 > max_variation * 2) {
-                continue;
-            }
-            max_variation = std::min(max_variation, at_cnt1 / 2);
-            extension = extension.Subseq(0, k + max_variation * 2);
-//            Sequence extension = seq.Subseq(seq.size() - 2 * max_variation, seq.size()) + path.truncSeq(path_pos, k + max_variation * 2);
-            SequenceBuilder sb;
-            for (size_t i = 0; i < max_variation; i++) {
-                sb.append(seq.Subseq(seq.size() - 2, seq.size()));
-            }
-            sb.append(extension);
-            Sequence longest_candidate = sb.BuildSequence();
-            Sequence best_seq;
-            size_t best_support = 0;
-            const VertexRecord &rec = reads_storage.getRecord(path.getVertex(path_pos));
-            size_t initial_support = 0;
-//            for (size_t i = 0; i <= std::min(2 * max_variation, max_variation + at_cnt2 / 2); i++) {
-            size_t step = 2;
-            if(seq[seq.size() - 2] == seq[seq.size() - 1])
-                step = 1;
-            for (size_t skip = 0; skip <= std::min(4 * max_variation, 2 * max_variation + at_cnt2); skip+=step) {
-//                size_t skip = i * 2;
-                Sequence candidate_seq = longest_candidate.Subseq(skip, skip + k);
-                GraphAlignment candidate(path.getVertex(path_pos));
-                candidate.extend(candidate_seq);
-                if (!candidate.valid())
-                    continue;
-                CompactPath ccandidate(candidate);
-                size_t support = rec.countStartsWith(ccandidate.cpath());
-                if(skip == 2 * max_variation) {
-                    initial_support = support;
-//                    VERIFY_OMP(support > 0, "support");
-                }
-                if (support > best_support) {
-                    best_seq = longest_candidate.Subseq(skip, longest_candidate.size());
-                    best_support = support;
-                }
-                if (candidate_seq[0] != seq[seq.size() - 2] || candidate_seq[step - 1] != seq[seq.size() - 3 + step])
-                    break;
-            }
-            if (extension.startsWith(best_seq))
-                continue;
-//            logger  << "Correcting ATAT " << best_support << " " << initial_support  << " "
-//                    << at_cnt1 << " " << at_cnt2 << " " << max_variation << " "
-//                    << "ACGT"[seq[seq.size() - 2]] << "ACGT"[seq[seq.size() - 1]] << " "
-//                    << extension.size() << " " << best_seq.size() << std::endl;
-            VERIFY_OMP(best_support > 0, "support2");
-            GraphAlignment rerouting(path.getVertex(path_pos));
-            rerouting.extend(best_seq);
-            GraphAlignment old_path(path.getVertex(path_pos));
-            old_path.extend(extension);
-            VERIFY_OMP(old_path.valid(), "oldpathvalid");
-            VERIFY_OMP(rerouting.valid(), "reroutingvalid");
-            VERIFY_OMP(rerouting.back() == old_path.back(), "backsame");
-            if (rerouting.back().right != rerouting.back().contig().size()) {
-                rerouting.pop_back();
-                old_path.pop_back();
-            }
-            GraphAlignment prev_path = path;
-            path = path.reroute(path_pos, path_pos + old_path.size(), rerouting.path());
-//            std::cout << "Rerouted " << alignedRead.id << " " << initial_support << " " << best_support << std::endl;
-            corrected += std::max(prev_path.len(), path.len()) - std::min(prev_path.len(), path.len());
-        }
+        size_t corrected = correctATinPath(logger, reads_storage, path, max_at);
         if(corrected > 0) {
             reads_storage.reroute(alignedRead, path, "AT corrected");
-//#pragma omp critical
-//            {
-//                logger << "ATAT " << alignedRead.id << " " << corrected << std::endl;
-//            }
             ++cnt;
         }
     }

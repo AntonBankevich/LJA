@@ -12,6 +12,7 @@ namespace dbg {
 
         Path(Vertex &_start, std::vector<Edge *> _path) : start_(&_start), path(std::move(_path)) {}
         explicit Path(Vertex &_start) : start_(&_start) {}
+        explicit Path(Edge &edge) : start_(edge.start()), path({&edge}) {}
         static Path WalkForward(Edge &start);
 
         Edge &operator[](size_t i) {return *path[i];}
@@ -124,6 +125,55 @@ namespace dbg {
 
         bool operator==(const GraphAlignment &other) const {return start_ == other.start_ && als == other.als;}
         bool operator!=(const GraphAlignment &other) const {return !operator==(other);}
+    };
+
+    class AlignmentPosition {
+    private:
+        GraphAlignment *alignment;
+        size_t ind;
+        size_t seg_pos;
+        size_t al_pos;
+    public:
+        AlignmentPosition(size_t _al_pos = 0) : ind(0), seg_pos(0), al_pos(0){
+            moveForward(_al_pos);
+        }
+
+        void moveForward(size_t len) {
+            while(len > 0) {
+                size_t move = std::min(len, alignment->operator[](ind).size() - seg_pos);
+                seg_pos += move;
+                al_pos += move;
+                len -= move;
+                if(seg_pos == alignment->operator[](ind).size() && ind < alignment->size()) {
+                    seg_pos = 0;
+                    ind++;
+                    VERIFY(len == 0);
+                }
+            }
+        }
+
+        EdgePosition getEdgePosition() const {
+            Segment<Edge> &segment = alignment->operator[](ind);
+            return {segment.contig(), segment.left + seg_pos};
+        }
+
+        bool isVertex() const {
+            Segment<Edge> &segment = alignment->operator[](ind);
+            return segment.left + seg_pos == 0 || segment.left + seg_pos == segment.contig().size();
+        }
+
+        dbg::Vertex &getVertex() const {
+            Segment<Edge> &segment = alignment->operator[](ind);
+            if(segment.left + seg_pos == 0)
+                return *segment.contig().start();
+            if(segment.left + seg_pos == segment.contig().size())
+                return *segment.contig().end();
+            VERIFY(false);
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
+            return *segment.contig().start();
+#pragma clang diagnostic pop
+        }
     };
 
     template<class U, class V>

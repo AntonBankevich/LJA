@@ -81,9 +81,13 @@ size_t Precorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, 
         dbg::GraphAlignment corrected_path;
         size_t ncor = 0;
         for(size_t i = 0; i < initial_path.size(); i++) {
+            if(alignedRead.id == "hg002_m64011_190728_111204/136055462/ccs")
+                std::cout << "oppa " << initial_path[i].contig().getId() << std::endl;
             if(initial_path[i].contig().getCoverage() != 1 ||
                (i > 0 && initial_path[i - 1].contig().getCoverage() < reliable_threshold) ||
                (i + 1 < initial_path.size() && initial_path[i + 1].contig().getCoverage() < reliable_threshold)) {
+                if(alignedRead.id == "hg002_m64011_190728_111204/136055462/ccs")
+                    std::cout << "gopa" << std::endl;
                 corrected_path += initial_path[i];
                 continue;
             }

@@ -261,3 +261,47 @@ std::vector<dbg::Component> dbg::ConditionSplitter::split(const dbg::Component &
     VERIFY(size == comp.size());
     return std::move(res);
 }
+
+std::vector<dbg::Vertex *> dbg::Component::topSort() const {
+//            Undefined behavior if component contains cycles.
+    std::vector<Vertex *> stack;
+    std::vector<Vertex *> res;
+    std::unordered_set<Vertex *> visited;
+    for(Vertex &v : vertices()) {
+        bool ok = true;
+        for(Edge &edge : v.rc()) {
+            if(contains(*edge.end())) {
+                ok = false;
+                break;
+            }
+        }
+        if(ok) {
+            stack.emplace_back(&v);
+        }
+    }
+    VERIFY(!stack.empty());
+    while(!stack.empty()) {
+        Vertex *cur = stack.back();
+        if(visited.find(cur) != visited.end()) {
+            stack.pop_back();
+            continue;
+        }
+        bool ok = true;
+        for(Edge &e : *cur) {
+            if(contains(*e.end()) && visited.find(e.end()) == visited.end())
+                ok = false;
+        }
+        if(ok) {
+            visited.emplace(cur);
+            stack.pop_back();
+            res.emplace_back(&cur->rc());
+        } else {
+            for(Edge &e : *cur) {
+                VERIFY(contains(*e.end()));
+                if(visited.find(e.end()) == visited.end())
+                    stack.emplace_back(e.end());
+            }
+        }
+    }
+    return std::move(res);
+}
