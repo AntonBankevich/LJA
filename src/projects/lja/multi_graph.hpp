@@ -164,6 +164,44 @@ namespace multigraph {
             return std::move(dbg);
         }
 
+        bool isBulgeStart(Vertex *vertex) const {
+            return vertex->outDeg() == 2 && vertex->outgoing[0]->end->inDeg() == 2 &&
+                   vertex->outgoing[0]->end == vertex->outgoing[1]->end;
+        }
+        bool isExtendedBulgeStart(Vertex *vertex) const {
+            if(isBulgeStart(vertex))
+                return true;
+            if(vertex->outDeg() != 1)
+                return false;
+            vertex = vertex->outgoing[0]->end;
+            if(vertex->inDeg() != 1)
+                return false;
+            return isBulgeStart(vertex);
+        }
+
+        MultiGraph ConsensusGraph() {
+            MultiGraph consensus;
+            std::unordered_map<Vertex *, Vertex *> vmap;
+            for(Vertex *v : vertices) {
+                if(v->isCanonical()) {
+                    vmap[v] = &consensus.addVertex(v->seq);
+                    vmap[v->rc] = vmap[v]->rc;
+                }
+            }
+            for(Edge * edge : edges) {
+                if(!edge->isCanonical())
+                    continue;
+                if(isBulgeStart(edge->start) && isExtendedBulgeStart(edge->end) && isExtendedBulgeStart(edge->start->rc)) {
+                    if(vmap[edge->start]->outDeg() == 0)
+                        consensus.addEdge(*vmap[edge->start], *vmap[edge->end], edge->getSeq());
+
+                } else {
+                    consensus.addEdge(*vmap[edge->start], *vmap[edge->end], edge->getSeq());
+                }
+            }
+            return consensus.Merge();
+        }
+
         ~MultiGraph() {
             for(Vertex * &v : vertices) {
                 delete v;
