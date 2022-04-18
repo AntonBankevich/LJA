@@ -292,6 +292,8 @@ std::vector<std::experimental::filesystem::path> PolishingPhase(
         multigraph::MultiGraph vertex_graph;
         vertex_graph.LoadGFA(gfa_file, true);
         multigraph::MultiGraph edge_graph = vertex_graph.DBG();
+        multigraph::MultiGraph consensus_graph = edge_graph.ConsensusGraph();
+        consensus_graph.printEdgeGFA(dir/"consensus.gfa");
         logger.info() << "Multigraph statistics:" << std::endl;
         edge_graph.printStats(logger);
         std::vector<Contig> contigs = edge_graph.getEdges(false);
