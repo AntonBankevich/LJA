@@ -175,9 +175,11 @@ namespace multigraph {
             }
             for(Edge * edge : edges) {
                 if(edge->start->outDeg() == 2 && edge->start->inDeg() == 2 && edge->end->outDeg() == 2 && edge->end->inDeg() == 2 &&
-                            edge->start->outgoing[0]->end == edge->end && edge->start->outgoing[1]->end == edge->end && vmap[edge->start]->outDeg() == 0) {
+                            edge->start->outgoing[0]->end == edge->end && edge->start->outgoing[1]->end == edge->end ) {
+                    if(vmap[edge->start]->outDeg() == 0)
+                        consensus.addEdge(*vmap[edge->start], *vmap[edge->end], edge->getSeq());
+                }  else
                     consensus.addEdge(*vmap[edge->start], *vmap[edge->end], edge->getSeq());
-                }
             }
             return consensus.Merge();
         }
