@@ -54,6 +54,7 @@ public:
         if(component.countBorderEdges() != 4 || component.realCC() != 2 || !component.isAcyclic())
             return;
         std::unordered_set<dbg::Edge *> used;
+        size_t found = 0;
         for(size_t cnt = 0; cnt < 2; cnt++) {
             for(dbg::Edge &edge : component.edges()) {
                 if(component.contains(*edge.start()) || used.find(&edge) != used.end())
@@ -67,6 +68,7 @@ public:
                         size_t score = 0;
                         if(!component.contains(*edge.end())) {
                             VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
+                            score = 1000000;
                         } else {
                             if(used.find(&edge) == used.end())
                                 score = edge.intCov() - std::min(edge.intCov(), edge.size());
@@ -77,13 +79,17 @@ public:
                             }
                         }
                         score += prev[&edge.end()->rc()].first;
-                        if(score >= best_score) {
+                        if(score > best_score) {
                             best_score = score;
                             p = &edge.rc();
                         }
                     }
-                    VERIFY(p != nullptr);
-                    prev.emplace(vit, std::make_pair(best_score, p));
+                    if(best_score == 0) {
+                        prev.emplace(vit, std::make_pair(best_score, p));
+                    } else {
+                        VERIFY(p != nullptr);
+                        prev.emplace(vit, std::make_pair(best_score, p));
+                    }
                 }
                 dbg::Edge *best = nullptr;
                 for(dbg::Edge &edge : component.edges()) {
@@ -93,6 +99,9 @@ public:
                         }
                     }
                 }
+                if(best == nullptr)
+                    break;
+                found++;
                 dbg::Path res(best->rc());
                 while(component.contains(res.finish())) {
                     res += prev[&res.finish().rc()].second->rc();
@@ -105,6 +114,8 @@ public:
                 }
             }
         }
+        if(found != 2)
+            return;
         for(dbg::Edge &edge : component.edgesInner()) {
             if(edge.getMarker() == dbg::EdgeMarker::common)
                 if(used.find(&edge) == used.end())
