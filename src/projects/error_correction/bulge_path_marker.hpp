@@ -68,7 +68,10 @@ public:
                         size_t score = 0;
                         if(!component.contains(*edge.end())) {
                             VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
-                            score = 1000000;
+                            if(used.find(&edge) == used.end())
+                                score = 1000000;
+                            else
+                                score = 0;
                         } else {
                             if(used.find(&edge) == used.end())
                                 score = edge.intCov() - std::min(edge.intCov(), edge.size());
