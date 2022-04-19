@@ -4,7 +4,7 @@
 using namespace trio;
 
 int main(int argc, char **argv) {
-    CLParser parser({"diplo_graph=", "haployak=", "output=", "debug=none", "threads=8", "corrected_reads="}, {"reads"},
+    CLParser parser({"diplo_graph=", "haployak=", "output=", "debug=none", "threads=8", "corrected_reads=", "bridge_cutoff=1000000"}, {"reads"},
                     {});
 
     parser.parseCL(argc, argv);
@@ -28,11 +28,13 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path haplo(parser.getValue("haployak"));
     std::experimental::filesystem::path corrected_reads(parser.getValue("corrected_reads"));
 
+    size_t saved_bridge_cutoff = std::stoull(parser.getValue("bridge_cutoff"));
+
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     std::experimental::filesystem::path res_m(dir / "graph_p.gfa");
-    simplifyHaplo(logger, threads, res_m, graph, haplo, 'm', corrected_reads, reads_lib, dir);
+    simplifyHaplo(logger, threads, res_m, graph, haplo, 'm', corrected_reads, reads_lib, dir, saved_bridge_cutoff);
     std::experimental::filesystem::path res_p(dir / "graph_m.gfa");
-    simplifyHaplo(logger, threads, res_p, graph, haplo, 'p', corrected_reads, reads_lib, dir);
+    simplifyHaplo(logger, threads, res_p, graph, haplo, 'p', corrected_reads, reads_lib, dir, saved_bridge_cutoff);
 
 
 }

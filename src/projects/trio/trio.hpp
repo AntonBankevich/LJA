@@ -21,13 +21,13 @@ struct HaplotypeRemover {
     static const size_t MAX_TIP_LENGTH = 1000000;
     static constexpr double BULGE_MULTIPLICATIVE_CUTOFF = 1.2;
 //Bridges of wrong haplotype longer that this cutoff are deleted, shorter are saved;
-    static const size_t SAVED_BRIDGE_CUTOFF = 1;
+    const size_t saved_bridge_cutoff;
     std::experimental::filesystem::path out_dir;
     std::unordered_map<std::string, std::string> bulges;
 
     HaplotypeRemover(logging::Logger &logger, multigraph::MultiGraph &mg,
                      const std::experimental::filesystem::path &haployak, const Haplotype haplotype,
-                     const std::experimental::filesystem::path &out_dir);
+                     const std::experimental::filesystem::path &out_dir, const size_t saved_bridge_cutoff);
 
     void process();
 
@@ -53,6 +53,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   const char haplotype,
                                                   const std::experimental::filesystem::path &corrected_reads,
                                                   io::Library &reads,
-                                                  const std::experimental::filesystem::path &dir);
+                                                  const std::experimental::filesystem::path &dir,
+                                                  const size_t saved_bridge_cutoff);
 
 }

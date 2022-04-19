@@ -31,8 +31,9 @@ using std::cerr;
 
 HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, multigraph::MultiGraph &mg,
                                             const std::experimental::filesystem::path &haployak, const Haplotype haplotype,
-                                            const std::experimental::filesystem::path &out_dir) : logger_(logger), mg(mg),
-                                                                                                  haplotype_(haplotype), out_dir(out_dir) {
+                                            const std::experimental::filesystem::path &out_dir, const size_t saved_bridge_cutoff)
+                                            : logger_(logger), mg(mg), haplotype_(haplotype), out_dir(out_dir),
+                                            saved_bridge_cutoff(saved_bridge_cutoff) {
 
     bulges = getBulgeLabels();
     logger_.info() << "got " << bulges.size() << " bulges\n";
@@ -213,7 +214,7 @@ void HaplotypeRemover::removeHaplotype() {
             auto label = mg.edges[eid].getLabel();
             if (haplotypes.find(label) != haplotypes.end()) {
                 if (haplotypes[label].haplotype == haplotype_) {
-                    if (mg.edges[eid].isSimpleBridge() && mg.edges[eid].size() < SAVED_BRIDGE_CUTOFF) {
+                    if (mg.edges[eid].isSimpleBridge() && mg.edges[eid].size() < saved_bridge_cutoff) {
                         bridges ++;
                         logger_.info() << "Skipping edge " << eid << " as bridge\n";
                         continue;
@@ -255,7 +256,7 @@ std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger,
                                                   const std::experimental::filesystem::path &diplo_graph,
                                                   const std::experimental::filesystem::path &haployak,
                                                   const char haplotype,  const std::experimental::filesystem::path &corrected_reads,
-                                                  io::Library & reads,   const std::experimental::filesystem::path &dir) {
+                                                  io::Library & reads,   const std::experimental::filesystem::path &dir, const size_t saved_bridge_cutoff) {
     multigraph::MultiGraph mmg;
     mmg.LoadGFA(diplo_graph, true);
 //TODO:: it would be cool not to create twice
@@ -263,7 +264,7 @@ std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger,
     std::string out_name = "haplotype_";
     out_name += other_haplo(Haplotype(haplotype));
     std::experimental::filesystem::path out_dir = dir / out_name;
-    HaplotypeRemover hr(logger, mg, haployak, Haplotype(haplotype), out_dir);
+    HaplotypeRemover hr(logger, mg, haployak, Haplotype(haplotype), out_dir, saved_bridge_cutoff);
     hr.process();
     mg.printEdgeGFA(output_file, true);
 
