@@ -18,6 +18,7 @@
 #include <iostream>
 #include <ostream>
 #include <fstream>
+#include <atomic>
 
 namespace logging {
 
@@ -190,12 +191,12 @@ namespace logging {
     class ProgressBar {
     private:
         Logger &logger;
-        size_t cur;
+        std::atomic<size_t> cur;
         size_t size;
         size_t bar_num;
         size_t mod;
         std::vector<size_t> progress;
-        size_t cnt;
+        std::atomic<size_t> cnt;
     public:
         ProgressBar(Logger &logger, size_t size, size_t threads, size_t bar_num = 20) : logger(logger), cur(1),
                             size(size), bar_num(std::min(bar_num, size)),
@@ -206,20 +207,22 @@ namespace logging {
         void tick() {
             size_t thread = omp_get_thread_num();
             progress[thread]++;
-#pragma omp atomic
             cnt++;
             if(progress[thread] % mod == 0) {
 #pragma omp critical
                 {
                     size_t tmp = cnt;
                     if(cnt * bar_num >= size * cur) {
-                        logger << "|";
+                        logger << "#";
+                        cur += 1;
                     }
                 }
             }
         }
 
         void finish() {
+            for(size_t i = cur; i < bar_num; i++)
+                logger << "#";
             logger << std::endl;
         }
     };

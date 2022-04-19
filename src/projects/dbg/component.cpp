@@ -297,8 +297,7 @@ std::vector<dbg::Vertex *> dbg::Component::topSort() const {
             res.emplace_back(&cur->rc());
         } else {
             for(Edge &e : *cur) {
-                VERIFY(contains(*e.end()));
-                if(visited.find(e.end()) == visited.end())
+                if(contains(*e.end()) && visited.find(e.end()) == visited.end())
                     stack.emplace_back(e.end());
             }
         }

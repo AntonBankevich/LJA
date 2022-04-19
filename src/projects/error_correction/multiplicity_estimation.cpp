@@ -99,7 +99,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         edge.is_reliable = true;
     }
     if(diploid) {
-        SetUniquenessStorage duninque = BulgePathAnalyser(dbg).uniqueEdges(unique_len);
+        SetUniquenessStorage duninque = BulgePathFinder(dbg).uniqueEdges(unique_len);
         for (Edge &edge : dbg.edges()) {
             if (duninque.isUnique(edge)) {
                 updateBounds(edge, 1, 1);
@@ -198,6 +198,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
 
 bool UniqueClassificator::processSimpleRepeat(const Component &component) {
     std::vector<Vertex *> border = component.borderVertices();
+    VERIFY(border.size() == 2);
     Vertex &start = border[0]->rc();
     Vertex &end = *border[1];
     if(start.outDeg() !=2 || end.inDeg() != 2)
@@ -225,11 +226,11 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
         size_t ind1 = start[0].size() > start[1].size() ? 0 : 1;
         Edge &e11 = start[ind1];
         Edge &e12 = start[1 - ind1];
-        if(end.inDeg() != 2)
-            return false;
+        VERIFY(e11.size() >= e12.size());
         size_t ind2 = end.rc()[0].size() > end.rc()[1].size() ? 1 : 0;
-        Edge &e31 = end.rc().operator[](ind1).rc();
-        Edge &e32 = end.rc().operator[](1 - ind1).rc();
+        Edge &e31 = end.rc()[ind2].rc();
+        Edge &e32 = end.rc()[1 - ind2].rc();
+        VERIFY(e31.size() <= e32.size());
         if(e12.end()->outDeg() != 2 || e31.start()->inDeg() != 2 || e11.end() != e31.start() || e12.end() != e32.start())
             return false;
         Edge &e2 = e12.end()->operator[](0).end() == e31.start() ? e12.end()->operator[](0) : e12.end()->operator[](1);
