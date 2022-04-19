@@ -37,7 +37,7 @@ public:
                     bulgePath[i].first->mark(dbg::EdgeMarker::unique);
                     bulgePath[i].second->mark(dbg::EdgeMarker::unique);
                     bulgePath[i].first->rc().mark(dbg::EdgeMarker::unique);
-                    bulgePath[i].first->rc().mark(dbg::EdgeMarker::unique);
+                    bulgePath[i].second->rc().mark(dbg::EdgeMarker::unique);
                 }
             }
         }
