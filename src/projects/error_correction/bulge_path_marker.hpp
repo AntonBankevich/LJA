@@ -3,7 +3,7 @@
 #include "dbg/graph_alignment_storage.hpp"
 #include "diploidy_analysis.hpp"
 
-class BulgePathFixer {
+class BulgePathMarker {
 private:
     dbg::SparseDBG &dbg;
     RecordStorage &reads;
@@ -23,7 +23,7 @@ private:
         return checkBulgeForward(bulgePath[index]) && checkBulgeForward({&bulgePath[index].first->rc(), &bulgePath[index].second->rc()});
     }
 public:
-    BulgePathFixer(dbg::SparseDBG &dbg, RecordStorage &reads) : dbg(dbg), reads(reads) {
+    BulgePathMarker(dbg::SparseDBG &dbg, RecordStorage &reads) : dbg(dbg), reads(reads) {
         dbg.resetMarkers();
     }
 
@@ -68,10 +68,17 @@ public:
                         if(!component.contains(*edge.end())) {
                             VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
                         } else {
-                            score = prev[&edge.end()->rc()].first + edge.intCov();
+                            if(used.find(&edge) == used.end())
+                                score = edge.intCov() - std::min(edge.intCov(), edge.size());
+                            else if(edge.getCoverage() < 8) {
+                                score = 0;
+                            } else {
+                                score = edge.size() * 2;
+                            }
                         }
+                        score += prev[&edge.end()->rc()].first;
                         if(score >= best_score) {
-                            score = best_score;
+                            best_score = score;
                             p = &edge.rc();
                         }
                     }
@@ -102,8 +109,10 @@ public:
             if(edge.getMarker() == dbg::EdgeMarker::common)
                 if(used.find(&edge) == used.end())
                     edge.mark(dbg::EdgeMarker::incorrect);
-                else
+                else {
+                    edge.is_reliable = true;
                     edge.mark(dbg::EdgeMarker::correct);
+                }
         }
     }
 

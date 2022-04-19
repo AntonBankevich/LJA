@@ -1,4 +1,6 @@
 #include "initial_correction.hpp"
+#include "bulge_path_marker.hpp"
+
 using namespace dbg;
 size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump) {
     size_t winner = 0;
@@ -263,10 +265,13 @@ GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const Grap
 
 size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
                                 RecordStorage &ref_storage, const std::experimental::filesystem::path &out_file,
-                                double threshold, double reliable_threshold, size_t k, size_t threads, bool dump) {
+                                double threshold, double reliable_threshold, bool diploid, size_t threads, bool dump) {
     if(dump)
         threads = 1;
+    size_t k = sdbg.hasher().getK();
     FillReliableWithConnections(logger, sdbg, reliable_threshold);
+    if(diploid)
+        BulgePathMarker(sdbg, reads_storage).markAllAcyclicComponents(logger, 60000);
     ParallelRecordCollector<std::string> results(threads);
     ParallelCounter simple_bulge_cnt(threads);
     ParallelCounter bulge_cnt(threads);
@@ -540,17 +545,17 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
 
 void initialCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experimental::filesystem::path &out_file,
                     RecordStorage &reads_storage, RecordStorage &ref_storage, double threshold, double bulge_threshold,
-                    double reliable_coverage, size_t threads, bool dump) {
+                    double reliable_coverage, bool diploid, size_t threads, bool dump) {
     size_t k = sdbg.hasher().getK();
     correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
-    correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
+    correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, diploid, threads, dump);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     sdbg.checkConsistency(threads, logger);
     logger.info() << "Running second round of error correction" << std::endl;
     correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
     correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
-    correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, k, threads, dump);
+    correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, diploid, threads, dump);
     correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
     TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);

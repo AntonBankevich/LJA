@@ -21,7 +21,7 @@ dbg::GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const
 size_t correctLowCoveredRegions(logging::Logger &logger, dbg::SparseDBG &sdbg,RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,
-                                double threshold, double reliable_threshold, size_t k, size_t threads, bool dump);
+                                double threshold, double reliable_threshold, bool diploid, size_t threads, bool dump);
 dbg::GraphAlignment findAlternative(logging::Logger &logger, std::ostream &out, const dbg::GraphAlignment &bulge,
                                    const RecordStorage &reads_storage);
 size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
@@ -33,4 +33,4 @@ void initialCorrect(dbg::SparseDBG &sdbg, logging::Logger &logger,
                     const std::experimental::filesystem::path &out_file,
                     RecordStorage &reads_storage,
                     RecordStorage &ref_storage,
-                    double threshold, double bulge_threshold, double reliable_coverage, size_t threads, bool dump);
+                    double threshold, double bulge_threshold, double reliable_coverage, bool diploid, size_t threads, bool dump);
