@@ -4,4 +4,4 @@ add_subdirectory(ssw)
 #endif ()
 add_subdirectory(spoa)
 add_subdirectory(ksw2)
-
+add_subdirectory(yak)
