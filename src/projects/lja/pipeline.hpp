@@ -47,6 +47,7 @@ AlternativeCorrection(logging::Logger &logger, const std::experimental::filesyst
                       const io::Library &paths_lib,
                       size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
                       bool close_gaps, bool remove_bad, bool skip, bool debug, bool load);
+
 std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                                                                                            const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
                                                                                            size_t threads, size_t k, size_t w, bool skip, bool debug, bool load);
@@ -68,5 +69,11 @@ std::vector<std::experimental::filesystem::path> MDBGPhase(
         const std::experimental::filesystem::path &dir,
         const std::experimental::filesystem::path &graph_fasta,
         const std::experimental::filesystem::path &read_paths, bool skip, bool debug);
+
+std::vector<std::experimental::filesystem::path> TrioPreprocessingPhase(
+            logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+            const io::Library &p_lib, const io::Library &m_lib,
+            bool skip, bool debug);
 };
+
 }

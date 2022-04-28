@@ -1,5 +1,6 @@
 #include "pipeline.hpp"
 #include "repeat_resolution/repeat_resolution.hpp"
+#include "yak/yak_lib.h"
 
 using namespace dbg;
 void pipeline::LJAPipeline::PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
@@ -274,3 +275,30 @@ std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::Polishin
     return {output_dir / "assembly.fasta", output_dir / "mdbg.gfa"};
 }
 
+
+
+void CompressIlluminaLib(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+        std::string name, const io::Library &lib) {
+    io::SeqReader reader(lib);
+    StringContig cur;
+    std::ofstream out_stream;
+    auto out_fasta = (dir / (name + "_compressed.fasta"));
+    auto out_yak = (dir / (name + "_compressed.yak"));
+    out_stream.open(out_fasta);
+    while (!reader.eof()) {
+        cur = reader.read();
+        cur.compress();
+        out_stream << ">" << cur.id << endl << cur.seq << endl;
+    }
+    out_stream.close();
+    int res = lib_count(37, threads, out_fasta.string().c_str(), out_yak.string().c_str());
+}
+std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::TrioPreprocessingPhase(
+        logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+        const io::Library &p_lib, const io::Library &m_lib,
+        bool skip, bool debug) {
+    CompressIlluminaLib(logger, threads, dir, "paternal", p_lib);
+    CompressIlluminaLib(logger, threads, dir, "maternal", m_lib);
+
+
+}

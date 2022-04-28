@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
                      "diploid",
                      "debug",
                      "help"},
-                    {"reads", "paths", "ref"},
+                    {"reads", "paths", "ref", "paternal", "maternal"},
                     {"o=output-dir", "t=threads", "k=k-mer-size","w=window", "K=K-mer-size","W=Window", "h=help"},
                     constructMessage());
     parser.parseCL(argc, argv);
@@ -75,6 +75,8 @@ int main(int argc, char **argv) {
     logger.info() << "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads\n";
     logging::logGit(logger, dir / "version.txt");
     bool diploid = parser.getCheck("diploid");
+    bool trio = (parser.getListValue("maternal").size() != 0 && parser.getListValue("paternal").size() != 0);
+
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";
     bool load = parser.getCheck("load");
@@ -98,6 +100,12 @@ int main(int argc, char **argv) {
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
 
     std::vector<std::experimental::filesystem::path> corrected_final;
+    if (trio) {
+        io::Library paternal = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paternal"));
+        io::Library maternal = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("maternal"));
+        pipeline.TrioPreprocessingPhase(logger, threads, dir, paternal, maternal, skip, debug);
+    }
+
     if(noec) {
         corrected_final = pipeline.NoCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
                                        skip, debug, load);
