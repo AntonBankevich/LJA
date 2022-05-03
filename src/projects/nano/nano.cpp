@@ -15,7 +15,8 @@
 #include <unordered_set>
 #include <vector>
 #include <dbg/graph_stats.hpp>
-//#include <nano/ReadsAligner.h>
+#include <nano/ReadsAligner.h>
+#include <nano/SGraphBuilder.h>
 #include <lja/multi_graph.hpp>
 
 using namespace dbg;
@@ -25,7 +26,7 @@ int runNano(const std::experimental::filesystem::path &graph,
             const  std::experimental::filesystem::path &unique_edges,
             const size_t &threads,
             const std::experimental::filesystem::path &dir){
-    const unsigned int BATCH_SIZE = 100000;
+    const unsigned int BATCH_SIZE = 5;
     io::SeqReader reader(ont_reads);
     std::cerr << "Seq reader loaded" << std::endl;
     multigraph::MultiGraph mmg;
@@ -33,21 +34,34 @@ int runNano(const std::experimental::filesystem::path &graph,
     std::cerr << "GFA loaded" << std::endl;
     multigraph::MultiGraph mg = mmg.DBG();
     std::cerr << "Graph loaded" << std::endl;
-    std::vector<StringContig> batch;
-//    ReadsAlignerGA reads_aligner(mg);
-//    //SGraphBuilder sgraph_builder(mg, unique_edges);
-//    for(StringContig scontig : reader) {
-//        //Contig contig = scontig.makeContig();
-//        batch.push_back(scontig);
-//        if (batch.size() > BATCH_SIZE) {
-//            std::vector<GraphContigs> alignments = reads_aligner.Align(batch);
-//            //sgraph_builder.add_alignments(alignments);
-//            batch.clear();
-//        }
-//    }
-//    std::vector<GraphContigs> alignments = reads_aligner.Align(batch);
-//    //sgraph_builder.add_alignments(alignments);
-//    batch.clear();
+    std::unordered_map<std::string, Contig> batch;
+    nano::ReadsAlignerGA reads_aligner(mg);
+    nano::SGraphBuilder sgraph_builder(mg, unique_edges, true);
+    int cnt = 0;
+    for(StringContig scontig : reader) {
+        Contig contig = scontig.makeContig();
+        batch[contig.id] = contig;
+        if (batch.size() > BATCH_SIZE) {
+            std::unordered_map<std::string, nano::GraphContig> alignments = reads_aligner.Align(batch, graph, dir, ++cnt);
+            for (auto const &[key, val]: alignments) {
+                val.PrintContig();
+                for (auto const edge: val.path) {
+                    cout << edge << " " << edge.substr(0, edge.size() - 1) << " "
+                        << mg.edges.count(atoi(edge.substr(0, edge.size() - 1).c_str())) << std::endl;
+                }
+            }
+            sgraph_builder.LoadAlignments(alignments);
+            batch.clear();
+        }
+    }
+    std::unordered_map<std::string, nano::GraphContig> alignments = reads_aligner.Align(batch, graph, dir, ++cnt);
+    for (auto const &[key, val]: alignments) {
+        val.PrintContig();
+    }
+    sgraph_builder.LoadAlignments(alignments);
+    batch.clear();
+
+    sgraph_builder.PrintSgraph();
 //    GraphSimplificator graph_simplificator(sgraph_builder.GetSGraph());
 //    multigraph::MultiGraph smg = graph_simplificator.Simplify(mg);
     return 0;
