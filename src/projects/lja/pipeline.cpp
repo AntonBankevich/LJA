@@ -275,8 +275,6 @@ std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::Polishin
     return {output_dir / "assembly.fasta", output_dir / "mdbg.gfa"};
 }
 
-
-
 void CompressIlluminaLib(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
         std::string name, const io::Library &lib) {
     io::SeqReader reader(lib);
@@ -291,14 +289,17 @@ void CompressIlluminaLib(logging::Logger &logger, size_t threads, const std::exp
         out_stream << ">" << cur.id << endl << cur.seq << endl;
     }
     out_stream.close();
-    int res = lib_count(37, threads, out_fasta.string().c_str(), out_yak.string().c_str());
+    logger.info() << name << " compressed" << endl;
+    int res = lib_count(37, threads, out_yak.string().c_str(), out_fasta.string().c_str());
+    logger.info() << name << " yak count finished " << endl;
 }
-std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::TrioPreprocessingPhase(
+
+//std::vector<std::experimental::filesystem::path> 
+void pipeline::LJAPipeline::TrioPreprocessingPhase(
         logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
         const io::Library &p_lib, const io::Library &m_lib,
         bool skip, bool debug) {
     CompressIlluminaLib(logger, threads, dir, "paternal", p_lib);
     CompressIlluminaLib(logger, threads, dir, "maternal", m_lib);
-
-
+    std::cerr <<"exiting pipeline\n";
 }

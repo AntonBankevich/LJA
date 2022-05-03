@@ -70,7 +70,8 @@ std::vector<std::experimental::filesystem::path> MDBGPhase(
         const std::experimental::filesystem::path &graph_fasta,
         const std::experimental::filesystem::path &read_paths, bool skip, bool debug);
 
-std::vector<std::experimental::filesystem::path> TrioPreprocessingPhase(
+//std::vector<std::experimental::filesystem::path> 
+void TrioPreprocessingPhase(
             logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
             const io::Library &p_lib, const io::Library &m_lib,
             bool skip, bool debug);

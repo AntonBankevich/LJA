@@ -202,17 +202,16 @@ int lib_triobin(int argc, char *argv[])
     return 0;
 }
 
-int lib_count(int32_t bf_shift, int32_t n_thread, const char* out_string, const char* in_string )
-{
+int lib_count(int32_t bf_shift, int32_t n_thread, const char* out_string, const char* in_string ) {
     yak_ch_t *h;
     int c;
-    char *fn_out = 0;
+//    char *fn_out = 0;
     yak_copt_t opt;
     ketopt_t o = KETOPT_INIT;
     yak_copt_init(&opt);
     opt.bf_shift = bf_shift;
     opt.n_thread = n_thread;
-    fn_out = out_string;
+    const char* fn_out = out_string;
 
     h = yak_count(in_string, &opt, 0);
     if (opt.bf_shift > 0) {

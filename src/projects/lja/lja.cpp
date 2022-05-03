@@ -104,8 +104,9 @@ int main(int argc, char **argv) {
         io::Library paternal = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paternal"));
         io::Library maternal = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("maternal"));
         pipeline.TrioPreprocessingPhase(logger, threads, dir, paternal, maternal, skip, debug);
+        logger.info() << "Trio preprocessing finished" <<endl;
     }
-
+    
     if(noec) {
         corrected_final = pipeline.NoCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
                                        skip, debug, load);
