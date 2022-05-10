@@ -269,6 +269,10 @@ size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg, Record
     if(dump)
         threads = 1;
     size_t k = sdbg.hasher().getK();
+    for(dbg::Edge &edge : sdbg.edges()) {
+        edge.mark(EdgeMarker::common);
+    }
+
     FillReliableWithConnections(logger, sdbg, reliable_threshold);
     if(diploid)
         BulgePathMarker(sdbg, reads_storage).markAllAcyclicComponents(logger, 60000);

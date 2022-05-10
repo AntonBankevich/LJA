@@ -96,7 +96,7 @@ public:
                 }
                 dbg::Edge *best = nullptr;
                 for(dbg::Edge &edge : component.edges()) {
-                    if(!component.contains(*edge.end())) {
+                    if(!component.contains(*edge.end()) && used.find(&edge) == used.end()) {
                         if(best == nullptr || prev[edge.start()].first > prev[best->start()].first) {
                             best = &edge;
                         }
@@ -134,6 +134,11 @@ public:
         logger.info() << "Marking edges in acyclic components" << std::endl;
         setUniqueMarkers(unique_threshold);
         for(dbg::Component &component : split()) {
+            for(dbg::Edge &edge : component.edges()) {
+                if(!component.contains(*edge.end())) {
+                    VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
+                }
+            }
             logger.trace() << "Component parameters: " << component.size() << " " << component.isAcyclic() << component.countBorderEdges() << std::endl;
             markAcyclicComponent(component);
         }
