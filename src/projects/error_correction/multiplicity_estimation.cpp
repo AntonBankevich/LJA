@@ -99,7 +99,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         edge.is_reliable = true;
     }
     if(diploid) {
-        SetUniquenessStorage duninque = BulgePathAnalyser(dbg).uniqueEdges(unique_len);
+        SetUniquenessStorage duninque = BulgePathFinder(dbg).uniqueEdges(unique_len);
         for (Edge &edge : dbg.edges()) {
             if (duninque.isUnique(edge)) {
                 updateBounds(edge, 1, 1);

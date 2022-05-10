@@ -28,7 +28,7 @@ public:
     }
 
     void setUniqueMarkers(size_t unique_threshold) {
-        for(const BulgePath &bulgePath : BulgePathAnalyser(dbg).paths) {
+        for(const BulgePath &bulgePath : BulgePathFinder(dbg).paths) {
             if(bulgePath.length() < unique_threshold || bulgePath.start().hash() < bulgePath.finish().hash()) {
                 continue;
             }

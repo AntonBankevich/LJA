@@ -3,6 +3,7 @@
 #include "uncompressed_output.hpp"
 #include "gap_closing.hpp"
 #include "polishing/perfect_alignment.hpp"
+#include "error_correction/error_correction.hpp"
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/mitochondria_rescue.hpp"
 #include "error_correction/initial_correction.hpp"
@@ -74,7 +75,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
 AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
             const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
         size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
+bool diploid, bool skip, bool debug, bool load) {
     logger.info() << "Performing initial correction with k = " << k << std::endl;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -82,7 +83,7 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k, 239);
-    std::function<void()> ic_task = [&dir, &logger, &hasher, close_gaps, load, remove_bad, k, w, &reads_lib,
+    std::function<void()> ic_task = [&dir, &logger, &hasher, load, diploid, k, w, &reads_lib,
             &pseudo_reads_lib, &paths_lib, threads, threshold, reliable_coverage, debug] {
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
@@ -120,7 +121,9 @@ bool close_gaps, bool remove_bad, bool skip, bool debug, bool load) {
         correctAT(logger, threads, readStorage, StringContig::max_dimer_size);
 //        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 3, threads);
-        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null" , threshold, reliable_coverage, false, threads, false);
+        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null" , threshold, reliable_coverage, diploid, threads, false);
+        BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
+        AbstractErrorCorrector(bpCorrector).correct(logger, threads, dbg, readStorage);
         std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
         printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
@@ -220,7 +223,7 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
                        threshold, 2 * threshold, reliable_coverage, diploid, threads, false);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "low", dbg, readStorage, paths_lib, false);
-        GapColserPipeline(logger, threads, dbg, {&readStorage, &refStorage});
+                                         GapCloserPipeline(logger, threads, dbg, {&readStorage, &refStorage});
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "gap1", dbg, readStorage, paths_lib, false);
         readStorage.invalidateBad(logger, threads, threshold, "after_gap1");
@@ -236,7 +239,8 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         RemoveUncovered(logger, threads, dbg, {&readStorage, &extra_reads, &refStorage});
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);
-        GapColserPipeline(logger, threads, dbg, {&readStorage, &extra_reads, &refStorage});
+                                         GapCloserPipeline(logger, threads, dbg,
+                                                           {&readStorage, &extra_reads, &refStorage});
         if(debug) {
             PrintPaths(logger, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
             DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
@@ -421,7 +425,7 @@ int main(int argc, char **argv) {
         if (first_stage == "alternative")
             skip = false;
         corrected1 = AlternativeCorrection(logger, dir / ("k" + itos(k)), lib, {}, paths, threads, k, w,
-                                           threshold, reliable_coverage, false, false, skip, debug, load);
+                                           threshold, reliable_coverage, diploid, skip, debug, load);
         if (first_stage == "alternative" || first_stage == "none")
             load = false;
 

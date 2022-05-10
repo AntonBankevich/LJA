@@ -74,7 +74,7 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
 }
 
 std::vector<dbg::GraphAlignment> PartialRR(dbg::SparseDBG &dbg, const RecordStorage &reads) {
-    BulgePathAnalyser bulges(dbg, 1);
+    BulgePathFinder bulges(dbg, 1);
     std::vector<dbg::GraphAlignment> res;
     for(BulgePath &bulgePath : bulges.paths) {
         std::vector<dbg::GraphAlignment> resolved = ResolveBulgePath(bulgePath, reads);
