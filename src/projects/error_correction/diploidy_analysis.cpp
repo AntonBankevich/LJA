@@ -289,6 +289,12 @@ std::string BulgePathCorrector::correctRead(dbg::GraphAlignment &path) {
     }
     for(size_t i = res.size(); i < path.size(); i++)
         res += path[i];
+    if(res.front() != path.front() && res.front().size() > path.front().size()) {
+        res.front() = res.front().shrinkLeft(res.front().size() - path.front().size());
+    }
+    if(res.back() != path.back() && res.back().size() > path.back().size()) {
+        res.back() = res.back().shrinkRight(res.back().size() - path.back().size());
+    }
     path = std::move(res);
     return join("_", messages);
 }

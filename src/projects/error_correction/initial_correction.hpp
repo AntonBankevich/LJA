@@ -8,16 +8,14 @@
 
 size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false);
 std::vector<dbg::Path> FindBulgeAlternatives(const dbg::Path &path, size_t max_diff);
-std::vector<dbg::GraphAlignment> FilterAlternatives(logging::Logger &logger1, const dbg::GraphAlignment &initial, const std::vector<dbg::GraphAlignment> &als,
+std::vector<dbg::GraphAlignment> FilterAlternatives(const dbg::GraphAlignment &initial, const std::vector<dbg::GraphAlignment> &als,
                                             size_t max_diff, double threshold);
-dbg::GraphAlignment chooseBulgeCandidate(logging::Logger &logger, std::ostream &out, const dbg::GraphAlignment &bulge,
-                                    const RecordStorage &reads_storage, const RecordStorage &ref_storage, double threshold,
-                                    std::vector<dbg::GraphAlignment> &read_alternatives, std::string &message, bool dump);
+dbg::GraphAlignment chooseBulgeCandidate(const dbg::GraphAlignment &bulge, const RecordStorage &reads_storage, double threshold,
+                                    std::vector<dbg::GraphAlignment> &read_alternatives, std::string &message);
 std::pair<dbg::GraphAlignment, size_t> BestAlignmentPrefix(const dbg::GraphAlignment &al, const Sequence & seq);
-dbg::GraphAlignment processTip(logging::Logger &logger, std::ostream &out, const dbg::GraphAlignment &tip,
+dbg::GraphAlignment processTip(const dbg::GraphAlignment &tip,
                          const std::vector<dbg::GraphAlignment> & alternatives,
-                         const RecordStorage &ref_storage,
-                         double threshold, std::string &message, bool dump = false);
+                         double threshold, std::string &message);
 size_t correctLowCoveredRegions(logging::Logger &logger, dbg::SparseDBG &sdbg,RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
                                 const std::experimental::filesystem::path &out_file,

@@ -20,7 +20,7 @@ class AbstractErrorCorrector {
 private:
     AbstractCorrectionAlgorithm &algorithm;
 public:
-    AbstractErrorCorrector(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
+    explicit AbstractErrorCorrector(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
 
     size_t correct(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage) {
         logger.info() << "Correcting reads using algorithm " << algorithm.getName() << std::endl;
