@@ -1,8 +1,10 @@
 #pragma once
 #include "dbg/graph_alignment_storage.hpp"
 #include "dbg/sparse_dbg.hpp"
+#include "error_correction.hpp"
+#include "correction_utils.hpp"
 
-class ManyKCorrector {
+class ManyKCorrector : public AbstractCorrectionAlgorithm {
 private:
     struct Bulge {
         dbg::GraphAlignment left;
@@ -17,10 +19,11 @@ private:
         Tip(dbg::GraphAlignment &&left, dbg::GraphAlignment &&tip) : left(left), tip(tip) {}
     };
     class ReadRecord {
+    private:
+        const dbg::GraphAlignment &read;
     public:
-        dbg::GraphAlignment read;
         std::vector<size_t> switch_positions;
-        ReadRecord(dbg::GraphAlignment &&read, std::vector<size_t> &&switchPositions) :
+        ReadRecord(const dbg::GraphAlignment &read, std::vector<size_t> &&switchPositions) :
                         read(read), switch_positions(switchPositions) {}
         bool isPerfect() const {return blockNum() == 1 && !hasIncomingTip() && !hasOutgoingTip();}
         bool isBad() const {return switch_positions.size() == 0;}
@@ -29,9 +32,7 @@ private:
         size_t bulgeNum() const{return (switch_positions.size() - 2) / 2;}
         Bulge getBulge(size_t num);
         bool hasIncomingTip() const {return !switch_positions.empty() && switch_positions[0] > 0;}
-        bool hasOutgoingTip() const {
-            return !switch_positions.empty() && switch_positions.back() < read.size();
-        }
+        bool hasOutgoingTip() const {return !switch_positions.empty() && switch_positions.back() < read.size();}
         Tip getOutgoingTip();
         Tip getIncomingTip();
     };
@@ -50,14 +51,15 @@ private:
     double reliable_threshold;
     double bad_threshold;
 public:
-    ManyKCorrector(dbg::SparseDBG &dbg, RecordStorage &reads, size_t K, size_t expectedCoverage,
-                   double reliable_threshold, double bad_threshold) :
+    ManyKCorrector(logging::Logger &logger, dbg::SparseDBG &dbg, RecordStorage &reads, size_t K, size_t expectedCoverage,
+                   double reliable_threshold, double bad_threshold) : AbstractCorrectionAlgorithm("ManyKCorrector"),
                 dbg(dbg), reads(reads), K(K), expected_coverage(expectedCoverage),
                 reliable_threshold(reliable_threshold), bad_threshold(bad_threshold) {
         VERIFY(reads.getMaxLen() >= K);
+        FillReliableWithConnections(logger, dbg, reliable_threshold);
     }
 
-    ReadRecord splitRead(dbg::GraphAlignment &&read_path) const;
+    ReadRecord splitRead(dbg::GraphAlignment &read_path) const;
 
     dbg::GraphAlignment uniqueExtension(const dbg::GraphAlignment &base, size_t max_len) const;
     dbg::GraphAlignment correctBulgeByBridging(const Bulge &bulge) const;
@@ -69,7 +71,7 @@ public:
     dbg::GraphAlignment correctTipWithReliable(const Tip &tip) const;
     dbg::GraphAlignment correctTip(const Tip &tip, std::string &message) const;
 
-    dbg::GraphAlignment correctRead(dbg::GraphAlignment &&read_path, std::string &message) const;
+    std::string correctRead(dbg::GraphAlignment &read_path) override;
 };
 
 size_t ManyKCorrect(logging::Logger &logger, dbg::SparseDBG &dbg,RecordStorage &reads_storage, double threshold,

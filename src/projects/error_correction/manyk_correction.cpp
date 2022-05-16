@@ -1,5 +1,7 @@
 #include "manyk_correction.hpp"
 #include "correction_utils.hpp"
+#include "error_correction.hpp"
+
 using namespace dbg;
 void ManyKCorrector::calculateReliable(const GraphAlignment &read_path, std::vector<size_t> &last_reliable,
                                        std::vector<size_t> &next_reliable) const {
@@ -24,7 +26,7 @@ void ManyKCorrector::calculateReliable(const GraphAlignment &read_path, std::vec
     }
 }
 
-ManyKCorrector::ReadRecord ManyKCorrector::splitRead(GraphAlignment &&read_path) const {
+ManyKCorrector::ReadRecord ManyKCorrector::splitRead(GraphAlignment &read_path) const {
     std::vector<size_t> last_reliable;
     std::vector<size_t> next_reliable;
     calculateReliable(read_path, last_reliable, next_reliable);
@@ -87,11 +89,11 @@ ManyKCorrector::calculateLowRegions(const std::vector<size_t> &last_reliable, co
     return std::move(positions);
 }
 
-GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &message) const {
-    ReadRecord rr = splitRead(std::move(read_path));
-    message = "";
+std::string ManyKCorrector::correctRead(GraphAlignment &read_path) {
+    ReadRecord rr = splitRead(read_path);
+    std::string message = "";
     if(rr.isPerfect() || rr.isBad()) {
-        return std::move(rr.read);
+        return "";
     }
     std::vector<std::string> messages;
     GraphAlignment corrected;
@@ -136,12 +138,15 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         VERIFY(!corrected.valid() || corrected.finish() == tc.start());
         corrected += tc;
     }
+    if(messages.empty())
+        return "";
     message = join("_", messages);
     if(corrected.len() < 100) {
 #pragma omp critical
-            std::cout << corrected.len() << " " << message << "\noppa " << rr.read.str(true) << "\noppa " << corrected.str(true) << std::endl;
+            std::cout << corrected.len() << " " << message << "\noppa " << read_path.str(true) << "\noppa " << corrected.str(true) << std::endl;
     }
-    return std::move(corrected);
+    read_path = corrected;
+    return message;
 }
 
 GraphAlignment ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
@@ -356,27 +361,7 @@ GraphAlignment ManyKCorrector::ReadRecord::getBlock(size_t num) const {
 
 size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads_storage, double threshold,
                     double reliable_threshold, size_t K, size_t expectedCoverage, size_t threads) {
-    FillReliableWithConnections(logger, dbg, reliable_threshold);
-    logger.info() << "Correcting low covered regions in reads with K = " << K << std::endl;
-    ManyKCorrector corrector(dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold);
-    ParallelCounter cnt(threads);
-    omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, corrector, reads_storage, threshold, logger, reliable_threshold, cnt)
-    for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-        std::stringstream ss;
-        std::vector<std::string> messages;
-        AlignedRead &alignedRead = reads_storage[read_ind];
-        if (!alignedRead.valid())
-            continue;
-        CompactPath &initial_cpath = alignedRead.path;
-        std::string message;
-        GraphAlignment corrected = corrector.correctRead(initial_cpath.getAlignment(), message);
-        if(!message.empty()) {
-            reads_storage.reroute(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + message);
-            cnt += 1;
-        }
-    }
-    reads_storage.applyCorrections(logger, threads);
-    logger.info() << "Corrected low covered regions in " << cnt.get() << " reads with K = " << K << std::endl;
-    return cnt.get();
+    logger.info() << "Using K = " << K << " for error correction" << std::endl;
+    ManyKCorrector algorithm(logger, dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold);
+    return AbstractErrorCorrector(algorithm).correct(logger, threads, dbg, reads_storage);
 }

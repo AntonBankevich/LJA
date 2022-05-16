@@ -116,7 +116,7 @@ bool diploid, bool skip, bool debug, bool load) {
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 2000, 4, threads);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
-        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 5000));
+        RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 10000000));
 //        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
         correctAT(logger, threads, readStorage, StringContig::max_dimer_size);
 //        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
