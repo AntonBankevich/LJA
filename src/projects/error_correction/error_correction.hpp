@@ -27,7 +27,7 @@ public:
         ParallelCounter cnt(threads);
         omp_set_num_threads(threads);
         logging::ProgressBar progressBar(logger, reads_storage.size(), threads);
-//#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, reads_storage, logger, cnt)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, reads_storage, logger, cnt)
         for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
             AlignedRead &alignedRead = reads_storage[read_ind];
             progressBar.tick();

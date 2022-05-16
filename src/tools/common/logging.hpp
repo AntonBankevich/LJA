@@ -198,7 +198,7 @@ namespace logging {
         std::vector<size_t> progress;
         std::atomic<size_t> cnt;
     public:
-        ProgressBar(Logger &logger, size_t size, size_t threads, size_t bar_num = 20) : logger(logger), cur(1),
+        ProgressBar(Logger &logger, size_t size, size_t threads, size_t bar_num = 40) : logger(logger), cur(1),
                             size(size), bar_num(std::min(bar_num, size)),
                             mod(std::max<size_t>(1, size / bar_num / threads / 5)), progress(threads), cnt(0) {
 
@@ -212,8 +212,9 @@ namespace logging {
 #pragma omp critical
                 {
                     size_t tmp = cnt;
-                    if(cnt * bar_num >= size * cur) {
+                    while(cnt * bar_num >= size * cur) {
                         logger << "#";
+                        logger.flush();
                         cur += 1;
                     }
                 }
