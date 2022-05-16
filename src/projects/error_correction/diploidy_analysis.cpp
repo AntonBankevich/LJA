@@ -220,7 +220,7 @@ BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath
                 p1 += *path[i].first;
                 p2 += *path[i].second;
             } else {
-                const VertexRecord &vr = reads.getRecord(path.getVertex(i));
+                const VertexRecord &vr = reads.getRecord(path.getVertex(last));
                 Sequence c1 = path[i].first->firstNucl();
                 Sequence c2 = path[i].second->firstNucl();
                 size_t score1 = vr.countStartsWith(s1 + seq + c1) + vr.countStartsWith(s2 + seq + c2);
@@ -236,6 +236,7 @@ BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath
             s1 = p1.back().firstNucl();
             s2 = p2.back().firstNucl();
             last = i;
+            seq = Sequence();
         } else {
             p1 += *path[i].first;
             p2 += *path[i].first;
