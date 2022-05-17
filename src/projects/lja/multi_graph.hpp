@@ -128,7 +128,7 @@ namespace multigraph {
             os << "Number of tips: " << tips << "\n";
         }
 
-        MultiGraph DBG() const {
+        MultiGraph DBG(size_t tip_size = 4001) const {
             MultiGraph dbg;
             std::unordered_map<Edge *, Vertex *> emap;
             for(Vertex * v : vertices) {
@@ -150,12 +150,12 @@ namespace multigraph {
                 Vertex * start = nullptr;
                 Vertex * end = nullptr;
                 if(v->inDeg() == 0) {
-                    start = &dbg.addVertex(v->seq.Subseq(0, 4001));
+                    start = &dbg.addVertex(v->seq.Subseq(0, std::min(tip_size, v->seq.size() - 1)));
                 } else {
                     start = emap[v->rc->outgoing[0]]->rc;
                 }
                 if(v->outDeg() == 0) {
-                    end = &dbg.addVertex(v->seq.Subseq(v->seq.size() - 4001));
+                    end = &dbg.addVertex(v->seq.Subseq(v->seq.size() - std::min(tip_size, v->seq.size() - 1)));
                 } else {
                     end = emap[v->outgoing[0]];
                 }
