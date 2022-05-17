@@ -151,11 +151,6 @@ void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &
     }
     AddConnections(logger, threads, dbg, storges, patches);
     MarkUnreliableTips(dbg, patches);
-    for(dbg::Edge &edge:dbg.edges()) {
-        if(!edge.is_reliable) {
-            logger.trace() << "Unreliable " << edge.getId() << std::endl;
-        }
-    }
     CorrectTips(logger, threads, dbg, storges);
     printStats(logger, dbg);
     RemoveUncovered(logger, threads, dbg, storges);

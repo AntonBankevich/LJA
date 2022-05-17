@@ -128,7 +128,7 @@ namespace multigraph {
             os << "Number of tips: " << tips << "\n";
         }
 
-        MultiGraph DBG() const {
+        MultiGraph DBG(size_t tip_size = 4001) const {
             MultiGraph dbg;
             std::unordered_map<Edge *, Vertex *> emap;
             for(Vertex * v : vertices) {
@@ -150,12 +150,12 @@ namespace multigraph {
                 Vertex * start = nullptr;
                 Vertex * end = nullptr;
                 if(v->inDeg() == 0) {
-                    start = &dbg.addVertex(v->seq.Subseq(0, 4001));
+                    start = &dbg.addVertex(v->seq.Subseq(0, std::min(tip_size, v->seq.size() - 1)));
                 } else {
                     start = emap[v->rc->outgoing[0]]->rc;
                 }
                 if(v->outDeg() == 0) {
-                    end = &dbg.addVertex(v->seq.Subseq(v->seq.size() - 4001));
+                    end = &dbg.addVertex(v->seq.Subseq(v->seq.size() - std::min(tip_size, v->seq.size() - 1)));
                 } else {
                     end = emap[v->outgoing[0]];
                 }
@@ -259,14 +259,24 @@ namespace multigraph {
                     bulges++;
                     sz += v->outgoing[0]->size();
                 } else {
-                    if((good.find(v) == good.end() || v->outgoing[0]->size() < 1000000) && v->outgoing[0]->end->outDeg() == 0) {
+                    Vertex *other = v;
+                    if(v->inDeg() == 1) {
+                        other = v->rc->outgoing[0]->start;
+                    }
+                    if(v->outgoing[0]->end == other && v->outgoing[1]->size() < 100000) {
                         todel = v->outgoing[0];
-                    } else if((good.find(v) == good.end() || v->outgoing[0]->size() < 1000000) && v->outgoing[1]->end->outDeg() == 0) {
+                    } else if(v->outgoing[1]->end == other && v->outgoing[1]->size() < 100000) {
                         todel = v->outgoing[1];
-                    } else if(good.find(v->outgoing[0]->end)== good.end()) {
-                        todel = v->outgoing[0];
-                    } else if(good.find(v->outgoing[1]->end)== good.end()) {
-                        todel = v->outgoing[1];
+                    } else if(good.find(v) != good.end() && to_delete.find(v->outgoing[0]) == to_delete.end() && to_delete.find(v->outgoing[1]) == to_delete.end()) {
+                        if((v->outgoing[0]->size() < 1000000) && v->outgoing[0]->end->outDeg() == 0) {
+                            todel = v->outgoing[0];
+                        } else if((v->outgoing[0]->size() < 1000000) && v->outgoing[1]->end->outDeg() == 0) {
+                            todel = v->outgoing[1];
+                        } else if(good.find(v->outgoing[0]->end)== good.end()) {
+                            todel = v->outgoing[0];
+                        } else if(good.find(v->outgoing[1]->end)== good.end()) {
+                            todel = v->outgoing[1];
+                        }
                     }
                 }
                 if(todel != nullptr) {

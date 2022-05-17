@@ -257,8 +257,8 @@ int main(int argc, char **argv) {
         if (parser.getValue("reference") != "none") {
             ref_vector = io::SeqReader(parser.getValue("reference")).readAll();
         }
-        initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage, threshold, 2 * threshold, reliable, false,
-                       threads, parser.getCheck("dump"));
+        initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
+                       threshold, 2 * threshold, reliable, false, 60000, parser.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     }

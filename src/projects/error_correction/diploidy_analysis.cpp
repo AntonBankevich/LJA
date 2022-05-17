@@ -300,8 +300,8 @@ std::string BulgePathCorrector::correctRead(dbg::GraphAlignment &path) {
     return join("_", messages);
 }
 
-BulgePathCorrector::BulgePathCorrector(dbg::SparseDBG &dbg, RecordStorage &reads, size_t unique_length,
-                                       double threshold) : AbstractCorrectionAlgorithm("BulgePathFixer"), paths(BulgePathFinder(dbg, threshold).paths){
+void BulgePathCorrector::initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {
+    paths = BulgePathFinder(dbg, threshold).paths;
     for(BulgePath &path : BulgePathFinder(dbg, threshold).paths) {
         if(path.size() > 1 && path.length() > unique_length) {
             paths.emplace_back(path);
@@ -317,3 +317,4 @@ BulgePathCorrector::BulgePathCorrector(dbg::SparseDBG &dbg, RecordStorage &reads
         resolved.emplace_back(resolveBulgePath(reads, path));
     }
 }
+

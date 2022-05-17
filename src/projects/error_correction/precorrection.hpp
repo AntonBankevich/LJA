@@ -1,4 +1,11 @@
 #pragma once
+#include "error_correction.hpp"
+class Precorrector : public AbstractCorrectionAlgorithm {
+private:
+    double reliable_threshold;
+public:
+    Precorrector(double reliable_threshold) :
+            AbstractCorrectionAlgorithm("Precorrector"), reliable_threshold(reliable_threshold) {}
 
-size_t Precorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage,
-                    double reliable_threshold);
+    std::string correctRead(dbg::GraphAlignment &path) override;
+};

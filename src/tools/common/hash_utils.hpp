@@ -30,12 +30,26 @@ inline std::ostream &operator<<(std::ostream &os, hashing::htype val) {
     return os;
 }
 
-inline std::istream &operator>>(std::istream &is, hashing::htype &val) {
-    val = 0;
-    std::string tmp;
-    is >> tmp;
-    for (char c : tmp) {
+inline hashing::htype stohtype(const std::string &s) {
+    hashing::htype val = 0;
+    for (char c : s) {
         val = val * 10 + c - '0';
     }
+    return val;
+}
+
+inline hashing::htype stohtype(const std::string &s, size_t start_pos) {
+    hashing::htype val = 0;
+    while(start_pos < s.size() && s[start_pos] >= '0' && s[start_pos] <= '9') {
+        val = val * 10 + s[start_pos] - '0';
+        start_pos++;
+    }
+    return val;
+}
+
+inline std::istream &operator>>(std::istream &is, hashing::htype &val) {
+    std::string tmp;
+    is >> tmp;
+    val = stohtype(tmp);
     return is;
 }

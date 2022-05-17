@@ -22,8 +22,7 @@
 #include <ksw2/ksw_wrapper.hpp>
 #include <error_correction/parameter_estimator.hpp>
 #include <error_correction/partial_rr.hpp>
-#include <error_correction/bulge_path_marker.hpp>
-
+#include "dbg/compact_read_storage.hpp"
 using namespace dbg;
 
 static size_t stage_num = 0;
@@ -100,12 +99,14 @@ bool diploid, bool skip, bool debug, bool load) {
         if(debug) {
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
         }
-        Precorrect(logger, threads, dbg, readStorage, 2);
+        Precorrector precorrector(2);
+        DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
+        TournamentPathCorrector tournamentPathCorrector(logger, dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
+        BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
+        ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         readStorage.trackSuffixes(logger, threads);
-//        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
-        correctAT(logger, threads, readStorage, StringContig::max_dimer_size);
-        Precorrect(logger, threads, dbg, readStorage, 2);
+        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.Print(logger);
@@ -117,13 +118,12 @@ bool diploid, bool skip, bool debug, bool load) {
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 10000000));
-//        CorrectDimers(logger, readStorage, k, threads, reliable_coverage);
-        correctAT(logger, threads, readStorage, StringContig::max_dimer_size);
+        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
 //        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 3, threads);
-        correctLowCoveredRegions(logger, dbg, readStorage, refStorage, "/dev/null" , threshold, reliable_coverage, diploid, threads, false);
-        BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
-        AbstractErrorCorrector(bpCorrector).correct(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
+        if(diploid)
+            ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
         std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
         printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
@@ -131,6 +131,7 @@ bool diploid, bool skip, bool debug, bool load) {
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
         readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
+
         if(debug)
             DrawSplit(Component(dbg), dir / "split");
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
@@ -219,8 +220,8 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
             DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
             PrintPaths(logger, dir / "state_dump", "initial", dbg, readStorage, paths_lib, false);
         }
-        initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage,
-                       threshold, 2 * threshold, reliable_coverage, diploid, threads, false);
+        initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
+                       threshold, 2 * threshold, reliable_coverage, diploid, 60000, false);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "low", dbg, readStorage, paths_lib, false);
                                          GapCloserPipeline(logger, threads, dbg, {&readStorage, &refStorage});

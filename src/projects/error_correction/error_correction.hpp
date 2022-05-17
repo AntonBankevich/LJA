@@ -1,7 +1,3 @@
-//
-// Created by anton on 8/26/20.
-//
-
 #pragma once
 
 #include "dbg/sparse_dbg.hpp"
@@ -13,16 +9,18 @@ private:
 public:
     AbstractCorrectionAlgorithm(const std::string &name) : name(name) {};
     std::string getName() const {return name;}
+    virtual void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {};
     virtual std::string correctRead(dbg::GraphAlignment &) = 0;
 };
 
-class AbstractErrorCorrector {
+class ErrorCorrectionEngine {
 private:
     AbstractCorrectionAlgorithm &algorithm;
 public:
-    explicit AbstractErrorCorrector(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
+    explicit ErrorCorrectionEngine(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
 
-    size_t correct(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage) {
+    size_t run(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage) {
+        algorithm.initialize(logger, threads, dbg, reads_storage);
         logger.info() << "Correcting reads using algorithm " << algorithm.getName() << std::endl;
         ParallelCounter cnt(threads);
         omp_set_num_threads(threads);
@@ -37,7 +35,7 @@ public:
             dbg::GraphAlignment corrected = initial_cpath.getAlignment();
             std::string message = algorithm.correctRead(corrected);
             if(!message.empty()) {
-                reads_storage.reroute(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + message);
+                reads_storage.reroute(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message);
                 cnt += 1;
             }
         }

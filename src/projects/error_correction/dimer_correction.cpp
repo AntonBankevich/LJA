@@ -1,188 +1,86 @@
 #include "dimer_correction.hpp"
 using namespace dbg;
 
-std::vector<std::pair<size_t, size_t>> code(const GraphAlignment &al) {
-    if(al.size() == 0)
-        return {};
-    std::vector<std::pair<size_t, size_t>> res;
-    Sequence seq = al.Seq();
-    res.emplace_back(seq[0] * 4 + seq[1], 1);
-    for(size_t i = 2; i < seq.size(); i++) {
-        if(seq[i] == seq[i - 2])
-            res.back().second++;
-        else {
-            res.emplace_back(seq[i - 1] * 4 + seq[i], 1);
-        }
-    }
-    return std::move(res);
-}
-
-size_t diff(const std::vector<std::pair<size_t, size_t>> &code1, const std::vector<std::pair<size_t, size_t>> &code2) {
-    VERIFY(code1.size() == code2.size());
-    size_t res = 0;
-    for(size_t i = 0; i < code1.size(); i++) {
-        VERIFY(code1[i].first == code2[i].first);
-        if(code1[i].second != code2[i].second)
-            res += 1;
-    }
-    return res;
-}
-
-size_t CorrectDimers(logging::Logger &logger, RecordStorage &reads_storage, size_t k, size_t threads, double reliable_coverage) {
-    logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
-    ParallelCounter cnt(threads);
-//    threads = 1;
-    omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, k, logger, cnt, reliable_coverage, std::cout)
-    for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-        AlignedRead &alignedRead = reads_storage[read_ind];
-        if (!alignedRead.valid())
+std::string DimerCorrector::correctRead(GraphAlignment &path) {
+    size_t corrected = 0;
+    size_t k = path.start().seq.size();
+    Sequence remaining_seq = path.truncSeq();
+    std::vector<std::string> message;
+    for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {
+        if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().size())
             continue;
-        CompactPath &initial_cpath = alignedRead.path;
-        GraphAlignment initial_path = initial_cpath.getAlignment();
-        GraphAlignment path = initial_path;
-        for(size_t iter = 0; iter < 4; iter++) {
-            GraphAlignment new_path = iter % 2 == 0 ? correctFromStart(path, reliable_coverage) :
-                                      correctFromStart(path.RC(), reliable_coverage).RC();
-            if(iter >= 1 && new_path.start() == path.start() && new_path.finish() == path.finish()) {
-                break;
-            }
-            path = std::move(new_path);
-        }
-        if(path != initial_path) {
-            size_t d = diff(code(path), code(initial_path));
-            VERIFY_OMP(d != 0, "d!=0");
-            reads_storage.reroute(alignedRead, path, "AT_" + itos(d));
-            cnt += d;
-        }
-    }
-    reads_storage.applyCorrections(logger, threads);
-    logger.info() << "Corrected " << cnt.get() << " dinucleotide sequences" << std::endl;
-    return cnt.get();
-}
-
-struct State {
-    class Hash {
-    public:
-        size_t operator()(const State& state) const
-        {
-            return std::hash<Vertex*>()(state.vertex) ^ std::hash<size_t>()(state.seq_pos);
-        }
-    };
-    Vertex *vertex;
-    size_t seq_pos;
-
-    State(Vertex *vertex, size_t seq_pos) : vertex(vertex), seq_pos(seq_pos) {}
-
-    std::pair<State, Segment<Edge>> move(const Sequence &seq, Edge &edge) const {
-        State res(edge.end(), seq_pos);
-        for(size_t i = 0; i < edge.size(); i++) {
-            if(res.seq_pos == seq.size()) {
-                return {res, Segment<Edge>(edge, 0, i)};
-            } else if(seq[res.seq_pos] == edge.seq[i]) {
-                res.seq_pos++;
-            } else if(res.seq_pos >= 4 && edge.seq[i] == seq[res.seq_pos - 2] &&
-                    seq[res.seq_pos - 1] == seq[res.seq_pos - 3] &&
-                    seq[res.seq_pos - 2] == seq[res.seq_pos - 4]) {
-                res.seq_pos--;
-            } else {
-                return {res, Segment<Edge>(edge, 0, 0)};
-            }
-        }
-        return {res, Segment<Edge>(edge, 0, edge.size())};
-    }
-
-    bool operator<(const State &other) const {
-        if (seq_pos != other.seq_pos)
-            return seq_pos < other.seq_pos;
-        return *vertex < *other.vertex;
-    }
-    bool operator>(const State &other) const {
-        if (seq_pos != other.seq_pos)
-            return seq_pos > other.seq_pos;
-        return *vertex > *other.vertex;
-    }
-    bool operator==(const State &other) const {
-        return seq_pos == other.seq_pos && vertex == other.vertex;
-    }
-    bool operator!=(const State &other) const {
-        return !(*this == other);
-    }
-};
-
-struct StoredValue {
-    size_t score;
-    State state;
-    State prev;
-    Segment<Edge> prev_seg;
-
-
-    StoredValue(size_t score, const State &state,
-                const State &prev, const Segment<Edge> &prevSeg) :  score(score), state(state),
-                                                                    prev(prev),prev_seg(prevSeg) {}
-
-    bool operator<(const StoredValue &other) const {
-        if(state.seq_pos != other.state.seq_pos)
-            return state.seq_pos < other.state.seq_pos;
-        if(score != other.score)
-            return score > other.score;
-        if(state != other.state)
-            return state < other.state;
-        if(prev != other.prev)
-            return prev < other.prev;
-        return prev_seg < other.prev_seg;
-    }
-    bool operator>(const StoredValue &other) const {
-        if(state.seq_pos != other.state.seq_pos)
-            return state.seq_pos > other.state.seq_pos;
-        if(score != other.score)
-            return score < other.score;
-        if(state != other.state)
-            return state > other.state;
-        if(prev != other.prev)
-            return prev > other.prev;
-        return prev_seg > other.prev_seg;
-    }
-};
-
-GraphAlignment correctFromStart(const GraphAlignment &al, double reliable_coverage) {
-    if(al.size() <= 1)
-        return al;
-    Sequence seq1 = al[0].seq().dicompress();
-    Sequence seq2 = al.subalignment(1).truncSeq().dicompress();
-    Sequence seq = seq1 + seq2;
-    std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
-    queue.emplace(0, State(&al.getVertex(1), seq1.size()), State(nullptr, 0), al[0]);
-    std::unordered_map<State, std::pair<State, Segment<Edge>>, State::Hash> prev;
-    while(!queue.empty()) {
-        StoredValue top = queue.top();
-        queue.pop();
-        size_t score = top.score;
-        State state = top.state;
-        if(prev.find(state) != prev.end())
+        Sequence seq = path.getVertex(path_pos).seq;
+        size_t at_cnt1 = 2;
+        while (at_cnt1 < k && seq[k - at_cnt1 - 1] == seq[k - at_cnt1 + 1])
+            at_cnt1 += 1;
+        VERIFY_MSG(at_cnt1 <= max_at,
+                   "at_cnt1 < max_at failed " + itos(at_cnt1) + " " + itos(max_at)); // ATAT should be compressed in reads to some length < k
+        if (at_cnt1 < 4) //Tandem repeat should be at least 4 nucleotides long
             continue;
-        prev.emplace(std::make_pair(state, std::make_pair(top.prev, top.prev_seg)));
-        if(state.seq_pos == seq.size()) {
-            std::vector<Segment<Edge>> res;
-            while(state.vertex != nullptr) {
-                auto &tmp = prev.find(state)->second;
-                res.emplace_back(tmp.second);
-                state = tmp.first;
-            }
-            return GraphAlignment(res.rbegin(), res.rend());
-        }
-        for(Edge &edge : *state.vertex) {
-            std::pair<State, Segment<Edge>> move = state.move(seq, edge);
-            if(move.second.size() == 0)
+        Sequence unit = seq.Subseq(k - 2);
+        GraphAlignment atPrefix(path.getVertex(path_pos));
+        atPrefix.extend(unit);
+        if (!atPrefix.valid())
+            continue;
+        Sequence extension = path.truncSeq(path_pos, k + max_at);
+        size_t at_cnt2 = 0;
+        while (at_cnt2 < extension.size() && extension[at_cnt2] == unit[at_cnt2 % 2])
+            at_cnt2 += 1;
+        VERIFY_MSG(at_cnt2 <= max_at,
+                   "at_cnt2 < max_at failed");// ATAT should be compressed in reads to some length max_at < k
+        if (at_cnt2 % 2 != 0 || extension.size() < at_cnt2 + k - at_cnt1)
+            continue;
+        extension = extension.Subseq(0, at_cnt2 + k - at_cnt1);
+        GraphAlignment bulgeSide(path.getVertex(path_pos));
+        bulgeSide.extend(extension);
+        VERIFY_MSG(bulgeSide.valid(), "Extension along an existing path failed");
+        if (!bulgeSide.endClosed())
+            continue;
+        Sequence end_seq = extension.Subseq(at_cnt2);
+        std::vector<CompactPath> candidates = {CompactPath(bulgeSide)};
+        if (at_cnt2 > 0) {
+            GraphAlignment candidate(path.getVertex(path_pos));
+            candidate.extend(end_seq);
+            if (!candidate.valid())
                 continue;
-            size_t new_score = score;
-            if(move.second.size() == move.second.contig().size())
-                new_score += std::min(move.second.contig().intCov(), size_t(move.second.size() * reliable_coverage));
-            else
-                new_score += std::max<size_t>(1, size_t(move.second.size() * std::min(move.second.contig().getCoverage(), reliable_coverage)));
-            queue.emplace(new_score, move.first, top.state, move.second);
+            VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 1");
+            candidates.emplace_back(candidate);
+        } else {
+            size_t max_variation = std::max<size_t>(6, (at_cnt1 + at_cnt2) / 3);
+            max_variation = std::min(max_variation, at_cnt1 / 2);
+            size_t len = 2;
+            while (len <= max_variation && atPrefix.valid()) {
+                GraphAlignment candidate = atPrefix;
+                candidate.extend(end_seq);
+                if (candidate.valid()) {
+                    VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 2");
+                    candidates.emplace_back(candidate);
+                }
+                atPrefix.extend(unit);
+                len += 2;
+            }
         }
+        if (candidates.size() == 1)
+            continue;
+        size_t best_val = 0;
+        size_t best = 0;
+        const VertexRecord &rec = reads_storage.getRecord(path.getVertex(path_pos));
+        for (size_t i = 0; i < candidates.size(); i++) {
+            size_t support = rec.countStartsWith(candidates[i].cpath());
+            if (support > best_val) {
+                best_val = support;
+                best = i;
+            }
+        }
+        if (best_val == 0) {
+#pragma omp critical
+            logger.trace() << "Unsupported path during dinucleotide correction" << std::endl;
+        }
+        if (best == 0)
+            continue;
+        message.emplace_back(itos(at_cnt1) + "_" + itos(at_cnt2) + "_" + itos(candidates[best].getPath().len()));
+        path = path.reroute(path_pos, path_pos + candidates[0].size(), candidates[best].getPath());
+        corrected++;
     }
-    VERIFY(false);
-    return {};
+    return join("_", message);
 }

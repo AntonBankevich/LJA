@@ -310,9 +310,16 @@ std::function<std::string(Edge &)> RecordStorage::labeler() const {
         return [this](Edge &edge) {
             const VertexRecord &rec = getRecord(*edge.start());
             std::stringstream ss;
+            size_t cnt = 0;
             for (const auto &ext : rec) {
-                if (ext.first[0] == edge.seq[0])
-                    ss << ext.first << "(" << ext.second << ")\\n";
+                if (ext.first[0] == edge.seq[0]) {
+                    if(cnt < 30)
+                        ss << ext.first << "(" << ext.second << ")\\n";
+                    cnt++;
+                }
+            }
+            if(cnt > 30) {
+                ss << "and another " << (cnt - 30) << " records\\n";
             }
             return ss.str();
         };
