@@ -1,6 +1,7 @@
 #include "pipeline.hpp"
 #include "repeat_resolution/repeat_resolution.hpp"
 #include "yak/yak_lib.h"
+#include "trio/trio.hpp"
 
 using namespace dbg;
 void pipeline::LJAPipeline::PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
@@ -299,7 +300,34 @@ void pipeline::LJAPipeline::TrioPreprocessingPhase(
         logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
         const io::Library &p_lib, const io::Library &m_lib,
         bool skip, bool debug) {
-    CompressIlluminaLib(logger, threads, dir, "paternal", p_lib);
-    CompressIlluminaLib(logger, threads, dir, "maternal", m_lib);
-    std::cerr <<"exiting pipeline\n";
+    logger.info() << "Started kmer counting phase for trio binning\n";
+    if (!skip) {
+        CompressIlluminaLib(logger, threads, dir, "paternal", p_lib);
+        CompressIlluminaLib(logger, threads, dir, "maternal", m_lib);
+    }
+}
+
+std::experimental::filesystem::path pipeline::LJAPipeline::TrioBinningPhase(
+        logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+        std::experimental::filesystem::path pat_kmers, std::experimental::filesystem::path mat_kmers,
+        std::experimental::filesystem::path contigs, bool skip, bool debug) {
+    logger.info() << "Started triobinning phase\n";
+    auto out_file = dir/ "compressed.bin";
+
+    stdout = freopen(out_file.string().c_str(), "w", stdout);
+    lib_triobin(threads, pat_kmers.c_str(), mat_kmers.c_str(), contigs.c_str());
+    fclose(stdout);
+    freopen("/dev/tty", "w", stdout);
+    return out_file;
+}
+
+std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::TrioSimplificationPhase(
+        logging::Logger &logger, size_t threads,
+        const std::experimental::filesystem::path &graph, const std::experimental::filesystem::path &binned_contigs,
+        const std::experimental::filesystem::path &corrected_reads, const io::Library &reads_lib,
+        const std::experimental::filesystem::path &dir, size_t saved_bridge_cutoff, bool skip, bool debug) {
+    std::experimental::filesystem::path res_m(dir / "graph_p.gfa");
+    trio::simplifyHaplo(logger, threads, res_m, graph, binned_contigs, 'm', corrected_reads, reads_lib, dir, saved_bridge_cutoff);
+    std::experimental::filesystem::path res_p(dir / "graph_m.gfa");
+    trio::simplifyHaplo(logger, threads, res_p, graph, binned_contigs, 'p', corrected_reads, reads_lib, dir, saved_bridge_cutoff);
 }

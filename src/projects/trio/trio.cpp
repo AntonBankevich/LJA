@@ -256,7 +256,7 @@ std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger,
                                                   const std::experimental::filesystem::path &diplo_graph,
                                                   const std::experimental::filesystem::path &haployak,
                                                   const char haplotype,  const std::experimental::filesystem::path &corrected_reads,
-                                                  io::Library & reads,   const std::experimental::filesystem::path &dir, const size_t saved_bridge_cutoff) {
+                                                  const io::Library & reads,   const std::experimental::filesystem::path &dir, const size_t saved_bridge_cutoff) {
     multigraph::MultiGraph mmg;
     mmg.LoadGFA(diplo_graph, true);
 //TODO:: it would be cool not to create twice

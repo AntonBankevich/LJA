@@ -156,8 +156,7 @@ static void *tb_pipeline(void *shared, int step, void *_data)
     return 0;
 }
 
-int lib_triobin(int argc, char *argv[])
-{
+int lib_triobin(int t, const char* paternal_yak, const char* maternal_yak, const char* contigs) {
     ketopt_t o = KETOPT_INIT;
     int i, c, min_cnt = 2, mid_cnt = 5;
     yak_ch_t *ch;
@@ -166,30 +165,14 @@ int lib_triobin(int argc, char *argv[])
     memset(&aux, 0, sizeof(tb_shared_t));
     aux.n_threads = 8, aux.print_diff = 0;
     aux.ratio_thres = 0.33;
-    while ((c = ketopt(&o, argc, argv, 1, "c:d:t:pr:", 0)) >= 0) {
-        if (c == 'c') min_cnt = atoi(o.arg);
-        else if (c == 'd') mid_cnt = atoi(o.arg);
-        else if (c == 't') aux.n_threads = atoi(o.arg);
-        else if (c == 'p') aux.print_diff = 1;
-        else if (c == 'r') aux.ratio_thres = atof(o.arg);
-    }
-    if (argc - o.ind < 2) {
-        fprintf(stderr, "Usage: yak triobin [options] <pat.yak> <mat.yak> <seq.fa>\n");
-        fprintf(stderr, "Options:\n");
-        fprintf(stderr, "  -c INT     min occurrence [%d]\n", min_cnt);
-        fprintf(stderr, "  -d INT     mid occurrence [%d]\n", mid_cnt);
-        fprintf(stderr, "  -t INT     number of threads [%d]\n", aux.n_threads);
-//		fprintf(stderr, "Output: ctg err strongMixed sPat sMat weakMixed wPat1 wMat1 wPat2 wMat2\n");
-        return 1;
-    }
-
-    ch = yak_ch_restore_core(0,  argv[o.ind],     YAK_LOAD_TRIOBIN1, min_cnt, mid_cnt);
-    ch = yak_ch_restore_core(ch, argv[o.ind + 1], YAK_LOAD_TRIOBIN2, min_cnt, mid_cnt);
+    aux.n_threads = t;
+    ch = yak_ch_restore_core(0,  paternal_yak, YAK_LOAD_TRIOBIN1, min_cnt, mid_cnt);
+    ch = yak_ch_restore_core(ch, maternal_yak, YAK_LOAD_TRIOBIN2, min_cnt, mid_cnt);
 
     aux.k = ch->k;
-    aux.fp = bseq_open(argv[o.ind+2]);
+    aux.fp = bseq_open(contigs);
     if (aux.fp == 0) {
-        fprintf(stderr, "ERROR: fail to open file '%s'\n", argv[o.ind+2]);
+        fprintf(stderr, "ERROR: fail to open file '%s'\n", contigs);
         exit(1);
     }
     aux.ch = ch;
