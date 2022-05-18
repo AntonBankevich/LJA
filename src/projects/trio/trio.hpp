@@ -52,7 +52,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   const std::experimental::filesystem::path &haployak,
                                                   const char haplotype,
                                                   const std::experimental::filesystem::path &corrected_reads,
-                                                  io::Library &reads,
+                                                  const io::Library &reads,
                                                   const std::experimental::filesystem::path &dir,
                                                   const size_t saved_bridge_cutoff);
 

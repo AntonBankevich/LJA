@@ -31,6 +31,7 @@ int main(int argc, char **argv) {
     size_t saved_bridge_cutoff = std::stoull(parser.getValue("bridge_cutoff"));
 
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
+
     std::experimental::filesystem::path res_m(dir / "graph_p.gfa");
     simplifyHaplo(logger, threads, res_m, graph, haplo, 'm', corrected_reads, reads_lib, dir, saved_bridge_cutoff);
     std::experimental::filesystem::path res_p(dir / "graph_m.gfa");

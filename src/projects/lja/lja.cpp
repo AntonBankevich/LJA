@@ -99,14 +99,14 @@ int main(int argc, char **argv) {
     size_t KmDBG = std::stoi(parser.getValue("KmDBG"));
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
 
-    std::vector<std::experimental::filesystem::path> corrected_final;
     if (trio) {
         io::Library paternal = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paternal"));
         io::Library maternal = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("maternal"));
         pipeline.TrioPreprocessingPhase(logger, threads, dir, paternal, maternal, skip, debug);
         logger.info() << "Trio preprocessing finished" <<endl;
     }
-    
+
+    std::vector<std::experimental::filesystem::path> corrected_final;
     if(noec) {
         corrected_final = pipeline.NoCorrection(logger, dir / ("k" + itos(K)), lib, {}, paths, threads, K, W,
                                        skip, debug, load);
@@ -138,19 +138,28 @@ int main(int argc, char **argv) {
                       corrected_final[2], skip, debug);
     if(first_stage == "rr")
         load = false;
+    if (trio) {
+        const auto binned = pipeline.TrioBinningPhase(logger, threads, dir, dir / "paternal_compressed.yak", dir / "maternal_compressed.yak", resolved[0], skip, debug);
+        logger.info() << "Resolving trio repeats with graph " << resolved[1] << std::endl;
+        pipeline.TrioSimplificationPhase(logger, threads, resolved[1], binned, corrected_final[0], lib,
+        dir, 1000000, skip, debug);
+    } else {
+        if (first_stage == "polishing")
+            skip = false;
+        std::vector<std::experimental::filesystem::path> uncompressed_results =
+                pipeline.PolishingPhase(logger, threads, dir / "uncompressing", dir, corrected_final[1],
+                                        corrected_final[0],
+                                        lib, StringContig::max_dimer_size / 2, K, skip, debug);
+        if (first_stage == "polishing")
+            load = false;
 
-    if(first_stage == "polishing")
-        skip = false;
-    std::vector<std::experimental::filesystem::path> uncompressed_results =
-            pipeline.PolishingPhase(logger, threads, dir/ "uncompressing", dir, corrected_final[1],
-                           corrected_final[0],
-                            lib, StringContig::max_dimer_size / 2, K, skip, debug);
-    if(first_stage == "polishing")
-        load = false;
-    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected_final[0] << std::endl;
-    logger.info() << "Final graph with homopolymer compressed edges can be found here: " << resolved[1] << std::endl;
-    logger.info() << "Final graph can be found here: " << uncompressed_results[1] << std::endl;
-    logger.info() << "Final assembly can be found here: " << uncompressed_results[0] << std::endl;
+        logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected_final[0]
+                      << std::endl;
+        logger.info() << "Final graph with homopolymer compressed edges can be found here: " << resolved[1]
+                      << std::endl;
+        logger.info() << "Final graph can be found here: " << uncompressed_results[1] << std::endl;
+        logger.info() << "Final assembly can be found here: " << uncompressed_results[0] << std::endl;
+    }
     logger.info() << "LJA pipeline finished" << std::endl;
     return 0;
 }

@@ -25,7 +25,7 @@
 extern "C" {
 #endif
 
-int lib_triobin(int argc, char *argv[]);
+int lib_triobin(int t, const char* paternal_yak, const char* maternal_yak, const char* contigs);
 
 int lib_count(int32_t bf_shift, int32_t n_thread, const char *out_string, const char *in_string);
 
