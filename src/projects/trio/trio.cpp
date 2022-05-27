@@ -108,16 +108,22 @@ void HaplotypeRemover::UpdateBridgeSequence(int eid) {
     for (auto alt_e: mg.edges[eid].start->outgoing) {
         if (alt_e->getId() != mg.edges[eid].getId() and alt_e->isTip()) {
             start_s = alt_e->getSeq().copy();
+            logger_.info() << "Incoming tip " << alt_e->getId() << endl;
             start_l = alt_e->getSeq().size();
         }
     }
     for (auto alt_e: mg.edges[eid].rc->start->outgoing) {
         if (alt_e->getId() != mg.edges[eid].rc->getId() and alt_e->isTip()) {
             end_l = alt_e->getSeq().size();
+            logger_.info() << "Outgoing tip " << alt_e->rc->getId() << endl;
+
             end_s = alt_e->rc->getSeq().copy();
         }
     }
-
+    if (total_l < start_l || total_l < end_l) {
+        logger_.info() << " Tips are too long, no changes";
+        return; 
+    }
     if (total_l < start_l + end_l) {
         if (end_l > total_l) {
             start_l = 0;
@@ -126,11 +132,7 @@ void HaplotypeRemover::UpdateBridgeSequence(int eid) {
         }
         start_s = start_s.Subseq(0, start_l);
     }
-    if (end_l > total_l) {
-        end_l = 0;
-        end_s = end_s.Subseq(0,0);
-    }
-    logger_.info() << "We have tips length: "<< start_l << " and " << end_l << " and bridge length " << total_l;
+    logger_.info() << "We have tips length: "<< start_l << " and " << end_l << " and bridge length " << total_l << endl;
     Sequence new_seq = Sequence (start_s.str() + mg.edges[eid].getSeq().Subseq(start_l, total_l - end_l - start_l).str() + end_s.str());
     mg.edges[eid].setSeq(new_seq);
     Sequence rc = !new_seq;
