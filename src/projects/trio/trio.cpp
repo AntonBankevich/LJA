@@ -90,6 +90,66 @@ void HaplotypeRemover::compressAllVertices() {
     }
     logger_.info() << "Compressing all " << all_count << endl;
 }
+
+
+//Update bridge sequence with adjacent tips.
+void HaplotypeRemover::UpdateBridgeSequence(int eid) {
+    if (mg.edges.find(eid) == mg.edges.end()) {
+        return;
+    }
+    if (!mg.edges[eid].isSimpleBridge()) {
+        return;
+    }
+    size_t start_l = 0;
+    size_t end_l = 0;
+    Sequence start_s("");
+    Sequence end_s("");
+    size_t total_l = mg.edges[eid].getSeq().size();
+    for (auto alt_e: mg.edges[eid].start->outgoing) {
+        if (alt_e->getId() != mg.edges[eid].getId() and alt_e->isTip()) {
+            start_s = alt_e->getSeq().copy();
+            start_l = alt_e->getSeq().size();
+        }
+    }
+    for (auto alt_e: mg.edges[eid].rc->start->outgoing) {
+        if (alt_e->getId() != mg.edges[eid].rc->getId() and alt_e->isTip()) {
+            end_l = alt_e->getSeq().size();
+            end_s = alt_e->rc->getSeq().copy();
+        }
+    }
+
+    if (total_l < start_l + end_l) {
+        if (end_l > total_l) {
+            start_l = 0;
+        } else {
+            start_l = total_l - end_l;
+        }
+        start_s = start_s.Subseq(0, start_l);
+    }
+    logger_.info() << "We have tips length: "<< start_l << " and " << end_l << " and bridge length " << total_l;
+    Sequence new_seq = Sequence (start_s.str() + mg.edges[eid].getSeq().Subseq(start_l, total_l - end_l - start_l).str() + end_s.str());
+    mg.edges[eid].setSeq(new_seq);
+    Sequence rc = !new_seq;
+    mg.edges[eid].rc->setSeq(rc);
+    for (auto alt_e: mg.edges[eid].start->outgoing) {
+        if (alt_e->getId() != mg.edges[eid].getId() and alt_e->isTip()) {
+            mg.deleteEdgeById(alt_e->getId());
+            break;
+        }
+
+    }
+
+
+    for (auto alt_e: mg.edges[eid].rc->start->outgoing) {
+        if (alt_e->getId() != mg.edges[eid].rc->getId() and alt_e->isTip()) {
+            mg.deleteEdgeById(alt_e->getId());
+            break;
+        }
+    }
+//TODO:rc
+
+}
+
 void HaplotypeRemover::cleanGraph() {
     bool changed = true;
     size_t tips = 0;
@@ -215,9 +275,12 @@ void HaplotypeRemover::removeHaplotype() {
             if (haplotypes.find(label) != haplotypes.end()) {
                 if (haplotypes[label].haplotype == haplotype_) {
                     if (mg.edges[eid].isSimpleBridge() && mg.edges[eid].size() < saved_bridge_cutoff) {
-                        bridges ++;
-                        logger_.info() << "Skipping edge " << eid << " as bridge\n";
-                        continue;
+//                        bridges ++;
+//                        logger_.info() << "Skipping edge " << eid << " as bridge\n";
+//                        continue;
+//                    }
+                        logger_.info() << "Updating bridge " << eid << "\n";
+                        UpdateBridgeSequence(eid);
                     }
                     removed_len += mg.edges[eid].size();
                     deleteEdgeHaplo(eid);
