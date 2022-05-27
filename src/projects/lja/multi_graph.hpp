@@ -79,6 +79,9 @@ namespace multigraph {
             return seq;
         }
 
+        void setSeq(Sequence &seq_) {
+            seq = seq_.copy();
+        }
         int getId() const {
             return id;
         }

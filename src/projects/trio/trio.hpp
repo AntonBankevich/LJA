@@ -44,6 +44,9 @@ struct HaplotypeRemover {
     void updateAmbiguousHaplotypes();
 
     void removeHaplotype();
+
+    void UpdateBridgeSequence(int eid);
+
 };
 
 std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_t threads,
