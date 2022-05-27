@@ -126,6 +126,10 @@ void HaplotypeRemover::UpdateBridgeSequence(int eid) {
         }
         start_s = start_s.Subseq(0, start_l);
     }
+    if (end_l > total_l) {
+        end_l = 0;
+        end_s = end_s.Subseq(0,0);
+    }
     logger_.info() << "We have tips length: "<< start_l << " and " << end_l << " and bridge length " << total_l;
     Sequence new_seq = Sequence (start_s.str() + mg.edges[eid].getSeq().Subseq(start_l, total_l - end_l - start_l).str() + end_s.str());
     mg.edges[eid].setSeq(new_seq);
