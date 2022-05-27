@@ -121,7 +121,7 @@ void HaplotypeRemover::UpdateBridgeSequence(int eid) {
         }
     }
     if (total_l < start_l || total_l < end_l) {
-        logger_.info() << " Tips are too long, no changes";
+        logger_.info() << " Tips are too long, no changes "<< start_l << " and " << end_l << " and bridge length " << total_l << endl;
         return; 
     }
     if (total_l < start_l + end_l) {
@@ -133,25 +133,40 @@ void HaplotypeRemover::UpdateBridgeSequence(int eid) {
         start_s = start_s.Subseq(0, start_l);
     }
     logger_.info() << "We have tips length: "<< start_l << " and " << end_l << " and bridge length " << total_l << endl;
-    Sequence new_seq = Sequence (start_s.str() + mg.edges[eid].getSeq().Subseq(start_l, total_l - end_l - start_l).str() + end_s.str());
+    if (start_l == 0 && end_l == 0) {
+        return;
+    }
+    Sequence new_seq = Sequence (start_s.str() + mg.edges[eid].getSeq().Subseq(start_l, total_l - end_l).str() + end_s.str());
     mg.edges[eid].setSeq(new_seq);
+    logger_.info() << "Sequence updated\n";
     Sequence rc = !new_seq;
     mg.edges[eid].rc->setSeq(rc);
+    logger_.info() << "Sequence updated\n";
+    int inc_id = 0;
+    int out_id = 0;
     for (auto alt_e: mg.edges[eid].start->outgoing) {
         if (alt_e->getId() != mg.edges[eid].getId() and alt_e->isTip()) {
-            mg.deleteEdgeById(alt_e->getId());
+            inc_id = alt_e->getId();
+            logger_.info() << "deleting out tip " << inc_id << "\n";
             break;
         }
-
     }
-
+    logger_.info() << " between \n";
 
     for (auto alt_e: mg.edges[eid].rc->start->outgoing) {
+        logger_.info() << " checking \n";
         if (alt_e->getId() != mg.edges[eid].rc->getId() and alt_e->isTip()) {
-            mg.deleteEdgeById(alt_e->getId());
+            logger_.info() << alt_e->getId() << " trying to remove\n";
+            
             break;
         }
     }
+    logger_.info() << " exit \n";
+    if (inc_id != 0)
+        mg.deleteEdgeById(inc_id);
+    if (out_id != 0 && mg.edges.find(out_id) != mg.edges.end())
+        mg.deleteEdgeById(out_id);
+
 //TODO:rc
 
 }
@@ -287,13 +302,16 @@ void HaplotypeRemover::removeHaplotype() {
 //                    }
                         logger_.info() << "Updating bridge " << eid << "\n";
                         UpdateBridgeSequence(eid);
+                        haplotypes[label].haplotype = Haplotype::Unknown;
+                        logger_.info() << "Updated\n";
+                    } else {
+                        removed_len += mg.edges[eid].size();
+                        deleteEdgeHaplo(eid);
+    
+                        logger_.trace() << "removing " << eid  << " label " << label << endl;
+                        removed ++;
+                        changed = true;
                     }
-                    removed_len += mg.edges[eid].size();
-                    deleteEdgeHaplo(eid);
-
-                    logger_.trace() << "removing " << eid  << " label " << label << endl;
-                    removed ++;
-                    changed = true;
                 } else { 
                     logger_.trace() << "skipping edge label" << label <<" "<< haplotypes[label].haplotype << endl;
                 }
@@ -344,10 +362,10 @@ std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger,
     pipeline::LJAPipeline pipeline (ref_lib);
 //TODO:: get rid of this magic const
     size_t k = 5001;
-    std::vector<std::experimental::filesystem::path> uncompressed_results =
+/*    std::vector<std::experimental::filesystem::path> uncompressed_results =
            pipeline.PolishingPhase(logger, threads, out_dir, out_dir, output_file,
                            corrected_reads, reads, StringContig::max_dimer_size / 2, k, false, true);
 
-
+*/
     return output_file;
 }
