@@ -362,10 +362,10 @@ std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger,
     pipeline::LJAPipeline pipeline (ref_lib);
 //TODO:: get rid of this magic const
     size_t k = 5001;
-/*    std::vector<std::experimental::filesystem::path> uncompressed_results =
+    std::vector<std::experimental::filesystem::path> uncompressed_results =
            pipeline.PolishingPhase(logger, threads, out_dir, out_dir, output_file,
                            corrected_reads, reads, StringContig::max_dimer_size / 2, k, false, true);
 
-*/
+
     return output_file;
 }
