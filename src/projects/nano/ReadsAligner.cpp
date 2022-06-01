@@ -12,12 +12,13 @@ using namespace nano;
 std::unordered_map<std::string, GraphContig> ReadsAlignerGA::Align(const std::unordered_map<std::string, Contig> &sequences,
                                const std::experimental::filesystem::path &graph,
                                const std::experimental::filesystem::path &output_dir,
+                               const size_t threads,
                                int batch_num){
     const std::experimental::filesystem::path &batch_fasta = SaveBatch(sequences, output_dir, batch_num);
-    std::string command = "GraphAligner -g " + string(graph) +
+    std::string command = "/home/tdvorkina/soft/GraphAligner/bin/GraphAligner -g " + string(graph) +
                           " -f " + string(batch_fasta) +
                           " -a " + string(output_dir / ("batch_" + std::to_string(batch_num) + ".gaf") ) +
-                          " -x dbg -t 8";
+                          " -x dbg -t " + std::to_string(threads);
     std::cerr << command << std::endl;
     std::system(command.c_str());
     const std::experimental::filesystem::path &batch_gaf =

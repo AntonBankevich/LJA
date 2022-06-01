@@ -18,6 +18,7 @@ namespace nano {
         std::unordered_map<std::string, GraphContig> Align(const std::unordered_map<std::string, Contig> &sequences,
                                        const std::experimental::filesystem::path &graph,
                                        const std::experimental::filesystem::path &output_dir,
+                                       const size_t threads,
                                        const int batch_num);
 
     private:
