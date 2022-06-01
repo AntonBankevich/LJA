@@ -162,4 +162,35 @@ void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique
     while (std::getline(is_cut, ln)) {
         uedges_.insert(ln);
     }
+    std::cerr << "Unique loaded" << std::endl;
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        std::unordered_set<std::string> to_remove;
+        for (auto e_str: uedges_) {
+            const multigraph::Edge *edge = GetEdgebyStr(e_str + "+", mg_);
+            bool is_unique = true;
+            for (auto e_out: edge->start->outgoing) {
+                std::string e_out_str = std::to_string(abs(e_out->getId()));
+                if (uedges_.count(e_out_str) == 0) {
+                    is_unique = false;
+                }
+            }
+            for (auto e_in: edge->rc->start->outgoing) {
+                std::string e_in_str = std::to_string(abs(e_in->getId()));
+                if (uedges_.count(e_in_str) == 0) {
+                    is_unique = false;
+                }
+            }
+            if (not is_unique) {
+                std::cerr << "erase from unique " << e_str << std::endl;
+                to_remove.insert(e_str);
+                changed = true;
+            }
+        }
+        for (auto e: to_remove) {
+            uedges_.erase(e);
+        }
+    }
+    std::cerr << "Unique filtered" << std::endl;
 }
