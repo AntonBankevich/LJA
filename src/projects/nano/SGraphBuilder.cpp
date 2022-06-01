@@ -7,7 +7,7 @@
 
 using namespace nano;
 
-void SGraphBuilder::PrintSgraph() {
+void SGraphBuilder::PrintSGraph() {
     for (auto const &[e1, edges]: sgraph_) {
         for (auto const &[e2, val]: edges) {
             std::cerr << e1 << " " << e2 << " " << val << std::endl;
@@ -15,7 +15,27 @@ void SGraphBuilder::PrintSgraph() {
     }
 }
 
-void SGraphBuilder::LoadAlignments(const std::unordered_map<std::string, nano::GraphContig> &alignments) {
+void SGraphBuilder::SaveSGraph(const std::experimental::filesystem::path &sgraph_filename) {
+    std::ofstream out_file;
+    out_file.open(sgraph_filename);
+    for (auto const &[e1, edges]: sgraph_) {
+        for (auto const &[e2, val]: edges) {
+            std::string subpath = "";
+            for (auto const edge_id: val.second) {
+                subpath += std::to_string(edge_id) + ",";
+            }
+            out_file << e1 << "\t" << e2 << "\t" << val.first <<
+                              "\t" << subpath.substr(0, subpath.size()-1) << std::endl;
+        }
+    }
+    out_file.close();
+    std::cerr << "SGraph saved to " << sgraph_filename << std::endl;
+}
+
+
+void SGraphBuilder::LoadAlignments(const std::unordered_map<std::string, nano::GraphContig> &alignments,
+                                   const size_t threads) {
+    std::vector<std::string> names;
     for (auto const &[key, val]: alignments) {
         int prev_index = -1;
         for (int i = 0; i < val.path.size(); ++ i) {
@@ -40,11 +60,43 @@ void SGraphBuilder::LoadAlignments(const std::unordered_map<std::string, nano::G
     }
 }
 
-std::string RC(const std::string &edge_id) {
-    if (edge_id[edge_id.size() - 1] == '-') {
-        return edge_id.substr(0, edge_id.size() - 1) + '+';
+void SGraphBuilder::LoadSGraphEdges(const std::experimental::filesystem::path &sgraph_filename) {
+    sgraph_.clear();
+    std::ifstream in_file;
+    in_file.open(sgraph_filename);
+    std::string ln;
+    while (std::getline(in_file, ln)) {
+        //std::cerr << ln << std::endl;
+        std::istringstream iss(ln);
+        std::string s;
+        char delim = '\t';
+        std::vector<std::string> params;
+        while (std::getline(iss, s, delim)) {
+            params.push_back(s);
+        }
+        int e1 = atoi(params[0].c_str());
+        int e2 = atoi(params[1].c_str());
+        int cnt = atoi(params[2].c_str());
+        std::vector<int> edges;
+        if (params.size() > 3) {
+            std::istringstream subpath_iss(params[3]);
+            //std::cerr << params[3] << std::endl;
+            delim = ',';
+            while (std::getline(subpath_iss, s, delim)) {
+                edges.push_back(atoi(s.c_str()));
+            }
+        }
+        sgraph_[e1][e2] = std::pair<int, std::vector<int>> (cnt, edges);
+        //std::cerr << e1 << " " << e2 << " " << cnt << " " << edges.size() << std::endl;
     }
-    return edge_id.substr(0, edge_id.size() - 1) + '-';
+    in_file.close();
+    std::cerr << "SGraph uploaded from " << sgraph_filename << std::endl;
+}
+
+const multigraph::Edge *GetEdgebyStr(const std::string &edge_id_str, const multigraph::MultiGraph &mg_) {
+    int edge_id = atoi(edge_id_str.substr(0, edge_id_str.size() - 1).c_str());
+    edge_id = edge_id_str[edge_id_str.size() - 1] == '-'? -edge_id: edge_id;
+    return &mg_.edges.at(edge_id);
 }
 
 void SGraphBuilder::AddEdge(const std::string &prev_edge_id, const std::string &edge_id) {
