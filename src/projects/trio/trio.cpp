@@ -51,19 +51,6 @@ void HaplotypeRemover::deleteEdgeHaplo(int eid) {
     logger_.debug() << "Removing " << eid << endl;
     mg.internalRemoveEdge(eid);
     return;
-    auto to_merge = mg.deleteEdgeById(eid);
-    for (auto p: to_merge){
-        HaplotypeStats new_haplo(haplotypes[p.second[0]]);
-        new_haplo.label = p.first;
-        haplotypes.insert(std::make_pair(p.first, new_haplo));
-        for (size_t i = 1; i < p.second.size(); i++) {
-            if (haplotypes[p.first].haplotype != haplotypes[p.second[i]].haplotype) {
-                logger_.trace() << "Merging different haplotypes " << haplotypes[p.first].label <<
-                " " << haplotypes[p.second[i]].label << endl;
-            }
-            haplotypes[p.first].appendKmerStats(haplotypes[p.second[i]]);
-        }
-    }
 }
 
 
@@ -97,7 +84,7 @@ void HaplotypeRemover::cleanGraph() {
     size_t iter = 0;
     while (changed) {
         changed = false;
-        logger_.info() << "Iter " << ++iter << endl;
+        logger_.info() << "Iteration " << ++iter << " of graph cleaning." << endl;
         std::vector<int> eids;
         for (auto &p: mg.edges) {
             eids.push_back(p.first);

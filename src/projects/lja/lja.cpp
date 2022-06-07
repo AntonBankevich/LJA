@@ -53,10 +53,15 @@ int main(int argc, char **argv) {
         std::cout << parser.message() << std::endl;
         return 1;
     }
-
     if(parser.getListValue("reads").size() == 0) {
         std::cout << "Please provide at least one file with reads." << std::endl;
         std::cout << parser.message() << std::endl;
+        return 1;
+    }
+//Negation to convert to boolean
+    if (!(parser.getListValue("maternal").size() != 0) !=  !(parser.getListValue("paternal").size() != 0)) {
+        std::cout << "You should either provide both maternal and paternal short reads (to run trio pipeline), "
+                     "or provide none of them" << std::endl;
         return 1;
     }
 
@@ -138,11 +143,17 @@ int main(int argc, char **argv) {
                       corrected_final[2], skip, debug);
     if(first_stage == "rr")
         load = false;
+    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected_final[0]
+                  << std::endl;
     if (trio) {
         const auto binned = pipeline.TrioBinningPhase(logger, threads, dir, dir / "paternal_compressed.yak", dir / "maternal_compressed.yak", resolved[0], skip, debug);
         logger.info() << "Resolving trio repeats with graph " << resolved[1] << std::endl;
         pipeline.TrioSimplificationPhase(logger, threads, resolved[1], binned, corrected_final[0], lib,
         dir, 1000000, skip, debug);
+        logger.info () << "Trio pipeline finished" << std::endl;
+        logger.info() << "Final assemblies can be found here: " << dir / "haplotype_m/assembly.fasta" <<
+        " and " << dir / "haplotype_m/assembly.fasta" << std::endl;
+
     } else {
         if (first_stage == "polishing")
             skip = false;
@@ -153,8 +164,6 @@ int main(int argc, char **argv) {
         if (first_stage == "polishing")
             load = false;
 
-        logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected_final[0]
-                      << std::endl;
         logger.info() << "Final graph with homopolymer compressed edges can be found here: " << resolved[1]
                       << std::endl;
         logger.info() << "Final graph can be found here: " << uncompressed_results[1] << std::endl;
