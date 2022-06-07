@@ -59,8 +59,19 @@ void GraphSimplificator::Simplify(multigraph::MultiGraph &mg, const std::experim
         }
     }
     os_cut.close();
+    std::unordered_set<int> compress_vertices;
     for (auto it: to_delete) {
-        if (mg.edges.count(it) > 0) mg.deleteEdgeById(it);
+        if (mg.edges.count(it) > 0) {
+            std::cerr << it << " ";
+            compress_vertices.insert(mg.edges.at(it).start->id);
+            compress_vertices.insert(mg.edges.at(it).end->id);
+            mg.internalRemoveEdge(it);
+        }
+    }
+    for (auto it: compress_vertices) {
+        if (mg.vertices.count(it) > 0) {
+            mg.compressVertex(it);
+        }
     }
     std::cerr << std::endl;
 }
@@ -68,42 +79,63 @@ void GraphSimplificator::Simplify(multigraph::MultiGraph &mg, const std::experim
 void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
     std::vector<std::unordered_set<int>> in_edges;
     std::vector<std::unordered_set<int>> out_edges;
-    std::unordered_map<int, std::unordered_set<int>> parallel_edges;
-    for (auto const &[e1_id, val1]: sgraph_) {
-        parallel_edges.insert(std::pair<int, std::unordered_set<int>>(e1_id, std::unordered_set<int>()));
-        std::cerr << "Cur edges " << e1_id << std::endl;
-        for (auto const &[e2_id, num2]: val1) {
-            const multigraph::Edge *edge2 = &mg.edges.at(e2_id);
-            for (auto const &[e3_id, num3]: sgraph_.at(edge2->rc->getId())) {
-                const multigraph::Edge *edge = &mg.edges.at(e3_id);
-                std::cerr << " Insert " << edge->rc->getId() << std::endl;
-                parallel_edges[e1_id].insert(edge->rc->getId());
-            }
-        }
-    }
-    for (auto const &[e1_id, val1]: sgraph_) {
-        in_edges.push_back(std::unordered_set<int>());
-        std::cerr << "e1 " << e1_id << " " << parallel_edges.count(e1_id) << std::endl;
-        for (auto const e_id: parallel_edges[e1_id]) {
-            const multigraph::Edge *edge1 = &mg.edges.at(e_id);
-            for (auto const edge: edge1->end->rc->outgoing) {
-                in_edges[in_edges.size() - 1].insert(edge->rc->getId());
-            }
-        }
-        out_edges.push_back(std::unordered_set<int>());
-        for (auto const &[e2_id, num]: val1){
-            int e2_id_rc = (mg.edges.at(e2_id)).rc->getId();
-            std::cerr << " e2 " << e2_id << " " << parallel_edges.count(e2_id_rc) << std::endl;
-            for (auto const e_id: parallel_edges[e2_id_rc]) {
-                const multigraph::Edge *edge2 = &mg.edges.at(e_id);
-                for (auto const edge: edge2->rc->start->outgoing) {
-                    std::cerr << "  e3 " << edge->getId() << std::endl;
-                    out_edges[out_edges.size() - 1].insert(edge->getId());
-                }
-            }
-        }
-    }
+//    std::unordered_map<int, std::unordered_set<int>> parallel_edges;
+//    for (auto const &[e1_id, val1]: sgraph_) {
+//        parallel_edges.insert(std::pair<int, std::unordered_set<int>>(e1_id, std::unordered_set<int>()));
+//        std::cerr << "Cur edges " << e1_id << std::endl;
+//        for (auto const &[e2_id, num2]: val1) {
+//            const multigraph::Edge *edge2 = &mg.edges.at(e2_id);
+//            for (auto const &[e3_id, num3]: sgraph_.at(edge2->rc->getId())) {
+//                const multigraph::Edge *edge = &mg.edges.at(e3_id);
+//                std::cerr << " Insert " << edge->rc->getId() << std::endl;
+//                parallel_edges[e1_id].insert(edge->rc->getId());
+//            }
+//        }
+//    }
+//    for (auto const &[e1_id, val1]: sgraph_) {
+//        in_edges.push_back(std::unordered_set<int>());
+//        std::cerr << "e1 " << e1_id << " " << parallel_edges.count(e1_id) << std::endl;
+//        for (auto const e_id: parallel_edges[e1_id]) {
+//            const multigraph::Edge *edge1 = &mg.edges.at(e_id);
+//            for (auto const edge: edge1->end->rc->outgoing) {
+//                in_edges[in_edges.size() - 1].insert(edge->rc->getId());
+//            }
+//        }
+//        out_edges.push_back(std::unordered_set<int>());
+//        for (auto const &[e2_id, num]: val1){
+//            int e2_id_rc = (mg.edges.at(e2_id)).rc->getId();
+//            std::cerr << " e2 " << e2_id << " " << parallel_edges.count(e2_id_rc) << std::endl;
+//            for (auto const e_id: parallel_edges[e2_id_rc]) {
+//                const multigraph::Edge *edge2 = &mg.edges.at(e_id);
+//                for (auto const edge: edge2->rc->start->outgoing) {
+//                    std::cerr << "  e3 " << edge->getId() << std::endl;
+//                    out_edges[out_edges.size() - 1].insert(edge->getId());
+//                }
+//            }
+//        }
+//    }
     std::cerr << "Start resolving" << std::endl;
+    for (auto const &[key, val]: mg.vertices){
+        if (val.outgoing.size() == 2 && val.rc->outgoing.size() == 2) {
+            bool is_uedges = true;
+            for (auto const e: val.outgoing)
+                if (sgraph_.count(e->getId()) == 0) {
+                    is_uedges = false;
+                    break;
+                }
+            for (auto const e: val.rc->outgoing)
+                if (sgraph_.count(e->getId()) == 0) {
+                    is_uedges = false;
+                    break;
+                }
+            if (!is_uedges) continue;
+            in_edges.push_back(std::unordered_set<int>());
+            out_edges.push_back(std::unordered_set<int>());
+            for (auto const e: val.outgoing) out_edges[out_edges.size() - 1].insert(e->getId());
+            for (auto const e: val.rc->outgoing) in_edges[in_edges.size() - 1].insert(e->rc->getId());
+        }
+    }
+
     for (int i = 0; i < in_edges.size(); ++ i) {
         std::unordered_set<int> &cur_in_edges = in_edges[i];
         std::unordered_set<int> &cur_out_edges = out_edges[i];
