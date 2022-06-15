@@ -61,17 +61,18 @@ int main(int argc, char **argv) {
     std::vector<Subdataset> subdatasets;
     GraphAlignmentStorage storage(dbg);
     if(paths_lib.empty()) {
-        logger.info() << "No paths provided. Splitting the whole graph and using components with suspicious edges." << std::endl;
-        std::function<bool(const dbg::Component&)> f = [bad_cov](const dbg::Component &component) {
-            for(dbg::Edge &edge : component.edgesInnerUnique()) {
-                if(edge.getCoverage() >= 2 && edge.getCoverage() < bad_cov) {
-                    return false;
-                    break;
-                }
-            }
-            return true;
-        };
-        std::vector<dbg::Component> components = oneline::filter(dbg::LengthSplitter(unique_threshold).splitGraph(dbg), f);
+        logger.info() << "No paths provided. Splitting the whole graph." << std::endl;
+//        std::function<bool(const dbg::Component&)> f = [bad_cov](const dbg::Component &component) {
+//            for(dbg::Edge &edge : component.edgesInnerUnique()) {
+//                if(edge.getCoverage() >= 2 && edge.getCoverage() < bad_cov) {
+//                    return false;
+//                    break;
+//                }
+//            }
+//            return true;
+//        };
+//        std::vector<dbg::Component> components = oneline::filter(dbg::LengthSplitter(unique_threshold).splitGraph(dbg), f);
+        std::vector<dbg::Component> components = dbg::LengthSplitter(unique_threshold).splitGraph(dbg);
         subdatasets = oneline::initialize<Subdataset>(components);
     } else {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;

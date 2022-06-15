@@ -1,7 +1,3 @@
-//
-// Created by anton on 8/26/20.
-//
-
 #pragma once
 
 #include "dbg/sparse_dbg.hpp"
@@ -37,7 +33,7 @@ public:
             dbg::GraphAlignment corrected = initial_cpath.getAlignment();
             std::string message = algorithm.correctRead(corrected);
             if(!message.empty()) {
-                reads_storage.reroute(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + message);
+                reads_storage.reroute(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message);
                 cnt += 1;
             }
         }

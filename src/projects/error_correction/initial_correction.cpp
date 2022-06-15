@@ -1,5 +1,7 @@
 #include "initial_correction.hpp"
 #include "bulge_path_marker.hpp"
+#include "error_correction.hpp"
+#include "dimer_correction.hpp"
 
 using namespace dbg;
 size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump) {
@@ -23,34 +25,6 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
         }
     }
     return winner;
-}
-
-std::vector<Path> FindBulgeAlternatives(const Path &path, size_t max_diff) {
-    size_t k = path.start().seq.size();
-    std::vector<GraphAlignment> als = GraphAlignment(path.start()).allExtensions(max_diff);
-    max_diff = std::min(max_diff, path.len());
-    std::vector<Path> res;
-    Sequence path_seq = path.truncSeq();
-    for(GraphAlignment &diff_al : als) {
-        size_t path_pos = 0;
-        size_t edge_pos = size_t (-1);
-        for(size_t i = 0; i < max_diff; i++) {
-            GraphAlignment al = diff_al;
-            if(i > 0 && al.size() > 0 && al.lastNucl() == path[path_pos].seq[edge_pos])
-                continue;
-            Sequence seq = path_seq.Subseq(i, path_seq.size());
-            al.extend(seq);
-            if(al.valid() && al.endClosed() && al.back().contig().end() == &path.finish()){
-                res.emplace_back(al.path());
-            }
-            edge_pos += 1;
-            if(edge_pos == path[path_pos].size()) {
-                path_pos += 1;
-                edge_pos = 0;
-            }
-        }
-    }
-    return res;
 }
 
 std::vector<GraphAlignment>
@@ -154,333 +128,116 @@ GraphAlignment processTip(const GraphAlignment &tip,
 }
 
 
-class TournamentPathCorrector : AbstractCorrectionAlgorithm {
-private:
-    SparseDBG &sdbg;
-    RecordStorage &reads_storage;
-    double threshold;
-    double reliable_threshold;
-    bool diploid;
-    size_t unique_threshold;
-    size_t max_size;
-public:
-    TournamentPathCorrector(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
-                          double threshold, double reliable_threshold, bool diploid, size_t unique_threshold = 60000) : AbstractCorrectionAlgorithm("TournamentCorrection"),
-                          sdbg(sdbg), reads_storage(reads_storage), threshold(threshold), reliable_threshold(reliable_threshold), diploid(diploid), unique_threshold(unique_threshold){
-        for(dbg::Edge &edge : sdbg.edges()) {
-            edge.mark(EdgeMarker::common);
-        }
-        FillReliableWithConnections(logger, sdbg, reliable_threshold);
-        if(diploid)
-            BulgePathMarker(sdbg, reads_storage).markAllAcyclicComponents(logger, unique_threshold);
-        max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(sdbg.hasher().getK()* 2, 1000));
-    }
-
-    std::string correctRead(GraphAlignment &path) override {
-        GraphAlignment corrected_path(path.start());
-        std::vector<std::string> messages;
-        bool corrected = false;
-        for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-            VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos), "End");
-            Edge &edge = path[path_pos].contig();
-            if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
-                (edge.start()->inDeg() > 0 && edge.end()->outDeg() > 0 && edge.getCoverage() > threshold) ) {
-//              Tips need to pass reliable threshold to avoid being corrected.
-                corrected_path.push_back(path[path_pos]);
-                continue;
-            }
-            size_t step_back = 0;
-            size_t step_front = 0;
-            size_t size = edge.size();
-            while(step_back < corrected_path.size() &&
-                  (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold &&
-                   !corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
-                size += corrected_path[corrected_path.size() - step_back - 1].size();
-                step_back += 1;
-            }
-            while(step_front + path_pos + 1 < path.size() &&
-                  (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold &&
-                   !path[step_front + path_pos + 1].contig().is_reliable)) {
-                size += path[step_front + path_pos + 1].size();
-                step_front += 1;
-            }
-            Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
-            Vertex &end = path.getVertex(path_pos + 1 + step_front);
-            GraphAlignment badPath =
-                    corrected_path.subalignment(corrected_path.size() - step_back, corrected_path.size())
-                    + path.subalignment(path_pos, path_pos + 1 + step_front);
-            corrected_path.pop_back(step_back);
-            if(corrected_path.size() == 0 && step_front == path.size() - path_pos - 1) {
-                for(const Segment<Edge> &seg : badPath) {
-                    corrected_path.push_back(seg);
-                }
-            } else if(corrected_path.size() == 0) {
-                GraphAlignment tip = badPath.RC();
-                std::vector<GraphAlignment> alternatives;
-                if(tip.len() < max_size)
-                    alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
-                if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
-                std::string new_message = "";
-                GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
-                if(!new_message.empty()) {
-                    messages.emplace_back("it" + new_message);
-                    messages.emplace_back(itos(tip.len(), 0));
-                    messages.emplace_back(itos(substitution.len(), 0));
-                }
-                VERIFY_OMP(substitution.start() == tip.start(), "samestart");
-                GraphAlignment rcSubstitution = substitution.RC();
-                corrected_path = std::move(rcSubstitution);
-                VERIFY_OMP(corrected_path.finish() == badPath.finish(), "End1");
-            } else if(step_front == path.size() - path_pos - 1) {
-                GraphAlignment tip = badPath;
-                std::vector<GraphAlignment> alternatives;
-                if(tip.len() < max_size)
-                    alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
-                if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
-                std::string new_message = "";
-                GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
-                if(!new_message.empty()) {
-                    messages.emplace_back("ot" + new_message);
-                    messages.emplace_back(itos(tip.len()), 0);
-                    messages.emplace_back(itos(substitution.len()), 0);
-                }
-                for (const Segment<Edge> &seg : substitution) {
-                    corrected_path.push_back(seg);
-                }
-            } else {
-                std::vector<GraphAlignment> read_alternatives;
-                std::string new_message = "br";
-                if(size < max_size)
-                    read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
-                if(read_alternatives.empty()) {
-                    new_message = "bp";
-                    read_alternatives = FindPlausibleBulgeAlternatives(badPath,
-                                                                       std::max<size_t>(size * 3 / 100, 100), 3);
-                }
-                GraphAlignment substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
-                if(!new_message.empty()) {
-                    messages.emplace_back(new_message);
-                    messages.emplace_back(itos(badPath.len(), 0));
-                    messages.emplace_back(itos(substitution.len(), 0));
-                }
-                for (const Segment<Edge> &seg : substitution) {
-                    corrected_path.push_back(seg);
-                }
-            }
-            path_pos = path_pos + step_front;
-        }
-        if(!messages.empty())
-            path = std::move(corrected_path);
-        return join("_", messages);
-    }
-};
-size_t correctLowCoveredRegions(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
-                                RecordStorage &ref_storage, const std::experimental::filesystem::path &out_file,
-                                double threshold, double reliable_threshold, bool diploid, size_t threads, bool dump) {
-    if(dump)
-        threads = 1;
-    size_t k = sdbg.hasher().getK();
+TournamentPathCorrector::TournamentPathCorrector(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
+                      double threshold, double reliable_threshold, bool diploid, size_t unique_threshold) : AbstractCorrectionAlgorithm("TournamentCorrection"),
+                      sdbg(sdbg), reads_storage(reads_storage), threshold(threshold), reliable_threshold(reliable_threshold), diploid(diploid), unique_threshold(unique_threshold){
     for(dbg::Edge &edge : sdbg.edges()) {
         edge.mark(EdgeMarker::common);
     }
-
     FillReliableWithConnections(logger, sdbg, reliable_threshold);
     if(diploid)
-        BulgePathMarker(sdbg, reads_storage).markAllAcyclicComponents(logger, 60000);
-    ParallelRecordCollector<std::string> results(threads);
-    ParallelCounter simple_bulge_cnt(threads);
-    ParallelCounter bulge_cnt(threads);
-    logger.info() << "Correcting low covered regions in reads" << std::endl;
-    omp_set_num_threads(threads);
-    size_t max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(k * 2, 1000));
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, reads_storage, ref_storage, results, threshold, k, max_size, logger, simple_bulge_cnt, bulge_cnt, dump, reliable_threshold)
-    for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-        std::stringstream ss;
-        std::vector<std::string> messages;
-        AlignedRead &alignedRead = reads_storage[read_ind];
-        if(!alignedRead.valid())
-            continue;
-        if(dump)
-            logger << "Processing read " << alignedRead.id << std::endl;
-        CompactPath &initial_cpath = alignedRead.path;
-        GraphAlignment path = initial_cpath.getAlignment();
-        GraphAlignment corrected_path(path.start());
-        bool corrected = false;
-        for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-            VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos), "End");
-            Edge &edge = path[path_pos].contig();
-            if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
-                (edge.start()->inDeg() > 0 && edge.end()->outDeg() > 0 && edge.getCoverage() > threshold) ) {
-//              Tips need to pass reliable threshold to avoid being corrected.
-                corrected_path.push_back(path[path_pos]);
-                continue;
-            }
-            size_t step_back = 0;
-            size_t step_front = 0;
-            size_t size = edge.size();
-            while(step_back < corrected_path.size() &&
-                  (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold &&
-                   !corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
-                size += corrected_path[corrected_path.size() - step_back - 1].size();
-                step_back += 1;
-            }
-            while(step_front + path_pos + 1 < path.size() &&
-                  (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold &&
-                   !path[step_front + path_pos + 1].contig().is_reliable)) {
-                size += path[step_front + path_pos + 1].size();
-                step_front += 1;
-            }
-            Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
-            Vertex &end = path.getVertex(path_pos + 1 + step_front);
-            GraphAlignment badPath =
-                    corrected_path.subalignment(corrected_path.size() - step_back, corrected_path.size())
-                    + path.subalignment(path_pos, path_pos + 1 + step_front);
-            corrected_path.pop_back(step_back);
-            if(dump) {
-                logger << "Bad read segment " <<    alignedRead.id << " " << path_pos << " " << step_back << " "
-                       << step_front << " " << path.size()
-                       << " " << size << " " << edge.getCoverage() << " size " << step_back + step_front + 1
-                       << std::endl;
-                if (step_back < corrected_path.size()) {
-                    logger << "Start stop " << step_back << " "
-                           << corrected_path.getVertex(corrected_path.size() - step_back).hash() << " "
-                           << corrected_path.getVertex(corrected_path.size() - step_back).isCanonical()
-                           << " " << corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage()
-                           << corrected_path[corrected_path.size() - step_back - 1].contig().rc().getCoverage()
-                           << std::endl;
-                    Vertex &tmpv = corrected_path.getVertex(corrected_path.size() - step_back);
-                    logger << tmpv.outDeg() << " " << tmpv.inDeg() << std::endl;
-                    for (Edge &e : tmpv)
-                        logger << "Edge out " << e.size() << " " << e.getCoverage() << std::endl;
-                    for (Edge &e : tmpv.rc())
-                        logger << "Edge in " << e.size() << " " << e.getCoverage() << std::endl;
-                }
-                if (path_pos + 1 + step_front < path.size()) {
-                    logger << "End stop " << step_front << " " << path.getVertex(path_pos + 1 + step_front).hash()
-                           << " " << path.getVertex(path_pos + 1 + step_front).isCanonical()
-                           << " " << path[path_pos + step_front].contig().getCoverage() << std::endl;
-                    Vertex &tmpv = path.getVertex(path_pos + step_front + 1);
-                    logger << tmpv.outDeg() << " " << tmpv.inDeg() << std::endl;
-                    for (Edge &e : tmpv)
-                        logger << "Edge out " << e.size() << " " << e.getCoverage() << std::endl;
-                    for (Edge &e : tmpv.rc())
-                        logger << "Edge in " << e.size() << " " << e.getCoverage() << std::endl;
-                }
-            }
-            if(corrected_path.size() == 0 && step_front == path.size() - path_pos - 1) {
-                if(dump)
-                    logger << "Whole read has low coverage. Skipping." << std::endl;
-                for(const Segment<Edge> &seg : badPath) {
-                    corrected_path.push_back(seg);
-                }
-            } else if(corrected_path.size() == 0) {
-                if (dump)
-                    logger << "Processing incoming tip" << std::endl;
-                GraphAlignment tip = badPath.RC();
-                std::vector<GraphAlignment> alternatives;
-                if(tip.len() < max_size)
-                    alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
-                if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
-                std::string new_message = "";
-                GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
-                if(!new_message.empty()) {
-                    messages.emplace_back("it" + new_message);
-                    messages.emplace_back(itos(tip.len(), 0));
-                    messages.emplace_back(itos(substitution.len(), 0));
-                }
-                VERIFY_OMP(substitution.start() == tip.start(), "samestart");
-                GraphAlignment rcSubstitution = substitution.RC();
-                corrected_path = std::move(rcSubstitution);
-                if(dump) {
-                    std::cout << badPath.size() << std::endl;
-                    std::cout << corrected_path.size() << std::endl;
-                    std::cout << badPath.finish().getId() << std::endl;
-                    std::cout << corrected_path.finish().getId() << std::endl;
-                }
-                VERIFY_OMP(corrected_path.finish() == badPath.finish(), "End1");
-            } else if(step_front == path.size() - path_pos - 1) {
-                if (dump)
-                    logger << "Processing outgoing tip" << std::endl;
-                GraphAlignment tip = badPath;
-                std::vector<GraphAlignment> alternatives;
-                if(tip.len() < max_size)
-                    alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
-                if (alternatives.empty())
-                    alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
-                std::string new_message = "";
-                GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
-                if(!new_message.empty()) {
-                    messages.emplace_back("ot" + new_message);
-                    messages.emplace_back(itos(tip.len()), 0);
-                    messages.emplace_back(itos(substitution.len()), 0);
-                }
-                for (const Segment<Edge> &seg : substitution) {
-                    corrected_path.push_back(seg);
-                }
-            } else {
-                std::vector<GraphAlignment> read_alternatives;
-                std::string new_message = "br";
-                if(size < max_size)
-                    read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
-                if(read_alternatives.empty()) {
-                    new_message = "bp";
-                    read_alternatives = FindPlausibleBulgeAlternatives(badPath,
-                                                                       std::max<size_t>(size * 3 / 100, 100), 3);
-                }
-                GraphAlignment substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
-                if(!new_message.empty()) {
-                    messages.emplace_back(new_message);
-                    messages.emplace_back(itos(badPath.len(), 0));
-                    messages.emplace_back(itos(substitution.len(), 0));
-                }
-                for (const Segment<Edge> &seg : substitution) {
-                    corrected_path.push_back(seg);
-                }
-                if(badPath.size() == 1 && corrected_path.size() == 1 && badPath[0] != corrected_path[0]) {
-                    simple_bulge_cnt += 1;
-                }
-                bulge_cnt += 1;
-            }
-            path_pos = path_pos + step_front;
-        }
-        if(path != corrected_path) {
-            VERIFY_OMP(corrected_path.size() > 0, "Corrected path is empty");
-            reads_storage.reroute(alignedRead, path, corrected_path, "low coverage correction "+ join("_", messages));
-        }
-        results.emplace_back(ss.str());
-    }
-    reads_storage.applyCorrections(logger, threads);
-    logger.trace() << "Corrected " << simple_bulge_cnt.get() << " simple bulges" << std::endl;
-    logger.trace() << "Total " << bulge_cnt.get() << " bulges" << std::endl;
-    std::ofstream out;
-    out.open(out_file);
-    size_t res = 0;
-    for(std::string &s : results) {
-        if(!s.empty() && s.find('+') != size_t(-1))
-            res += 1;
-        out << s;
-    }
-    out.close();
-    logger.info() << "Corrected low covered regions in " << res << " reads" << std::endl;
-    return res;
+        BulgePathMarker(sdbg, reads_storage).markAllAcyclicComponents(logger, unique_threshold);
+    max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(sdbg.hasher().getK()* 2, 1000));
 }
 
-GraphAlignment findAlternative(logging::Logger &logger, std::ostream &out, const GraphAlignment &bulge,
-                               const RecordStorage &reads_storage) {
-    std::vector<GraphAlignment> read_alternatives = reads_storage.getRecord(bulge.start()).getBulgeAlternatives(bulge.finish(), 1);
-    std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(bulge, read_alternatives,
-                                                                                std::max<size_t>(100, bulge.len() / 100), 1);
-    if(read_alternatives_filtered.size() != 2)
-        return bulge;
-    for(GraphAlignment &al : read_alternatives_filtered) {
-        if(al == bulge)
+std::string TournamentPathCorrector::correctRead(GraphAlignment &path) {
+    GraphAlignment corrected_path(path.start());
+    std::vector<std::string> messages;
+    bool corrected = false;
+    for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
+        VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos), "End");
+        Edge &edge = path[path_pos].contig();
+        if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
+            (edge.start()->inDeg() > 0 && edge.end()->outDeg() > 0 && (edge.getCoverage() > threshold || edge.size() > 10000)) ) {
+//              Tips need to pass reliable threshold to avoid being corrected.
+            corrected_path.push_back(path[path_pos]);
             continue;
-        return std::move(al);
+        }
+        size_t step_back = 0;
+        size_t step_front = 0;
+        size_t size = edge.size();
+        while(step_back < corrected_path.size() &&
+              (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold &&
+               !corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
+            size += corrected_path[corrected_path.size() - step_back - 1].size();
+            step_back += 1;
+        }
+        while(step_front + path_pos + 1 < path.size() &&
+              (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold &&
+               !path[step_front + path_pos + 1].contig().is_reliable)) {
+            size += path[step_front + path_pos + 1].size();
+            step_front += 1;
+        }
+        Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
+        Vertex &end = path.getVertex(path_pos + 1 + step_front);
+        GraphAlignment badPath =
+                corrected_path.subalignment(corrected_path.size() - step_back, corrected_path.size())
+                + path.subalignment(path_pos, path_pos + 1 + step_front);
+        corrected_path.pop_back(step_back);
+        if(corrected_path.size() == 0 && step_front == path.size() - path_pos - 1) {
+            for(const Segment<Edge> &seg : badPath) {
+                corrected_path.push_back(seg);
+            }
+        } else if(corrected_path.size() == 0) {
+            GraphAlignment tip = badPath.RC();
+            std::vector<GraphAlignment> alternatives;
+            if(tip.len() < max_size)
+                alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
+            if (alternatives.empty())
+                alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
+            std::string new_message = "";
+            GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
+            if(!new_message.empty()) {
+                    messages.emplace_back("it" + new_message);
+                messages.emplace_back(itos(tip.len(), 0));
+                messages.emplace_back(itos(substitution.len(), 0));
+            }
+            VERIFY_OMP(substitution.start() == tip.start(), "samestart");
+            GraphAlignment rcSubstitution = substitution.RC();
+            corrected_path = std::move(rcSubstitution);
+            VERIFY_OMP(corrected_path.finish() == badPath.finish(), "End1");
+        } else if(step_front == path.size() - path_pos - 1) {
+            GraphAlignment tip = badPath;
+            std::vector<GraphAlignment> alternatives;
+            if(tip.len() < max_size)
+                alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
+            if (alternatives.empty())
+                alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
+            std::string new_message = "";
+            GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
+            if(!new_message.empty()) {
+                messages.emplace_back("ot" + new_message);
+                messages.emplace_back(itos(tip.len()), 0);
+                messages.emplace_back(itos(substitution.len()), 0);
+            }
+            for (const Segment<Edge> &seg : substitution) {
+                corrected_path.push_back(seg);
+            }
+        } else {
+            std::vector<GraphAlignment> read_alternatives;
+            std::string new_message = "br";
+            if(size < max_size)
+                read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
+            if(read_alternatives.empty()) {
+                new_message = "bp";
+                read_alternatives = FindPlausibleBulgeAlternatives(badPath,
+                                                                   std::max<size_t>(size * 3 / 100, 100), 3);
+            }
+            GraphAlignment substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
+            if(!new_message.empty()) {
+                messages.emplace_back(new_message);
+                messages.emplace_back(itos(badPath.len(), 0));
+                messages.emplace_back(itos(substitution.len(), 0));
+            }
+            for (const Segment<Edge> &seg : substitution) {
+                corrected_path.push_back(seg);
+            }
+        }
+        path_pos = path_pos + step_front;
     }
-    return bulge;
+    if(!messages.empty())
+        path = std::move(corrected_path);
+    return join("_", messages);
 }
 
 size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, RecordStorage &ref_storage,
@@ -548,151 +305,34 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
         results.emplace_back(ss.str());
     }
     reads_storage.applyCorrections(logger, threads);
-    size_t bulges = std::unordered_set<Edge*>(bulge_cnt.begin(), bulge_cnt.end()).size();
+//    size_t bulges = std::unordered_set<Edge*>(bulge_cnt.begin(), bulge_cnt.end()).size();
     size_t collapsable = std::unordered_set<Edge*>(collapsable_cnt.begin(), bulge_cnt.end()).size();
-    size_t genome = std::unordered_set<Edge*>(genome_cnt.begin(), bulge_cnt.end()).size();
-    size_t corruption = std::unordered_set<Edge*>(corruption_cnt.begin(), bulge_cnt.end()).size();
+//    size_t genome = std::unordered_set<Edge*>(genome_cnt.begin(), bulge_cnt.end()).size();
+//    size_t corruption = std::unordered_set<Edge*>(corruption_cnt.begin(), bulge_cnt.end()).size();
 //    logger << "Bulge collapsing results " << bulges << " " << collapsable << " " << genome << " " << corruption << std::endl;
-    logger.info() << "Collapsed bulges in " << bulges << " reads" << std::endl;
-    return bulges;
+    logger.info() << "Collapsed bulges in " << collapsable << " reads" << std::endl;
+    return collapsable;
 }
 
-void initialCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experimental::filesystem::path &out_file,
-                    RecordStorage &reads_storage, RecordStorage &ref_storage, double threshold, double bulge_threshold,
-                    double reliable_coverage, bool diploid, size_t threads, bool dump) {
+void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &sdbg,
+                    const std::experimental::filesystem::path &out_file,
+                    RecordStorage &reads_storage,
+                    RecordStorage &ref_storage,
+                    double threshold, double bulge_threshold, double reliable_coverage, bool diploid, size_t unique_threshold, bool dump) {
     size_t k = sdbg.hasher().getK();
-    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
-    correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, diploid, threads, dump);
+    DimerCorrector dimerCorrector(logger, sdbg, reads_storage, StringContig::max_dimer_size);
+    TournamentPathCorrector tournamentPathCorrector(logger, sdbg, reads_storage, threshold, reliable_coverage, diploid, unique_threshold);
+    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
+    AbstractErrorCorrector(tournamentPathCorrector).correct(logger, threads, sdbg, reads_storage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     sdbg.checkConsistency(threads, logger);
-    logger.info() << "Running second round of error correction" << std::endl;
-    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
-    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
-    correctLowCoveredRegions(logger,sdbg, reads_storage, ref_storage, out_file, threshold, reliable_coverage, diploid, threads, dump);
-    correctAT(logger, threads, reads_storage, StringContig::max_dimer_size);
+    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
+    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
+    AbstractErrorCorrector(tournamentPathCorrector).correct(logger, threads, sdbg, reads_storage);
+    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
     TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
 }
 
-bool isATFork(Edge &edge, size_t min_len) {
-    size_t cnt = 2;
-    size_t k = edge.end()->seq.size();
-    while(cnt < min_len && cnt < k && edge.end()->seq[k - cnt - 1] == edge.end()->seq[k - cnt + 1])
-        cnt++;
-    if(cnt < min_len)
-        return false;
-    if(!edge.end()->hasOutgoing(edge.end()->seq[k - cnt - 2]))
-        return false;
-    Edge &next = edge.end()->getOutgoing(edge.end()->seq[k - cnt - 2]);
-    if(next.size() >= 2 && next.seq[1] == edge.end()->seq[k - cnt - 1])
-        return true;
-    if(next.size() == 1 && next.end()->hasOutgoing(edge.end()->seq[k - cnt - 1]))
-        return true;
-    return false;
-}
-
-size_t correctATinPath(logging::Logger &logger, const RecordStorage &reads_storage, GraphAlignment &path, size_t max_at) {
-    size_t corrected = 0;
-    size_t k = path.start().seq.size();
-    Sequence remaining_seq = path.truncSeq();
-    for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-        if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().size())
-            continue;
-        Sequence seq = path.getVertex(path_pos).seq;
-        size_t at_cnt1 = 2;
-        while (at_cnt1 < k && seq[k - at_cnt1 - 1] == seq[k - at_cnt1 + 1])
-            at_cnt1 += 1;
-        VERIFY_MSG(at_cnt1 <= max_at,
-                   "at_cnt1 < max_at failed " + itos(at_cnt1) + " " + itos(max_at)); // ATAT should be compressed in reads to some length < k
-        if (at_cnt1 < 4) //Tandem repeat should be at least 4 nucleotides long
-            continue;
-        Sequence unit = seq.Subseq(k - 2);
-        GraphAlignment atPrefix(path.getVertex(path_pos));
-        atPrefix.extend(unit);
-        if (!atPrefix.valid())
-            continue;
-        Sequence extension = path.truncSeq(path_pos, k + max_at);
-        size_t at_cnt2 = 0;
-        while (at_cnt2 < extension.size() && extension[at_cnt2] == seq[seq.size() - 2 + at_cnt2 % 2])
-            at_cnt2 += 1;
-        VERIFY_MSG(at_cnt2 <= max_at,
-                   "at_cnt2 < max_at failed");// ATAT should be compressed in reads to some length max_at < k
-        if (at_cnt2 % 2 != 0 || extension.size() < at_cnt2 + k - at_cnt1)
-            continue;
-        extension = extension.Subseq(0, at_cnt2 + k - at_cnt1);
-        GraphAlignment bulgeSide(path.getVertex(path_pos));
-        bulgeSide.extend(extension);
-        VERIFY_MSG(bulgeSide.valid(), "Extension along an existing path failed");
-        if (!bulgeSide.endClosed())
-            continue;
-        Sequence end_seq = extension.Subseq(at_cnt2);
-        std::vector<CompactPath> candidates = {CompactPath(bulgeSide)};
-        if (at_cnt2 > 0) {
-            GraphAlignment candidate(path.getVertex(path_pos));
-            candidate.extend(end_seq);
-            if (!candidate.valid())
-                continue;
-            VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 1");
-            candidates.emplace_back(candidate);
-        } else {
-            size_t max_variation = std::max<size_t>(3, (at_cnt1 + at_cnt2) / 6);
-            max_variation = std::min(max_variation, at_cnt1 / 2);
-            size_t len = 2;
-            while (len <= max_variation && atPrefix.valid()) {
-                GraphAlignment candidate = atPrefix;
-                candidate.extend(end_seq);
-                if (candidate.valid()) {
-                    VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 2");
-                    candidates.emplace_back(candidate);
-                }
-                atPrefix.extend(unit);
-                len += 2;
-            }
-        }
-        if (candidates.size() == 1)
-            continue;
-        size_t best_val = 0;
-        size_t best = 0;
-        const VertexRecord &rec = reads_storage.getRecord(path.getVertex(path_pos));
-        for (size_t i = 0; i < candidates.size(); i++) {
-            size_t support = rec.countStartsWith(candidates[i].cpath());
-            if (support > best_val) {
-                best_val = support;
-                best = i;
-            }
-        }
-        if (best_val == 0) {
-#pragma omp critical
-            logger.trace() << "Unsupported path during dinucleotide correction" << std::endl;
-        }
-        if (best == 0)
-            continue;
-        path = path.reroute(path_pos, path_pos + candidates[0].size(), candidates[best].getPath());
-        corrected++;
-    }
-    return corrected;
-}
-
-size_t correctAT(logging::Logger &logger, size_t threads, RecordStorage &reads_storage, size_t max_at) {
-    logger.info() << "Correcting dinucleotide errors in reads" << std::endl;
-    ParallelCounter cnt(threads);
-    omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, max_at, logger, cnt, std::cout)
-    for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-        AlignedRead &alignedRead = reads_storage[read_ind];
-        if(!alignedRead.valid())
-            continue;
-        CompactPath &initial_cpath = alignedRead.path;
-        GraphAlignment path = initial_cpath.getAlignment();
-        size_t corrected = correctATinPath(logger, reads_storage, path, max_at);
-        if(corrected > 0) {
-            reads_storage.reroute(alignedRead, path, "AT corrected");
-            ++cnt;
-        }
-    }
-    reads_storage.applyCorrections(logger, threads);
-    logger.info() << "Corrected " << cnt.get() << " dinucleotide sequences" << std::endl;
-    return cnt.get();
-}

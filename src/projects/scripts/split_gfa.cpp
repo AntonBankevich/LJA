@@ -9,20 +9,20 @@ int main(int argc, char **argv) {
     mg.LoadGFA(argv[1], true);
     size_t cnt = 1;
     std::experimental::filesystem::path dir = argv[2];
-//    ensure_dir_existance(dir);
+    ensure_dir_existance(dir);
     std::cout << "dbg " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
     mg = mg.DBG(501);
-//    std::cout << "bulge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
-//    mg = mg.BulgeSubgraph();
-//    std::cout << "merge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
-//    mg = mg.Merge();
-//    std::cout << "bulge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
-//    mg = mg.BulgeSubgraph();
-//    std::cout << "merge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
-//    mg = mg.Merge();
-//    std::cout << "final " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
+    std::cout << "bulge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
+    mg = mg.BulgeSubgraph();
+    std::cout << "merge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
+    mg = mg.Merge();
+    std::cout << "bulge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
+    mg = mg.BulgeSubgraph();
+    std::cout << "merge " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
+    mg = mg.Merge();
+    std::cout << "final " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
 ////    mg.printEdgeGFA(dir);
-//    mg.printEdges(dir, true);
+    mg.printEdges(dir, true);
 
     for(const std::vector<Vertex *> &comp : mg.split()) {
         std::cout << comp.size() << std::endl;
