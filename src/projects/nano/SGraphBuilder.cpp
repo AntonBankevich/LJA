@@ -105,9 +105,11 @@ void SGraphBuilder::LoadSGraphEdges(const std::experimental::filesystem::path &s
     std::cerr << "SGraph uploaded from " << sgraph_filename << std::endl;
 }
 
-const multigraph::Edge *GetEdgebyStr(const std::string &edge_id_str, const multigraph::MultiGraph &mg_) {
+const multigraph::Edge *GetEdgebyStr(const std::string &edge_id_str,
+                                     const multigraph::MultiGraph &mg_) {
     int edge_id = atoi(edge_id_str.substr(0, edge_id_str.size() - 1).c_str());
     edge_id = edge_id_str[edge_id_str.size() - 1] == '-'? -edge_id: edge_id;
+    if (mg_.edges.count(edge_id) == 0) return nullptr;
     return &mg_.edges.at(edge_id);
 }
 
@@ -212,24 +214,45 @@ std::pair<std::string, std::string> SGraphBuilder::ResolveByVertex(const std::ve
         const multigraph::Edge *path_out_edge = GetEdgebyStr(subpath[subpath.size() - 1], mg_);
         const multigraph::Edge *out_edge = GetEdgeByNuc(post_nuc, path_out_edge, false);
         if (in_edge != nullptr) {
-            in_edge_id = in_edge->getLabel() + (in_edge->isCanonical()? "+" : "-");
+            in_edge_id = std::to_string(abs(in_edge->getId())) + (in_edge->isCanonical()? "+" : "-");
         }
         if (out_edge != nullptr) {
-            out_edge_id = out_edge->getLabel() + (out_edge->isCanonical()? "+" : "-");
+            out_edge_id = std::to_string(abs(out_edge->getId())) + (out_edge->isCanonical()? "+" : "-");
         }
     }
     edlibFreeAlignResult(result);
     return std::pair<std::string, std::string>(in_edge_id, out_edge_id);
 }
 
-void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique_edges) {
+void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique_edges,
+                               const std::unordered_map<int, int> &new_edges_map) {
     uedges_.clear();
     std::ifstream is_cut;
     is_cut.open(unique_edges);
     std::string ln;
     while (std::getline(is_cut, ln)) {
-        uedges_.insert(ln);
+        std::vector<std::string> params;
+        std::istringstream iss(ln);
+        std::string s;
+        char delim = '\t';
+        while (std::getline(iss, s, delim)) {
+            params.push_back(s);
+        }
+        if (params[1] == "1") {
+            uedges_.insert(params[0]);
+        }
     }
+
+    std::unordered_set<std::string> corrected_uedges;
+    for (auto e_str: uedges_) {
+        int e_id = std::atoi(e_str.c_str());
+        if (new_edges_map.count(e_id) == 1) {
+            corrected_uedges.insert(std::to_string(new_edges_map.at(e_id)));
+        } else {
+            corrected_uedges.insert(e_str);
+        }
+    }
+    uedges_ = corrected_uedges;
     std::cerr << "Unique loaded" << std::endl;
     bool changed = true;
     while (changed) {
@@ -237,6 +260,8 @@ void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique
         std::unordered_set<std::string> to_remove;
         for (auto e_str: uedges_) {
             const multigraph::Edge *edge = GetEdgebyStr(e_str + "+", mg_);
+            if (edge == nullptr) continue;
+            std::cerr << e_str << std::endl;
             bool is_unique = true;
             for (auto e_out: edge->start->outgoing) {
                 std::string e_out_str = std::to_string(abs(e_out->getId()));

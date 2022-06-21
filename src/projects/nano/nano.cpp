@@ -18,6 +18,7 @@
 #include <nano/ReadsAligner.h>
 #include <nano/SGraphBuilder.h>
 #include <nano/GraphSimplificator.h>
+#include <nano/VertexExtender.h>
 #include <lja/multi_graph.hpp>
 
 using namespace dbg;
@@ -37,9 +38,17 @@ int runNano(const std::experimental::filesystem::path &graph,
     const std::experimental::filesystem::path &input_gfa = dir / "input.gfa";
     mg.printEdgeGFA(input_gfa);
     std::cerr << "Graph loaded" << std::endl;
+
+    nano::VertexExtender initial_graph_simplificator;
+    std::unordered_map<int, int> new_edges_map = initial_graph_simplificator.ExtendVertices(mg);
+    //std::unordered_map<int, int> new_edges_map;
+    const std::experimental::filesystem::path &input_extended_gfa = dir / "input_extended.gfa";
+    mg.printEdgeGFA(input_extended_gfa);
+    std::cerr << "Graph simplified " << input_extended_gfa << std::endl;
+
     std::unordered_map<std::string, Contig> batch;
     nano::ReadsAlignerGA reads_aligner(mg);
-    nano::SGraphBuilder sgraph_builder(mg, unique_edges, true);
+    nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, false);
     int cnt = 0;
     StringContig::homopolymer_compressing = true;
     StringContig::min_dimer_to_compress = 32;
@@ -49,12 +58,12 @@ int runNano(const std::experimental::filesystem::path &graph,
         batch[contig.id] = contig;
         if (batch.size() > BATCH_SIZE) {
             std::unordered_map<std::string, nano::GraphContig> alignments =
-                            reads_aligner.Align(batch, graph, dir, threads, ++cnt);
+                            reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++cnt);
             sgraph_builder.LoadAlignments(alignments, threads);
             batch.clear();
         }
     }
-    std::unordered_map<std::string, nano::GraphContig> alignments = reads_aligner.Align(batch, graph, dir, threads, ++cnt);
+    std::unordered_map<std::string, nano::GraphContig> alignments = reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++cnt);
     sgraph_builder.LoadAlignments(alignments, threads);
     batch.clear();
 
