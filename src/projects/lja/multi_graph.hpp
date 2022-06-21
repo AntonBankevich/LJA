@@ -428,6 +428,84 @@ namespace multigraph {
             }
         }
 
+        // only for vertex with 2(!) outgoing edges
+        std::unordered_map<int, int> extendVertex (int vid) {
+            VERIFY(vertices.find(vid) != vertices.end());
+            Vertex *vertex = &vertices[vid];
+            VERIFY(vertex->outgoing.size() == 2);
+            Vertex *rc_vertex = vertex->rc;
+            int rcid = rc_vertex->id;
+
+            std::unordered_map<int, int> new_unique;
+
+            int i = vertex->size();
+            Edge *e1 = vertex->outgoing[0];
+            Edge *e2 = vertex->outgoing[1];
+            while (i < e1->size() && i < e2->size() && e1->getSeq()[i] == e2->getSeq()[i]) ++i;
+
+            if (i < e1->size() && i < e2->size()) {
+                std::string vertex_str = e1->getSeq().str().substr(0, i);
+                int e1_id_ini = e1->getId();
+                int e2_id_ini = e2->getId();
+                Sequence extension_seq = Sequence(e1->getSeq().str().substr(vertex->size(), i - vertex->size()));
+                std::cerr << e1->getId() << " " << e2->getId() << std::endl;
+                Vertex *new_vertex = &addVertex(Sequence(vertex_str));
+                std::vector<int> to_modify;
+                for (auto e: rc_vertex->outgoing) {
+                    to_modify.push_back(e->getId());
+                }
+                for (int e_id: to_modify) {
+                    std::cerr << "Cur id " << e_id << std::endl;
+                    int e_id_ini = e_id;
+                    if (new_unique.count(e_id) == 1) {
+                        e_id = new_unique[e_id];
+                    }
+                    Edge *e = &edges.at(e_id);
+                    std::cerr << "Start ";
+                    std::cerr << e->getId() << std::endl;
+                    Sequence new_edge_seq = e->rc->getSeq() + extension_seq;
+                    Edge *new_e = &addEdge(*(e->rc->start), *new_vertex, new_edge_seq);
+                    new_unique[e_id_ini * (-1)] = new_e->getId();
+                    new_unique[e_id_ini] = new_e->rc->getId();
+                    std::cerr << "Change in " << e_id_ini  * (-1) << " " << new_e->getId() << std::endl;
+                    internalRemoveEdge(e->getId());
+                    std::cerr << "Removed" << std::endl;
+                }
+                std::cerr << "Change out " << e1_id_ini << " " << e2_id_ini << " " << i - vertex->size() << std::endl;
+
+                if (new_unique.count(e1_id_ini) == 1) {
+                    e1 = &edges.at(new_unique[e1_id_ini]);
+                }
+
+                if (new_unique.count(e2_id_ini) == 1) {
+                    e2 = &edges.at(new_unique[e2_id_ini]);
+                }
+
+                Edge *new_e1 = &addEdge(*new_vertex, *(e1->end), e1->getSeq());
+                new_unique[e1_id_ini] = new_e1->getId();
+                new_unique[e1_id_ini * (-1)] = new_e1->rc->getId();
+                internalRemoveEdge(e1->getId());
+
+                Edge *new_e2 = &addEdge(*new_vertex, *(e2->end), e2->getSeq());
+                new_unique[e2_id_ini] = new_e2->getId();
+                new_unique[e2_id_ini * (-1)] = new_e2->rc->getId();
+                internalRemoveEdge(e2->getId());
+            } else if (i == e1->size() && i == e2->size()) {
+                internalRemoveEdge(e1->getId());
+                new_unique[e1->getId()] = -1;
+                new_unique[e2->getId()] = -1;
+                new_unique[e1->rc->getId()] = -1;
+                new_unique[e2->rc->getId()] = -1;
+            } else {
+                internalRemoveEdge(e1->getId());
+                new_unique[e1->getId()] = -1;
+                new_unique[e2->getId()] = -1;
+                new_unique[e1->rc->getId()] = -1;
+                new_unique[e2->rc->getId()] = -1;
+            }
+            return new_unique;
+        }
+
         deleted_edges_map compressVertex(int vid) {
             deleted_edges_map result_map;
             if (vertices.find(vid) != vertices.end() && vertices[vid].outDeg() == 1 && vertices[vid].inDeg() == 1) {
