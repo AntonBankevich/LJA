@@ -53,7 +53,7 @@ void GraphSimplificator::Simplify(multigraph::MultiGraph &mg, const std::experim
         std::cerr << "New edge: " << to_print << std::endl;
         if (addEdge) {
             const multigraph::Edge *new_edge = &mg.addEdge(*mg.edges.at(cur_chain[0]).start,
-                       *mg.edges.at(cur_chain[cur_chain.size() - 1]).start, new_edge_seq);
+                       *mg.edges.at(cur_chain[cur_chain.size() - 1]).end, new_edge_seq);
             os_cut << ">" << new_edge->getId() << "\n" << new_edge_seq << "\n";
             std::cerr << "New edge id: " << new_edge->getId() << " " << new_edge->size() << std::endl;
         }
