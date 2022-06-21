@@ -14,9 +14,10 @@ namespace nano {
     public:
         SGraphBuilder(const multigraph::MultiGraph &mg,
                       const std::experimental::filesystem::path &unique_edges,
+                      const std::unordered_map<int, int> &new_edges_map,
                       bool by_vertex = true)
                       :mg_(mg), by_vertex_(by_vertex) {
-            LoadUEdges(unique_edges);
+            LoadUEdges(unique_edges, new_edges_map);
         }
 
         void LoadAlignments(const std::unordered_map<std::string, nano::GraphContig> &alignments,
@@ -33,7 +34,8 @@ namespace nano {
         void SaveSGraph(const std::experimental::filesystem::path &sgraph_filename);
 
     private:
-        void LoadUEdges(const std::experimental::filesystem::path &unique_edges);
+        void LoadUEdges(const std::experimental::filesystem::path &unique_edges,
+                        const std::unordered_map<int, int> &new_edges_map);
         void AddEdge(const std::string &prev_edge_id, const std::string &edge_id, const std::vector<std::string> &subpath);
         std::pair<std::string, std::string> ResolveByVertex(const std::vector<std::string> &subpath, const Contig &read_str);
         const multigraph::Edge* GetEdgeByNuc(const char nuc, const multigraph::Edge *edge, bool is_inEdge = true);
