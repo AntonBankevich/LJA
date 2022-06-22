@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     dbg.fillAnchors(w, logger, threads);
     size_t extension_size = 100000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, true);
+    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, false);
     io::SeqReader reader(reads_lib);
     readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
     std::experimental::filesystem::path subdir = dir / "subdatasets";
