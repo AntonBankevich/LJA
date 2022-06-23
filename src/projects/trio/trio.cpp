@@ -237,35 +237,4 @@ void HaplotypeRemover::process() {
 
 }
 
-//TODO:: хорошо бы чтоб все кроме этого не обращалось с файлами
-std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger, size_t threads,
-                                                  const std::experimental::filesystem::path &output_file,
-                                                  const std::experimental::filesystem::path &diplo_graph,
-                                                  const std::experimental::filesystem::path &haployak,
-                                                  const char haplotype,  const std::experimental::filesystem::path &corrected_reads,
-                                                  const io::Library & reads,   const std::experimental::filesystem::path &dir, const size_t saved_bridge_cutoff) {
-    multigraph::MultiGraph mmg;
-    mmg.LoadGFA(diplo_graph, true);
-//TODO:: it would be cool not to create twice
-    multigraph::MultiGraph mg = mmg.DBG();
-    std::string out_name = "haplotype_";
-    out_name += other_haplo(Haplotype(haplotype));
-    std::experimental::filesystem::path out_dir = dir / out_name;
-    HaplotypeRemover hr(logger, mg, haployak, Haplotype(haplotype), out_dir, saved_bridge_cutoff);
-    hr.process();
-    mg.printEdgeGFA(output_file, true);
 
-//printing alignments and contigs, should be refactored
-    std::string out_aligns = out_name; out_aligns += ".alignments";
-    std::string out_contigs = out_name; out_contigs += ".fasta";
-    io::Library ref_lib;
-    pipeline::LJAPipeline pipeline (ref_lib);
-//TODO:: get rid of this magic const
-    size_t k = 5001;
-    std::vector<std::experimental::filesystem::path> uncompressed_results =
-           pipeline.PolishingPhase(logger, threads, out_dir, out_dir, output_file,
-                           corrected_reads, reads, StringContig::max_dimer_size / 2, k, false, true);
-
-
-    return output_file;
-}

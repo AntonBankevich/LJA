@@ -86,6 +86,17 @@ std::vector<std::experimental::filesystem::path> TrioSimplificationPhase(
             const std::experimental::filesystem::path &graph, const std::experimental::filesystem::path &binned_contigs,
             const std::experimental::filesystem::path &corrected_reads, const io::Library &reads_lib,
             const std::experimental::filesystem::path &dir, size_t saved_bridge_cutoff, bool skip, bool debug);
+
+std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_t threads,
+                                                      const std::experimental::filesystem::path &output_file,
+                                                      const std::experimental::filesystem::path &diplo_graph,
+                                                      const std::experimental::filesystem::path &haployak,
+                                                      const char haplotype,
+                                                      const std::experimental::filesystem::path &corrected_reads,
+                                                      const io::Library &reads,
+                                                      const std::experimental::filesystem::path &dir,
+                                                      const size_t saved_bridge_cutoff);
+
 };
 
 
