@@ -1,0 +1,78 @@
+//
+// Created by Tatiana Dvorkina on 22.06.2022.
+//
+
+
+#include <sequences/contigs.hpp>
+#include <common/cl_parser.hpp>
+#include <common/logging.hpp>
+#include <sequences/seqio.hpp>
+#include <unordered_set>
+#include <nano/ReadsAligner.h>
+#include <nano/SGraphBuilder.h>
+#include <nano/GraphSimplificator.h>
+#include <nano/VertexExtender.h>
+#include <lja/multi_graph.hpp>
+
+namespace nano {
+
+    class ONTGraphSimplificator {
+    public:
+        int ResolveWithONT(
+                    logging::Logger &logger,
+                    const std::experimental::filesystem::path &graph,
+                    const  std::experimental::filesystem::path &ont_reads,
+                    const  std::experimental::filesystem::path &unique_edges,
+                    const size_t threads,
+                    const std::experimental::filesystem::path &dir){
+            const unsigned int BATCH_SIZE = 10000;
+            io::SeqReader reader(ont_reads);
+            multigraph::MultiGraph mmg;
+            mmg.LoadGFA(graph, true);
+            multigraph::MultiGraph mg = mmg.DBG();
+            const std::experimental::filesystem::path &input_gfa = dir / "input.gfa";
+            mg.printEdgeGFA(input_gfa);
+            logger.info() << "Data loaded" << std::endl;
+
+            //nano::VertexExtender initial_graph_simplificator;
+            //std::unordered_map<int, int> new_edges_map = initial_graph_simplificator.ExtendVertices(mg);
+            std::unordered_map<int, int> new_edges_map;
+            const std::experimental::filesystem::path &input_extended_gfa = dir / "input_extended.gfa";
+            mg.printEdgeGFA(input_extended_gfa);
+            logger.info() << "Vertex extension performed " << input_extended_gfa << std::endl;
+
+            std::unordered_map<std::string, Contig> batch;
+            //nano::ReadsAlignerGA reads_aligner(mg);
+            nano::ReadsAlignerMM reads_aligner(mg, dir);
+            return 0;
+            nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, false);
+            int cnt = 0;
+            StringContig::homopolymer_compressing = true;
+            StringContig::min_dimer_to_compress = 32;
+            StringContig::max_dimer_size = 32;
+            for(StringContig scontig : reader) {
+                Contig contig = scontig.makeContig();
+                batch[contig.id] = contig;
+                if (batch.size() > BATCH_SIZE) {
+                    std::unordered_map<std::string, nano::GraphContig> alignments =
+                            reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++cnt);
+                    sgraph_builder.LoadAlignments(alignments, threads);
+                    batch.clear();
+                }
+            }
+            std::unordered_map<std::string, nano::GraphContig> alignments = reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++cnt);
+            sgraph_builder.LoadAlignments(alignments, threads);
+            batch.clear();
+            sgraph_builder.SaveSGraph(dir / "scaffold_graph.tsv");
+            logger.info() << "Scaffold graph construction finished: " << dir / "scaffold_graph.tsv" << std::endl;
+            nano::GraphSimplificator graph_simplificator(sgraph_builder.GetSGraph());
+            graph_simplificator.ResolveWithMajor(mg);
+            graph_simplificator.Simplify(mg, dir);
+            const std::experimental::filesystem::path &final_gfa = dir / "final.gfa";
+            logger.info() << "Graph simplified by ONT info can be found: " << dir / "final.gfa" << std::endl;
+            mg.printEdgeGFA(final_gfa);
+            return 0;
+        }
+
+    };
+}
