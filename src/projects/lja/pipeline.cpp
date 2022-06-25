@@ -7,6 +7,7 @@
 #include "error_correction/diploidy_analysis.hpp"
 #include "yak/yak_lib.h"
 #include "trio/trio.hpp"
+#include "nano/ont_graph_simplification.hpp"
 
 using namespace dbg;
 void pipeline::LJAPipeline::PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
@@ -267,6 +268,22 @@ std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::MDBGPhas
     if(!skip)
         runInFork(ic_task);
     return {dir / "assembly.hpc.fasta", dir / "mdbg.hpc.gfa"};
+}
+
+std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::ONTPhase(
+        logging::Logger &logger, size_t threads,
+        const std::experimental::filesystem::path &output_dir,
+        const std::experimental::filesystem::path &gfa_file,
+        const std::experimental::filesystem::path &unique_edge_file,
+        const std::experimental::filesystem::path &ont_read_paths, bool skip, bool debug) {
+    logger.info() << "Performing graph simplification using ONT reads" << std::endl;
+    std::function<void()> ic_task = [&logger, threads, debug, &output_dir, &gfa_file, &unique_edge_file, &ont_read_paths] {
+        nano::ONTGraphSimplificator ontGraphSimplificator;
+        ontGraphSimplificator.ResolveWithONT(logger, gfa_file, ont_read_paths, unique_edge_file, threads, output_dir);
+    };
+    if(!skip)
+        runInFork(ic_task);
+    return {output_dir / "assembly.hpc.fasta", output_dir / "mdbg.hpc.gfa"};
 }
 
 std::vector<std::experimental::filesystem::path> pipeline::LJAPipeline::PolishingPhase(
