@@ -103,10 +103,10 @@ bool diploid, bool skip, bool debug, bool load) {
         DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
         TournamentPathCorrector tournamentPathCorrector(logger, dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
-        AbstractErrorCorrector(precorrector).correct(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         readStorage.trackSuffixes(logger, threads);
-        AbstractErrorCorrector(dimerCorrector).correct(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.Print(logger);
@@ -118,11 +118,11 @@ bool diploid, bool skip, bool debug, bool load) {
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 10000000));
-        AbstractErrorCorrector(dimerCorrector).correct(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
 //        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 3, threads);
-        AbstractErrorCorrector(tournamentPathCorrector).correct(logger, threads, dbg, readStorage);
-        AbstractErrorCorrector(bpCorrector).correct(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
         std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
         printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});

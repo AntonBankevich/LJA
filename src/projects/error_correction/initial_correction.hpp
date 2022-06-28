@@ -39,6 +39,8 @@ public:
     TournamentPathCorrector(logging::Logger &logger, dbg::SparseDBG &sdbg, RecordStorage &reads_storage,
                             double threshold, double reliable_threshold, bool diploid, size_t unique_threshold = 60000);
 
+    void initialize(logging::Logger &, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) override;
+
     std::string correctRead(dbg::GraphAlignment &path) override;
 };
 

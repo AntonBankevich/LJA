@@ -42,6 +42,9 @@ int main(int argc, char **argv) {
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
+    io::Library ref_lib;
+    if(parser.getValue("reference") != "none")
+        ref_lib =  oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reference"));
     std::string disjointigs_file = parser.getValue("disjointigs");
     std::string vertices_file = parser.getValue("vertices");
     std::string dbg_file = parser.getValue("dbg");
@@ -60,6 +63,9 @@ int main(int argc, char **argv) {
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
     GraphAlignmentStorage storage(dbg);
+    for(StringContig stringContig : io::SeqReader(ref_lib)) {
+        storage.fill(stringContig.makeContig());
+    }
     if(paths_lib.empty()) {
         logger.info() << "No paths provided. Splitting the whole graph." << std::endl;
 //        std::function<bool(const dbg::Component&)> f = [bad_cov](const dbg::Component &component) {

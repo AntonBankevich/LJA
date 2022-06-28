@@ -81,8 +81,15 @@ private:
     std::vector<BulgePath> paths;
     std::vector<std::pair<dbg::Path, dbg::Path>> resolved;
     std::unordered_map<dbg::Edge *, PathPos> pathPoses;
+    size_t unique_length;
+    double threshold;
 public:
-    explicit BulgePathCorrector(dbg::SparseDBG &dbg, RecordStorage &reads, size_t unique_length, double threshold = 0);
+    BulgePathCorrector(dbg::SparseDBG &dbg, RecordStorage &reads, size_t unique_length,
+                                           double threshold) : AbstractCorrectionAlgorithm("BulgePathFixer"),
+                                           unique_length(unique_length), threshold(threshold) {
+    }
+
+    void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) override;
 
     std::string correctRead(dbg::GraphAlignment &path) override;
 };

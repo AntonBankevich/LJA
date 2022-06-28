@@ -9,16 +9,18 @@ private:
 public:
     AbstractCorrectionAlgorithm(const std::string &name) : name(name) {};
     std::string getName() const {return name;}
+    virtual void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {};
     virtual std::string correctRead(dbg::GraphAlignment &) = 0;
 };
 
-class AbstractErrorCorrector {
+class ErrorCorrectionEngine {
 private:
     AbstractCorrectionAlgorithm &algorithm;
 public:
-    explicit AbstractErrorCorrector(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
+    explicit ErrorCorrectionEngine(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
 
-    size_t correct(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage) {
+    size_t run(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage) {
+        algorithm.initialize(logger, threads, dbg, reads_storage);
         logger.info() << "Correcting reads using algorithm " << algorithm.getName() << std::endl;
         ParallelCounter cnt(threads);
         omp_set_num_threads(threads);

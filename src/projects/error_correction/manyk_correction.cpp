@@ -363,5 +363,5 @@ size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &read
                     double reliable_threshold, size_t K, size_t expectedCoverage, size_t threads) {
     logger.info() << "Using K = " << K << " for error correction" << std::endl;
     ManyKCorrector algorithm(logger, dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold);
-    return AbstractErrorCorrector(algorithm).correct(logger, threads, dbg, reads_storage);
+    return ErrorCorrectionEngine(algorithm).run(logger, threads, dbg, reads_storage);
 }

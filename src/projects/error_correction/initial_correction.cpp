@@ -130,7 +130,10 @@ GraphAlignment processTip(const GraphAlignment &tip,
 
 TournamentPathCorrector::TournamentPathCorrector(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
                       double threshold, double reliable_threshold, bool diploid, size_t unique_threshold) : AbstractCorrectionAlgorithm("TournamentCorrection"),
-                      sdbg(sdbg), reads_storage(reads_storage), threshold(threshold), reliable_threshold(reliable_threshold), diploid(diploid), unique_threshold(unique_threshold){
+                      sdbg(sdbg), reads_storage(reads_storage), threshold(threshold), reliable_threshold(reliable_threshold), diploid(diploid), unique_threshold(unique_threshold), max_size(0){
+}
+
+void TournamentPathCorrector::initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {
     for(dbg::Edge &edge : sdbg.edges()) {
         edge.mark(EdgeMarker::common);
     }
@@ -322,15 +325,15 @@ void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &sdb
     size_t k = sdbg.hasher().getK();
     DimerCorrector dimerCorrector(logger, sdbg, reads_storage, StringContig::max_dimer_size);
     TournamentPathCorrector tournamentPathCorrector(logger, sdbg, reads_storage, threshold, reliable_coverage, diploid, unique_threshold);
-    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
-    AbstractErrorCorrector(tournamentPathCorrector).correct(logger, threads, sdbg, reads_storage);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
+    ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, sdbg, reads_storage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
     sdbg.checkConsistency(threads, logger);
-    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
-    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
-    AbstractErrorCorrector(tournamentPathCorrector).correct(logger, threads, sdbg, reads_storage);
-    AbstractErrorCorrector(dimerCorrector).correct(logger, threads, sdbg, reads_storage);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
+    ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, sdbg, reads_storage);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
     TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
     collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
     RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
