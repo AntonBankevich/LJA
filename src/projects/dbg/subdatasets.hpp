@@ -29,7 +29,7 @@ struct Subdataset {
 void FillSubdatasets(std::vector<Subdataset> &result, const std::vector<RecordStorage *> &storages, bool add_out_edges = true) {
     std::unordered_map<dbg::Vertex *, std::vector<size_t>> cmap;
     for(size_t i = 0; i < result.size(); i++) {
-        for(dbg::Vertex &vert : result.back().component.vertices()) {
+        for(dbg::Vertex &vert : result[i].component.vertices()) {
             cmap[&vert].emplace_back(i);
         }
     }
@@ -43,9 +43,21 @@ void FillSubdatasets(std::vector<Subdataset> &result, const std::vector<RecordSt
                 if(cmap.find(&al.getVertex(i)) != cmap.end())
                     cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].end());
             }
-            if(al.size() == 1 && (add_out_edges || cmap[&al.getVertex(0)] == cmap[&al.getVertex(1)])) {
-                for(size_t i = 0; i < 2; i++)
-                    cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].end());
+            const std::vector<size_t> &other = cmap[&al.getVertex(0)];
+            if(al.size() == 1) {
+                if(add_out_edges) {
+                    for (size_t i = 0; i < 2; i++)
+                        cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].end());
+                } else {
+                    size_t p2 = 0;
+                    for(size_t c1 : other) {
+                        while(p2 < other.size() && other[p2])
+                            p2++;
+                        if(p2 < other.size() && c1 == other[p2]) {
+                            cids.push_back(c1);
+                        }
+                    }
+                }
             }
             std::sort(cids.begin(), cids.end());
             cids.erase(std::unique(cids.begin(), cids.end()), cids.end());
