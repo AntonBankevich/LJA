@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
     bool debug = parser.getCheck("debug");
     StringContig::homopolymer_compressing = parser.getCheck("compress");
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
-    const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
+    const std::experimental::filesystem::path dir(parser.getValue("output-dir")); //initialization of dir
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
@@ -52,13 +52,13 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(parser.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
-                    dbg::LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
-    dbg.fillAnchors(w, logger, threads);
+                    dbg::LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads); //Create dbg
+    dbg.fillAnchors(w, logger, threads);// Creates index of edge k-mers
     size_t extension_size = 100000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, false);
-    io::SeqReader reader(reads_lib);
-    readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, false);//Structure for read alignments
+    io::SeqReader reader(reads_lib);//Reader that can read reads from file
+    readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);//Align reads to the graph
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
@@ -78,8 +78,8 @@ int main(int argc, char **argv) {
 //            return true;
 //        };
 //        std::vector<dbg::Component> components = oneline::filter(dbg::LengthSplitter(unique_threshold).splitGraph(dbg), f);
-        std::vector<dbg::Component> components = dbg::LengthSplitter(unique_threshold).splitGraph(dbg);
-        subdatasets = oneline::initialize<Subdataset>(components);
+        std::vector<dbg::Component> components = dbg::LengthSplitter(unique_threshold).splitGraph(dbg); //Split graph into components
+        subdatasets = oneline::initialize<Subdataset>(components);//Create subdatasets corresponding to components
     } else {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
@@ -93,9 +93,9 @@ int main(int argc, char **argv) {
             subdatasets.back().id = contig.id;
         }
     }
-    FillSubdatasets(subdatasets, {&readStorage}, true);
+    FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
-    for(const Subdataset &subdataset: subdatasets) {
+    for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
         logger.info() << "Printing subdataset " << cnt << " " << subdataset.id << ":";
         for(dbg::Vertex &v : subdataset.component.verticesUnique()) {
             logger << " " << v.getShortId();
