@@ -30,7 +30,7 @@ public:
         for(double &val : density) {
             val /= observations.size();
         }
-        VERIFY(sigma2 >= 0);
+        VERIFY_MSG(observations.empty() || sigma2 >= -1e-6, sigma2);
     }
 
     void Print(std::ostream &os) {

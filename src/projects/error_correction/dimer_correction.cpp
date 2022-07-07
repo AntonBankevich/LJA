@@ -46,7 +46,7 @@ std::string DimerCorrector::correctRead(GraphAlignment &path) {
             VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 1");
             candidates.emplace_back(candidate);
         } else {
-            size_t max_variation = std::max<size_t>(3, (at_cnt1 + at_cnt2) / 6);
+            size_t max_variation = std::max<size_t>(6, (at_cnt1 + at_cnt2) / 3);
             max_variation = std::min(max_variation, at_cnt1 / 2);
             size_t len = 2;
             while (len <= max_variation && atPrefix.valid()) {
