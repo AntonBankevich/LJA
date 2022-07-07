@@ -122,7 +122,8 @@ bool diploid, bool skip, bool debug, bool load) {
 //        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
         ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 3, threads);
         ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
-        ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
+        if(diploid)
+            ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
         std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
         printGraphAlignments(dir / "pseudoreads.fasta", pseudo_reads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});

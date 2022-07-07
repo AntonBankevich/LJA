@@ -259,14 +259,24 @@ namespace multigraph {
                     bulges++;
                     sz += v->outgoing[0]->size();
                 } else {
-                    if((good.find(v) == good.end() || v->outgoing[0]->size() < 1000000) && v->outgoing[0]->end->outDeg() == 0) {
+                    Vertex *other = v;
+                    if(v->inDeg() == 1) {
+                        other = v->rc->outgoing[0]->start;
+                    }
+                    if(v->outgoing[0]->end == other && v->outgoing[1]->size() < 100000) {
                         todel = v->outgoing[0];
-                    } else if((good.find(v) == good.end() || v->outgoing[0]->size() < 1000000) && v->outgoing[1]->end->outDeg() == 0) {
+                    } else if(v->outgoing[1]->end == other && v->outgoing[1]->size() < 100000) {
                         todel = v->outgoing[1];
-                    } else if(good.find(v->outgoing[0]->end)== good.end()) {
-                        todel = v->outgoing[0];
-                    } else if(good.find(v->outgoing[1]->end)== good.end()) {
-                        todel = v->outgoing[1];
+                    } else if(good.find(v) != good.end() && to_delete.find(v->outgoing[0]) == to_delete.end() && to_delete.find(v->outgoing[1]) == to_delete.end()) {
+                        if((v->outgoing[0]->size() < 1000000) && v->outgoing[0]->end->outDeg() == 0) {
+                            todel = v->outgoing[0];
+                        } else if((v->outgoing[0]->size() < 1000000) && v->outgoing[1]->end->outDeg() == 0) {
+                            todel = v->outgoing[1];
+                        } else if(good.find(v->outgoing[0]->end)== good.end()) {
+                            todel = v->outgoing[0];
+                        } else if(good.find(v->outgoing[1]->end)== good.end()) {
+                            todel = v->outgoing[1];
+                        }
                     }
                 }
                 if(todel != nullptr) {
