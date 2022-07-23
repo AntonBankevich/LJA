@@ -30,6 +30,7 @@ using namespace dbg;
 
 void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
                    const std::experimental::filesystem::path &path_dump,
+                   const std::experimental::filesystem::path &cov_dump,
                    const std::experimental::filesystem::path &mult_dump, logging::Logger &logger) {
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
@@ -38,6 +39,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     std::ofstream os;
     os.open(path_dump);
     size_t cur = 0;
+    std::unordered_map<Edge *, size_t> mult;
     for(StringContig & contig : ref) {
         Sequence seq = contig.makeSequence();
         os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
@@ -47,16 +49,21 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
         auto tmp = GraphAligner(dbg).align(seq);
         for(size_t i = 0; i < tmp.size(); i++) {
             const Segment<Edge> &seg = tmp[i];
-            os << "[" << cur << ", " << cur + seg.size() << "] -> [" << seg.left << ", " << seg.right <<"] ";
-            os << tmp.getVertex(i).hash() << tmp.getVertex(i).isCanonical() << " "
-               << tmp.getVertex(i + 1).hash() << tmp.getVertex(i + 1).isCanonical() << " "
-               << seg.size() << " " << seg.contig().getCoverage() << std::endl;
+            mult[&seg.contig()]++;
+            mult[&seg.contig().rc()]++;
+            os << "[" << cur << ", " << cur + seg.size() << "] -> " << tmp[i].contig().oldId() << " [" << seg.left << ", " << seg.right <<"]\n";
             cur += seg.size();
         }
         logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
         path.insert(path.end(), tmp.begin(), tmp.end());
     }
     os.close();
+    std::ofstream mos;
+    mos.open(mult_dump);
+    for(Edge &edge: dbg.edges()) {
+        mos << edge.oldId() << " " << mult[&edge] << "\n";
+    }
+    mos.close();
     logger.info() << "Reference path consists of " << path.size() << " edges" << std::endl;
     size_t max_cov = 50;
     std::vector<size_t> cov(max_cov + 1);
@@ -71,7 +78,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
         eset[&edge] += 1;
     }
     std::ofstream os_mult;
-    os_mult.open(mult_dump);
+    os_mult.open(cov_dump);
     for(auto & it : eset) {
         os_mult << it.second << " " << it.first->getCoverage() << " " << it.first->size() << std::endl;
     }
@@ -503,7 +510,7 @@ int main(int argc, char **argv) {
 
 //    findTips(logger, dbg, threads);
     if (parser.getValue("reference") != "none") {
-        analyseGenome(dbg, parser.getValue("reference"), k + w - 1, dir / "ref.info", dir / "mult.info", logger);
+        analyseGenome(dbg, parser.getValue("reference"), k + w - 1, dir / "ref.info", dir / "cov.info", dir / "mult.info", logger);
     }
     if (parser.getCheck("simplify")) {
         logger.info() << "Removing low covered edges" << std::endl;

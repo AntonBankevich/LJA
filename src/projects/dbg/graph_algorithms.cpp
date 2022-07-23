@@ -41,7 +41,7 @@ namespace dbg {
     }
 
     void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads) {
-        logger.info() << " Collecting tips " << std::endl;
+        logger.info() << "Collecting tips " << std::endl;
 //    TODO reduce memory consumption!! A lot of duplicated k-mer storing
         ParallelRecordCollector<std::pair<Vertex *, Sequence>> old_edges(threads);
         ParallelRecordCollector<Sequence> new_edges(threads);
