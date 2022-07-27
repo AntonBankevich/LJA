@@ -29,6 +29,10 @@ namespace nano {
             return sgraph_;
         };
 
+        std::unordered_set<std::string>& GetUEdges() {
+            return uedges_;
+        };
+
         void PrintSGraph();
 
         void SaveSGraph(const std::experimental::filesystem::path &sgraph_filename);

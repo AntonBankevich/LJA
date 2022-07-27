@@ -42,9 +42,9 @@ namespace nano {
             logger.info() << "Vertex extension performed " << input_extended_gfa << std::endl;
 
             std::unordered_map<std::string, Contig> batch;
-            //nano::ReadsAlignerGA reads_aligner(mg);
-            nano::ReadsAlignerMM reads_aligner(mg, dir);
-            return 0;
+            nano::ReadsAlignerGA reads_aligner(mg);
+            // nano::ReadsAlignerMM reads_aligner(mg, dir);
+            // return 0;
             nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, false);
             int cnt = 0;
             StringContig::homopolymer_compressing = true;
@@ -65,7 +65,7 @@ namespace nano {
             batch.clear();
             sgraph_builder.SaveSGraph(dir / "scaffold_graph.tsv");
             logger.info() << "Scaffold graph construction finished: " << dir / "scaffold_graph.tsv" << std::endl;
-            nano::GraphSimplificator graph_simplificator(sgraph_builder.GetSGraph());
+            nano::GraphSimplificator graph_simplificator(sgraph_builder.GetSGraph(), sgraph_builder.GetUEdges());
             graph_simplificator.ResolveWithMajor(mg);
             graph_simplificator.Simplify(mg, dir);
             const std::experimental::filesystem::path &final_gfa = dir / "final.gfa";

@@ -88,13 +88,13 @@ void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
         if (val.outgoing.size() == 2 && val.rc->outgoing.size() == 2) {
             bool is_uedges = true;
             for (auto const e: val.outgoing) {
-                if (sgraph_.count(e->rc->getId()) == 0) {
+                if (uedges_.count(std::to_string(abs(e->rc->getId()))) == 0) {
                     is_uedges = false;
                     break;
                 }
             }
             for (auto const e: val.rc->outgoing) {
-                if (sgraph_.count(e->rc->getId()) == 0) {
+                if (uedges_.count(std::to_string(abs(e->rc->getId()))) == 0) {
                     is_uedges = false;
                     break;
                 }
@@ -112,12 +112,12 @@ void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
             && val.start->outgoing.size() == 1 && val.end->rc->outgoing.size() == 1) {
             bool is_uedges = true;
             for (auto const e: val.start->rc->outgoing)
-                if (sgraph_.count(e->getId()) == 0) {
+                if (uedges_.count(std::to_string(abs(e->getId()))) == 0) {
                     is_uedges = false;
                     break;
                 }
             for (auto const e: val.end->outgoing)
-                if (sgraph_.count(e->getId()) == 0) {
+                if (uedges_.count(std::to_string(abs(e->getId()))) == 0) {
                     is_uedges = false;
                     break;
                 }
