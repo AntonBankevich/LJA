@@ -25,7 +25,7 @@ namespace nano {
 
         void LoadSGraphEdges(const std::experimental::filesystem::path &sgraph_filename);
 
-        std::unordered_map<int, std::unordered_map<int, std::pair<int, std::vector<int>>>> GetSGraph() {
+        std::unordered_map<int, std::unordered_map<int, std::pair<int, std::vector<int>>>>& GetSGraph() {
             return sgraph_;
         };
 
