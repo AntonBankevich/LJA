@@ -1,7 +1,8 @@
-#include "initial_correction.hpp"
+#include "tournament_correction.hpp"
 #include "bulge_path_marker.hpp"
 #include "error_correction.hpp"
 #include "dimer_correction.hpp"
+#include "reliable_fillers.hpp"
 
 using namespace dbg;
 size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump) {
@@ -128,19 +129,22 @@ GraphAlignment processTip(const GraphAlignment &tip,
 }
 
 
-TournamentPathCorrector::TournamentPathCorrector(logging::Logger &logger, SparseDBG &sdbg, RecordStorage &reads_storage,
+TournamentPathCorrector::TournamentPathCorrector(SparseDBG &sdbg, RecordStorage &reads_storage,
                       double threshold, double reliable_threshold, bool diploid, size_t unique_threshold) : AbstractCorrectionAlgorithm("TournamentCorrection"),
                       sdbg(sdbg), reads_storage(reads_storage), threshold(threshold), reliable_threshold(reliable_threshold), diploid(diploid), unique_threshold(unique_threshold), max_size(0){
 }
 
 void TournamentPathCorrector::initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {
-    for(dbg::Edge &edge : sdbg.edges()) {
-        edge.mark(EdgeMarker::common);
-    }
-    FillReliableWithConnections(logger, sdbg, reliable_threshold);
+    CoverageReliableFiller cov(reliable_threshold);
+    LengthReliableFiller len(20000, 3, 1);
+    BridgeReliableFiller bridge(40000);
+    ConnectionReliableFiller connect(reliable_threshold);
+    BulgePathMarker bulge(dbg, reads, unique_threshold);
+    std::vector<AbstractReliableFillingAlgorithm *> algs = {&len, &cov, &bridge, &connect};
     if(diploid)
-        BulgePathMarker(sdbg, reads_storage).markAllAcyclicComponents(logger, unique_threshold);
-    max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(sdbg.hasher().getK()* 2, 1000));
+        algs.emplace_back(&bulge);
+    CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
+    max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(sdbg.hasher().getK() * 2, 1000));
 }
 
 std::string TournamentPathCorrector::correctRead(GraphAlignment &path) {
@@ -244,7 +248,7 @@ std::string TournamentPathCorrector::correctRead(GraphAlignment &path) {
 }
 
 size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, RecordStorage &ref_storage,
-                      const std::experimental::filesystem::path &out_file, double threshold, size_t k, size_t threads) {
+                      double threshold, size_t k, size_t threads) {
     ParallelRecordCollector<std::string> results(threads);
     ParallelRecordCollector<Edge*> bulge_cnt(threads);
     ParallelRecordCollector<Edge*> collapsable_cnt(threads);
@@ -317,25 +321,62 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
     return collapsable;
 }
 
-void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &sdbg,
+std::string PrimitiveBulgeCorrector::correctRead(GraphAlignment &path) {
+    std::stringstream ss;
+    size_t corrected = 0;
+    for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
+        Edge &edge = path[path_pos].contig();
+        if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].size()) {
+            continue;
+        }
+        Vertex &start = path.getVertex(path_pos);
+        Vertex &end = path.getVertex(path_pos + 1);
+        if(start.outDeg() != 2 || start[0].end() != start[1].end()) {
+            continue;
+        }
+        Edge & alt = edge == start[0] ? start[1] : start[0];
+
+        if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
+            continue;
+        }
+        if(edge.getCoverage() > alt.getCoverage()) {
+            continue;
+        }
+        Edge &rcEdge = edge.rc();
+        if(edge.getCoverage() + alt.getCoverage() > threshold || edge.getCoverage() > alt.getCoverage()) {
+            continue;
+        }
+        corrected++;
+        path[path_pos] = {alt, 0, alt.size()};
+    }
+    if(corrected > 0) {
+        return itos(corrected);
+    } else {
+        return "";
+    }
+}
+
+PrimitiveBulgeCorrector::PrimitiveBulgeCorrector(double threshold) : AbstractCorrectionAlgorithm("PrimitiveBulgeCorrector"),
+                                                                                                               threshold(threshold) {}
+
+void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                     const std::experimental::filesystem::path &out_file,
                     RecordStorage &reads_storage,
                     RecordStorage &ref_storage,
                     double threshold, double bulge_threshold, double reliable_coverage, bool diploid, size_t unique_threshold, bool dump) {
-    size_t k = sdbg.hasher().getK();
-    DimerCorrector dimerCorrector(logger, sdbg, reads_storage, StringContig::max_dimer_size);
-    TournamentPathCorrector tournamentPathCorrector(logger, sdbg, reads_storage, threshold, reliable_coverage, diploid, unique_threshold);
-    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
-    ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, sdbg, reads_storage);
-    collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
-    RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
-    sdbg.checkConsistency(threads, logger);
-    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
-    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
-    ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, sdbg, reads_storage);
-    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, sdbg, reads_storage);
-    TipCorrectionPipeline(logger, sdbg, reads_storage, threads, reliable_coverage);
-    collapseBulges(logger, reads_storage, ref_storage, out_file, bulge_threshold, k, threads);
-    RemoveUncovered(logger, threads, sdbg, {&reads_storage, &ref_storage});
+    DimerCorrector dimerCorrector(logger, dbg, reads_storage, StringContig::max_dimer_size);
+    TournamentPathCorrector tournamentPathCorrector(dbg, reads_storage, threshold, reliable_coverage, diploid, unique_threshold);
+    PrimitiveBulgeCorrector primitiveBulgeCorrector(bulge_threshold);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+    ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
+    ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
+    RemoveUncovered(logger, threads, dbg, {&reads_storage, &ref_storage});
+    dbg.checkConsistency(threads, logger);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+    ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+    TipCorrectionPipeline(logger, dbg, reads_storage, threads, reliable_coverage);
+    ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
+    RemoveUncovered(logger, threads, dbg, {&reads_storage, &ref_storage});
 }
-

@@ -61,6 +61,7 @@ namespace dbg {
         explicit GraphAlignment(const Path &_path);
         GraphAlignment(Vertex *_start, std::vector<Segment<Edge>> &&_path) : start_(_start), als(std::move(_path)) {}
         explicit GraphAlignment(Vertex &_start) : start_(&_start) {}
+        explicit GraphAlignment(Edge &start) : start_(start.start()), als({{start, 0, start.size()}}) {}
         GraphAlignment() : start_(nullptr) {}
 
         Vertex &start() const {return *start_;}

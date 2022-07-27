@@ -1,12 +1,13 @@
 #pragma once
 #include "dbg/sparse_dbg.hpp"
 #include "dbg/graph_alignment_storage.hpp"
+#include "reliable_fillers.hpp"
 #include "diploidy_analysis.hpp"
 
-class BulgePathMarker {
+class BulgePathMarker : public AbstractReliableFillingAlgorithm {
 private:
-    dbg::SparseDBG &dbg;
     RecordStorage &reads;
+    size_t unique_threshold;
 
     bool checkBulgeForward(const std::pair<dbg::Edge *, dbg::Edge *> &bulge) {
         const VertexRecord &vr1 = reads.getRecord(*bulge.first->start());
@@ -23,11 +24,13 @@ private:
         return checkBulgeForward(bulgePath[index]) && checkBulgeForward({&bulgePath[index].first->rc(), &bulgePath[index].second->rc()});
     }
 public:
-    BulgePathMarker(dbg::SparseDBG &dbg, RecordStorage &reads) : dbg(dbg), reads(reads) {
+    std::string name() const override {return "BulgePathMarker";}
+
+    BulgePathMarker(dbg::SparseDBG &dbg, RecordStorage &reads, size_t unique_threshold) : reads(reads), unique_threshold(unique_threshold) {
         dbg.resetMarkers();
     }
 
-    void setUniqueMarkers(size_t unique_threshold) {
+    void setUniqueMarkers(dbg::SparseDBG &dbg) {
         for(const BulgePath &bulgePath : BulgePathFinder(dbg).paths) {
             if(bulgePath.length() < unique_threshold || bulgePath.start().hash() < bulgePath.finish().hash()) {
                 continue;
@@ -43,16 +46,17 @@ public:
         }
     }
 
-    std::vector<dbg::Component> split() {
+    std::vector<dbg::Component> split(dbg::SparseDBG &dbg) {
         std::function<bool(const dbg::Edge &)> splitEdge = [this](const dbg::Edge &edge) {
             return edge.getMarker() == dbg::EdgeMarker::unique;
         };
         return dbg::ConditionSplitter(splitEdge).splitGraph(dbg);
     }
 
-    void markAcyclicComponent(const dbg::Component &component) {
+    size_t markAcyclicComponent(const dbg::Component &component) {
+        size_t cnt = 0;
         if(component.countBorderEdges() != 4 || component.realCC() != 2 || !component.isAcyclic())
-            return;
+            return 0;
         std::unordered_set<dbg::Edge *> used;
         size_t found = 0;
         for(size_t cnt = 0; cnt < 2; cnt++) {
@@ -118,29 +122,33 @@ public:
             }
         }
         if(found != 2)
-            return;
+            return 0;
         for(dbg::Edge &edge : component.edgesInner()) {
             if(edge.getMarker() == dbg::EdgeMarker::common)
                 if(used.find(&edge) == used.end())
                     edge.mark(dbg::EdgeMarker::incorrect);
                 else {
-                    edge.is_reliable = true;
+                    if(!edge.is_reliable) {
+                        edge.is_reliable = true;
+                        cnt++;
+                    }
                     edge.mark(dbg::EdgeMarker::correct);
                 }
         }
+        return cnt;
     }
 
-    void markAllAcyclicComponents(logging::Logger &logger, size_t unique_threshold) {
-        logger.info() << "Marking edges in acyclic components" << std::endl;
-        setUniqueMarkers(unique_threshold);
-        for(dbg::Component &component : split()) {
+    size_t Fill(dbg::SparseDBG &dbg) override {
+        size_t cnt;
+        setUniqueMarkers(dbg);
+        for(dbg::Component &component : split(dbg)) {
             for(dbg::Edge &edge : component.edges()) {
                 if(!component.contains(*edge.end())) {
                     VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
                 }
             }
-            logger.trace() << "Component parameters: " << component.size() << " " << component.isAcyclic() << component.countBorderEdges() << std::endl;
-            markAcyclicComponent(component);
+            cnt += markAcyclicComponent(component);
         }
+        return cnt;
     }
 };

@@ -6,7 +6,7 @@
 #include "error_correction/error_correction.hpp"
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/mitochondria_rescue.hpp"
-#include "error_correction/initial_correction.hpp"
+#include "error_correction/tournament_correction.hpp"
 #include "error_correction/manyk_correction.hpp"
 #include "repeat_resolution/repeat_resolution.hpp"
 #include "error_correction/precorrection.hpp"
@@ -101,7 +101,7 @@ bool diploid, bool skip, bool debug, bool load) {
         }
         Precorrector precorrector(2);
         DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
-        TournamentPathCorrector tournamentPathCorrector(logger, dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
+        TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
         ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
@@ -110,17 +110,17 @@ bool diploid, bool skip, bool debug, bool load) {
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.Print(logger);
-        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 800, 4, threads);
+        ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 800, 4, diploid);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk800", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 5 / 2, 3000));
-        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 2000, 4, threads);
+        ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 2000, 4, diploid);
         if(debug)
             PrintPaths(logger, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 10000000));
         ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
 //        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
-        ManyKCorrect(logger, dbg, readStorage, threshold, reliable_coverage, 3500, 3, threads);
+        ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 3500, 3, diploid);
         ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
         if(diploid)
             ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
@@ -222,26 +222,21 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         }
         initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable_coverage, diploid, 60000, false);
-        if(debug)
-            PrintPaths(logger, dir/ "state_dump", "low", dbg, readStorage, paths_lib, false);
-                                         GapCloserPipeline(logger, threads, dbg, {&readStorage, &refStorage});
-        if(debug)
-            PrintPaths(logger, dir/ "state_dump", "gap1", dbg, readStorage, paths_lib, false);
+        if(debug) PrintPaths(logger, dir/ "state_dump", "low", dbg, readStorage, paths_lib, false);
+        GapCloserPipeline(logger, threads, dbg, {&readStorage, &refStorage});
+        if(debug) PrintPaths(logger, dir/ "state_dump", "gap1", dbg, readStorage, paths_lib, false);
+        MultCorrect(logger, threads, dbg, dir / "mult1", readStorage, unique_threshold, 40, diploid, debug);
+        if(debug) PrintPaths(logger, dir/ "state_dump", "mult1", dbg, readStorage, paths_lib, false);
         readStorage.invalidateBad(logger, threads, threshold, "after_gap1");
-        if(debug)
-            PrintPaths(logger, dir/ "state_dump", "bad", dbg, readStorage, paths_lib, false);
+        if(debug) PrintPaths(logger, dir/ "state_dump", "bad", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
-        if(debug)
-            PrintPaths(logger, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, false);
-        RecordStorage extra_reads = MultCorrect(dbg, logger, dir, readStorage, unique_threshold, threads, diploid, debug);
+        if(debug) PrintPaths(logger, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, false);
+        RecordStorage extra_reads = MultCorrect(logger, threads, dbg, dir / "mult2", readStorage, unique_threshold, 0, diploid, debug);
         MRescue(logger, threads, dbg, readStorage, unique_threshold, 0.05);
-        if(debug)
-            PrintPaths(logger, dir/ "state_dump", "mult", dbg, readStorage, paths_lib, false);
+        if(debug) PrintPaths(logger, dir/ "state_dump", "mult2", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &extra_reads, &refStorage});
-        if(debug)
-            PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);
-                                         GapCloserPipeline(logger, threads, dbg,
-                                                           {&readStorage, &extra_reads, &refStorage});
+        if(debug) PrintPaths(logger, dir/ "state_dump", "uncovered2", dbg, readStorage, paths_lib, false);
+        GapCloserPipeline(logger, threads, dbg, {&readStorage, &extra_reads, &refStorage});
         if(debug) {
             PrintPaths(logger, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
             DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());

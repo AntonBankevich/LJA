@@ -18,9 +18,8 @@ dbg::GraphAlignment processTip(const dbg::GraphAlignment &tip,
                          double threshold, std::string &message);
 size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage,
                                 RecordStorage &ref_storage,
-                                const std::experimental::filesystem::path &out_file,
                                 double threshold, size_t k, size_t threads);
-void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &sdbg,
+void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                     const std::experimental::filesystem::path &out_file,
                     RecordStorage &reads_storage,
                     RecordStorage &ref_storage,
@@ -36,11 +35,17 @@ private:
     size_t unique_threshold;
     size_t max_size;
 public:
-    TournamentPathCorrector(logging::Logger &logger, dbg::SparseDBG &sdbg, RecordStorage &reads_storage,
+    TournamentPathCorrector(dbg::SparseDBG &sdbg, RecordStorage &reads_storage,
                             double threshold, double reliable_threshold, bool diploid, size_t unique_threshold = 60000);
+    void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) override;
+    std::string correctRead(dbg::GraphAlignment &path) override;
+};
 
-    void initialize(logging::Logger &, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) override;
-
+class PrimitiveBulgeCorrector : public AbstractCorrectionAlgorithm {
+private:
+    double threshold;
+public:
+    PrimitiveBulgeCorrector(double threshold);
     std::string correctRead(dbg::GraphAlignment &path) override;
 };
 

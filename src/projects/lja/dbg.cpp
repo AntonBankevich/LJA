@@ -14,7 +14,7 @@
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "common/hash_utils.hpp"
-#include "error_correction/initial_correction.hpp"
+#include "error_correction/tournament_correction.hpp"
 #include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
@@ -247,7 +247,7 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"), debug);
+        MultCorrect(logger, threads, dbg, dir, readStorage, 50000, 0, parser.getCheck("diploid"), debug);
     }
 
     if(parser.getCheck("initial-correct")) {

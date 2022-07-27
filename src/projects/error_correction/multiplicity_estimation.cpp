@@ -1,6 +1,8 @@
 #include <common/simple_computation.hpp>
 #include "diploidy_analysis.hpp"
 #include "multiplicity_estimation.hpp"
+#include "correction_utils.hpp"
+
 using namespace dbg;
 size_t BoundRecord::inf = 1000000000000ul;
 
@@ -108,7 +110,14 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         }
     } else {
         for (Edge &edge : dbg.edges()) {
-            if(edge.size() > unique_len || (edge.start()->inDeg() == 0 && edge.size() > unique_len / 3)) {
+            if(this->isUnique(edge))
+                continue;
+            GraphAlignment al = FindLongestCoveredExtension(edge, 3, 1);
+            if(al.len() > unique_len) {
+                for(Segment<Edge> seg : al) {
+                    updateBounds(seg.contig(), 1, 1);
+                }
+            } else if(edge.start()->inDeg() == 0 && edge.size() > unique_len / 3) {
                 updateBounds(edge, 1, 1);
                 cnt++;
             }
@@ -455,7 +464,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
         logger << " " << vertex.getShortId();
     }
     logger << std::endl;
-    double rel_coverage = 0;
+    double rel_coverage = initial_rel_coverage;
     std::function<bool(const dbg::Edge &)> is_unique = [this](const dbg::Edge &edge) {
         return isUnique(edge);
     };
@@ -470,7 +479,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
     } else {
         logger.trace() << "Could not find unique edges in component" << std::endl;
         logger.trace() << "Relaxing flow conditions" << std::endl;
-        rel_coverage = 15;
+        rel_coverage = std::max<size_t>(15, rel_coverage);
         MappedNetwork net1(component, is_unique, rel_coverage);
         res = net1.fillNetwork();
         if(res) {
