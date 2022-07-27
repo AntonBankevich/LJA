@@ -1,102 +1,5 @@
 #include "correction_utils.hpp"
 
-dbg::Edge *checkBorder(dbg::Vertex &v) {
-    dbg::Edge * res = nullptr;
-    size_t out_rel = 0;
-    for(dbg::Edge &edge : v.rc()) {
-        if(edge.is_reliable) {
-            if (res == nullptr)
-                res = &edge.rc();
-            else
-                return nullptr;
-        }
-    }
-    for(dbg::Edge &edge : v) {
-        if(edge.is_reliable)
-            out_rel += 1;
-    }
-    if(out_rel == 0)
-        return res;
-    else
-        return nullptr;
-}
-
-bool checkInner(dbg::Vertex &v) {
-    size_t inc_rel = 0;
-    size_t out_rel = 0;
-    for(dbg::Edge &edge : v.rc()) {
-        if(edge.is_reliable)
-            inc_rel += 1;
-    }
-    for(dbg::Edge &edge : v) {
-        if(edge.is_reliable)
-            out_rel += 1;
-    }
-    return out_rel >= 1 && inc_rel >= 1;
-}
-
-void FillReliableWithConnections(logging::Logger &logger, dbg::SparseDBG &sdbg, double threshold) {
-    logger.info() << "Marking reliable edges" << std::endl;
-    for(auto &vit : sdbg) {
-        for(dbg::Vertex * vp : {&vit.second, &vit.second.rc()}) {
-            dbg::Vertex &v = *vp;
-            for(dbg::Edge &edge : v) {
-                edge.is_reliable = edge.getCoverage() >= threshold;
-            }
-        }
-    }
-    size_t cnt_paths = 0;
-    std::vector<dbg::Edge *> new_reliable;
-    for(auto &vit : sdbg) {
-        for(dbg::Vertex * vp : {&vit.second, &vit.second.rc()}) {
-            dbg::Vertex &v = *vp;
-            dbg::Edge *last = checkBorder(v);
-            if(last == nullptr)
-                continue;
-            typedef std::pair<double, dbg::Edge *> StoredValue;
-            std::unordered_map<dbg::Vertex *, std::pair<double, dbg::Edge *>> res;
-            std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
-            queue.emplace(0, last);
-            size_t cnt = 0;
-            while(!queue.empty()) {
-                cnt += 1;
-                if(cnt > 10000) {
-//                    logger << "Dijkstra too long" << std::endl;
-                    break;
-                }
-                dbg::Edge *next = queue.top().second;
-                double dist = queue.top().first;
-                queue.pop();
-                if(res.find(next->end()) != res.end() || checkInner(*next->end()))
-                    continue;
-                res.emplace(next->end(), std::make_pair(dist, next));
-                if (checkBorder(next->end()->rc()) != nullptr) {
-                    dbg::GraphAlignment al(next->end()->rc());
-                    while(next != last) {
-                        al.push_back(Segment<dbg::Edge>(next->rc(), 0, next->size()));
-                        new_reliable.emplace_back(next);
-//                        logger << "New edge marked as reliable " << next->size() << "(" << next->getCoverage() << ")" << std::endl;
-                        next = res[next->start()].second;
-                    }
-//                    logger << "Path of size " << al.size() << " and length " << al.len() << " marked as reliable." << std::endl;
-                    cnt_paths += 1;
-                    break;
-                } else {
-                    for(dbg::Edge &edge : *next->end()) {
-                        double score = edge.size() / std::max<double>(std::min(edge.getCoverage(), threshold), 1);
-                        queue.emplace(dist + score, &edge);
-                    }
-                }
-            }
-        }
-    }
-    logger.info() << "Marked " << new_reliable.size() << " edges in " << cnt_paths << " paths as reliable" << std::endl;
-    for(dbg::Edge *edge : new_reliable) {
-        edge->is_reliable = true;
-        edge->rc().is_reliable = true;
-    }
-}
-
 std::unordered_map<dbg::Vertex *, size_t> findReachable(dbg::Vertex &start, double min_cov, size_t max_dist) {
     typedef std::pair<size_t, dbg::Vertex*> StoredValue;
     std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
@@ -249,4 +152,41 @@ FindPlausibleTipAlternatives(const dbg::GraphAlignment &path, size_t max_diff, d
         }
     }
     return std::move(res);
+}
+
+dbg::GraphAlignment FindLongestCoveredForwardExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
+    dbg::GraphAlignment res(start);
+    while(true) {
+        dbg::Edge *next = nullptr;
+        for(dbg::Edge &edge : res.finish()) {
+            if(edge == start) {
+                return std::move(res);
+            }
+            if(edge.getCoverage() >= min_rel_cov) {
+                if(next == nullptr)
+                    next = &edge;
+                else {
+                    return std::move(res);
+                }
+            } else if(edge.getCoverage() > max_err_cov) {
+                return std::move(res);
+            }
+        }
+        for(dbg::Edge &edge : res.finish().rc()) {
+            if(edge != res.back().contig().rc() && edge.getCoverage() > max_err_cov) {
+                return std::move(res);
+            }
+        }
+        if(next == nullptr) {
+            return res;
+        }
+        res += *next;
+    }
+}
+
+dbg::GraphAlignment FindLongestCoveredExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
+    dbg::GraphAlignment res = FindLongestCoveredForwardExtension(start, min_rel_cov, max_err_cov);
+    if(res.start() == res.finish())
+        return std::move(res);
+    return FindLongestCoveredForwardExtension(start.rc(), min_rel_cov, max_err_cov).subalignment(1).RC() + res;
 }

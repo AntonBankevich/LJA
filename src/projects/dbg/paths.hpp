@@ -61,6 +61,7 @@ namespace dbg {
         explicit GraphAlignment(const Path &_path);
         GraphAlignment(Vertex *_start, std::vector<Segment<Edge>> &&_path) : start_(_start), als(std::move(_path)) {}
         explicit GraphAlignment(Vertex &_start) : start_(&_start) {}
+        explicit GraphAlignment(Edge &start) : start_(start.start()), als({{start, 0, start.size()}}) {}
         GraphAlignment() : start_(nullptr) {}
 
         Vertex &start() const {return *start_;}
@@ -185,6 +186,15 @@ namespace dbg {
             VERIFY(seg_from_.size() == seg_to_.size());
         }
         size_t size() {return seg_from.size();}
+        PerfectAlignment RC() const {
+            return {seg_from.RC(), seg_to.RC()};
+        }
+        bool operator<(const PerfectAlignment<U, V> &other) const {
+            if(seg_to != other.seg_to)
+                return seg_to < other.seg_to;
+            else
+                return seg_from < other.seg_from;
+        }
     };
 
     class GraphAligner {

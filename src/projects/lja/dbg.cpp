@@ -14,7 +14,7 @@
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "common/hash_utils.hpp"
-#include "error_correction/initial_correction.hpp"
+#include "error_correction/tournament_correction.hpp"
 #include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
@@ -247,7 +247,7 @@ int main(int argc, char **argv) {
     }
 
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"), debug);
+        MultCorrect(logger, threads, dbg, dir, readStorage, 50000, 0, parser.getCheck("diploid"), debug);
     }
 
     if(parser.getCheck("initial-correct")) {
@@ -270,8 +270,9 @@ int main(int argc, char **argv) {
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
         }
+        storage.Fill(threads);
         {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
@@ -302,8 +303,9 @@ int main(int argc, char **argv) {
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
         }
+        storage.Fill(threads);
         reader.reset();
         size_t cnt = 0;
         for(StringContig scontig : reader) {
@@ -379,7 +381,7 @@ int main(int argc, char **argv) {
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
             for(auto & seg_rec : seg_recs) {
                 if(std::get<0>(seg_rec) == contig.id) {
                     segs.emplace_back(contig.seq.Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
@@ -388,6 +390,7 @@ int main(int argc, char **argv) {
                 }
             }
         }
+        storage.Fill(threads);
         for(Contig &seg : segs) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.id) + ".dot");
             logger.info() << "Printing segment " << seg.id << " to dot file " << (seg_file) << std::endl;
@@ -406,8 +409,9 @@ int main(int argc, char **argv) {
         io::SeqReader reader(genome_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
         }
+        storage.Fill(threads);
         {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;

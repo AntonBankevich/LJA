@@ -173,7 +173,7 @@ GraphAlignment ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip 
 //        return alternatives[0];
 //    } else
 //        return tip.tip;
-    GraphAlignment alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 4);
+    GraphAlignment alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 3);
     if(!alternative.valid())
         return tip.tip;
     if(alternative.len() > tip.tip.len()) {
@@ -339,6 +339,18 @@ GraphAlignment ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bu
         return bulge.bulge;
 }
 
+void ManyKCorrector::initialize(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads) {
+    CoverageReliableFiller cov(reliable_threshold);
+    LengthReliableFiller len(20000, 3, 1);
+    BridgeReliableFiller bridge(40000);
+    ConnectionReliableFiller connect(reliable_threshold);
+    BulgePathMarker bulge(dbg, reads, 60000);
+    std::vector<AbstractReliableFillingAlgorithm *> algs = {&len, &cov, &bridge, &connect};
+    if(diploid)
+        algs.emplace_back(&bulge);
+    CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
+}
+
 ManyKCorrector::Bulge ManyKCorrector::ReadRecord::getBulge(size_t num) {
     return  {read.subalignment(switch_positions[num * 2], switch_positions[num * 2 + 1]),
              read.subalignment(switch_positions[num * 2 + 2], switch_positions[num * 2 + 3]),
@@ -359,9 +371,9 @@ GraphAlignment ManyKCorrector::ReadRecord::getBlock(size_t num) const {
     return read.subalignment(switch_positions[num * 2], switch_positions[num * 2 + 1]);
 }
 
-size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads_storage, double threshold,
-                    double reliable_threshold, size_t K, size_t expectedCoverage, size_t threads) {
+size_t ManyKCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage, double threshold,
+                    double reliable_threshold, size_t K, size_t expectedCoverage, bool diploid) {
     logger.info() << "Using K = " << K << " for error correction" << std::endl;
-    ManyKCorrector algorithm(logger, dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold);
+    ManyKCorrector algorithm(logger, dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold, diploid);
     return ErrorCorrectionEngine(algorithm).run(logger, threads, dbg, reads_storage);
 }

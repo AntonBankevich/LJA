@@ -12,7 +12,7 @@
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "output-dir=",
                      "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none",
-                     "reference=none", "compress", "dimer-compress=1000000000,1000000000,1", "unique-threshold=40000", "radius=1000", "bad-cov=7"},
+                     "reference=none", "compress", "dimer-compress=1000000000,1000000000,1", "unique-threshold=40000", "radius=1000", "bad-cov=7", "track-paths"},
                     {"paths", "reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size", "w=window"},
                     "");
@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     const size_t w = std::stoi(parser.getValue("window"));
     double bad_cov = std::stod(parser.getValue("bad-cov"));
+    bool track_paths = parser.getCheck("track-paths");
     size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
@@ -56,7 +57,7 @@ int main(int argc, char **argv) {
     dbg.fillAnchors(w, logger, threads);// Creates index of edge k-mers
     size_t extension_size = 100000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, false);//Structure for read alignments
+    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, track_paths);//Structure for read alignments
     io::SeqReader reader(reads_lib);//Reader that can read reads from file
     readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);//Align reads to the graph
     std::experimental::filesystem::path subdir = dir / "subdatasets";
@@ -64,7 +65,7 @@ int main(int argc, char **argv) {
     std::vector<Subdataset> subdatasets;
     GraphAlignmentStorage storage(dbg);
     for(StringContig stringContig : io::SeqReader(ref_lib)) {
-        storage.fill(stringContig.makeContig());
+        storage.addContig(stringContig.makeContig());
     }
     if(paths_lib.empty()) {
         logger.info() << "No paths provided. Splitting the whole graph." << std::endl;
@@ -88,11 +89,12 @@ int main(int argc, char **argv) {
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
             std::cout << contig.id << " " << contig.size() << " " << dbg::GraphAligner(dbg).carefulAlign(contig).size() << std::endl;
-            storage.fill(contig);
+            storage.addContig(contig);
             subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
             subdatasets.back().id = contig.id;
         }
     }
+    storage.Fill(threads);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk

@@ -52,9 +52,39 @@ public:
         }
     }
 
-    void fill(const Contig &contig) {
-        innerFill(contig);
-        innerFill(contig.RC());
+    void addContig(const Contig &contig) {
+        stored_contigs.emplace_back(new Contig(contig));
+        stored_contigs.emplace_back(new Contig(contig.RC()));
+    }
+
+    void Fill(size_t threads) {
+        ParallelRecordCollector<dbg::PerfectAlignment<Contig, dbg::Edge>> records(threads);
+#pragma omp parallel for default(none) shared(stored_contigs, records)
+        for(size_t i = 0; i < stored_contigs.size(); i++) {
+            Contig &contig = *stored_contigs[i];
+            std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> path = dbg::GraphAligner(dbg).carefulAlign(contig);
+            for(dbg::PerfectAlignment<Contig, dbg::Edge> &al : path) {
+                records.emplace_back(al);
+            }
+        }
+        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> rec_list = records.collect();
+        __gnu_parallel::sort(rec_list.begin(), rec_list.end());
+        std::vector<std::pair<const dbg::Edge *, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>>> res;
+        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> next;
+        for(dbg::PerfectAlignment<Contig, dbg::Edge> rec : rec_list) {
+            if(next.empty() || next[0].seg_to.contig() == rec.seg_to.contig()) {
+                next.emplace_back(rec);
+            } else {
+                dbg::Edge *nedge = &next[0].seg_to.contig();
+                res.emplace_back(nedge, std::move(next));
+                next.clear();
+            }
+        }
+        if(!next.empty()) {
+            dbg::Edge *nedge = &next[0].seg_to.contig();
+            res.emplace_back(nedge, std::move(next));
+        }
+        alignments = {res.begin(), res.end()};
     }
 
     void print(std::ostream &os) {
@@ -88,7 +118,7 @@ public:
             ss << als[0].seg_from << "->" << als[0].seg_to.coordinaresStr();
             for (size_t i = 1; i < num; i++) {
                 const dbg::PerfectAlignment<Contig, dbg::Edge> &al = als[i];
-                ss << "\\n" << al.seg_from << "->" << al.seg_to.coordinaresStr() << "\n";
+                ss << "\\n" << al.seg_from << "->" << al.seg_to.coordinaresStr();
             }
             return ss.str();
         };

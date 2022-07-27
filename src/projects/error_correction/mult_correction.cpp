@@ -354,26 +354,23 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
     }
 }
 
-RecordStorage MultCorrect(SparseDBG &dbg, logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                          RecordStorage &reads_storage, size_t unique_threshold, size_t threads, bool diploid,
+RecordStorage MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
+                          RecordStorage &reads_storage, size_t unique_threshold, double initial_rel_coverage, bool diploid,
                           bool debug) {
-    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
-    const std::experimental::filesystem::path dump_dir = dir / "mult";
     if(debug) {
-        recreate_dir(multiplicity_figures);
-        recreate_dir(dump_dir);
+        recreate_dir(dir);
     }
-    UniqueClassificator classificator(dbg, reads_storage, diploid, debug);
-    classificator.classify(logger, unique_threshold, multiplicity_figures/"ongoing");
+    UniqueClassificator classificator(dbg, reads_storage, initial_rel_coverage, diploid, debug);
+    classificator.classify(logger, unique_threshold, dir/"ongoing");
     if(debug)
-        DrawMult(multiplicity_figures / "round1", dbg, unique_threshold, reads_storage, classificator);
-    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, classificator, dump_dir/"round1.txt");
+        DrawMult(dir / "round1", dbg, unique_threshold, reads_storage, classificator);
+    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, classificator, dir/"round1.txt");
     SetUniquenessStorage more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, classificator);
     SetUniquenessStorage more_more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, more_unique);
     if(debug)
-        DrawMult(multiplicity_figures / "round2", dbg, unique_threshold, reads_storage, more_more_unique);
-    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_more_unique, dump_dir/"round2.txt");
+        DrawMult(dir / "round2", dbg, unique_threshold, reads_storage, more_more_unique);
+    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_more_unique, dir/"round2.txt");
     if(debug)
-        DrawMult(multiplicity_figures / "final", dbg, unique_threshold, reads_storage, more_unique);
+        DrawMult(dir / "final", dbg, unique_threshold, reads_storage, more_unique);
     return std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
 }

@@ -3,6 +3,7 @@
 #include "dbg/sparse_dbg.hpp"
 #include "error_correction.hpp"
 #include "correction_utils.hpp"
+#include "bulge_path_marker.hpp"
 
 class ManyKCorrector : public AbstractCorrectionAlgorithm {
 private:
@@ -50,14 +51,16 @@ private:
     size_t expected_coverage;
     double reliable_threshold;
     double bad_threshold;
+    bool diploid;
 public:
     ManyKCorrector(logging::Logger &logger, dbg::SparseDBG &dbg, RecordStorage &reads, size_t K, size_t expectedCoverage,
-                   double reliable_threshold, double bad_threshold) : AbstractCorrectionAlgorithm("ManyKCorrector"),
+                   double reliable_threshold, double bad_threshold, bool diploid) : AbstractCorrectionAlgorithm("ManyKCorrector"),
                 dbg(dbg), reads(reads), K(K), expected_coverage(expectedCoverage),
-                reliable_threshold(reliable_threshold), bad_threshold(bad_threshold) {
+                reliable_threshold(reliable_threshold), bad_threshold(bad_threshold), diploid(diploid) {
         VERIFY(reads.getMaxLen() >= K);
-        FillReliableWithConnections(logger, dbg, reliable_threshold);
     }
+
+    void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) override;
 
     ReadRecord splitRead(dbg::GraphAlignment &read_path) const;
 
@@ -74,5 +77,5 @@ public:
     std::string correctRead(dbg::GraphAlignment &read_path) override;
 };
 
-size_t ManyKCorrect(logging::Logger &logger, dbg::SparseDBG &dbg,RecordStorage &reads_storage, double threshold,
-                double reliable_threshold, size_t K, size_t expectedCoverage, size_t threads);
+size_t ManyKCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,RecordStorage &reads_storage, double threshold,
+                double reliable_threshold, size_t K, size_t expectedCoverage, bool diploid);
