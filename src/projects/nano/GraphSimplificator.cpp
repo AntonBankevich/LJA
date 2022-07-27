@@ -59,6 +59,9 @@ void GraphSimplificator::Simplify(multigraph::MultiGraph &mg, const std::experim
         }
     }
     os_cut.close();
+    const std::experimental::filesystem::path &prefinal_gfa = dir / "prefinal.gfa";
+    mg.printEdgeGFA(prefinal_gfa);
+
     std::unordered_set<int> compress_vertices;
     for (auto it: to_delete) {
         if (mg.edges.count(it) > 0) {
@@ -79,55 +82,23 @@ void GraphSimplificator::Simplify(multigraph::MultiGraph &mg, const std::experim
 void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
     std::vector<std::unordered_set<int>> in_edges;
     std::vector<std::unordered_set<int>> out_edges;
-//    std::unordered_map<int, std::unordered_set<int>> parallel_edges;
-//    for (auto const &[e1_id, val1]: sgraph_) {
-//        parallel_edges.insert(std::pair<int, std::unordered_set<int>>(e1_id, std::unordered_set<int>()));
-//        std::cerr << "Cur edges " << e1_id << std::endl;
-//        for (auto const &[e2_id, num2]: val1) {
-//            const multigraph::Edge *edge2 = &mg.edges.at(e2_id);
-//            for (auto const &[e3_id, num3]: sgraph_.at(edge2->rc->getId())) {
-//                const multigraph::Edge *edge = &mg.edges.at(e3_id);
-//                std::cerr << " Insert " << edge->rc->getId() << std::endl;
-//                parallel_edges[e1_id].insert(edge->rc->getId());
-//            }
-//        }
-//    }
-//    for (auto const &[e1_id, val1]: sgraph_) {
-//        in_edges.push_back(std::unordered_set<int>());
-//        std::cerr << "e1 " << e1_id << " " << parallel_edges.count(e1_id) << std::endl;
-//        for (auto const e_id: parallel_edges[e1_id]) {
-//            const multigraph::Edge *edge1 = &mg.edges.at(e_id);
-//            for (auto const edge: edge1->end->rc->outgoing) {
-//                in_edges[in_edges.size() - 1].insert(edge->rc->getId());
-//            }
-//        }
-//        out_edges.push_back(std::unordered_set<int>());
-//        for (auto const &[e2_id, num]: val1){
-//            int e2_id_rc = (mg.edges.at(e2_id)).rc->getId();
-//            std::cerr << " e2 " << e2_id << " " << parallel_edges.count(e2_id_rc) << std::endl;
-//            for (auto const e_id: parallel_edges[e2_id_rc]) {
-//                const multigraph::Edge *edge2 = &mg.edges.at(e_id);
-//                for (auto const edge: edge2->rc->start->outgoing) {
-//                    std::cerr << "  e3 " << edge->getId() << std::endl;
-//                    out_edges[out_edges.size() - 1].insert(edge->getId());
-//                }
-//            }
-//        }
-//    }
+
     std::cerr << "Start resolving" << std::endl;
-    for (auto const &[key, val]: mg.vertices){
+    for (auto const &[key, val]: mg.vertices) {
         if (val.outgoing.size() == 2 && val.rc->outgoing.size() == 2) {
             bool is_uedges = true;
-            for (auto const e: val.outgoing)
-                if (sgraph_.count(e->getId()) == 0) {
+            for (auto const e: val.outgoing) {
+                if (sgraph_.count(e->rc->getId()) == 0) {
                     is_uedges = false;
                     break;
                 }
-            for (auto const e: val.rc->outgoing)
-                if (sgraph_.count(e->getId()) == 0) {
+            }
+            for (auto const e: val.rc->outgoing) {
+                if (sgraph_.count(e->rc->getId()) == 0) {
                     is_uedges = false;
                     break;
                 }
+            }
             if (!is_uedges) continue;
             in_edges.push_back(std::unordered_set<int>());
             out_edges.push_back(std::unordered_set<int>());
@@ -136,7 +107,29 @@ void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
         }
     }
 
-    for (int i = 0; i < in_edges.size(); ++ i) {
+    for (auto const &[key, val]: mg.edges) {
+        if (val.start->rc->outgoing.size() == 2 && val.end->outgoing.size() == 2
+            && val.start->outgoing.size() == 1 && val.end->rc->outgoing.size() == 1) {
+            bool is_uedges = true;
+            for (auto const e: val.start->rc->outgoing)
+                if (sgraph_.count(e->getId()) == 0) {
+                    is_uedges = false;
+                    break;
+                }
+            for (auto const e: val.end->outgoing)
+                if (sgraph_.count(e->getId()) == 0) {
+                    is_uedges = false;
+                    break;
+                }
+            if (!is_uedges) continue;
+            in_edges.push_back(std::unordered_set<int>());
+            out_edges.push_back(std::unordered_set<int>());
+            for (auto const e: val.end->outgoing) out_edges[out_edges.size() - 1].insert(e->getId());
+            for (auto const e: val.start->rc->outgoing) in_edges[in_edges.size() - 1].insert(e->rc->getId());
+        }
+    }
+
+    for (int i = 0; i < in_edges.size(); ++i) {
         std::unordered_set<int> &cur_in_edges = in_edges[i];
         std::unordered_set<int> &cur_out_edges = out_edges[i];
         if (cur_in_edges.size() == 2 && cur_out_edges.size() == 2) {
@@ -165,8 +158,9 @@ void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
 
             int j = 1;
             while (j < transitions.size() &&
-                  (transitions[0].first.first == transitions[j].first.first
-                  || transitions[0].first.second == transitions[j].first.second)) ++j;
+                   (transitions[0].first.first == transitions[j].first.first
+                    || transitions[0].first.second == transitions[j].first.second))
+                ++j;
 
             if (j < transitions.size()) {
                 std::pair<int, int> best_transition = transitions[0].first;
@@ -177,6 +171,16 @@ void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
                 inside_edges_.insert(transitions[j].first.second);
                 std::cerr << "Second " << transitions[j].first.first << "->" << transitions[j].first.second
                           << std::endl;
+                if (sgraph_.count(transitions[j].first.first) == 0) {
+                    sgraph_[transitions[j].first.first] = std::unordered_map<int, std::pair<int, std::vector<int>>>();
+                }
+                if (sgraph_.at(transitions[j].first.first).count(transitions[j].first.second) == 0) {
+                    sgraph_[transitions[j].first.first][transitions[j].first.second].first = 0;
+                    sgraph_[transitions[j].first.first][transitions[j].first.second].second
+                            = sgraph_[best_transition.first][best_transition.second].second;
+                    std::cerr << sgraph_[best_transition.first][best_transition.second].second.size() << std::endl;
+                    std::cerr << sgraph_[transitions[j].first.first][transitions[j].first.second].second.size() << std::endl;
+                }
             }
         }
     }

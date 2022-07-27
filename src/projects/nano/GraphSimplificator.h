@@ -10,7 +10,7 @@
 namespace nano {
     class GraphSimplificator {
     public:
-        GraphSimplificator(const std::unordered_map<int, std::unordered_map<int, std::pair<int, std::vector<int>>>> &sgraph):
+        GraphSimplificator(std::unordered_map<int, std::unordered_map<int, std::pair<int, std::vector<int>>>> &sgraph):
         sgraph_(sgraph) {}
 
         void Simplify(multigraph::MultiGraph &mg, const std::experimental::filesystem::path &dir);
@@ -20,7 +20,7 @@ namespace nano {
     private:
         std::unordered_map<int, int> chains_;
         std::unordered_set<int> inside_edges_;
-        const std::unordered_map<int, std::unordered_map<int, std::pair<int, std::vector<int>>>> sgraph_;
+        std::unordered_map<int, std::unordered_map<int, std::pair<int, std::vector<int>>>> sgraph_;
     };
 }
 
