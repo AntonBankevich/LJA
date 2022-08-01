@@ -1,3 +1,5 @@
+#include <dbg/component.hpp>
+#include <dbg/visualization.hpp>
 #include "reliable_fillers.hpp"
 #include "correction_utils.hpp"
 
