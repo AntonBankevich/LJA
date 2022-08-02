@@ -15,11 +15,15 @@ namespace nano {
     public:
         ReadsAlignerGA(const multigraph::MultiGraph &mg) : mg_(mg) {}
 
-        std::unordered_map<std::string, GraphContig> Align(const std::unordered_map<std::string, Contig> &sequences,
+        void Align(const std::unordered_map<std::string, Contig> &sequences,
                                        const std::experimental::filesystem::path &graph,
                                        const std::experimental::filesystem::path &output_dir,
                                        const size_t threads,
                                        const int batch_num);
+        
+        std::unordered_map<std::string, std::vector<GraphContig>> ExtractPaths(
+                                                  const std::experimental::filesystem::path &output_dir,
+                                                  int batch_num);
 
     private:
         std::experimental::filesystem::path SaveBatch(const std::unordered_map<std::string, Contig> &sequences,

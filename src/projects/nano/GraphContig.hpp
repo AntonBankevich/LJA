@@ -21,6 +21,19 @@ namespace nano {
         std::string cigar;
         Contig read_str;
 
+        GraphContig() {
+            query = "";
+            qLen = 0;
+            qStart = 0;
+            qEnd = 0;
+            strand = "";
+            pathLen = 0;
+            gStart = 0;
+            gEnd = 0;
+            nMatches = 0;
+            cigar = "";
+        }
+
         GraphContig(const std::vector<string> &params, const Contig &read_str_) {
             query = params[0];
             qLen = std::atoi(params[1].c_str());
@@ -75,6 +88,14 @@ namespace nano {
             }
         }
     };
+
+    inline const multigraph::Edge *GetEdgebyStr(const std::string &edge_id_str,
+                                         const multigraph::MultiGraph &mg_) {
+        int edge_id = atoi(edge_id_str.substr(0, edge_id_str.size() - 1).c_str());
+        edge_id = edge_id_str[edge_id_str.size() - 1] == '-'? -edge_id: edge_id;
+        if (mg_.edges.count(edge_id) == 0) return nullptr;
+        return &mg_.edges.at(edge_id);
+    }
 
 }
 

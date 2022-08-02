@@ -35,43 +35,6 @@ void SGraphBuilder::SaveSGraph(const std::experimental::filesystem::path &sgraph
     std::cerr << "SGraph saved to " << sgraph_filename << std::endl;
 }
 
-
-void SGraphBuilder::LoadAlignments(const std::unordered_map<std::string, nano::GraphContig> &alignments,
-                                   const size_t threads) {
-    std::vector<std::string> names;
-    for (auto const &[key, val]: alignments) {
-        names.push_back(key);
-    }
-    #pragma omp parallel for num_threads(threads)
-    for (auto const name: names) {
-        const std::string key = name;
-        const nano::GraphContig &val = alignments.at(key);
-        int prev_index = -1;
-        for (int i = 0; i < val.path.size(); ++ i) {
-            const std::string &edge_id = val.path[i];
-            if (uedges_.count(edge_id.substr(0, edge_id.size() - 1)) == 1) {
-                if (prev_index != -1) {
-                    std::string e1 = val.path[prev_index];
-                    std::string e2 = edge_id;
-                    std::vector<std::string> subpath = {val.path.begin() + prev_index, val.path.begin() + i + 1};
-                    //std::cerr << "Check " << e1 << " " << e2 << " " << key << std::endl;
-                    val.PrintContig();
-                    if (by_vertex_) {
-                        std::tie(e1, e2) = ResolveByVertex(subpath, val.read_str);
-                        //std::cerr << " Add " << e1 << " " << e2 <<  " " << key << std::endl;
-                        //std::cerr << std::endl;
-                    }
-#pragma omp critical(add_edge)
-                    if (e1 != "" && e2 != "") {
-                        AddEdge(e1, e2, subpath);
-                    }
-                }
-                prev_index = i;
-            }
-        }
-    }
-}
-
 void SGraphBuilder::LoadSGraphEdges(const std::experimental::filesystem::path &sgraph_filename) {
     sgraph_.clear();
     std::ifstream in_file;
@@ -99,18 +62,47 @@ void SGraphBuilder::LoadSGraphEdges(const std::experimental::filesystem::path &s
             }
         }
         sgraph_[e1][e2] = std::pair<int, std::vector<int>> (cnt, edges);
-        //std::cerr << e1 << " " << e2 << " " << cnt << " " << edges.size() << std::endl;
+        std::cerr << e1 << " " << e2 << " " << sgraph_[e1][e2].first << " " <<  sgraph_[e1][e2].second.size() << std::endl;
     }
     in_file.close();
     std::cerr << "SGraph uploaded from " << sgraph_filename << std::endl;
 }
 
-const multigraph::Edge *GetEdgebyStr(const std::string &edge_id_str,
-                                     const multigraph::MultiGraph &mg_) {
-    int edge_id = atoi(edge_id_str.substr(0, edge_id_str.size() - 1).c_str());
-    edge_id = edge_id_str[edge_id_str.size() - 1] == '-'? -edge_id: edge_id;
-    if (mg_.edges.count(edge_id) == 0) return nullptr;
-    return &mg_.edges.at(edge_id);
+void SGraphBuilder::LoadAlignments(const std::unordered_map<std::string, std::vector<nano::GraphContig>> &alignments,
+                                   const size_t threads) {
+    std::vector<std::string> names;
+    for (auto const &[key, val]: alignments) {
+        names.push_back(key);
+    }
+    #pragma omp parallel for num_threads(threads)
+    for (auto const name: names) {
+        const std::string key = name;
+        for (auto const &val: alignments.at(key)) {
+            int prev_index = -1;
+            for (int i = 0; i < val.path.size(); ++ i) {
+                const std::string &edge_id = val.path[i];
+                if (uedges_.count(edge_id.substr(0, edge_id.size() - 1)) == 1) {
+                    if (prev_index != -1) {
+                        std::string e1 = val.path[prev_index];
+                        std::string e2 = edge_id;
+                        std::vector<std::string> subpath = {val.path.begin() + prev_index, val.path.begin() + i + 1};
+                        //val.PrintContig();
+                        if (by_vertex_) {
+                            //std::cerr << " Consider " << e1 << " " << e2 << " " << key << std::endl;
+                            std::tie(e1, e2) = ResolveByVertex(subpath, val.read_str);
+                            //std::cerr << " Add " << e1 << " " << e2 << " " << key << std::endl;
+                            std::cerr << std::endl;
+                        }
+    #pragma omp critical(add_edge)
+                        if (e1 != "" && e2 != "") {
+                            AddEdge(e1, e2, subpath);
+                        }
+                    }
+                    prev_index = i;
+                }
+            }
+        }
+    }
 }
 
 void SGraphBuilder::AddEdge(const std::string &prev_edge_id_str, const std::string &edge_id_str, const std::vector<std::string> &subpath) {
@@ -206,22 +198,47 @@ std::pair<std::string, std::string> SGraphBuilder::ResolveByVertex(const std::ve
         char prev_nuc = read_str.str()[start_pos - 1];
         char post_nuc = read_str.str()[end_pos + 1];
 //        std::cerr << path_str.size() << " " << read_str.str().size() << " "
-//                 << start_pos << " " << end_pos << " "
-//                 << result.editDistance << " nuc1:" << prev_nuc
-//                 << " nuc2:" << post_nuc << " " << result.numLocations << std::endl;
-        const multigraph::Edge *path_in_edge = GetEdgebyStr(subpath[0], mg_);
-        const multigraph::Edge *in_edge = GetEdgeByNuc(prev_nuc, path_in_edge, true);
-        const multigraph::Edge *path_out_edge = GetEdgebyStr(subpath[subpath.size() - 1], mg_);
-        const multigraph::Edge *out_edge = GetEdgeByNuc(post_nuc, path_out_edge, false);
-        if (in_edge != nullptr) {
-            in_edge_id = std::to_string(abs(in_edge->getId())) + (in_edge->isCanonical()? "+" : "-");
-        }
-        if (out_edge != nullptr) {
-            out_edge_id = std::to_string(abs(out_edge->getId())) + (out_edge->isCanonical()? "+" : "-");
-        }
+//                  << start_pos << " " << end_pos << " "
+//                  << result.editDistance << " nuc1:" << prev_nuc
+//                  << " nuc2:" << post_nuc << " " << result.numLocations << std::endl;
+        int left_match = 0, right_match = result.alignmentLength - 1;
+//        while (left_match < result.alignmentLength
+//                && result.alignment[left_match] == 0) ++left_match;
+//        while (right_match < result.alignmentLength
+//                && result.alignment[result.alignmentLength - 1 - right_match] == 0) ++right_match;
+//        const int MIN_MATCH_LEN = 5;
+       // if (left_match > MIN_MATCH_LEN && right_match > MIN_MATCH_LEN) {
+            const multigraph::Edge *path_in_edge = GetEdgebyStr(subpath[0], mg_);
+            const multigraph::Edge *in_edge = GetEdgeByNuc(prev_nuc, path_in_edge, true);
+            const multigraph::Edge *path_out_edge = GetEdgebyStr(subpath[subpath.size() - 1], mg_);
+            const multigraph::Edge *out_edge = GetEdgeByNuc(post_nuc, path_out_edge, false);
+            if (in_edge != nullptr) {
+                in_edge_id = std::to_string(abs(in_edge->getId())) + (in_edge->isCanonical() ? "+" : "-");
+            }
+            if (out_edge != nullptr) {
+                out_edge_id = std::to_string(abs(out_edge->getId())) + (out_edge->isCanonical() ? "+" : "-");
+            }
+     //   }
     }
     edlibFreeAlignResult(result);
     return std::pair<std::string, std::string>(in_edge_id, out_edge_id);
+}
+
+void SGraphBuilder::UpdateTips(const std::unordered_map<int, int> &removed_edges){
+    for (const auto &[e1_id, val]: sgraph_) {
+        for (const auto &[e2_id, val]: sgraph_) {
+            if (removed_edges.count(e2_id) == 1) {
+                int new_e_id = removed_edges.at(e2_id);
+                sgraph_[e1_id][new_e_id] = sgraph_[e1_id][e2_id];
+                sgraph_[e1_id].erase(e2_id);
+            }
+        }
+        if (removed_edges.count(e1_id) == 1) {
+            int new_e_id = removed_edges.at(e1_id);
+            sgraph_[new_e_id] = sgraph_[e1_id];
+            sgraph_.erase(e1_id);
+        }
+    }
 }
 
 void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique_edges,
@@ -238,6 +255,7 @@ void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique
         while (std::getline(iss, s, delim)) {
             params.push_back(s);
         }
+        VERIFY(params.size() == 2)
         if (params[1] == "1") {
             uedges_.insert(params[0]);
         }

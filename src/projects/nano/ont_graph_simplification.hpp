@@ -12,6 +12,7 @@
 #include <nano/SGraphBuilder.h>
 #include <nano/GraphSimplificator.h>
 #include <nano/VertexExtender.h>
+#include <nano/TipResolver.h>
 #include <lja/multi_graph.hpp>
 
 namespace nano {
@@ -43,10 +44,8 @@ namespace nano {
 
             std::unordered_map<std::string, Contig> batch;
             nano::ReadsAlignerGA reads_aligner(mg);
-            // nano::ReadsAlignerMM reads_aligner(mg, dir);
-            // return 0;
-            nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, false);
-            int cnt = 0;
+
+            int batch_num = 0;
             StringContig::homopolymer_compressing = true;
             StringContig::min_dimer_to_compress = 32;
             StringContig::max_dimer_size = 32;
@@ -54,17 +53,39 @@ namespace nano {
                 Contig contig = scontig.makeContig();
                 batch[contig.id] = contig;
                 if (batch.size() > BATCH_SIZE) {
-                    std::unordered_map<std::string, nano::GraphContig> alignments =
-                            reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++cnt);
-                    sgraph_builder.LoadAlignments(alignments, threads);
+                    reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++batch_num);
                     batch.clear();
                 }
             }
-            std::unordered_map<std::string, nano::GraphContig> alignments = reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++cnt);
-            sgraph_builder.LoadAlignments(alignments, threads);
+            reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++batch_num);
             batch.clear();
+
+            logger.info() <<  "Tip resolution\n";
+            nano::TipResolver tipResolver(mg); 
+            for (int i = 1; i < batch_num + 1; ++ i) {
+                    std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
+                            reads_aligner.ExtractPaths(dir, i);
+                    tipResolver.LoadPaths(alignments);
+            }
+            tipResolver.ResolveWithPaths();
+            // const std::experimental::filesystem::path &input_tipsresolved_gfa = 
+            //                                                         dir / "input_tipsresolved.gfa";
+
+            logger.info() <<  "Tips resolved\n";
+            nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, false); 
+            for (int i = 1; i < batch_num + 1; ++ i) {
+                    std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
+                            reads_aligner.ExtractPaths(dir, i);
+                    sgraph_builder.LoadAlignments(alignments, threads);
+            }
+            
+            //sgraph_builder.UpdateTips(removed_edges);
+            //mg.printEdgeGFA(input_tipsresolved_gfa);
+
             sgraph_builder.SaveSGraph(dir / "scaffold_graph.tsv");
+//          sgraph_builder.LoadSGraphEdges(dir / "scaffold_graph.tsv");
             logger.info() << "Scaffold graph construction finished: " << dir / "scaffold_graph.tsv" << std::endl;
+
             nano::GraphSimplificator graph_simplificator(sgraph_builder.GetSGraph(), sgraph_builder.GetUEdges());
             graph_simplificator.ResolveWithMajor(mg);
             graph_simplificator.Simplify(mg, dir);

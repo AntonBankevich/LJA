@@ -20,10 +20,12 @@ namespace nano {
             LoadUEdges(unique_edges, new_edges_map);
         }
 
-        void LoadAlignments(const std::unordered_map<std::string, nano::GraphContig> &alignments,
+        void LoadAlignments(const std::unordered_map<std::string, std::vector<nano::GraphContig>> &alignments,
                             const size_t threads);
 
         void LoadSGraphEdges(const std::experimental::filesystem::path &sgraph_filename);
+
+        void UpdateTips(const std::unordered_map<int, int> &removed_edges);
 
         std::unordered_map<int, std::unordered_map<int, std::pair<int, std::vector<int>>>>& GetSGraph() {
             return sgraph_;

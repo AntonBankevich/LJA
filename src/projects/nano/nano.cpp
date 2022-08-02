@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
     logging::LoggerStorage ls(dir, "nano");
     logging::Logger logger;
     logger.addLogFile(ls.newLoggerFile(), logging::debug);
-    logger << join(" ", argv, argv + argc);
+    logger << join(" ", argv, argv + argc) << std::endl;
 
     if (!parser.check().empty()) {
         logger << "Incorrect parameters" << std::endl;

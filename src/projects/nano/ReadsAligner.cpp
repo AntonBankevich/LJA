@@ -3,13 +3,15 @@
 //
 
 #include <string>
+#include <map>
+#include <sequences/seqio.hpp>
 
 #include "ReadsAligner.h"
 
 
 using namespace nano;
 
-std::unordered_map<std::string, GraphContig> ReadsAlignerGA::Align(const std::unordered_map<std::string, Contig> &sequences,
+void ReadsAlignerGA::Align(const std::unordered_map<std::string, Contig> &sequences,
                                const std::experimental::filesystem::path &graph,
                                const std::experimental::filesystem::path &output_dir,
                                const size_t threads,
@@ -20,10 +22,27 @@ std::unordered_map<std::string, GraphContig> ReadsAlignerGA::Align(const std::un
                           " -a " + string(output_dir / ("batch_" + std::to_string(batch_num) + ".gaf") ) +
                           " -x dbg -t " + std::to_string(threads);
     std::cerr << command << std::endl;
-    std::system(command.c_str());
+//    std::system(command.c_str());
+}
+
+std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::ExtractPaths(
+                                                  const std::experimental::filesystem::path &output_dir,
+                                                  int batch_num) {
     const std::experimental::filesystem::path &batch_gaf =
                                         output_dir / ("batch_" + std::to_string(batch_num) + ".gaf");
-    std::unordered_map<std::string, GraphContig> read_paths = ExtractPaths(batch_gaf, sequences);
+    const std::experimental::filesystem::path &batch_fasta =
+                                        output_dir / ("batch_" + std::to_string(batch_num) + ".fasta");
+    io::SeqReader reader(batch_fasta);
+    StringContig::homopolymer_compressing = true;
+    StringContig::min_dimer_to_compress = 32;
+    StringContig::max_dimer_size = 32;
+    std::unordered_map<std::string, Contig> sequences;
+    for(StringContig scontig : reader) {
+        Contig contig = scontig.makeContig();
+        sequences[contig.id] = contig;
+    }
+    std::unordered_map<std::string, std::vector<GraphContig>> read_paths =
+                                        ExtractPathsWithTipsSaving(batch_gaf, sequences);
     return read_paths;
 }
 
@@ -52,22 +71,25 @@ GraphContig ReadsAlignerGA::ExtractAlignment(const std::string &ln,
     return GraphContig(params, sequences.at(params[0]));
 }
 
-std::unordered_map<std::string, GraphContig> ReadsAlignerGA::ExtractPaths(const std::experimental::filesystem::path &batch_gaf,
+std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::ExtractPaths(const std::experimental::filesystem::path &batch_gaf,
                                                                           const std::unordered_map<std::string, Contig> &sequences) {
     std::ifstream is_cut;
     is_cut.open(batch_gaf);
     std::string ln;
-    std::unordered_map<std::string, GraphContig> alignments;
+    std::unordered_map<std::string, std::vector<GraphContig>> alignments;
     while (std::getline(is_cut, ln)) {
         GraphContig gcontig = ExtractAlignment(ln, sequences);
         if (gcontig.qEnd - gcontig.qStart > 0.9*gcontig.qLen) {
             if (alignments.count(gcontig.query) == 0) {
-                alignments.insert(std::pair<std::string, GraphContig>(gcontig.query, gcontig));
+                if (alignments.count(gcontig.query) == 0) {
+                    alignments[gcontig.query] = std::vector<GraphContig>();
+                }
+                alignments[gcontig.query].push_back(gcontig);
             } else {
-                GraphContig &prevAln = alignments.at(gcontig.query);
+                GraphContig &prevAln = alignments.at(gcontig.query)[0];
                 if (prevAln.nMatches * (gcontig.qEnd - gcontig.qStart)
                             < gcontig.nMatches * (prevAln.qEnd - prevAln.qStart)) {
-                    alignments.at(gcontig.query) = gcontig;
+                    alignments.at(gcontig.query)[0] = gcontig;
                 }
             }
         }
@@ -75,7 +97,7 @@ std::unordered_map<std::string, GraphContig> ReadsAlignerGA::ExtractPaths(const 
     is_cut.close();
     std::set<std::string> toremove;
     for (auto const &[key, val]: alignments) {
-        if (val.path.size() == 1) {
+        if (val[0].path.size() == 1) {
             toremove.insert(key);
         }
     }
