@@ -37,7 +37,7 @@ public:
 
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir);
     explicit UniqueClassificator(dbg::SparseDBG &dbg, const RecordStorage &reads_storage, double initial_rel_coverage, bool diploid, bool debug) :
-                    dbg(dbg), reads_storage(reads_storage), diploid(diploid), debug(debug) {}
+                    dbg(dbg), reads_storage(reads_storage), initial_rel_coverage(initial_rel_coverage), diploid(diploid), debug(debug) {}
     size_t ProcessUsingCoverage(logging::Logger &logger, const dbg::Component &subcomponent,
                               const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage);
     void processSimpleComponent(logging::Logger &logger, const dbg::Component &component) const;

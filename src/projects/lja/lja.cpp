@@ -134,8 +134,7 @@ bool diploid, bool skip, bool debug, bool load) {
 
         if(debug)
             DrawSplit(Component(dbg), dir / "split");
-        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
-        dbg.printFastaOld(dir / "graph.fasta");
+        dbg.printFastaOld(dir / "final_dbg.fasta");
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     };
     if(!skip)

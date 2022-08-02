@@ -173,7 +173,7 @@ GraphAlignment ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip 
 //        return alternatives[0];
 //    } else
 //        return tip.tip;
-    GraphAlignment alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 4);
+    GraphAlignment alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 3);
     if(!alternative.valid())
         return tip.tip;
     if(alternative.len() > tip.tip.len()) {
