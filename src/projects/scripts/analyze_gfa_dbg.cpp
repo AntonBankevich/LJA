@@ -6,8 +6,8 @@
 using namespace multigraph;
 int main(int argc, char **argv) {
     MultiGraph mg;
-    size_t k = std::stoi(argv[2]);
-    mg.LoadGFA(argv[1], true);
+    size_t k = std::stoull(argv[2]);
+    mg.LoadGFA(argv[1], false);
     mg = mg.DBG(k);
     std::cout << "dbg " << mg.vertices.size() << " " << mg.edges.size() << std::endl;
     for(Vertex *v : mg.vertices) {

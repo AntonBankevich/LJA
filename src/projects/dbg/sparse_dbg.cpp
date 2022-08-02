@@ -229,7 +229,7 @@ std::string Vertex::getShortId() const {
     std::stringstream ss;
     if(!isCanonical())
         ss << "-";
-    ss << hash() % 10000000;
+    ss << hash() % 1000000000;
     return ss.str();
 }
 

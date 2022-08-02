@@ -2,6 +2,8 @@
 #include <dbg/visualization.hpp>
 #include "reliable_fillers.hpp"
 #include "correction_utils.hpp"
+#include <dbg/component.hpp>
+#include <dbg/visualization.hpp>
 
 size_t AbstractReliableFillingAlgorithm::ReFill(dbg::SparseDBG &dbg) {
     for(dbg::Edge &edge : dbg.edges()) {
@@ -147,7 +149,7 @@ size_t BridgeReliableFiller::Fill(dbg::SparseDBG &dbg) {
         std::vector<dbg::Edge *> new_reliable = bridges(edge);
         marked += new_reliable.size();
         for(dbg::Edge * new_rel : new_reliable) {
-            VERIFY(!new_rel->is_reliable);
+//            VERIFY(!new_rel->is_reliable);
             new_rel->is_reliable = true;
             new_rel->rc().is_reliable = true;
             queue.push(new_rel);
