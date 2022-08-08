@@ -186,6 +186,15 @@ namespace dbg {
             VERIFY(seg_from_.size() == seg_to_.size());
         }
         size_t size() {return seg_from.size();}
+        PerfectAlignment RC() const {
+            return {seg_from.RC(), seg_to.RC()};
+        }
+        bool operator<(const PerfectAlignment<U, V> &other) const {
+            if(seg_to != other.seg_to)
+                return seg_to < other.seg_to;
+            else
+                return seg_from < other.seg_from;
+        }
     };
 
     class GraphAligner {

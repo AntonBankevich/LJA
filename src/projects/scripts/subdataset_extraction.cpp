@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
     std::vector<Subdataset> subdatasets;
     GraphAlignmentStorage storage(dbg);
     for(StringContig stringContig : io::SeqReader(ref_lib)) {
-        storage.fill(stringContig.makeContig());
+        storage.addContig(stringContig.makeContig());
     }
     if(paths_lib.empty()) {
         logger.info() << "No paths provided. Splitting the whole graph." << std::endl;
@@ -89,11 +89,12 @@ int main(int argc, char **argv) {
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
             std::cout << contig.id << " " << contig.size() << " " << dbg::GraphAligner(dbg).carefulAlign(contig).size() << std::endl;
-            storage.fill(contig);
+            storage.addContig(contig);
             subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
             subdatasets.back().id = contig.id;
         }
     }
+    storage.Fill(threads);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
