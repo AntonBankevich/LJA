@@ -176,6 +176,8 @@ void HaplotypeRemover::cleanGraph() {
     size_t tips = 0;
     size_t bulges = 0;
     size_t iter = 0;
+    size_t bad_bulges = 0;
+    size_t good_bulges = 0;
     while (changed) {
         changed = false;
         logger_.info() << "Iter " << ++iter << endl;
@@ -209,6 +211,9 @@ void HaplotypeRemover::cleanGraph() {
                         deleteEdgeHaplo(second_e->getId());
                     changed = true;
                     bulges ++;
+                    good_bulges ++;
+                } else {
+                    bad_bulges ++;
                 }
             }
 
@@ -216,6 +221,7 @@ void HaplotypeRemover::cleanGraph() {
         compressAllVertices();
     }
     logger_.info() << "Deleted tips "<< tips << " Bulges " << bulges << endl;
+    logger_.info() << "Similar/nonsimilar length bulges " << good_bulges << " " << bad_bulges << endl;
 }
 
 std::unordered_map<std::string, std::string> HaplotypeRemover::getBulgeLabels() {
