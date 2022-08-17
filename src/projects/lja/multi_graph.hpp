@@ -118,24 +118,27 @@ namespace multigraph {
         }
 
         bool isTip() const {
-/*            if (start->inDeg() == 0 && end->inDeg() > 1 && end->outDeg() > 0)
+            if (start->inDeg() == 0 && end->inDeg() > 1 && end->outDeg() > 0)
                 return true;
             if (end->outDeg() == 0 && start->outDeg() > 1 && start->inDeg() > 0)
                 return true;
-            return false;*/
+            return false;
+        }
+
+        bool isDeadEnd() const {    
             return (start->inDeg() == 0  || end->outDeg() == 0);
         }
 
 //simplified check, works only for trivial cases
         bool isSimpleBridge() const {
-            if (isTip())
+            if (isDeadEnd())
                 return false;
             for (auto alt_e: start->outgoing) {
-                if (alt_e->getId() != getId() and !alt_e->isTip())
+                if (alt_e->getId() != getId() and !alt_e->isDeadEnd())
                     return false;
             }
             for (auto alt_e: rc->start->outgoing) {
-                if (alt_e->getId() != rc->getId() and !alt_e->isTip())
+                if (alt_e->getId() != rc->getId() and !alt_e->isDeadEnd())
                     return false;
             }
             return true;
