@@ -18,9 +18,9 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
             if (!unique(edge)) {
                 size_t min_flow = (!edge.is_reliable || edge.getCoverage() < rel_coverage) ? 0 : 1;
                 size_t max_flow = 1000000000;
-                if(edge.getCoverage() < double_coverage)
+                if(edge.size() > 1000 && edge.getCoverage() < double_coverage)
                     max_flow = 2;
-                if(edge.getCoverage() < unique_coverage)
+                if(edge.size() > 1000 && edge.getCoverage() < unique_coverage)
                     max_flow = 1;
                 int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.end()], min_flow, max_flow);
                 VERIFY(eid > 0);
