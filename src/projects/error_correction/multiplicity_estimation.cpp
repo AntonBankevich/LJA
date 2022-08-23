@@ -174,11 +174,11 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
             processSimpleComponent(logger, component);
         }
         cnt += processComponent(logger, component);
-        if(debug)
+        if(debug) {
             logger.trace() << "Printing component to " << (dir / (std::to_string(component_cnt) + ".dot")) << std::endl;
-        if(debug)
             printDot(dir / (std::to_string(component_cnt) + ".dot"), component,
                      this->labeler() + reads_storage.labeler(), this->colorer());
+        }
     }
     logger.info() << "Finished unique edges search. Found " << cnt << " unique edges" << std::endl;
     logger.info() << "Analysing repeats of multiplicity 2 and looking for additional unique edges" << std::endl;
