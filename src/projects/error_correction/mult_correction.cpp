@@ -193,7 +193,10 @@ inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(l
         bool operator()(Edge* a, Edge* b) const {
             if(a == b)
                 return false;
-            if(a->size() != b->size())
+            if((a->size() < 10000 && a->getCoverage() < 3) || (b->size() < 10000 && b->getCoverage() < 3)) {
+                if(a->intCov() * b->size() != b->intCov() * a->size())
+                    return a->intCov() * b->size() > b->intCov() * a->size();
+            } else if(a->size() != b->size())
                 return a->size() > b->size();
             return *a < *b;
         }

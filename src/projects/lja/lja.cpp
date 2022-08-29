@@ -105,7 +105,6 @@ bool diploid, bool skip, bool debug, bool load) {
         TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
         ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
-readStorage.printReadFasta(logger, dir / "initial_corrected_reads.fasta");
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         readStorage.trackSuffixes(logger, threads);
         ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
@@ -121,7 +120,6 @@ readStorage.printReadFasta(logger, dir / "initial_corrected_reads.fasta");
             PrintPaths(logger, threads, dir/ "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 10000000));
         ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
-//        BulgePathFixer(dbg, readStorage).markAllAcyclicComponents(logger, 60000);
         ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 3500, 3, diploid);
         ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
         if(diploid)
