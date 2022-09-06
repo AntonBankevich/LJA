@@ -136,7 +136,7 @@ TournamentPathCorrector::TournamentPathCorrector(SparseDBG &sdbg, RecordStorage 
 
 void TournamentPathCorrector::initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {
     CoverageReliableFiller cov(reliable_threshold);
-    LengthReliableFiller len(20000, 3, 1);
+    LengthReliableFiller len(20000, 2, 1);
     BridgeReliableFiller bridge(40000);
     ConnectionReliableFiller connect(reliable_threshold);
     BulgePathMarker bulge(dbg, reads, unique_threshold);
@@ -370,7 +370,7 @@ void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
     ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
     ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
-    RemoveUncovered(logger, threads, dbg, {&reads_storage, &ref_storage});
+    SimpleRemoveUncovered(logger, threads, dbg, {&reads_storage, &ref_storage});
     dbg.checkConsistency(threads, logger);
     ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
     ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);

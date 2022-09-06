@@ -59,7 +59,7 @@ size_t CoverageReliableFiller::Fill(dbg::SparseDBG &sdbg) {
 size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
     size_t cnt = 0;
     for(dbg::Edge &edge : dbg.edgesUnique()) {
-        if(edge.is_reliable || edge.getCoverage() < min_rel_cov)
+        if(edge.getCoverage() < min_rel_cov)
             continue;
         dbg::GraphAlignment al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
         if(al.len() < min_length)

@@ -45,6 +45,104 @@ GraphAlignment realignRead(const GraphAlignment &al,
     return new_al;
 }
 
+void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<RecordStorage *> &storages,
+                     size_t new_extension_size) {
+    logger.info() << "Removing uncovered edges from the graph" << std::endl;
+    omp_set_num_threads(threads);
+    ParallelRecordCollector<size_t> lenStorage(threads);
+    for(Edge &edge : dbg.edges()) {
+        edge.mark(EdgeMarker::common);
+        if(!edge.start()->isJunction() || !edge.end()->isJunction())
+            edge.mark(EdgeMarker::correct);
+    }
+    for(RecordStorage *rit : storages) {
+        RecordStorage &storage = *rit;
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage,lenStorage, std::cout)
+        for (size_t i = 0; i < storage.size(); i++) { // NOLINT(modernize-loop-convert)
+            AlignedRead &rec = storage[i];
+            if(rec.valid())
+                lenStorage.emplace_back(rec.path.getAlignment().len());
+        }
+    }
+    size_t min_len = 100000;
+    for(size_t len : lenStorage) {
+        min_len = std::min(min_len, len);
+    }
+    logger.trace() << "Min read length is " << min_len << std::endl;
+    logger.trace() << "Constructing subgraph" << std::endl;
+    SparseDBG subgraph(dbg.hasher());
+    for(Vertex &v : dbg.verticesUnique()) {
+        subgraph.addVertex(v.hash());
+    }
+    for(Edge & edge : dbg.edgesUnique()) {
+        if(edge.intCov() > 0) {
+            Vertex &start = subgraph.getVertex(*edge.start());
+            Vertex &end = subgraph.getVertex(*edge.end());
+            start.addEdge(Edge(&start, &end, edge.seq));
+            start.addEdge(Edge(&end.rc(), &start.rc(), edge.rc().seq));
+        }
+    }
+    subgraph.checkConsistency(threads, logger);
+    std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
+    for(const auto & vit : subgraph){
+        if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
+            anchors.emplace(vit.first);
+        }
+    }
+    for(const auto & vit : dbg){
+        VERIFY(subgraph.isAnchor(vit.first) || subgraph.containsVertex(vit.first))
+    }
+    mergeAll(logger, subgraph, threads);
+    printStats(logger, subgraph);
+    subgraph.fillAnchors(min_len, logger, threads, anchors);
+//    subgraph.checkDBGConsistency(threads, logger);
+    logger.trace() << "Constructing embedding of old graph into new" << std::endl;
+    std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
+    ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
+    std::function<void(size_t, Edge &)> task = [&edgeAlsList, &subgraph](size_t pos, Edge &edge) {
+        std::vector<PerfectAlignment<Edge, Edge>> al = GraphAligner(subgraph).oldEdgeAlign(edge);
+        edgeAlsList.emplace_back(std::move(al));
+    };
+    processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
+    for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
+        if(!al.empty())
+            embedding[&al[0].seg_from.contig()] = std::move(al);
+    }
+    for(Edge &edge : dbg.edges()) {
+        if(edge.intCov() > 0) {
+            VERIFY(embedding.find(&edge) != embedding.end());
+        }
+    }
+
+    logger.trace() << "Realigning reads" << std::endl;
+    for(RecordStorage *sit : storages){
+        RecordStorage &storage = *sit;
+        if(new_extension_size == 0)
+            new_extension_size = storage.getMaxLen();
+        RecordStorage new_storage(subgraph, storage.getMinLen(), new_extension_size, threads, storage.getLogger(),
+                                  storage.isTrackingCov(), false, storage.isTrackingSuffixes());
+        storage.untrackSuffixes();
+        for(AlignedRead &al : storage) {
+            new_storage.addRead(AlignedRead(al.id));
+        }
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage, new_storage, embedding, std::cout)
+        for(size_t i = 0; i < storage.size(); i++) {
+            AlignedRead &alignedRead = storage[i];
+            if(!alignedRead.valid()) {
+                continue;
+            }
+            GraphAlignment al = alignedRead.path.getAlignment();
+            new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
+            new_storage.apply(new_storage[i]);
+            alignedRead.invalidate();
+        }
+        new_storage.log_changes = storage.log_changes;
+        storage = std::move(new_storage);
+    }
+    dbg = std::move(subgraph);
+}
+
+
 void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<RecordStorage *> &storages,
                 size_t new_extension_size) {
     logger.info() << "Applying changes to the graph" << std::endl;
