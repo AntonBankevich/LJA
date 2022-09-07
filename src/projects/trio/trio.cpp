@@ -316,6 +316,40 @@ void HaplotypeRemover::removeHaplotype() {
     size_t bridges = 0;
     size_t removed_len = 0;
     bool changed = true;
+        std::vector<int> eids;
+
+        for (auto &p: mg.edges) {
+            eids.push_back(p.first);
+        }
+        size_t all_bulges = 0;
+        size_t  equilateral_bulges = 0;
+        size_t reliable_bulges = 0;
+        for (auto eid: eids){
+            if (mg.edges.find(eid) == mg.edges.end())
+                continue;
+            logger_.debug() << "considering " << eid << " label " << mg.edges[eid].getLabel() << endl;
+            if (mg.edges[eid].start->outDeg() == 2) {
+                logger_.debug() << "is being deleted as bulge\n";
+                auto first_e = mg.edges[eid].start->outgoing[0];
+                auto second_e = mg.edges[eid].start->outgoing[1];
+                if (first_e->end == second_e->end) {
+                    all_bulges ++;
+                    if (first_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * second_e->size() && second_e->size() < BULGE_MULTIPLICATIVE_CUTOFF * first_e->size()) {
+
+                        equilateral_bulges ++;
+                        auto first_label = mg.edges[first_e->getId()].getLabel();
+                        auto second_label = mg.edges[second_e->getId()].getLabel();
+                        if (
+                            (haplotypes[first_label].decisive_counts[0] > haplotypes[first_label].decisive_counts[1] && 
+                            haplotypes[second_label].decisive_counts[1] > haplotypes[second_label].decisive_counts[0]) ||
+                            (haplotypes[first_label].decisive_counts[0] < haplotypes[first_label].decisive_counts[1] && 
+                            haplotypes[second_label].decisive_counts[1] < haplotypes[second_label].decisive_counts[0]) )
+                                reliable_bulges ++;
+                    }
+                }
+            }
+        }
+    logger_.info() <<"All/Equilateral/Reliable " << all_bulges << " " <<  equilateral_bulges << " " << reliable_bulges <<endl;
     while (changed) {
         changed = false;
         std::vector<int> eids;
