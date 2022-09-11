@@ -43,6 +43,8 @@ struct HaplotypeRemover {
 
     void updateAmbiguousHaplotypes();
 
+    void removeEvidentHaplotype();
+
     void removeHaplotype();
 
     void UpdateBridgeSequence(int eid);

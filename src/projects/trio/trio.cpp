@@ -284,6 +284,33 @@ void HaplotypeRemover::updateAmbiguousHaplotypes() {
     logger_.info() << "Updated " << count << " ambiguous bulges";
 }
 
+void HaplotypeRemover::removeEvidentHaplotype(){
+    size_t removed_len = 0;
+    size_t removed = 0;
+    std::vector<int> eids;
+    for (auto &p: mg.edges) {
+        eids.push_back(p.first);
+    }
+    for (auto eid:eids){
+        if (mg.edges.find(eid) == mg.edges.end())
+            continue;
+        auto label = mg.edges[eid].getLabel();
+        if (haplotypes.find(label) != haplotypes.end()) {
+            if (haplotypes[label].haplotype == haplotype_) {
+                if (bulges.find(label)!= bulges.end() ||
+                     (haplotypes[label].IsReliableHaplo() && !mg.edges[eid].isSimpleBridge())) {
+                    removed_len += mg.edges[eid].size();
+                    deleteEdgeHaplo(eid);
+                    logger_.trace() << "removing " << eid  << " label " << label << " as evident" <<endl;
+                    removed ++;
+                }
+            }
+        }
+    }
+    compressAllVertices();
+    logger_.info() << "Removed " << removed << " evident edges of haplo " << haplotype_  << " total len " << removed_len << endl;
+}
+
 void HaplotypeRemover::removeHaplotype() {
     size_t removed = 0;
     size_t bridges = 0;
@@ -309,6 +336,7 @@ void HaplotypeRemover::removeHaplotype() {
                         logger_.info() << "Updating bridge " << eid << "\n";
                         UpdateBridgeSequence(eid);
                         haplotypes[label].haplotype = Haplotype::Unknown;
+                        bridges ++;
                         logger_.info() << "Updated\n";
                     } else {
                         removed_len += mg.edges[eid].size();
@@ -333,14 +361,19 @@ void HaplotypeRemover::removeHaplotype() {
 }
 
 void HaplotypeRemover::process() {
+    //Fix haplotypes in bulges where one side is assigned and other is not
     updateFixableHaplotypes();
+    //Assign labels in ambiguous bulges
     updateAmbiguousHaplotypes();
+    //Remove edges that are clearly of the haplotype of interest. That may reveal additional bridges for next step
+    removeEvidentHaplotype();
+    //Remove all edges of the haplotype of interest
     removeHaplotype();
-    logger_.debug() << "removed \n";
+    logger_.debug() << "Removal ended \n";
     mg.printEdgeGFA(out_dir / "before_clean.gfa", true);
+    //Clean graph of tips and other artifact stuff.
     cleanGraph();
     mg.printEdgeGFA(out_dir / "mdbg.hpc.gfa", true);
-
 }
 
 //TODO:: хорошо бы чтоб все кроме этого не обращалось с файлами
@@ -368,10 +401,10 @@ std::experimental::filesystem::path trio::simplifyHaplo(logging::Logger &logger,
     pipeline::LJAPipeline pipeline (ref_lib);
 //TODO:: get rid of this magic const
     size_t k = 5001;
-    std::vector<std::experimental::filesystem::path> uncompressed_results =
+/*    std::vector<std::experimental::filesystem::path> uncompressed_results =
            pipeline.PolishingPhase(logger, threads, out_dir, out_dir, output_file,
                            corrected_reads, reads, StringContig::max_dimer_size / 2, k, false, true);
-
+*/
 
     return output_file;
 }

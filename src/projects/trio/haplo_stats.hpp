@@ -44,7 +44,8 @@ struct HaplotypeStats {
     std::array<int, 2> decisive_strips;
     std::array<int, 2> decisive_counts;
     int total_kmers;
-
+    size_t RELIABLE_COUNT = 100;
+    size_t RELIABLE_RATIO = 10;
 //        32         m       0       273     28      390     22      24      112906  17
 //#s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],c[0<<2|2], c[2<<2|0], c[0<<2|1], c[1<<2|0], s->cnt[i].nk, c[0])
 //TODO: arr 6, 7, 9
@@ -74,7 +75,16 @@ struct HaplotypeStats {
         }
 
     }
-
+    bool IsReliableHaplo() {
+        if (decisive_strips[0] == 0 || decisive_strips[1] == 0) {
+            return (decisive_strips[0] + decisive_strips[1] > RELIABLE_COUNT);
+        } else {
+            if ((decisive_strips[0] > decisive_strips[1] * RELIABLE_RATIO) || 
+                (decisive_strips[1] > decisive_strips[0] * RELIABLE_RATIO))
+                return true;
+        }
+        return false;
+    }
     HaplotypeStats() : haplotype(Haplotype::Unknown), label(""), decisive_counts{0, 0}, decisive_strips{0, 0}, total_kmers(0) {}
 
     bool is_undefined() {
