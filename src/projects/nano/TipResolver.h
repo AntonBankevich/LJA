@@ -17,13 +17,24 @@ public:
 
     void LoadPaths(std::unordered_map<std::string, std::vector<GraphContig>> &alignments);
 
-    void ResolveWithPaths();
+    std::unordered_map<int, int> ResolveWithPaths();
 
 private:
 
     void ExtractTipVertices();
 
     bool AlignedOnTipVertex(const std::vector<GraphContig> &r_alignments);
+
+    std::pair<int, int> GetBestEdgePair(const std::string &key, int v1, int v2, bool rc);
+
+    std::unordered_map<int, std::unordered_map<int,std::vector<std::string> > > GetTransitions
+                                        (const std::vector<std::string> &count, int v1, int v2);
+
+    std::string GetConsensus(std::vector<std::string> &str_lst
+                            , multigraph::Edge *e_in
+                            , multigraph::Edge *e_out);
+
+    int AlignRead2Tip(std::string& read_str, std::string& edge_str);
 
     std::unordered_set<std::string> IdentifyConnectedVertices(const std::vector<GraphContig> &r_alignments);
 

@@ -61,29 +61,35 @@ namespace nano {
             batch.clear();
 
             logger.info() <<  "Tip resolution\n";
-            nano::TipResolver tipResolver(mg); 
+            nano::TipResolver tipResolver(mg);
             for (int i = 1; i < batch_num + 1; ++ i) {
-                    std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
-                            reads_aligner.ExtractPaths(dir, i);
-                    tipResolver.LoadPaths(alignments);
+                std::cerr << "Extract " << i << std::endl;
+                std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
+                        reads_aligner.ExtractPaths(dir, i);
+                std::cerr << "Extracted " << i << " " << alignments.size() << std::endl;
+                tipResolver.LoadPaths(alignments);
+                std::cerr << "Loaded " << i << std::endl;
             }
-            tipResolver.ResolveWithPaths();
-            // const std::experimental::filesystem::path &input_tipsresolved_gfa = 
-            //                                                         dir / "input_tipsresolved.gfa";
+            std::unordered_map<int, int> removed_edges = tipResolver.ResolveWithPaths();
+            const std::experimental::filesystem::path &input_tipsresolved_gfa =
+                                                                    dir / "input_tipsresolved.gfa";
+            mg.printEdgeGFA(input_tipsresolved_gfa);
 
             logger.info() <<  "Tips resolved\n";
-            nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, false); 
+
+            //std::unordered_map<int, int> removed_edges;
+            nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, removed_edges, true);
             for (int i = 1; i < batch_num + 1; ++ i) {
                     std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
                             reads_aligner.ExtractPaths(dir, i);
-                    sgraph_builder.LoadAlignments(alignments, threads);
+                    sgraph_builder.LoadAlignments(alignments, removed_edges, threads);
             }
             
-            //sgraph_builder.UpdateTips(removed_edges);
-            //mg.printEdgeGFA(input_tipsresolved_gfa);
+            logger.info() <<  "Alignments Loaded\n";
+            sgraph_builder.UpdateTips(removed_edges);
 
             sgraph_builder.SaveSGraph(dir / "scaffold_graph.tsv");
-//          sgraph_builder.LoadSGraphEdges(dir / "scaffold_graph.tsv");
+            //sgraph_builder.LoadSGraphEdges(dir / "scaffold_graph.tsv");
             logger.info() << "Scaffold graph construction finished: " << dir / "scaffold_graph.tsv" << std::endl;
 
             nano::GraphSimplificator graph_simplificator(sgraph_builder.GetSGraph(), sgraph_builder.GetUEdges());

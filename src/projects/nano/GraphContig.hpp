@@ -40,6 +40,7 @@ namespace nano {
             qStart = std::atoi(params[2].c_str());
             qEnd = std::atoi(params[3].c_str());
             strand = params[4];
+            VERIFY(strand == "+")
             ConstructPath(params[5]);
             pathLen = std::atoi(params[6].c_str());
             gStart = std::atoi(params[7].c_str());

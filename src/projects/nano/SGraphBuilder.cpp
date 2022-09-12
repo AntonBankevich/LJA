@@ -69,6 +69,7 @@ void SGraphBuilder::LoadSGraphEdges(const std::experimental::filesystem::path &s
 }
 
 void SGraphBuilder::LoadAlignments(const std::unordered_map<std::string, std::vector<nano::GraphContig>> &alignments,
+                                   const std::unordered_map<int, int> &removed_edges,
                                    const size_t threads) {
     std::vector<std::string> names;
     for (auto const &[key, val]: alignments) {
@@ -78,20 +79,40 @@ void SGraphBuilder::LoadAlignments(const std::unordered_map<std::string, std::ve
     for (auto const name: names) {
         const std::string key = name;
         for (auto const &val: alignments.at(key)) {
-            int prev_index = -1;
+            std::vector<std::string> cur_path;
             for (int i = 0; i < val.path.size(); ++ i) {
-                const std::string &edge_id = val.path[i];
+                std::string edge_id = val.path[i];
+                int e_id = -1;
+                if (edge_id[edge_id.size() - 1] == '+') {
+                    e_id = std::atoi(edge_id.substr(0, edge_id.size() - 1).c_str());
+                } else {
+                    e_id = std::atoi(edge_id.substr(0, edge_id.size() - 1).c_str())*(-1);
+                }
+                if (removed_edges.count(e_id) == 1) {
+                    e_id = removed_edges.at(e_id);
+                }
+                if (e_id < 0) {
+                    edge_id = std::to_string(std::abs(e_id)) + "-";
+                } else{
+                    edge_id = std::to_string(std::abs(e_id)) + "+";
+                }
+                cur_path.push_back(edge_id);
+                if (val.path[i] != edge_id) std::cerr << val.path[i] << " to " << edge_id << std::endl;
+            }
+            int prev_index = -1;
+            for (int i = 0; i < cur_path.size(); ++ i) {
+                const std::string &edge_id = cur_path[i];
                 if (uedges_.count(edge_id.substr(0, edge_id.size() - 1)) == 1) {
                     if (prev_index != -1) {
-                        std::string e1 = val.path[prev_index];
+                        std::string e1 = cur_path[prev_index];
                         std::string e2 = edge_id;
-                        std::vector<std::string> subpath = {val.path.begin() + prev_index, val.path.begin() + i + 1};
-                        //val.PrintContig();
+                        std::vector<std::string> subpath = {cur_path.begin() + prev_index, cur_path.begin() + i + 1};
+                        val.PrintContig();
                         if (by_vertex_) {
                             //std::cerr << " Consider " << e1 << " " << e2 << " " << key << std::endl;
                             std::tie(e1, e2) = ResolveByVertex(subpath, val.read_str);
                             //std::cerr << " Add " << e1 << " " << e2 << " " << key << std::endl;
-                            std::cerr << std::endl;
+                            //std::cerr << std::endl;
                         }
     #pragma omp critical(add_edge)
                         if (e1 != "" && e2 != "") {
@@ -242,7 +263,8 @@ void SGraphBuilder::UpdateTips(const std::unordered_map<int, int> &removed_edges
 }
 
 void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique_edges,
-                               const std::unordered_map<int, int> &new_edges_map) {
+                               const std::unordered_map<int, int> &new_edges_map,
+                               const std::unordered_map<int, int> &removed_edges) {
     uedges_.clear();
     std::ifstream is_cut;
     is_cut.open(unique_edges);
@@ -264,11 +286,16 @@ void SGraphBuilder::LoadUEdges(const std::experimental::filesystem::path &unique
     std::unordered_set<std::string> corrected_uedges;
     for (auto e_str: uedges_) {
         int e_id = std::atoi(e_str.c_str());
+        std::string cur_str = e_str;
         if (new_edges_map.count(e_id) == 1) {
-            corrected_uedges.insert(std::to_string(new_edges_map.at(e_id)));
-        } else {
-            corrected_uedges.insert(e_str);
+            cur_str = std::to_string(std::abs(new_edges_map.at(e_id)));
         }
+        e_id = std::atoi(cur_str.c_str());
+        if (removed_edges.count(e_id) == 1) {
+            cur_str = std::to_string(std::abs(removed_edges.at(e_id)));
+        }
+        std::cerr << "Add " << cur_str << std::endl;
+        corrected_uedges.insert(cur_str);
     }
     uedges_ = corrected_uedges;
     std::cerr << "Unique loaded" << std::endl;
