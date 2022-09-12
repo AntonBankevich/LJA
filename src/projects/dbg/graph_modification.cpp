@@ -134,7 +134,7 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
             GraphAlignment al = alignedRead.path.getAlignment();
             new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
             new_storage.apply(new_storage[i]);
-            alignedRead.invalidate();
+            alignedRead.delayedInvalidate();
         }
         new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);
@@ -264,7 +264,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             GraphAlignment al = alignedRead.path.getAlignment();
             new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
             new_storage.apply(new_storage[i]);
-            alignedRead.invalidate();
+            alignedRead.delayedInvalidate();
         }
         new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);

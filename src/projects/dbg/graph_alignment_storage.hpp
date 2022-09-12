@@ -18,7 +18,7 @@ public:
 
     bool operator<(const AlignedRead& other) const {return id < other.id;}
 
-    void invalidate();
+    void delayedInvalidate();
     bool checkCorrected() const {return corrected_path.valid();}
     bool valid() const {return path.valid();}
 
@@ -167,13 +167,13 @@ public:
     void addSubpath(const dbg::CompactPath &cpath);
     void removeSubpath(const dbg::CompactPath &cpath);
     void addRead(AlignedRead &&read);
-    void invalidateRead(AlignedRead &read, const std::string &message);
+    void delayedInvalidateRead(AlignedRead &read, const std::string &message);
     void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &initial, const dbg::GraphAlignment &corrected, const std::string &message);
     void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &corrected, const std::string &message);
     bool apply(AlignedRead &alignedRead);
 
-    void invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
-    void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const dbg::Edge &)> &is_bad, const std::string &message);
+    void delayedInvalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
+    void delayedInvalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const dbg::Edge &)> &is_bad, const std::string &message);
     void invalidateSubreads(logging::Logger &logger, size_t threads);
 
     template<class I>

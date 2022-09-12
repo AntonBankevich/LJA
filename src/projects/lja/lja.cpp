@@ -226,9 +226,11 @@ std::vector<std::experimental::filesystem::path> SecondPhase(
         if(debug) PrintPaths(logger, threads, dir/ "state_dump", "gap1", dbg, readStorage, paths_lib, false);
     //    MultCorrect(logger, threads, dbg, dir / "mult1", readStorage, unique_threshold, 40, diploid, debug);
     //    if(debug) PrintPaths(logger, dir/ "state_dump", "mult1", dbg, readStorage, paths_lib, false);
-        readStorage.invalidateBad(logger, threads, 1.01, "after_gap1_1");
+        readStorage.delayedInvalidateBad(logger, threads, 1.01, "after_gap1_1");
+        readStorage.applyCorrections(logger, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
-        readStorage.invalidateBad(logger, threads, threshold, "after_gap1_threshold");
+        readStorage.delayedInvalidateBad(logger, threads, threshold, "after_gap1_threshold");
+        readStorage.applyCorrections(logger, threads);
         if(debug) PrintPaths(logger, threads, dir/ "state_dump", "bad", dbg, readStorage, paths_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
         if(debug) PrintPaths(logger, threads, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, false);

@@ -25,6 +25,7 @@ size_t Edge::updateTipSize() const {
 }
 
 Edge &Edge::rc() const {
+    VERIFY(!start()->seq.empty());
     Vertex &vend = end_->rc();
     unsigned char c;
     size_t k = vend.seq.size();

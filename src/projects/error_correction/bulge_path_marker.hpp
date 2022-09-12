@@ -54,7 +54,7 @@ public:
     }
 
     size_t markAcyclicComponent(const dbg::Component &component) {
-        size_t cnt = 0;
+        size_t new_rel = 0;
         if(component.countBorderEdges() != 4 || component.realCC() != 2 || !component.isAcyclic())
             return 0;
         std::unordered_set<dbg::Edge *> used;
@@ -130,12 +130,12 @@ public:
                 else {
                     if(!edge.is_reliable) {
                         edge.is_reliable = true;
-                        cnt++;
+                        new_rel++;
                     }
                     edge.mark(dbg::EdgeMarker::correct);
                 }
         }
-        return cnt;
+        return new_rel;
     }
 
     size_t Fill(dbg::SparseDBG &dbg) override {

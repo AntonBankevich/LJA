@@ -12,9 +12,9 @@ void AlignedRead::applyCorrection() {
     corrected_path = {};
 }
 
-void AlignedRead::invalidate() {
+void AlignedRead::delayedInvalidate() {
     VERIFY(!corrected_path.valid());
-    path = {};
+    corrected_path = {};
 }
 
 void VertexRecord::addPath(const Sequence &seq) {
@@ -334,25 +334,22 @@ void RecordStorage::addRead(AlignedRead &&read) {
     addSubpath(read.path.RC());
 }
 
-void RecordStorage::invalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
+void RecordStorage::delayedInvalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
     if(log_changes)
         readLogger->logInvalidate(read, message);
-    if(track_cov) {
-        removeSubpath(read.path);
-        removeSubpath(read.path.RC());
-    }
-    read.invalidate();
+    read.delayedInvalidate();
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message) {
+void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message) {
     const std::function<bool(const Edge &)> &is_bad = [threshold](const Edge &edge) {
         return edge.getCoverage() < threshold;
     };
-    invalidateBad(logger, threads, is_bad, message);
+    delayedInvalidateBad(logger, threads, is_bad, message);
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad,
-                                  const std::string &message) {
+void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(
+        const Edge &)> &is_bad,
+                                         const std::string &message) {
     std::vector<AlignedRead *> to_delete;
     for (AlignedRead &alignedRead : reads) {
         bool good = true;
@@ -366,10 +363,37 @@ void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const
             to_delete.emplace_back(&alignedRead);
         }
     }
-    logger.info() << "Could not correct " << to_delete.size() << " reads. They will be removed." << std::endl;
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(to_delete, message)
-    for(size_t i = 0; i < to_delete.size(); i++) {
-        invalidateRead(*to_delete[i], message);
+    logger.info() << "Could not correct " << to_delete.size() << " reads. They will be removed or truncated." << std::endl;
+    omp_set_num_threads(threads);
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(to_delete, message, is_bad)
+    for(size_t i = 0; i < reads.size(); i++) {
+        AlignedRead &alignedRead = reads[i];
+        GraphAlignment al = alignedRead.path.getAlignment();
+        size_t l = 0;
+        size_t r = al.size();
+        while(l < al.size() && is_bad(al[l].contig())) {
+            l++;
+        }
+        while(r > 0 && is_bad(al[r - 1].contig())) {
+            r--;
+        }
+        bool ok = false;
+        if(l < r) {
+            ok = true;
+            for(size_t j = l; j < r; j++) {
+                if(is_bad(al[j].contig())) {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if(ok) {
+            std::string message = message + "_EndsClipped_" + itos(al.subalignment(0, l).len()) + "_" + itos(al.subalignment(r, al.size()).len());
+            reroute(alignedRead, al, al.subalignment(l, r), message);
+        } else {
+            delayedInvalidateRead(alignedRead, message);
+        }
+        delayedInvalidateRead(*to_delete[i], message);
     }
     logger.info() << "Uncorrected reads were removed." << std::endl;
 }
@@ -380,7 +404,7 @@ void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) 
         size_t cnt = rec.countStartsWith(alignedRead.path.cpath());
         VERIFY_MSG(cnt >= 1, "This function assumes that suffixes are stored for complete reads")
         if(rec.countStartsWith(alignedRead.path.cpath()) >= 2) {
-            invalidateRead(alignedRead, "Subread");
+            delayedInvalidateRead(alignedRead, "Subread");
         }
     }
     logger.info() << "Uncorrected reads were removed." << std::endl;

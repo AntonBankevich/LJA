@@ -307,7 +307,8 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
-    reads_storage.invalidateBad(logger, threads, is_bad, "after_mult");
+    reads_storage.delayedInvalidateBad(logger, threads, is_bad, "after_mult");
+    reads_storage.applyCorrections(logger, threads);
 }
 
 SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
