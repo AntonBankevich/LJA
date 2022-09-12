@@ -348,24 +348,10 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
 }
 
 void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(
-        const Edge &)> &is_bad,
-                                         const std::string &message) {
-    std::vector<AlignedRead *> to_delete;
-    for (AlignedRead &alignedRead : reads) {
-        bool good = true;
-        for (Segment<Edge> & edge_it : alignedRead.path.getAlignment()) {
-            if (is_bad(edge_it.contig())) {
-                good = false;
-                break;
-            }
-        }
-        if (!good) {
-            to_delete.emplace_back(&alignedRead);
-        }
-    }
-    logger.info() << "Could not correct " << to_delete.size() << " reads. They will be removed or truncated." << std::endl;
+        const Edge &)> &is_bad, const std::string &message) {
+    ParallelCounter cnt(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(to_delete, message, is_bad)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt, message, is_bad)
     for(size_t i = 0; i < reads.size(); i++) {
         AlignedRead &alignedRead = reads[i];
         GraphAlignment al = alignedRead.path.getAlignment();
@@ -374,18 +360,25 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         while(l < al.size() && is_bad(al[l].contig())) {
             l++;
         }
+        if(l == al.size())
+            continue;
+        cnt += 1;
         while(r > 0 && is_bad(al[r - 1].contig())) {
             r--;
         }
         bool ok = false;
         if(l < r) {
             ok = true;
+            size_t len = 0;
             for(size_t j = l; j < r; j++) {
                 if(is_bad(al[j].contig())) {
                     ok = false;
                     break;
                 }
+                len += al[j].size();
             }
+            if(len < 1000)
+                ok = false;
         }
         if(ok) {
             std::string message = message + "_EndsClipped_" + itos(al.subalignment(0, l).len()) + "_" + itos(al.subalignment(r, al.size()).len());
@@ -393,9 +386,8 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         } else {
             delayedInvalidateRead(alignedRead, message);
         }
-        delayedInvalidateRead(*to_delete[i], message);
     }
-    logger.info() << "Uncorrected reads were removed." << std::endl;
+    logger.info() << "Could not correct " << cnt.get() << " reads. They were removed or truncated." << std::endl;
 }
 
 void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) {
