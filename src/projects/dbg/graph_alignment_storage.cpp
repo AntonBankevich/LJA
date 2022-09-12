@@ -351,7 +351,7 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         const Edge &)> &is_bad, const std::string &message) {
     ParallelCounter cnt(threads);
     omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt, message, is_bad)
+//#pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt, message, is_bad)
     for(size_t i = 0; i < reads.size(); i++) {
         AlignedRead &alignedRead = reads[i];
         GraphAlignment al = alignedRead.path.getAlignment();
@@ -360,9 +360,6 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         while(l < al.size() && is_bad(al[l].contig())) {
             l++;
         }
-        if(l == al.size())
-            continue;
-        cnt += 1;
         while(r > 0 && is_bad(al[r - 1].contig())) {
             r--;
         }
@@ -380,6 +377,9 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
             if(len < 1000)
                 ok = false;
         }
+        if(ok && r - l == al.size())
+            continue;
+        cnt += 1;
         if(ok) {
             std::string message = message + "_EndsClipped_" + itos(al.subalignment(0, l).len()) + "_" + itos(al.subalignment(r, al.size()).len());
             reroute(alignedRead, al, al.subalignment(l, r), message);
