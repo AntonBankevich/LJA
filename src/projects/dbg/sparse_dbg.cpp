@@ -270,6 +270,7 @@ void Vertex::clearSequence() {
 }
 
 Edge &Vertex::addEdgeLockFree(const Edge &edge) {
+    VERIFY(this == edge.start());
     for (Edge &e : outgoing_) {
         if (edge.size() <= e.size()) {
             if (edge.seq == e.seq.Subseq(0, edge.size())) {

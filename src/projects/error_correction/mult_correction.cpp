@@ -327,6 +327,12 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
         for(size_t i = 1; i < path.size(); i++) {
             if(classificator.isUnique(path[i])) {
                 if(len < 3000 && rec.countStartsWith(CompactPath(path.subPath(0, i + 1)).cpath()) >= 4) {
+                    if(i == 1 && edge.start()->inDeg() == 2 && edge.end()->outDeg() == 2 && edge.start()->outDeg() == 1 && edge.end()->inDeg() == 1) {
+                        if(classificator.isUnique(edge.start()->rc()[0]) && classificator.isUnique(edge.start()->rc()[1]) &&
+                                classificator.isUnique(edge.end()->operator[](0)) && classificator.isUnique(edge.end()->operator[](1))) {
+                            continue;
+                        }
+                    }
                     res.addUnique(edge);
                     logger.trace() << "Found extra unique edge " << edge.getId() << " " << edge.size() << " " << edge.getCoverage() << std::endl;
                     break;

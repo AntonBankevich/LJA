@@ -16,7 +16,7 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
     for(dbg::Vertex &v : component.vertices()) {
         for(dbg::Edge &edge : v) {
             if (!unique(edge)) {
-                size_t min_flow = (!edge.is_reliable || edge.getCoverage() < rel_coverage) ? 0 : 1;
+                size_t min_flow = (!edge.is_reliable || (edge.getCoverage() < rel_coverage && edge.size() < 20000)) ? 0 : 1;
                 size_t max_flow = 1000000000;
                 if(edge.size() > 1000 && edge.getCoverage() < double_coverage)
                     max_flow = 2;
@@ -127,7 +127,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     logger.info() << "Marking extra edges as unique based on read paths" << std::endl;
     std::vector<Edge *> extra_unique;
     for(Edge &edge : dbg.edges()) {
-        if(isUnique(edge)) {
+        if(isUnique(edge) || edge.end()->outDeg() > 1) {
             continue;
         }
         const VertexRecord &rec = reads_storage.getRecord(*edge.start());

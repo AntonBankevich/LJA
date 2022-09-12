@@ -73,13 +73,13 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
     SparseDBG subgraph(dbg.hasher());
     for(Vertex &v : dbg.verticesUnique()) {
         subgraph.addVertex(v.hash());
+        subgraph.getVertex(v).setSequence(v.seq);
     }
-    for(Edge & edge : dbg.edgesUnique()) {
+    for(Edge & edge : dbg.edges()) {
         if(edge.intCov() > 0) {
             Vertex &start = subgraph.getVertex(*edge.start());
             Vertex &end = subgraph.getVertex(*edge.end());
             start.addEdge(Edge(&start, &end, edge.seq));
-            start.addEdge(Edge(&end.rc(), &start.rc(), edge.rc().seq));
         }
     }
     subgraph.checkConsistency(threads, logger);
