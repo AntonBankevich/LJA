@@ -2,20 +2,20 @@
 
 using namespace dbg;
 void AlignedRead::correct(CompactPath &&cpath) {
-    VERIFY_MSG(!corrected_path.valid(), "Attempt to correct path while previous correction was not yet applied");
+    VERIFY_MSG(!corrected, "Attempt to correct path while previous correction was not yet applied");
     corrected_path = std::move(cpath);
     corrected = true;
 }
 
 void AlignedRead::applyCorrection() {
-    if(corrected_path.valid())
+    if(corrected)
         path = std::move(corrected_path);
     corrected_path = {};
-    corrected = true;
+    corrected = false;
 }
 
 void AlignedRead::delayedInvalidate() {
-    VERIFY(!corrected_path.valid());
+    VERIFY(!corrected);
     corrected_path = {};
     corrected = true;
 }
