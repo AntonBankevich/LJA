@@ -5,7 +5,7 @@
 class AlignedRead {
 private:
     dbg::CompactPath corrected_path;
-    bool corrected;
+    bool corrected = false;
 public:
     std::string id;
     dbg::CompactPath path;
@@ -13,7 +13,7 @@ public:
     AlignedRead() = default;
     AlignedRead(AlignedRead &&other) = default;
     AlignedRead &operator=(AlignedRead &&other) = default;
-    explicit AlignedRead(std::string readId) : id(std::move(readId)) {}
+    explicit AlignedRead(std::string readId) : id(std::move(readId)), corrected(false) {}
     AlignedRead(std::string readId, dbg::GraphAlignment &_path) : id(std::move(readId)), path(_path), corrected(false) {}
     AlignedRead(std::string readId, dbg::CompactPath _path) : id(std::move(readId)), path(std::move(_path)), corrected(false) {}
 
