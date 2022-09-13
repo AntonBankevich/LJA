@@ -4,17 +4,20 @@ using namespace dbg;
 void AlignedRead::correct(CompactPath &&cpath) {
     VERIFY_MSG(!corrected_path.valid(), "Attempt to correct path while previous correction was not yet applied");
     corrected_path = std::move(cpath);
+    corrected = true;
 }
 
 void AlignedRead::applyCorrection() {
     if(corrected_path.valid())
         path = std::move(corrected_path);
     corrected_path = {};
+    corrected = true;
 }
 
 void AlignedRead::delayedInvalidate() {
     VERIFY(!corrected_path.valid());
     corrected_path = {};
+    corrected = true;
 }
 
 void VertexRecord::addPath(const Sequence &seq) {
@@ -351,9 +354,11 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         const Edge &)> &is_bad, const std::string &message) {
     ParallelCounter cnt(threads);
     omp_set_num_threads(threads);
-//#pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt, message, is_bad)
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt, message, is_bad)
     for(size_t i = 0; i < reads.size(); i++) {
         AlignedRead &alignedRead = reads[i];
+        if(!alignedRead.valid())
+            continue;
         GraphAlignment al = alignedRead.path.getAlignment();
         size_t l = 0;
         size_t r = al.size();
@@ -363,28 +368,27 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         while(r > 0 && is_bad(al[r - 1].contig())) {
             r--;
         }
-        bool ok = false;
-        if(l < r) {
-            ok = true;
-            size_t len = 0;
-            for(size_t j = l; j < r; j++) {
-                if(is_bad(al[j].contig())) {
-                    ok = false;
-                    break;
-                }
-                len += al[j].size();
+        bool middle_bad = false;
+        size_t len = 0;
+        for(size_t j = l; j < r; j++) {
+            if(is_bad(al[j].contig())) {
+                middle_bad = true;
+                break;
             }
-            if(len < 1000)
-                ok = false;
+            len += al[j].size();
         }
-        if(ok && r - l == al.size())
-            continue;
-        cnt += 1;
-        if(ok) {
-            std::string message = message + "_EndsClipped_" + itos(al.subalignment(0, l).len()) + "_" + itos(al.subalignment(r, al.size()).len());
-            reroute(alignedRead, al, al.subalignment(l, r), message);
-        } else {
+        if(middle_bad || l >= r) {
             delayedInvalidateRead(alignedRead, message);
+            cnt += 1;
+        } else if(r - l != al.size()) {
+            GraphAlignment sub = al.subalignment(l, r);
+            if(sub.len() < 1000)
+                delayedInvalidateRead(alignedRead, message);
+            else {
+                std::string extra_message = message + "_EndsClipped_" + itos(al.subalignment(0, l).len()) + "_" + itos(al.subalignment(r, al.size()).len());
+                reroute(alignedRead, al, al.subalignment(l, r), extra_message);
+            }
+            cnt += 1;
         }
     }
     logger.info() << "Could not correct " << cnt.get() << " reads. They were removed or truncated." << std::endl;
