@@ -297,8 +297,8 @@ void HaplotypeRemover::removeEvidentHaplotype(){
         auto label = mg.edges[eid].getLabel();
         if (haplotypes.find(label) != haplotypes.end()) {
             if (haplotypes[label].haplotype == haplotype_) {
-                if (bulges.find(label)!= bulges.end() ||
-                     (haplotypes[label].IsReliableHaplo() && !mg.edges[eid].isSimpleBridge())) {
+                if (!mg.edges[eid].isSimpleBridge() && (bulges.find(label)!= bulges.end() ||
+                    haplotypes[label].IsReliableHaplo())) {
                     removed_len += mg.edges[eid].size();
                     deleteEdgeHaplo(eid);
                     logger_.trace() << "removing " << eid  << " label " << label << " as evident" <<endl;
