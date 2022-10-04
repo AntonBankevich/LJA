@@ -166,6 +166,7 @@ namespace dbg {
         vertex_map_type v;
         anchor_map_type anchors;
         hashing::RollingHash hasher_;
+        bool anchors_filled = false;
 
 //    Be careful since hash does not define vertex. Rc vertices share the same hash
         Vertex &innerAddVertex(hashing::htype h) {
@@ -204,6 +205,7 @@ namespace dbg {
         bool isAnchor(hashing::htype hash) const {return anchors.find(hash) != anchors.end();}
         EdgePosition getAnchor(const hashing::KWH &kwh);
         size_t size() const {return v.size();}
+        bool alignmentReady() const {return anchors_filled;}
 
         void checkConsistency(size_t threads, logging::Logger &logger);
         void checkDBGConsistency(size_t threads, logging::Logger &logger);

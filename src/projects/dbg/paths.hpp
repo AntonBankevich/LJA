@@ -204,6 +204,7 @@ namespace dbg {
         PerfectAlignment<Contig, dbg::Edge> extendRight(const hashing::KWH &kwh, Contig &contig) const;
     public:
         explicit GraphAligner(SparseDBG &dbg) : dbg(dbg) {
+            VERIFY(dbg.alignmentReady());
         }
 
         GraphAlignment align(const EdgePosition &pos, const Sequence &seq) const;

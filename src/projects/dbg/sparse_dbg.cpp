@@ -618,6 +618,7 @@ void SparseDBG::fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
     for (auto &tmp : res) {
         anchors.emplace(tmp);
     }
+    anchors_filled = true;
     logger.trace() << "Added " << anchors.size() << " anchors" << std::endl;
 }
 
@@ -646,6 +647,7 @@ void SparseDBG::fillAnchors(size_t w, logging::Logger &logger, size_t threads,
     for (auto &tmp : res) {
         anchors.emplace(tmp);
     }
+    anchors_filled = true;
     logger.trace() << "Added " << anchors.size() << " anchors" << std::endl;
 }
 
