@@ -4,6 +4,8 @@
 #include "graph_alignment_storage.hpp"
 #include <common/logging.hpp>
 
+void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
+                     const std::vector<RecordStorage*> &storages, size_t new_extension_size = 0);
 void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                             const std::vector<RecordStorage*> &storages, size_t new_extension_size = 0);
 

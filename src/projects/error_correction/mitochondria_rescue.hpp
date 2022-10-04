@@ -56,6 +56,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     std::function<bool(const dbg::Edge&)> is_bad = [&bad_edges](const dbg::Edge &edge) {
         return bad_edges.find(&edge) != bad_edges.end();
     };
-    reads_storage.invalidateBad(logger, threads, is_bad, "after_mitres");
+    reads_storage.delayedInvalidateBad(logger, threads, is_bad, "after_mitres");
+    reads_storage.applyCorrections(logger, threads);
     logger.info() << "Rescued " << cnt << " circular highly covered components" << std::endl;
 }

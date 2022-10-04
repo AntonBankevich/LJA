@@ -5,6 +5,7 @@
 class AlignedRead {
 private:
     dbg::CompactPath corrected_path;
+    bool corrected = false;
 public:
     std::string id;
     dbg::CompactPath path;
@@ -12,14 +13,14 @@ public:
     AlignedRead() = default;
     AlignedRead(AlignedRead &&other) = default;
     AlignedRead &operator=(AlignedRead &&other) = default;
-    explicit AlignedRead(std::string readId) : id(std::move(readId)) {}
-    AlignedRead(std::string readId, dbg::GraphAlignment &_path) : id(std::move(readId)), path(_path) {}
-    AlignedRead(std::string readId, dbg::CompactPath _path) : id(std::move(readId)), path(std::move(_path)) {}
+    explicit AlignedRead(std::string readId) : id(std::move(readId)), corrected(false) {}
+    AlignedRead(std::string readId, dbg::GraphAlignment &_path) : id(std::move(readId)), path(_path), corrected(false) {}
+    AlignedRead(std::string readId, dbg::CompactPath _path) : id(std::move(readId)), path(std::move(_path)), corrected(false) {}
 
     bool operator<(const AlignedRead& other) const {return id < other.id;}
 
-    void invalidate();
-    bool checkCorrected() const {return corrected_path.valid();}
+    void delayedInvalidate();
+    bool checkCorrected() const {return corrected;}
     bool valid() const {return path.valid();}
 
     void correct(dbg::CompactPath &&cpath);
@@ -72,7 +73,7 @@ public:
     std::vector<dbg::GraphAlignment> getBulgeAlternatives(const dbg::Vertex &end, double threshold) const;
     std::vector<dbg::GraphAlignment> getTipAlternatives(size_t len, double threshold) const;
     unsigned char getUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
-    dbg::CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
+    dbg::CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov, size_t max_size = size_t(-1)) const;
 };
 
 inline std::ostream& operator<<(std::ostream  &os, const VertexRecord &rec) {return os << rec.str();}
@@ -167,13 +168,13 @@ public:
     void addSubpath(const dbg::CompactPath &cpath);
     void removeSubpath(const dbg::CompactPath &cpath);
     void addRead(AlignedRead &&read);
-    void invalidateRead(AlignedRead &read, const std::string &message);
+    void delayedInvalidateRead(AlignedRead &read, const std::string &message);
     void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &initial, const dbg::GraphAlignment &corrected, const std::string &message);
     void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &corrected, const std::string &message);
     bool apply(AlignedRead &alignedRead);
 
-    void invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
-    void invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const dbg::Edge &)> &is_bad, const std::string &message);
+    void delayedInvalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
+    void delayedInvalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const dbg::Edge &)> &is_bad, const std::string &message);
     void invalidateSubreads(logging::Logger &logger, size_t threads);
 
     template<class I>

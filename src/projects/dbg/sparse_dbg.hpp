@@ -17,6 +17,16 @@
 #include <unordered_set>
 
 namespace dbg {
+    enum EdgeMarker {
+        incorrect,
+        suspicious,
+        common,
+        possible_break,
+        correct,
+        unique,
+        repeat
+    };
+    bool IsMarkerCorrect(EdgeMarker marker);
     class Vertex;
 
     class SparseDBG;
@@ -27,8 +37,9 @@ namespace dbg {
         Vertex *end_;
         mutable size_t cov;
         static Edge _fake;
+        mutable EdgeMarker marker = EdgeMarker::common;
     public:
-        mutable size_t extraInfo;
+        mutable size_t extraInfo;//TODO remove
         Sequence seq;
         std::string id = "";
         friend class Vertex;
@@ -40,27 +51,32 @@ namespace dbg {
         std::string getId() const;
         std::string oldId() const;
         std::string getShortId() const;
+        EdgeMarker getMarker() const {return marker;};
+        bool checkCorrect() const {return IsMarkerCorrect(marker);}
         Vertex *end() const;
         Vertex *start() const;
         size_t getTipSize() const;
+        void  setTipSize(size_t val) const;
         size_t updateTipSize() const;
-        void bindTip(Vertex &start, Vertex &end);
-        size_t common(const Sequence &other) const;
         size_t size() const;
         double getCoverage() const;
         size_t intCov() const;
         Edge &rc() const;
         Edge &sparseRcEdge() const;
-        void incCov(size_t val) const;
         Sequence firstNucl() const;
         Sequence kmerSeq(size_t pos) const;
         Sequence suffix(size_t pos) const;
         std::string str() const;
+
         bool operator==(const Edge &other) const;
         bool operator!=(const Edge &other) const;
         bool operator<(const Edge &other) const;
         bool operator>(const Edge &other) const;
         bool operator<=(const Edge &other) const;
+
+        void bindTip(Vertex &start, Vertex &end);
+        void incCov(size_t val) const;
+        void mark(EdgeMarker _marker) const { marker = _marker;};
     };
 
 //    std::ostream& operator<<(std::ostream& os, const Edge& edge);
@@ -201,6 +217,8 @@ namespace dbg {
         void removeIsolated();
         void removeMarked();
 
+        void resetMarkers();
+
         void addVertex(hashing::htype h) {innerAddVertex(h);}
         Vertex &addVertex(const hashing::KWH &kwh);
         Vertex &addVertex(const Sequence &seq);
@@ -219,4 +237,5 @@ namespace dbg {
         typename vertex_map_type::const_iterator begin() const {return v.begin();}
         typename vertex_map_type::const_iterator end() const {return v.end();}
     };
+
 }

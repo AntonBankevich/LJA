@@ -142,7 +142,7 @@ void MarkUnreliableTips(dbg::SparseDBG &dbg, const std::vector<Connection> &patc
     }
 }
 
-void GapColserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
+void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                        const std::vector<RecordStorage *> &storges) {
     GapCloser gap_closer(700, 10000, 311, 0.05);
     std::vector<Connection> patches = gap_closer.GapPatches(logger, dbg, threads);
@@ -151,11 +151,6 @@ void GapColserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &
     }
     AddConnections(logger, threads, dbg, storges, patches);
     MarkUnreliableTips(dbg, patches);
-    for(dbg::Edge &edge:dbg.edges()) {
-        if(!edge.is_reliable) {
-            logger.trace() << "Unreliable " << edge.getId() << std::endl;
-        }
-    }
     CorrectTips(logger, threads, dbg, storges);
     printStats(logger, dbg);
     RemoveUncovered(logger, threads, dbg, storges);

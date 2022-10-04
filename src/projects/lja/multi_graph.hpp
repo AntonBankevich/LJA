@@ -186,7 +186,27 @@ namespace multigraph {
             return *this;
         }
 
-        MultiGraph DBG() const {
+        void printStats(std::ostream &os) {
+            size_t tips = 0;
+            size_t total_length = 0;
+            size_t total_clean_length = 0;
+            for(auto &p : vertices) {
+                Vertex *v = &p.second;
+                for(Edge *edge : v->outgoing) {
+                    total_length += edge->size();
+                    total_clean_length += edge->size() - v->seq.size();
+                }
+                if(v->outDeg() == 1 && v->inDeg() == 0) {
+                    tips += 2;
+                    total_clean_length += v->seq.size();
+                }
+            }
+            os << "Vertices: " << vertices.size() << "\nEdges: " << edges.size() << "\n";
+            os << "Total edge length: " << total_length << "\nTotal clean edge length: " << total_clean_length << "\n";
+            os << "Number of tips: " << tips << "\n";
+        }
+
+        MultiGraph DBG(size_t tip_size = 4001) const {
             MultiGraph dbg;
             std::unordered_map<Edge *, Vertex *> emap;
             for(auto &p : vertices) {
@@ -210,19 +230,17 @@ namespace multigraph {
                 Vertex * start = nullptr;
                 Vertex * end = nullptr;
                 if(v->inDeg() == 0) {
-                    start = &dbg.addVertex(v->seq.Subseq(0, 4001));
+                    start = &dbg.addVertex(v->seq.Subseq(0, std::min(tip_size, v->seq.size() - 1)));
                 } else {
                     start = emap[v->rc->outgoing[0]]->rc;
                 }
                 if(v->outDeg() == 0) {
-                    end = &dbg.addVertex(v->seq.Subseq(v->seq.size() - 4001));
+                    end = &dbg.addVertex(v->seq.Subseq(v->seq.size() - std::min(tip_size, v->seq.size() - 1)));
                 } else {
                     end = emap[v->outgoing[0]];
                 }
                 dbg.addEdge(*start, *end, v->seq, v->id, v->label);
             }
-            std::cout <<"loaded V/E " << vertices.size() << " " << edges.size() << endl;
-            std::cout <<"transformed V/E " << dbg.vertices.size() << " " << dbg.edges.size() << endl;
             return std::move(dbg);
         }
 
@@ -278,14 +296,24 @@ namespace multigraph {
                     bulges++;
                     sz += v->outgoing[0]->size();
                 } else {
-                    if((good.find(v) == good.end() || v->outgoing[0]->size() < 1000000) && v->outgoing[0]->end->outDeg() == 0) {
+                    const Vertex *other = v;
+                    if(v->inDeg() == 1) {
+                        other = v->rc->outgoing[0]->start;
+                    }
+                    if(v->outgoing[0]->end == other && v->outgoing[1]->size() < 100000) {
                         todel = v->outgoing[0];
-                    } else if((good.find(v) == good.end() || v->outgoing[0]->size() < 1000000) && v->outgoing[1]->end->outDeg() == 0) {
+                    } else if(v->outgoing[1]->end == other && v->outgoing[1]->size() < 100000) {
                         todel = v->outgoing[1];
-                    } else if(good.find(v->outgoing[0]->end)== good.end()) {
-                        todel = v->outgoing[0];
-                    } else if(good.find(v->outgoing[1]->end)== good.end()) {
-                        todel = v->outgoing[1];
+                    } else if(good.find(v) != good.end() && to_delete.find(v->outgoing[0]) == to_delete.end() && to_delete.find(v->outgoing[1]) == to_delete.end()) {
+                        if((v->outgoing[0]->size() < 1000000) && v->outgoing[0]->end->outDeg() == 0) {
+                            todel = v->outgoing[0];
+                        } else if((v->outgoing[0]->size() < 1000000) && v->outgoing[1]->end->outDeg() == 0) {
+                            todel = v->outgoing[1];
+                        } else if(good.find(v->outgoing[0]->end)== good.end()) {
+                            todel = v->outgoing[0];
+                        } else if(good.find(v->outgoing[1]->end)== good.end()) {
+                            todel = v->outgoing[1];
+                        }
                     }
                 }
                 if(todel != nullptr) {
@@ -358,8 +386,7 @@ namespace multigraph {
                 id = std::abs(id);
             }
 
-            edges.emplace(id, Edge(seq, id, label));
-            Edge *res = &edges[id];
+            Edge *res = &edges.emplace(id, Edge(seq, id, label)).first->second;
             res->start = &from;
             res->end = &to;
             res->start->outgoing.emplace_back(res);

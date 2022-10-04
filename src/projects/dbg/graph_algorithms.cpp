@@ -94,6 +94,34 @@ namespace dbg {
         }
     }
 
+    void findTipLengths(logging::Logger &logger, size_t threads, SparseDBG &sdbg, double threshold) {
+        std::queue<dbg::Vertex *> queue;
+        for(Vertex &v : sdbg.vertices()) {
+            if(v.outDeg() == 0) {
+                queue.push(&v);
+            }
+        }
+        while(!queue.empty()) {
+            Vertex &v = *queue.front();
+            queue.pop();
+            bool tip = true;
+            size_t longest = 0;
+            for(Edge &edge : v) {
+                if(edge.getTipSize() == 0) {
+                    tip = false;
+                    break;
+                } else {
+                    longest = std::max(longest, edge.getTipSize());
+                }
+            }
+            if(!tip)
+                continue;
+            for(Edge &edge : v.rc()) {
+                edge.setTipSize(edge.size() + longest);
+            }
+        }
+    }
+
     void findTips(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
         logger.info() << " Finding tips " << std::endl;
 //    TODO reduce memory consumption!! A lot of duplicated k-mer storing

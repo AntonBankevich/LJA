@@ -9,14 +9,89 @@ class Network {
 public:
     struct Vertex;
     struct Edge {
+    public:
         int id;
         size_t start;
         size_t end;
+        Edge(int id, size_t start, size_t end) :
+                id(id), start(start), end(end) {}
+        Edge(const Edge &) = delete;
+        virtual bool isReal() const = 0;
+        virtual size_t getMinFlow() const = 0;
+        virtual size_t getFlow() const = 0;
+        virtual void addFlow(int val) = 0;
+        virtual size_t getRemainingCapacity() const = 0;
+        virtual Edge &back() = 0;
+        bool operator==(const Edge &other) const {return id == other.id;}
+    };
+
+    struct VirtualEdge;
+
+    struct RealEdge : public Edge {
+    private:
+        friend class VirtualEdge;
         size_t capacity;
         size_t min_flow;
-        Edge(int id, size_t start, size_t end, size_t capacity, size_t min_capacity = 0) :
-                id(id), start(start), end(end), capacity(capacity), min_flow(min_capacity) {}
+        size_t extra_flow;
+        VirtualEdge *backEdge;
+    public:
+        RealEdge(int id, size_t start, size_t end, size_t capacity, size_t minFlow)
+                : Edge(id, start, end), capacity(capacity), min_flow(minFlow), extra_flow(0), backEdge(nullptr) {}
+        RealEdge(RealEdge &&other) noexcept;
+
+        Edge &back() override {
+            return *backEdge;
+        }
+        bool isReal() const override {
+            return true;
+        }
+        size_t getFlow() const override {
+            return min_flow + extra_flow;
+        }
+        size_t getMinFlow() const override {
+            return min_flow;
+        }
+        void addFlow(int val) override {
+            VERIFY(val + extra_flow >= 0);
+            VERIFY(val + min_flow + extra_flow <= capacity);
+            extra_flow += val;
+        }
+        size_t getRemainingCapacity() const override {
+            return capacity - min_flow - extra_flow;
+        }
     };
+
+    struct VirtualEdge : public Edge {
+    private:
+        friend class RealEdge;
+        RealEdge *backEdge;
+    public:
+        explicit VirtualEdge(RealEdge &edge) : Edge(-edge.id, edge.end, edge.start), backEdge(&edge) {
+            backEdge->backEdge = this;
+        }
+        VirtualEdge(VirtualEdge &&other) noexcept : Edge(other.id, other.start, other.end), backEdge(other.backEdge) {
+            backEdge->backEdge = this;
+        }
+        Edge &back() override {
+            return *backEdge;
+        }
+        bool isReal() const override {
+            return false;
+        }
+        size_t getFlow() const override {
+            return 0;
+        }
+        size_t getMinFlow() const override {
+            return 0;
+        }
+        void addFlow(int val) override {
+            backEdge->addFlow(-val);
+        }
+        size_t getRemainingCapacity() const override {
+            return backEdge->extra_flow;
+        }
+    };
+
 
     struct Vertex {
         explicit Vertex(size_t _id) : id(_id) {
@@ -28,10 +103,10 @@ public:
     };
 
 private:
-    int innerAddEdge(size_t from, size_t to, size_t max_capacity, size_t flow = 0) {
+    int innerAddEdge(size_t from, size_t to, size_t max_capacity, size_t min_flow = 0) {
         int eid = edges.size() + 1;
-        edges.emplace_back(eid, from, to, max_capacity, flow);
-        back_edges.emplace_back(-eid, to, from, 0);
+        edges.emplace_back(eid, from, to, max_capacity, min_flow);
+        back_edges.emplace_back(edges.back());
         vertices[from].out.push_back(eid);
         vertices[to].inc.push_back(eid);
         vertices[to].out.push_back(-eid);
@@ -41,8 +116,8 @@ private:
 
 protected:
     std::vector<Vertex> vertices;
-    std::vector<Edge> edges;
-    std::vector<Edge> back_edges;
+    std::vector<RealEdge> edges;
+    std::vector<VirtualEdge> back_edges;
     size_t source;
     size_t sink;
 
@@ -52,10 +127,6 @@ public:
             return edges[id - 1];
         else
             return back_edges[-id - 1];
-    }
-
-    size_t getFlow(int id) {
-        return getEdge(id).min_flow + getEdge(-id).capacity;
     }
 
     Network() {
@@ -72,7 +143,6 @@ public:
         if(min_capacity > 0) {
             addSource(to, min_capacity);
             addSink(from, min_capacity);
-            max_capacity -= min_capacity;
         }
         return innerAddEdge(from, to, max_capacity, min_capacity);
     }
@@ -86,7 +156,7 @@ public:
     }
 
 private:
-    std::vector<int> bfs(int startId, int endId, int avoidEdge = 0) {
+    std::vector<int> bfs(size_t startId, size_t endId, int avoidEdge = 0) {
         std::queue<size_t> queue;
         std::unordered_map<size_t, int> prev;
         prev[startId] = 0;
@@ -105,7 +175,7 @@ private:
             for(int eid : vertices[next].out) {
                 Edge &edge = getEdge(eid);
                 size_t end = edge.end;
-                if(edge.id != avoidEdge && edge.capacity > 0 && prev.find(end) == prev.end()) {
+                if(edge.id != avoidEdge && edge.getRemainingCapacity() > 0 && prev.find(end) == prev.end()) {
                     prev[end] = eid;
                     queue.emplace(end);
                 }
@@ -114,13 +184,11 @@ private:
         return {};
     }
 
-    void pushFlow(int edgeId, size_t val = 1) {
-        VERIFY(val <= getEdge(edgeId).capacity);
-        getEdge(edgeId).capacity -= val;
-        getEdge(-edgeId).capacity += val;
+    void pushFlow(int edgeId, int val = 1) {
+        getEdge(edgeId).addFlow(val);
     }
 
-    void pushFlow(const std::vector<int> &path, size_t val = 1) {
+    void pushFlow(const std::vector<int> &path, int val = 1) {
         for(int eid : path)
             pushFlow(eid, val);
     }
@@ -128,7 +196,7 @@ private:
     size_t outCapasity(size_t vId) {
         size_t outdeg = 0;
         for(int eid : vertices[vId].out) {
-            outdeg += getEdge(eid).capacity;
+            outdeg += getEdge(eid).getRemainingCapacity();
         }
         return outdeg;
     }
@@ -136,7 +204,7 @@ private:
     size_t inCapasity(size_t vId) {
         size_t indeg = 0;
         for(int eid : vertices[vId].inc) {
-            indeg += getEdge(eid).capacity;
+            indeg += getEdge(eid).getRemainingCapacity();
         }
         return indeg;
     }
@@ -154,30 +222,31 @@ public:
     }
 
     bool isInLoop(int edgeId) {
-        return getEdge(edgeId).capacity > 0 && !findLoop(edgeId).empty();
+        return getEdge(edgeId).getRemainingCapacity() > 0 && !findLoop(edgeId).empty();
     }
 
     std::vector<int> findLoop(int edgeId) {
-        Edge edge = getEdge(edgeId);
-        if(edge.capacity == 0)
+        Edge &edge = getEdge(edgeId);
+        if(edge.getRemainingCapacity() == 0)
             return {};
-        Edge &redge = getEdge(-edgeId);
-        return bfs(redge.start, redge.end, -edgeId);
+        return bfs(edge.end, edge.start, edge.back().id);
     }
 
     size_t maxFlow(int edgeId) {
+        Edge &edge = getEdge(edgeId);
         if(isInLoop(edgeId)) {
-            return getEdge(edgeId).capacity + getFlow(edgeId);
+            return edge.getRemainingCapacity() + edge.getFlow();
         } else {
-            return getFlow(edgeId);
+            return edge.getFlow();
         }
     }
 
     size_t minFlow(int edgeId) {
-        if(isInLoop(-edgeId)) {
-            return getEdge(edgeId).min_flow;
+        Edge &edge = getEdge(edgeId);
+        if(isInLoop(edge.back().id)) {
+            return edge.getMinFlow();
         } else {
-            return getFlow(edgeId);
+            return edge.getFlow();
         }
     }
 
@@ -212,54 +281,9 @@ public:
         }
         return std::move(res);
     }
-
-    std::vector<size_t> topSort() {
-        std::unordered_set<size_t> visited;
-        std::vector<size_t> stack;
-        std::vector<size_t> result;
-        for(Vertex &v : vertices)
-            stack.push_back(v.id);
-        while(!stack.empty()) {
-            size_t vid = stack.back();
-            stack.pop_back();
-            if(vid >= vertices.size()) {
-                result.push_back(vid - vertices.size());
-                continue;
-            }
-            if(visited.count(vid) > 0)
-                continue;
-            visited.emplace(vid);
-            stack.push_back(vid + vertices.size());
-            for(int eid : vertices[vid].out) {
-                Edge & edge = getEdge(eid);
-                if(edge.capacity > 0 && visited.count(edge.end) == 0) {
-                    stack.push_back(edge.end);
-                }
-            }
-        }
-        return {result.rbegin(), result.rend()};
-    }
-
-    std::unordered_map<size_t, size_t> strongComponents() {
-        std::vector<size_t> order = topSort();
-        std::unordered_map<size_t, size_t> res;
-        std::vector<std::pair<size_t, size_t>> stack;
-        for(size_t vid : order)
-            stack.emplace_back(vid, vid);
-        while(!stack.empty()) {
-            size_t vid = stack.back().first;
-            size_t color = stack.back().second;
-            stack.pop_back();
-            if(res.find(vid) != res.end())
-                continue;
-            res[vid] = color;
-            for(int eid : vertices[vid].inc) {
-                Edge & edge = getEdge(eid);
-                if(edge.capacity > 0 && res.find(edge.start) == res.end()) {
-                    stack.emplace_back(edge.start, color);
-                }
-            }
-        }
-        return std::move(res);
-    }
 };
+
+inline Network::RealEdge::RealEdge(Network::RealEdge &&other) noexcept: Edge(other.id, other.start, other.end), capacity(other.capacity), min_flow(other.min_flow),
+                                                                 extra_flow(other.extra_flow), backEdge(other.backEdge) {
+    backEdge->backEdge = this;
+}

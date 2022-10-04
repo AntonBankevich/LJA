@@ -12,6 +12,7 @@ namespace dbg {
 
         Path(Vertex &_start, std::vector<Edge *> _path) : start_(&_start), path(std::move(_path)) {}
         explicit Path(Vertex &_start) : start_(&_start) {}
+        explicit Path(Edge &edge) : start_(edge.start()), path({&edge}) {}
         static Path WalkForward(Edge &start);
 
         Edge &operator[](size_t i) {return *path[i];}
@@ -22,8 +23,8 @@ namespace dbg {
         Vertex &finish() const {return path.empty() ? start() : *path.back()->end();}
         size_t find(Edge &edge, size_t pos = 0) const;
         size_t find(Vertex &v, size_t pos = 0) const;
-        Edge &back() {return *path.back();}
-        Edge &front() {return *path.front();}
+        Edge &back() const {return *path.back();}
+        Edge &front() const {return *path.front();}
         size_t size() const {return path.size();}
         iterator begin() {return path.begin();}
         iterator end() {return path.end();}
@@ -57,8 +58,10 @@ namespace dbg {
                 start_ = als.front().contig().start();
         }
         explicit GraphAlignment(std::vector<Segment<Edge>> &&_path) : start_(_path.front().contig().start()), als(std::move(_path)) {}
+        explicit GraphAlignment(const Path &_path);
         GraphAlignment(Vertex *_start, std::vector<Segment<Edge>> &&_path) : start_(_start), als(std::move(_path)) {}
         explicit GraphAlignment(Vertex &_start) : start_(&_start) {}
+        explicit GraphAlignment(Edge &start) : start_(start.start()), als({{start, 0, start.size()}}) {}
         GraphAlignment() : start_(nullptr) {}
 
         Vertex &start() const {return *start_;}
@@ -125,6 +128,55 @@ namespace dbg {
         bool operator!=(const GraphAlignment &other) const {return !operator==(other);}
     };
 
+    class AlignmentPosition {
+    private:
+        GraphAlignment *alignment;
+        size_t ind;
+        size_t seg_pos;
+        size_t al_pos;
+    public:
+        AlignmentPosition(size_t _al_pos = 0) : ind(0), seg_pos(0), al_pos(0){
+            moveForward(_al_pos);
+        }
+
+        void moveForward(size_t len) {
+            while(len > 0) {
+                size_t move = std::min(len, alignment->operator[](ind).size() - seg_pos);
+                seg_pos += move;
+                al_pos += move;
+                len -= move;
+                if(seg_pos == alignment->operator[](ind).size() && ind < alignment->size()) {
+                    seg_pos = 0;
+                    ind++;
+                    VERIFY(len == 0);
+                }
+            }
+        }
+
+        EdgePosition getEdgePosition() const {
+            Segment<Edge> &segment = alignment->operator[](ind);
+            return {segment.contig(), segment.left + seg_pos};
+        }
+
+        bool isVertex() const {
+            Segment<Edge> &segment = alignment->operator[](ind);
+            return segment.left + seg_pos == 0 || segment.left + seg_pos == segment.contig().size();
+        }
+
+        dbg::Vertex &getVertex() const {
+            Segment<Edge> &segment = alignment->operator[](ind);
+            if(segment.left + seg_pos == 0)
+                return *segment.contig().start();
+            if(segment.left + seg_pos == segment.contig().size())
+                return *segment.contig().end();
+            VERIFY(false);
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnreachableCode"
+            return *segment.contig().start();
+#pragma clang diagnostic pop
+        }
+    };
+
     template<class U, class V>
     class PerfectAlignment {
     public:
@@ -134,6 +186,15 @@ namespace dbg {
             VERIFY(seg_from_.size() == seg_to_.size());
         }
         size_t size() {return seg_from.size();}
+        PerfectAlignment RC() const {
+            return {seg_from.RC(), seg_to.RC()};
+        }
+        bool operator<(const PerfectAlignment<U, V> &other) const {
+            if(seg_to != other.seg_to)
+                return seg_to < other.seg_to;
+            else
+                return seg_from < other.seg_from;
+        }
     };
 
     class GraphAligner {

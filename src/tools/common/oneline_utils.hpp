@@ -9,17 +9,22 @@
 
 namespace oneline {
     template<class U, class V, class I>
-    std::vector<V> map(I begin, I end, std::function<V(U &)> f) {
+    std::vector<V> map(I begin, I end, const std::function<V(U &)> &f) {
         std::vector<V> result;
         std::for_each(begin, end, [&](U& param){ result.push_back(f(param));});
         return std::move(result);
     }
 
     template<class V, class I>
-    std::vector<V> filter(I begin, I end, std::function<bool(V&)> f) {
+    std::vector<V> filter(I begin, I end, const std::function<bool(const V&)> &f) {
         std::vector<V> result;
-        std::for_each(begin, end, [&](V& param){if(f(param)) result.emplace_back(std::move(param));});
+        std::for_each(begin, end, [&](typename I::reference param){if(f(param)) result.emplace_back(std::move(param));});
         return std::move(result);
+    }
+
+    template<class V, class C>
+    C filter(const C&container, const std::function<bool(const V&)> &f) {
+        return std::move(filter<V, typename C::const_iterator>(container.begin(), container.end(), f));
     }
 
     template<class V, class I>

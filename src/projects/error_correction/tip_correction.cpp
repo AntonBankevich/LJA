@@ -26,7 +26,7 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
     std::unordered_map<Vertex *, size_t> max_tip;
     std::vector<Edge*> queue;
     for(Edge &edge : sdbg.edges()) {
-        if(edge.end()->outDeg() == 0 && edge.end()->inDeg() == 1 && edge.size() < 10000 && edge.getCoverage() < reliable_threshold) {
+        if(edge.end()->outDeg() == 0 && edge.end()->inDeg() == 1 && edge.size() < 15000 && edge.getCoverage() < reliable_threshold) {
             max_tip[edge.end()] = 0;
             queue.emplace_back(&edge);
         }
@@ -101,12 +101,14 @@ inline GraphAlignment CorrectSuffix(const GraphAlignment &al) {
     }
     size_t max_len = bad_end_size  * 11/10 + 100;
     Path alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
-    if(alternative.finish().outDeg() != 0 && alternative.len() + 10 < bad_end_size) {
+    if(alternative.finish().outDeg() != 0 && alternative.len() + 2000 < bad_end_size) {
         return al;
     }
     Sequence tip = al.truncSeq(first_unreliable);
     Sequence alt = alternative.truncSeq();
-    Sequence projection = alt.Subseq(0, bestPrefix(tip, alt).first);
+    Sequence projection = alt;
+    if(alt.size() > tip.size())
+        projection = alt.Subseq(0, bestPrefix(tip, alt).first);
     GraphAlignment res = al.subalignment(0, first_unreliable);
     res.extend(projection);
     return res;

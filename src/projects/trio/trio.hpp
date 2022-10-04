@@ -8,7 +8,6 @@
 #include "common/logging.hpp"
 #include <common/string_utils.hpp>
 #include "lja/multi_graph.hpp"
-#include "lja/subdataset_processing.hpp"
 #include "haplo_stats.hpp"
 
 namespace trio {

@@ -2,19 +2,22 @@
 
 using namespace dbg;
 void AlignedRead::correct(CompactPath &&cpath) {
-    VERIFY_MSG(!corrected_path.valid(), "Attempt to correct path while previous correction was not yet applied");
+    VERIFY_MSG(!corrected, "Attempt to correct path while previous correction was not yet applied");
     corrected_path = std::move(cpath);
+    corrected = true;
 }
 
 void AlignedRead::applyCorrection() {
-    if(corrected_path.valid())
+    if(corrected)
         path = std::move(corrected_path);
     corrected_path = {};
+    corrected = false;
 }
 
-void AlignedRead::invalidate() {
-    VERIFY(!corrected_path.valid());
-    path = {};
+void AlignedRead::delayedInvalidate() {
+    VERIFY(!corrected);
+    corrected_path = {};
+    corrected = true;
 }
 
 void VertexRecord::addPath(const Sequence &seq) {
@@ -119,9 +122,9 @@ std::vector<GraphAlignment> VertexRecord::getBulgeAlternatives(const Vertex &end
     return std::move(res);
 }
 
-CompactPath VertexRecord::getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const {
+CompactPath VertexRecord::getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov, size_t max_size) const {
     Sequence res = start;
-    while(true) {
+    while(res.size() < max_size) {
         unsigned char next = getUniqueExtension(res, min_good_cov, max_bad_cov);
         if(next == (unsigned char)-1)
             break;
@@ -173,7 +176,7 @@ std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double 
     size_t cnt = 0;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i > 0 && candidates[i - 1].first != candidates[i].first) {
-            if(cnt >= threshold) {
+            if(cnt > threshold) {
                 GraphAlignment cp = CompactPath(v, candidates[i - 1].first).getAlignment();
                 cp.cutBack(cp.len() - len);
                 res.emplace_back(cp);
@@ -182,7 +185,7 @@ std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double 
         }
         cnt += candidates[i].second;
     }
-    if(cnt >= threshold) {
+    if(cnt > threshold) {
         GraphAlignment cp = CompactPath(v, candidates.back().first).getAlignment();
         cp.cutBack(cp.len() - len);
         res.emplace_back(cp);
@@ -310,9 +313,16 @@ std::function<std::string(Edge &)> RecordStorage::labeler() const {
         return [this](Edge &edge) {
             const VertexRecord &rec = getRecord(*edge.start());
             std::stringstream ss;
+            size_t cnt = 0;
             for (const auto &ext : rec) {
-                if (ext.first[0] == edge.seq[0])
-                    ss << ext.first << "(" << ext.second << ")\\n";
+                if (ext.first[0] == edge.seq[0]) {
+                    if(cnt < 30)
+                        ss << ext.first << "(" << ext.second << ")\\n";
+                    cnt++;
+                }
+            }
+            if(cnt > 30) {
+                ss << "and another " << (cnt - 30) << " records\\n";
             }
             return ss.str();
         };
@@ -327,44 +337,61 @@ void RecordStorage::addRead(AlignedRead &&read) {
     addSubpath(read.path.RC());
 }
 
-void RecordStorage::invalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
+void RecordStorage::delayedInvalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
     if(log_changes)
         readLogger->logInvalidate(read, message);
-    if(track_cov) {
-        removeSubpath(read.path);
-        removeSubpath(read.path.RC());
-    }
-    read.invalidate();
+    read.delayedInvalidate();
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message) {
+void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message) {
     const std::function<bool(const Edge &)> &is_bad = [threshold](const Edge &edge) {
         return edge.getCoverage() < threshold;
     };
-    invalidateBad(logger, threads, is_bad, message);
+    delayedInvalidateBad(logger, threads, is_bad, message);
 }
 
-void RecordStorage::invalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(const Edge &)> &is_bad,
-                                  const std::string &message) {
-    std::vector<AlignedRead *> to_delete;
-    for (AlignedRead &alignedRead : reads) {
-        bool good = true;
-        for (Segment<Edge> & edge_it : alignedRead.path.getAlignment()) {
-            if (is_bad(edge_it.contig())) {
-                good = false;
+void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads, const std::function<bool(
+        const Edge &)> &is_bad, const std::string &message) {
+    ParallelCounter cnt(threads);
+    omp_set_num_threads(threads);
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt, message, is_bad)
+    for(size_t i = 0; i < reads.size(); i++) {
+        AlignedRead &alignedRead = reads[i];
+        if(!alignedRead.valid())
+            continue;
+        GraphAlignment al = alignedRead.path.getAlignment();
+        size_t l = 0;
+        size_t r = al.size();
+        while(l < al.size() && is_bad(al[l].contig())) {
+            l++;
+        }
+        while(r > 0 && is_bad(al[r - 1].contig())) {
+            r--;
+        }
+        bool middle_bad = false;
+        size_t len = 0;
+        for(size_t j = l; j < r; j++) {
+            if(is_bad(al[j].contig())) {
+                middle_bad = true;
                 break;
             }
+            len += al[j].size();
         }
-        if (!good) {
-            to_delete.emplace_back(&alignedRead);
+        if(middle_bad || l >= r) {
+            delayedInvalidateRead(alignedRead, message);
+            cnt += 1;
+        } else if(r - l != al.size()) {
+            GraphAlignment sub = al.subalignment(l, r);
+            if(sub.len() < 1000)
+                delayedInvalidateRead(alignedRead, message);
+            else {
+                std::string extra_message = message + "_EndsClipped_" + itos(al.subalignment(0, l).len()) + "_" + itos(al.subalignment(r, al.size()).len());
+                reroute(alignedRead, al, al.subalignment(l, r), extra_message);
+            }
+            cnt += 1;
         }
     }
-    logger.info() << "Could not correct " << to_delete.size() << " reads. They will be removed." << std::endl;
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(to_delete, message)
-    for(size_t i = 0; i < to_delete.size(); i++) {
-        invalidateRead(*to_delete[i], message);
-    }
-    logger.info() << "Uncorrected reads were removed." << std::endl;
+    logger.info() << "Could not correct " << cnt.get() << " reads. They were removed or truncated." << std::endl;
 }
 
 void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) {
@@ -373,7 +400,7 @@ void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) 
         size_t cnt = rec.countStartsWith(alignedRead.path.cpath());
         VERIFY_MSG(cnt >= 1, "This function assumes that suffixes are stored for complete reads")
         if(rec.countStartsWith(alignedRead.path.cpath()) >= 2) {
-            invalidateRead(alignedRead, "Subread");
+            delayedInvalidateRead(alignedRead, "Subread");
         }
     }
     logger.info() << "Uncorrected reads were removed." << std::endl;

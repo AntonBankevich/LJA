@@ -43,6 +43,8 @@ namespace dbg {
 
     void UpdateVertexTips(Vertex &rec, ParallelRecordCollector<Vertex *> &queue);
 
+    void findTipLengths(logging::Logger &logger, size_t threads, SparseDBG &sdbg, double threshold);
+
     void findTips(logging::Logger &logger, SparseDBG &sdbg, size_t threads);
 
     void mergeLoop(Path path);

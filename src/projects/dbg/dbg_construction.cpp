@@ -186,7 +186,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
     if (vertices_file == "none") {
         vertices = findJunctions(logger, disjointigs, hasher, threads);
         std::ofstream os;
-        os.open(std::string(dir.c_str()) + "/vertices.save");
+        os.open(dir / "vertices.save");
         writeHashs(os, vertices);
         os.close();
     } else {

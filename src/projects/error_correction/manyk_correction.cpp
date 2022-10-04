@@ -1,5 +1,7 @@
 #include "manyk_correction.hpp"
 #include "correction_utils.hpp"
+#include "error_correction.hpp"
+
 using namespace dbg;
 void ManyKCorrector::calculateReliable(const GraphAlignment &read_path, std::vector<size_t> &last_reliable,
                                        std::vector<size_t> &next_reliable) const {
@@ -24,7 +26,7 @@ void ManyKCorrector::calculateReliable(const GraphAlignment &read_path, std::vec
     }
 }
 
-ManyKCorrector::ReadRecord ManyKCorrector::splitRead(GraphAlignment &&read_path) const {
+ManyKCorrector::ReadRecord ManyKCorrector::splitRead(GraphAlignment &read_path) const {
     std::vector<size_t> last_reliable;
     std::vector<size_t> next_reliable;
     calculateReliable(read_path, last_reliable, next_reliable);
@@ -87,11 +89,11 @@ ManyKCorrector::calculateLowRegions(const std::vector<size_t> &last_reliable, co
     return std::move(positions);
 }
 
-GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &message) const {
-    ReadRecord rr = splitRead(std::move(read_path));
-    message = "";
+std::string ManyKCorrector::correctRead(GraphAlignment &read_path) {
+    ReadRecord rr = splitRead(read_path);
+    std::string message = "";
     if(rr.isPerfect() || rr.isBad()) {
-        return std::move(rr.read);
+        return "";
     }
     std::vector<std::string> messages;
     GraphAlignment corrected;
@@ -136,12 +138,15 @@ GraphAlignment ManyKCorrector::correctRead(GraphAlignment &&read_path, string &m
         VERIFY(!corrected.valid() || corrected.finish() == tc.start());
         corrected += tc;
     }
+    if(messages.empty())
+        return "";
     message = join("_", messages);
     if(corrected.len() < 100) {
 #pragma omp critical
-            std::cout << corrected.len() << " " << message << "\noppa " << rr.read.str(true) << "\noppa " << corrected.str(true) << std::endl;
+            std::cout << corrected.len() << " " << message << "\noppa " << read_path.str(true) << "\noppa " << corrected.str(true) << std::endl;
     }
-    return std::move(corrected);
+    read_path = corrected;
+    return message;
 }
 
 GraphAlignment ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
@@ -168,7 +173,7 @@ GraphAlignment ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip 
 //        return alternatives[0];
 //    } else
 //        return tip.tip;
-    GraphAlignment alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 4);
+    GraphAlignment alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 3);
     if(!alternative.valid())
         return tip.tip;
     if(alternative.len() > tip.tip.len()) {
@@ -290,7 +295,7 @@ GraphAlignment ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bul
     size_t blen = bulge.bulge.len();
     GraphAlignment left_ext = uniqueExtension(bulge.left, blen + 100).subalignment(bulge.left.size());
     GraphAlignment right_ext = uniqueExtension(bulge.right.RC(), blen + 100).subalignment(bulge.right.size()).RC();
-    if(left_ext.len() + right_ext.len() < blen + std::min<size_t>(blen, 500))
+    if(left_ext.len() + right_ext.len() < blen + std::min<size_t>(blen, 100) && std::max(left_ext.len(), right_ext.len()) + 100 > blen)
         return bulge.bulge;
     GraphAlignment candidate;
     for(int shift = -int(right_ext.size()) + 1; shift < int(left_ext.size()); shift++) {
@@ -322,10 +327,28 @@ GraphAlignment ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bul
 GraphAlignment ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
     size_t blen = bulge.bulge.len();
     std::vector<dbg::GraphAlignment> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, std::max<size_t>(blen / 100, 20), 3);
+    if(blen > dbg.hasher().getK() && alternatives.empty()) {
+        alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, blen / 10 + 32, 3);
+        if(alternatives.empty()) {
+            alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, blen / 5 + 32, 3);
+        }
+    }
     if(alternatives.size() == 1)
         return alternatives[0];
     else
         return bulge.bulge;
+}
+
+void ManyKCorrector::initialize(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads) {
+    CoverageReliableFiller cov(reliable_threshold);
+    LengthReliableFiller len(20000, 3, 1);
+    BridgeReliableFiller bridge(40000);
+    ConnectionReliableFiller connect(reliable_threshold);
+    BulgePathMarker bulge(dbg, reads, 60000);
+    std::vector<AbstractReliableFillingAlgorithm *> algs = {&len, &cov, &bridge, &connect};
+    if(diploid)
+        algs.emplace_back(&bulge);
+    CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
 }
 
 ManyKCorrector::Bulge ManyKCorrector::ReadRecord::getBulge(size_t num) {
@@ -348,29 +371,9 @@ GraphAlignment ManyKCorrector::ReadRecord::getBlock(size_t num) const {
     return read.subalignment(switch_positions[num * 2], switch_positions[num * 2 + 1]);
 }
 
-size_t ManyKCorrect(logging::Logger &logger, SparseDBG &dbg, RecordStorage &reads_storage, double threshold,
-                    double reliable_threshold, size_t K, size_t expectedCoverage, size_t threads) {
-    FillReliableWithConnections(logger, dbg, reliable_threshold);
-    logger.info() << "Correcting low covered regions in reads with K = " << K << std::endl;
-    ManyKCorrector corrector(dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold);
-    ParallelCounter cnt(threads);
-    omp_set_num_threads(threads);
-#pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, corrector, reads_storage, threshold, logger, reliable_threshold, cnt)
-    for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-        std::stringstream ss;
-        std::vector<std::string> messages;
-        AlignedRead &alignedRead = reads_storage[read_ind];
-        if (!alignedRead.valid())
-            continue;
-        CompactPath &initial_cpath = alignedRead.path;
-        std::string message;
-        GraphAlignment corrected = corrector.correctRead(initial_cpath.getAlignment(), message);
-        if(!message.empty()) {
-            reads_storage.reroute(alignedRead, corrected, message);
-            cnt += 1;
-        }
-    }
-    reads_storage.applyCorrections(logger, threads);
-    logger.info() << "Corrected low covered regions in " << cnt.get() << " reads with K = " << K << std::endl;
-    return cnt.get();
+size_t ManyKCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage, double threshold,
+                    double reliable_threshold, size_t K, size_t expectedCoverage, bool diploid) {
+    logger.info() << "Using K = " << K << " for error correction" << std::endl;
+    ManyKCorrector algorithm(logger, dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold, diploid);
+    return ErrorCorrectionEngine(algorithm).run(logger, threads, dbg, reads_storage);
 }

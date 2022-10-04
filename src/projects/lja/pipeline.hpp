@@ -1,13 +1,11 @@
 #pragma once
 
 #include "multi_graph.hpp"
-#include "subdataset_processing.hpp"
 #include "uncompressed_output.hpp"
 #include "gap_closing.hpp"
 #include "polishing/perfect_alignment.hpp"
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/mitochondria_rescue.hpp"
-#include "error_correction/initial_correction.hpp"
 #include "error_correction/manyk_correction.hpp"
 #include "error_correction/precorrection.hpp"
 #include "sequences/seqio.hpp"
@@ -37,27 +35,25 @@ struct LJAPipeline {
         stage_num = 0;
     }
 
-void PrintPaths(logging::Logger &logger, const std::experimental::filesystem::path &dir, const std::string &stage,
-            dbg::SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small);
+void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
+                                       SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small);
 
 std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path>
-
 AlternativeCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                      const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-                      const io::Library &paths_lib,
-                      size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-                      bool close_gaps, bool remove_bad, bool skip, bool debug, bool load);
+                                             const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
+                                             size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+                                             bool diploid, bool skip, bool debug, bool load);
 
 std::vector<std::experimental::filesystem::path> NoCorrection(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                                                                                            const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
                                                                                            size_t threads, size_t k, size_t w, bool skip, bool debug, bool load);
 std::vector<std::experimental::filesystem::path> SecondPhase(
-            logging::Logger &logger, const std::experimental::filesystem::path &dir,
-            const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
-            const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-            size_t unique_threshold, bool diploid, bool skip, bool debug, bool load);
+        logging::Logger &logger, const std::experimental::filesystem::path &dir,
+        const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
+        const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+        size_t unique_threshold, bool diploid, bool skip, bool debug, bool load);
 
-std::vector<std::experimental::filesystem::path> PolishingPhase(
+    std::vector<std::experimental::filesystem::path> PolishingPhase(
         logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
         const std::experimental::filesystem::path &output_dir,
         const std::experimental::filesystem::path &gfa_file,
@@ -70,7 +66,7 @@ std::vector<std::experimental::filesystem::path> MDBGPhase(
         const std::experimental::filesystem::path &graph_fasta,
         const std::experimental::filesystem::path &read_paths, bool skip, bool debug);
 
-//std::vector<std::experimental::filesystem::path> 
+//std::vector<std::experimental::filesystem::path>
 void TrioPreprocessingPhase(
             logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
             const io::Library &p_lib, const io::Library &m_lib,

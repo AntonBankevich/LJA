@@ -14,7 +14,7 @@
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
 #include "common/hash_utils.hpp"
-#include "error_correction/initial_correction.hpp"
+#include "error_correction/tournament_correction.hpp"
 #include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
@@ -253,12 +253,8 @@ int main(int argc, char **argv) {
         refStorage.fill(refReader.begin(), refReader.end(), dbg, w + k - 1, logger, threads);
     }
 
-    if(parser.getCheck("mult-analyse")) {
-        NewMultCorrect(dbg, logger, dir, readStorage, 70000, threads, parser.getCheck("dump"));
-    }
-
     if(parser.getCheck("mult-correct")) {
-        MultCorrect(dbg, logger, dir, readStorage, 50000,threads, parser.getCheck("diploid"), debug);
+        MultCorrect(logger, threads, dbg, dir, readStorage, 50000, 0, parser.getCheck("diploid"), debug);
     }
 
     if(parser.getCheck("initial-correct")) {
@@ -268,8 +264,8 @@ int main(int argc, char **argv) {
         if (parser.getValue("reference") != "none") {
             ref_vector = io::SeqReader(parser.getValue("reference")).readAll();
         }
-        initialCorrect(dbg, logger, dir / "correction.txt", readStorage, refStorage, threshold, 2 * threshold, reliable,
-                       threads, parser.getCheck("dump"));
+        initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
+                       threshold, 2 * threshold, reliable, false, 60000, parser.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     }
@@ -281,8 +277,9 @@ int main(int argc, char **argv) {
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
         }
+        storage.Fill(threads);
         {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
@@ -313,8 +310,9 @@ int main(int argc, char **argv) {
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
         }
+        storage.Fill(threads);
         reader.reset();
         size_t cnt = 0;
         for(StringContig scontig : reader) {
@@ -331,26 +329,6 @@ int main(int argc, char **argv) {
             printDot(coordinates_dot, Component(comp), storage.labeler());
             coordinates_dot.close();
         }
-    }
-
-    if(parser.getCheck("split")) {
-        std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
-        ensure_dir_existance(subdatasets_dir);
-        std::experimental::filesystem::path executable(argv[0]);
-        std::experimental::filesystem::path py_path = executable.parent_path() / "run_rr.py";
-        logger.trace() << "py_path set to " << py_path.string() << std::endl;
-        RepeatResolver rr(dbg, {&readStorage}, subdatasets_dir, py_path, true);
-        logger.info() << "Extracting subdatasets for connected components" << std::endl;
-        std::function<bool(const Edge &)> is_unique = [](const Edge &){return false;};
-        std::vector<RepeatResolver::Subdataset> subdatasets = rr.SplitDataset(is_unique);
-#pragma omp parallel for schedule(dynamic, 1) default(none) shared(subdatasets, logger, rr)
-        for(size_t snum = 0; snum < subdatasets.size(); snum++) {
-            RepeatResolver::Subdataset &subdataset = subdatasets[snum];
-            std::experimental::filesystem::path outdir = subdataset.dir / "mltik";
-            ensure_dir_existance(outdir);
-            rr.prepareDataset(subdataset);
-        }
-        logger.info() << "Finished extracting subdatasets for connected components" << std::endl;
     }
 
     if(parser.getCheck("extract-subdatasets")) {
@@ -410,7 +388,7 @@ int main(int argc, char **argv) {
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
             for(auto & seg_rec : seg_recs) {
                 if(std::get<0>(seg_rec) == contig.id) {
                     segs.emplace_back(contig.seq.Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
@@ -419,6 +397,7 @@ int main(int argc, char **argv) {
                 }
             }
         }
+        storage.Fill(threads);
         for(Contig &seg : segs) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.id) + ".dot");
             logger.info() << "Printing segment " << seg.id << " to dot file " << (seg_file) << std::endl;
@@ -437,8 +416,9 @@ int main(int argc, char **argv) {
         io::SeqReader reader(genome_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.fill(contig);
+            storage.addContig(contig);
         }
+        storage.Fill(threads);
         {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;

@@ -446,6 +446,10 @@ public:
         return Sequence(buf_);
     }
 
+    void reserve(size_t n) {
+        buf_.reserve(n);
+    }
+
     size_t size() const {
         return buf_.size();
     }

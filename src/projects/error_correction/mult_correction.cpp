@@ -193,7 +193,10 @@ inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(l
         bool operator()(Edge* a, Edge* b) const {
             if(a == b)
                 return false;
-            if(a->size() != b->size())
+            if((a->size() < 10000 && a->getCoverage() < 3) || (b->size() < 10000 && b->getCoverage() < 3)) {
+                if(a->intCov() * b->size() != b->intCov() * a->size())
+                    return a->intCov() * b->size() > b->intCov() * a->size();
+            } else if(a->size() != b->size())
                 return a->size() > b->size();
             return *a < *b;
         }
@@ -304,7 +307,8 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
-    reads_storage.invalidateBad(logger, threads, is_bad, "after_mult");
+    reads_storage.delayedInvalidateBad(logger, threads, is_bad, "after_mult");
+    reads_storage.applyCorrections(logger, threads);
 }
 
 SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
@@ -324,6 +328,12 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
         for(size_t i = 1; i < path.size(); i++) {
             if(classificator.isUnique(path[i])) {
                 if(len < 3000 && rec.countStartsWith(CompactPath(path.subPath(0, i + 1)).cpath()) >= 4) {
+                    if(i == 1 && edge.start()->inDeg() == 2 && edge.end()->outDeg() == 2 && edge.start()->outDeg() == 1 && edge.end()->inDeg() == 1) {
+                        if(classificator.isUnique(edge.start()->rc()[0]) && classificator.isUnique(edge.start()->rc()[1]) &&
+                                classificator.isUnique(edge.end()->operator[](0)) && classificator.isUnique(edge.end()->operator[](1))) {
+                            continue;
+                        }
+                    }
                     res.addUnique(edge);
                     logger.trace() << "Found extra unique edge " << edge.getId() << " " << edge.size() << " " << edge.getCoverage() << std::endl;
                     break;
@@ -354,40 +364,23 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
     }
 }
 
-RecordStorage MultCorrect(SparseDBG &dbg, logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                          RecordStorage &reads_storage, size_t unique_threshold, size_t threads, bool diploid,
+RecordStorage MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
+                          RecordStorage &reads_storage, size_t unique_threshold, double initial_rel_coverage, bool diploid,
                           bool debug) {
-    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
-    const std::experimental::filesystem::path dump_dir = dir / "mult";
     if(debug) {
-        recreate_dir(multiplicity_figures);
-        recreate_dir(dump_dir);
+        recreate_dir(dir);
     }
-    UniqueClassificator classificator(dbg, reads_storage, diploid, debug);
-    classificator.classify(logger, unique_threshold, multiplicity_figures/"ongoing");
+    UniqueClassificator classificator(dbg, reads_storage, initial_rel_coverage, diploid, debug);
+    classificator.classify(logger, unique_threshold, dir/"ongoing");
     if(debug)
-        DrawMult(multiplicity_figures / "round1", dbg, unique_threshold, reads_storage, classificator);
-    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, classificator, dump_dir/"round1.txt");
+        DrawMult(dir / "round1", dbg, unique_threshold, reads_storage, classificator);
+    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, classificator, dir/"round1.txt");
     SetUniquenessStorage more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, classificator);
     SetUniquenessStorage more_more_unique = PathUniquenessClassifier(logger, threads, dbg, reads_storage, more_unique);
     if(debug)
-        DrawMult(multiplicity_figures / "round2", dbg, unique_threshold, reads_storage, more_more_unique);
-    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_more_unique, dump_dir/"round2.txt");
+        DrawMult(dir / "round2", dbg, unique_threshold, reads_storage, more_more_unique);
+    CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_more_unique, dir/"round2.txt");
     if(debug)
-        DrawMult(multiplicity_figures / "final", dbg, unique_threshold, reads_storage, more_unique);
+        DrawMult(dir / "final", dbg, unique_threshold, reads_storage, more_unique);
     return std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
-}
-
-void NewMultCorrect(SparseDBG &sdbg, logging::Logger &logger, const std::experimental::filesystem::path &dir,
-                    RecordStorage &reads_storage, size_t unique_threshold, size_t threads, bool dump) {
-    const std::experimental::filesystem::path fig_before = dir / "before.dot";
-    const std::experimental::filesystem::path fig_after = dir / "after.dot";
-    const std::experimental::filesystem::path out_reads = dir / "corrected.fasta";
-    const std::experimental::filesystem::path out_alignments = dir / "alignments.txt";
-    const std::experimental::filesystem::path multiplicity_figures = dir / "mult_figs";
-
-    recreate_dir(multiplicity_figures);
-    SetUniquenessStorage initial_unique = BulgePathAnalyser(sdbg, unique_threshold).uniqueEdges();
-    MultiplicityBoundsEstimator estimator(sdbg, initial_unique);
-    estimator.update(logger, 3, multiplicity_figures);
 }

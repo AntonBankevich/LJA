@@ -120,4 +120,17 @@ namespace dbg {
         printGFA(out, component, calculate_coverage);
         out.close();
     }
+
+    inline void printGraphAlignments(std::ostream &out, const std::vector<GraphAlignment> &als) {
+        for(size_t i = 0; i < als.size(); i++) {
+            out << ">" << i <<"\n" << als[i].Seq() << "\n";
+        }
+    }
+
+    inline void printGraphAlignments(const std::experimental::filesystem::path &f, const std::vector<GraphAlignment> &als) {
+        std::ofstream out;
+        out.open(f);
+        printGraphAlignments(out, als);
+        out.close();
+    }
 }

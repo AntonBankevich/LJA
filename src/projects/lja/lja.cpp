@@ -65,6 +65,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    if(parser.getListValue("reads").size() == 0) {
+        std::cout << "Please provide at least one file with reads." << std::endl;
+        std::cout << parser.message() << std::endl;
+        return 1;
+    }
+
     bool debug = parser.getCheck("debug");
     StringContig::homopolymer_compressing = true;
     StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
@@ -81,7 +87,6 @@ int main(int argc, char **argv) {
     logging::logGit(logger, dir / "version.txt");
     bool diploid = parser.getCheck("diploid");
     bool trio = (parser.getListValue("maternal").size() != 0 && parser.getListValue("paternal").size() != 0);
-
     std::string first_stage = parser.getValue("restart-from");
     bool skip = first_stage != "none";
     bool load = parser.getCheck("load");
@@ -122,7 +127,7 @@ int main(int argc, char **argv) {
         if (first_stage == "alternative")
             skip = false;
         corrected1 = pipeline.AlternativeCorrection(logger, dir / ("k" + itos(k)), lib, {}, paths, threads, k, w,
-                                           threshold, reliable_coverage, false, false, skip, debug, load);
+                                                    threshold, reliable_coverage, diploid, skip, debug, load);
         if (first_stage == "alternative" || first_stage == "none")
             load = false;
 
@@ -132,7 +137,7 @@ int main(int argc, char **argv) {
         if (first_stage == "phase2")
             skip = false;
         corrected_final = pipeline.SecondPhase(logger, dir / ("k" + itos(K)), {corrected1.first}, {corrected1.second}, paths,
-                            threads, K, W, Threshold, Reliable_coverage, unique_threshold, diploid, skip, debug, load);
+                                               threads, K, W, Threshold, Reliable_coverage, unique_threshold, diploid, skip, debug, load);
         if (first_stage == "phase2")
             load = false;
     }
@@ -140,32 +145,28 @@ int main(int argc, char **argv) {
         skip = false;
     std::vector<std::experimental::filesystem::path> resolved =
             pipeline.MDBGPhase(logger, threads, K, KmDBG, W, unique_threshold, diploid, dir / "mdbg", corrected_final[1],
-                      corrected_final[2], skip, debug);
+                               corrected_final[2], skip, debug);
     if(first_stage == "rr")
         load = false;
-    logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected_final[0]
-                  << std::endl;
     if (trio) {
         const auto binned = pipeline.TrioBinningPhase(logger, threads, dir, dir / "paternal_compressed.yak", dir / "maternal_compressed.yak", resolved[0], skip, debug);
         logger.info() << "Resolving trio repeats with graph " << resolved[1] << std::endl;
-        pipeline.TrioSimplificationPhase(logger, threads, resolved[1], binned, corrected_final[0], lib,
-        dir, 1000000, skip, debug);
+        pipeline.TrioSimplificationPhase(logger, threads, resolved[1], binned, corrected_final[0], lib, dir, 1000000, skip, debug);
         logger.info () << "Trio pipeline finished" << std::endl;
         logger.info() << "Final assemblies can be found here: " << dir / "haplotype_m/assembly.fasta" <<
         " and " << dir / "haplotype_m/assembly.fasta" << std::endl;
-
     } else {
         if (first_stage == "polishing")
             skip = false;
         std::vector<std::experimental::filesystem::path> uncompressed_results =
-                pipeline.PolishingPhase(logger, threads, dir / "uncompressing", dir, corrected_final[1],
+                pipeline.PolishingPhase(logger, threads, dir/ "uncompressing", dir, resolved[1],
                                         corrected_final[0],
                                         lib, StringContig::max_dimer_size / 2, K, skip, debug);
         if (first_stage == "polishing")
             load = false;
 
-        logger.info() << "Final graph with homopolymer compressed edges can be found here: " << resolved[1]
-                      << std::endl;
+        logger.info() << "Final homopolymer compressed and corrected reads can be found here: " << corrected_final[0] << std::endl;
+        logger.info() << "Final graph with homopolymer compressed edges can be found here: " << resolved[1] << std::endl;
         logger.info() << "Final graph can be found here: " << uncompressed_results[1] << std::endl;
         logger.info() << "Final assembly can be found here: " << uncompressed_results[0] << std::endl;
     }

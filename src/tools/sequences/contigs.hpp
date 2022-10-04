@@ -114,6 +114,18 @@ public:
         return {*contig_ptr, left + len, right};
     }
 
+    Segment<T> extendBy(size_t len) const {
+        return {*contig_ptr, left - std::min(left, len), std::min(contig_ptr->size(), right + len)};
+    }
+
+    Segment<T> extendRight(size_t len) const {
+        return {*contig_ptr, left, std::min(contig_ptr->size(), right + len)};
+    }
+
+    Segment<T> extendLeft(size_t len) const {
+        return {*contig_ptr, left - std::min(left, len), right};
+    }
+
     Segment<T> unite(const Segment<T> &other) const {
         return {*contig_ptr, std::min(left, other.left), std::max(right, other.right)};
     }

@@ -2,11 +2,73 @@
 #include "dbg/sparse_dbg.hpp"
 
 class DatasetParameters {
+private:
+    double avg_cov;
+    double sigma2;
+    std::vector<double> density;
+    size_t len_step;
+    size_t observation_step;
 public:
-    bool diploid;
-    double coverage_median;
-    double coverage5;
-    double coverage95;
+    DatasetParameters(const std::vector<size_t> &observations, size_t len_step) :  len_step(len_step) {
+        avg_cov = 0;
+        size_t max_val = 0;
+        sigma2 = 0;
+        for(size_t val : observations) {
+            avg_cov += val;
+            sigma2 += val * val;
+            max_val = std::max(val, max_val);
+        }
+        avg_cov /= observations.size();
+        sigma2 /= observations.size();
+        sigma2 -= avg_cov * avg_cov;
+        observation_step = std::max<size_t>(1, avg_cov / 20);
+        max_val = std::min<size_t>(max_val, max_val / observation_step * 100);
+        density = std::vector<double>(max_val / observation_step + 1, 0);
+        for(size_t val : observations) {
+            density[std::min<size_t>(density.size() - 1, val / observation_step)] += 1;
+        }
+        for(double &val : density) {
+            val /= observations.size();
+        }
+        VERIFY_MSG(observations.empty() || sigma2 >= -1e-6, sigma2);
+    }
+
+    void Print(std::ostream &os) {
+        os << "Average: " << avg_cov << " variance2: " << sigma2 << " using length step: " << len_step << "\n";
+        for(double cov : {1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 12., 14., 16., 18.,  20., 25., 30., 40., 50., 60., 80., 100.}) {
+            os << "Penalties for " << cov << "\n";
+            for (size_t i = 0; i < 20; i++)
+                os << getPoissonLogPDiff(len_step, cov, i);
+            os << "\n";
+            for (size_t i = 0; i < 20; i++)
+                os << getNormalLogPDiff(len_step, cov, i);
+            os << "\n";
+        }
+    }
+
+    double getP(double cov) const {
+        size_t cell = std::min<size_t>(density.size() - 1, size_t(cov) / observation_step);
+        return density[cell];
+    }
+
+    double getPoissonLogPDiff(size_t length, double cov, size_t mult) const {
+        size_t events = std::max<size_t>(1ull, length / len_step);
+        auto observed_coverage = size_t(cov * events);
+        double dmult = mult;
+        return (log(1 + 1. / double(dmult))* cov - avg_cov) * events;
+    }
+
+    double getNormalLogPDiff(size_t length, double cov, size_t mult) const {
+        size_t events = std::max<size_t>(1ull, length / len_step);
+        double avg1 = events * avg_cov * mult;
+        double avg2 = events * avg_cov * (mult + 1);
+        double sigma21 = sigma2 * mult * events;
+        double sigma22 = sigma2 * (mult + 1) * events;
+        double observed_coverage = cov * events;
+//        return log(sigma21 / sigma22) / 2 - ((observed_coverage - avg2) * (observed_coverage - avg2) / sigma22 - (observed_coverage - avg1) * (observed_coverage - avg1) / sigma21) / 2;
+        return log(mult / (mult + 1)) / 2 - ((cov - avg_cov * (mult + 1)) * (cov - avg_cov * (mult + 1)) / (mult + 1) - (cov - avg_cov * mult) * (cov - avg_cov * mult)  / mult) *events / 2 / sigma2;
+
+    }
 };
 
 std::vector<const dbg::Edge *> GetOutgoing(const dbg::Vertex &start, double min_cov) {
@@ -49,6 +111,18 @@ const dbg::Edge *SeekCovered(const dbg::Vertex &start, double min_cov) {
     return nullptr;
 }
 
+DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const RecordStorage &recordStorage, bool diploid) {
+    std::vector<size_t> observations;
+    for(dbg::Vertex &v : dbg.vertices()) {
+        if(v.inDeg() != 1 || v.outDeg() != 2)
+            continue;
+        double min_cov= std::min(v[0].getCoverage(), v[1].getCoverage());
+        if(min_cov < 4 || min_cov * 10 < v.rc()[0].getCoverage())
+            continue;
+        observations.emplace_back(size_t(min_cov));
+    }
+    return {observations, 5000};
+}
 //DatasetParameters EstimateDatasetParameters(const dbg::SparseDBG &dbg) {
 //    size_t num_votes = 1000;
 //    size_t hap_vote_len = 20000;

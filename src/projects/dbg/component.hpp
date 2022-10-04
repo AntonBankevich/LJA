@@ -37,6 +37,7 @@ namespace dbg {
         size_t countTips() const;
         size_t isAcyclic() const;
         size_t realCC() const;
+        std::vector<Vertex *> topSort() const;
     };
 
     class AbstractSplitter {
@@ -96,4 +97,5 @@ namespace dbg {
         }
         return Component(graph, v.begin(), v.end());
     }
+
 }
