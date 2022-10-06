@@ -25,6 +25,7 @@ namespace nano {
                     const  std::experimental::filesystem::path &ont_reads,
                     const  std::experimental::filesystem::path &unique_edges,
                     const size_t threads,
+                    const bool use_nuc,
                     const std::experimental::filesystem::path &dir){
             const unsigned int BATCH_SIZE = 10000;
             io::SeqReader reader(ont_reads);
@@ -40,7 +41,7 @@ namespace nano {
             std::unordered_map<int, int> new_edges_map;
             const std::experimental::filesystem::path &input_extended_gfa = dir / "input_extended.gfa";
             mg.printEdgeGFA(input_extended_gfa);
-            logger.info() << "Vertex extension performed " << input_extended_gfa << std::endl;
+            //logger.info() << "Vertex extension performed " << input_extended_gfa << std::endl;
 
             std::unordered_map<std::string, Contig> batch;
             nano::ReadsAlignerGA reads_aligner(mg);
@@ -60,25 +61,25 @@ namespace nano {
             reads_aligner.Align(batch, input_extended_gfa, dir, threads, ++batch_num);
             batch.clear();
 
-            logger.info() <<  "Tip resolution\n";
-            nano::TipResolver tipResolver(mg);
-            for (int i = 1; i < batch_num + 1; ++ i) {
-                std::cerr << "Extract " << i << std::endl;
-                std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
-                        reads_aligner.ExtractPaths(dir, i);
-                std::cerr << "Extracted " << i << " " << alignments.size() << std::endl;
-                tipResolver.LoadPaths(alignments);
-                std::cerr << "Loaded " << i << std::endl;
-            }
-            std::unordered_map<int, int> removed_edges = tipResolver.ResolveWithPaths();
-            const std::experimental::filesystem::path &input_tipsresolved_gfa =
-                                                                    dir / "input_tipsresolved.gfa";
-            mg.printEdgeGFA(input_tipsresolved_gfa);
+            // logger.info() <<  "Tip resolution\n";
+            // nano::TipResolver tipResolver(mg);
+            // for (int i = 1; i < batch_num + 1; ++ i) {
+            //     std::cerr << "Extract " << i << std::endl;
+            //     std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
+            //             reads_aligner.ExtractPaths(dir, i);
+            //     std::cerr << "Extracted " << i << " " << alignments.size() << std::endl;
+            //     tipResolver.LoadPaths(alignments);
+            //     std::cerr << "Loaded " << i << std::endl;
+            // }
+            // std::unordered_map<int, int> removed_edges = tipResolver.ResolveWithPaths();
+            // const std::experimental::filesystem::path &input_tipsresolved_gfa =
+            //                                                         dir / "input_tipsresolved.gfa";
+            // mg.printEdgeGFA(input_tipsresolved_gfa);
 
-            logger.info() <<  "Tips resolved\n";
+            // logger.info() <<  "Tips resolved\n";
 
-            //std::unordered_map<int, int> removed_edges;
-            nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, removed_edges, true);
+            std::unordered_map<int, int> removed_edges;
+            nano::SGraphBuilder sgraph_builder(mg, unique_edges, new_edges_map, removed_edges, use_nuc);
             for (int i = 1; i < batch_num + 1; ++ i) {
                     std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments =
                             reads_aligner.ExtractPaths(dir, i);

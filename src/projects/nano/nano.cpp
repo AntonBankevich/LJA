@@ -8,7 +8,7 @@
 #include "nano/ont_graph_simplification.hpp"
 
 int main(int argc, char **argv) {
-    CLParser parser({"output-dir=", "unique-edges=", "graph=", "reads=", "threads=8"}, {},{"o=output-dir", "u=unique-edges", "g=graph", "t=threads"});
+    CLParser parser({"output-dir=", "unique-edges=", "graph=", "reads=", "threads=8", "nuc"}, {},{"o=output-dir", "u=unique-edges", "g=graph", "t=threads", "r=reads"});
     parser.parseCL(argc, argv);
 
     const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
@@ -25,11 +25,12 @@ int main(int argc, char **argv) {
     }
     StringContig::homopolymer_compressing = true;
     const size_t threads = std::stoi(parser.getValue("threads"));
+    bool use_nuc = parser.getCheck("nuc");
     const std::experimental::filesystem::path unique_edges(parser.getValue("unique-edges"));
     const std::experimental::filesystem::path ont_reads(parser.getValue("reads"));
     const std::experimental::filesystem::path graph(parser.getValue("graph"));
     logger << "Run ONTGraphSimplificator" << std::endl;
     nano::ONTGraphSimplificator ontGraphSimplificator;
-    ontGraphSimplificator.ResolveWithONT(logger, graph, ont_reads, unique_edges, threads, dir);
+    ontGraphSimplificator.ResolveWithONT(logger, graph, ont_reads, unique_edges, threads, use_nuc, dir);
     return 0;
 }

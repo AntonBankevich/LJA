@@ -22,7 +22,7 @@ void ReadsAlignerGA::Align(const std::unordered_map<std::string, Contig> &sequen
                           " -a " + string(output_dir / ("batch_" + std::to_string(batch_num) + ".gaf") ) +
                           " -x dbg -t " + std::to_string(threads);
     std::cerr << command << std::endl;
-//    std::system(command.c_str());
+    std::system(command.c_str());
 }
 
 std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::ExtractPaths(
@@ -41,8 +41,7 @@ std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::Extrac
         Contig contig = scontig.makeContig();
         sequences[contig.id] = contig;
     }
-    std::unordered_map<std::string, std::vector<GraphContig>> read_paths =
-                                        ExtractPathsWithTipsSaving(batch_gaf, sequences);
+    std::unordered_map<std::string, std::vector<GraphContig>> read_paths = ExtractBestPaths(batch_gaf, sequences);
     return read_paths;
 }
 
@@ -71,7 +70,7 @@ GraphContig ReadsAlignerGA::ExtractAlignment(const std::string &ln,
     return GraphContig(params, sequences.at(params[0]));
 }
 
-std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::ExtractPaths(const std::experimental::filesystem::path &batch_gaf,
+std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::ExtractBestPaths(const std::experimental::filesystem::path &batch_gaf,
                                                                           const std::unordered_map<std::string, Contig> &sequences) {
     std::ifstream is_cut;
     is_cut.open(batch_gaf);

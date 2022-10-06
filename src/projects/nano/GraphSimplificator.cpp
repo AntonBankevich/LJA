@@ -151,9 +151,9 @@ void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
                           return a.second > b.second;
                       });
             std::cerr << "Transition" << std::endl;
-            for (auto trans: transitions) {
-                std::cerr << trans.first.first << " " << trans.first.second << " " << trans.second << std::endl;
-            }
+            // for (auto trans: transitions) {
+            //     std::cerr << trans.first.first << " " << trans.first.second << " " << trans.second << std::endl;
+            // }
             if (transitions[0].second == 0) continue;
 
             int j = 1;
@@ -162,7 +162,7 @@ void GraphSimplificator::ResolveWithMajor(multigraph::MultiGraph &mg) {
                     || transitions[0].first.second == transitions[j].first.second))
                 ++j;
 
-            if (j < transitions.size()) {
+            if (j < transitions.size() && transitions[j].second > 0) {
                 std::pair<int, int> best_transition = transitions[0].first;
                 chains_[best_transition.first] = best_transition.second;
                 std::cerr << "First " << best_transition.first << "->" << best_transition.second << std::endl;

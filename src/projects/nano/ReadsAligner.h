@@ -32,7 +32,7 @@ namespace nano {
 
         GraphContig ExtractAlignment(const std::string &ln,
                                      const std::unordered_map<std::string, Contig> &sequences);
-        std::unordered_map<std::string, GraphContig> ExtractPaths(const std::experimental::filesystem::path &batch_gaf,
+        std::unordered_map<std::string, std::vector<GraphContig>> ExtractBestPaths(const std::experimental::filesystem::path &batch_gaf,
                                                                   const std::unordered_map<std::string, Contig> &sequences);
 
         const multigraph::MultiGraph &mg_;
