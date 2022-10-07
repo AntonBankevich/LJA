@@ -33,10 +33,10 @@ int main(int argc, char **argv) {
     size_t k = std::stoull(parser.getValue("k-mer-size"));
     const size_t w = std::stoull(parser.getValue("window"));
     const size_t threads = std::stoull(parser.getValue("threads"));
-    size_t repeat_length = std::stoull(parser.getValue("repeat_length"));
+    size_t repeat_length = std::stoull(parser.getValue("repeat-length"));
     hashing::RollingHash hasher(k, std::stoi(parser.getValue("base")));
     io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("ref"));
-    SparseDBG dbg = DBGPipeline(logger, hasher, w, ref_lib, dir, threads);
+    SparseDBG dbg = DBGPipeline(logger, hasher, w, ref_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string());
     dbg.fillAnchors(w, logger, threads);
 //    sdbg.printStats(logger);
     io::SeqReader reader(ref_lib);
@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
     std::unordered_map<Edge *, size_t> mults;
     for(StringContig scontig : reader) {
         Sequence seq = scontig.makeSequence();
+        if(seq.size() < k + w) continue;
         for(Segment<Edge> seg : aligner.align(seq)) {
             mults[&seg.contig()] += 1;
             mults[&seg.contig().rc()] += 1;
@@ -53,6 +54,7 @@ int main(int argc, char **argv) {
     size_t cnt = 0;
     for(StringContig scontig : reader) {
         Sequence seq = scontig.makeSequence();
+        if(seq.size() < k + w) continue;
         size_t len = 0;
         for(Segment<Edge> seg : aligner.align(seq)) {
             size_t mult = mults[&seg.contig()];
