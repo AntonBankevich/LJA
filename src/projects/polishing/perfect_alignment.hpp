@@ -53,14 +53,19 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
     hashing::RollingHash hasher(k, 239);
     std::unordered_map<hashing::htype, std::vector<std::pair<Contig *, size_t>>, hashing::alt_hasher<hashing::htype>> position_map;
     for(Contig &contig : contigs) {
+        std::cout<< contig.getId() << " " << contig.size() << endl;
+         std::cout  <<w << " " << k << endl;
+
         for(size_t pos = 1; pos + k <= contig.size(); pos += w) {
             hashing::htype h = hasher.hash(contig.seq, pos);
             position_map[h].emplace_back(&contig, pos);
         }
     }
+    std::cout << "uff\n";
     ParallelRecordCollector<AlignmentRecord> result(threads);
     std::function<void(size_t,StringContig)> task = [&result, &hasher, &position_map, K](size_t num, StringContig contig) {
         Contig read = contig.makeContig();
+        std::cout << read.getId() << " "<<read.size() << endl;
         std::vector<std::pair<Contig *, int>> res;
         hashing::KWH kwh(hasher, read.seq, 0);
         while (true) {
@@ -74,6 +79,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
                 break;
             kwh = kwh.next();
         }
+        std::cout << " hashed\n"
         std::sort(res.begin(), res.end());
         res.erase(std::unique(res.begin(), res.end()), res.end());
         for(std::pair<Contig *, int> &al : res) {

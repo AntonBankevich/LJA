@@ -17,3 +17,4 @@ print ("Name,Colour")
 for line in open(binning):
     arr = line.split()
     print (f'{arr[0]},{color[arr[1]]}')
+

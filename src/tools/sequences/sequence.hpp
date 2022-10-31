@@ -196,6 +196,10 @@ public:
     }
 
     unsigned char operator[](const size_t index) const {
+        if (index >= size_){
+            std::cout << "CRASH " << index << " " <<size_;
+            std::cout.flush();
+        }
         VERIFY(index < size_);
         const ST *bytes = data_->data();
         if (rtl_) {
