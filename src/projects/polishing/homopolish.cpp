@@ -192,6 +192,7 @@ struct ContigInfo {
         bool only_good = true;
         if (good_cons < 5) {
             only_good = false;
+#pragma OMP critical
             logger.debug() << "Few good consensus seqs: " << good_cons << " of " << all_len.size() << endl;
         }
 
@@ -604,15 +605,12 @@ struct AssemblyInfo {
 #pragma omp critical
                 for (size_t i = MATCH_EPS; i + MATCH_EPS< (*it).length; i++) {
                     size_t coord = cont_coords + aln.alignment_start + i;
-
-
 //                    logger.info() << current_contig.sequence[coord]<< compressed_read[read_coords + i] << endl;
                     if (current_contig.sequence[coord] == nucl(compressed_read[read_coords + i]) && current_contig.quantity[coord] != 255 && current_contig.sum[coord] < 60000) {
                         {
                             current_contig.quantity[coord]++;
                             current_contig.sum[coord] += quantities[read_coords + i];
                             if (current_contig.amounts[coord][0] < ContigInfo::VOTES_STORED)
-//#pragma omp critical
                                 current_contig.amounts[coord][++current_contig.amounts[coord][0]] = quantities[
                                         read_coords + i];
                         }
@@ -634,7 +632,6 @@ struct AssemblyInfo {
                             cur_complex_coord = complex_regions_iter->first;
                     }
                     if (coord == complex_fragment_finish) {
-//#pragma omp critical
                         current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, uncompressed_read_seq.str(), compressed_read_coords));
                         complex_fragment_finish = -1;
                     } else if (coord > complex_fragment_finish) {
@@ -646,8 +643,10 @@ struct AssemblyInfo {
                 cont_coords += (*it).length;
             }
         }
-        if (matches < mismatches * 3)
+        if (matches < mismatches * 3) {
+#pragma OMP critical
             logger.debug()<< "Too many mismatches in a read " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
+        }
     }
 
     void processBatch(logging::Logger &logger, vector<string>& batch, vector<AlignmentInfo>& alignments){

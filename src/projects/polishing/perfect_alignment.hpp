@@ -79,7 +79,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
                 break;
             kwh = kwh.next();
         }
-        std::cout << " hashed\n"
+        std::cout << " hashed\n";
         std::sort(res.begin(), res.end());
         res.erase(std::unique(res.begin(), res.end()), res.end());
         for(std::pair<Contig *, int> &al : res) {
