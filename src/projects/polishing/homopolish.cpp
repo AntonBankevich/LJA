@@ -268,7 +268,7 @@ struct ContigInfo {
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
                 if (check == "TOO SHORT") {
                     consensus = sequence.substr(complex_regions[cur_complex_ind].first, complex_regions[cur_complex_ind].first);
-                    logger.info() << " Replaced empty string with " << consensus.length() << " nucleo of original string "; 
+                    logger.info() << " Replaced empty string with " << consensus.length() << " nucleo of original string \n"; 
                 }
                 ss << consensus;
  //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;

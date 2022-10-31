@@ -65,7 +65,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
     ParallelRecordCollector<AlignmentRecord> result(threads);
     std::function<void(size_t,StringContig)> task = [&result, &hasher, &position_map, K](size_t num, StringContig contig) {
         Contig read = contig.makeContig();
-        std::cout << read.getId() << " "<<read.size() << endl;
+//        std::cout << read.getId() << " "<<read.size() << endl;
         std::vector<std::pair<Contig *, int>> res;
         hashing::KWH kwh(hasher, read.seq, 0);
         while (true) {
