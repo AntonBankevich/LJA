@@ -265,8 +265,12 @@ struct ContigInfo {
         for (size_t i = 0; i < len; ) {
             if (!complex_regions.empty() && complex_regions[cur_complex_ind].first == i ) {
                 consensus = complex_strings[i][complex_strings[i].size() - 1];
-                ss << consensus;
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
+                if (check == "TOO SHORT") {
+                    consensus = sequence.substr(complex_regions[cur_complex_ind].first, complex_regions[cur_complex_ind].first);
+                    logger.info() << " Replaced empty string with " << consensus.length() << " nucleo of original string "; 
+                }
+                ss << consensus;
  //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
                 if (!check.empty()){
                     logger.debug() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
@@ -311,7 +315,7 @@ struct ContigInfo {
                 i++;
             }
         }
-        logger.trace() <<"Contig " << name << " uncompressed length: " << sequence.length() << " processed." << endl;
+        logger.trace() <<"Contig " << name << " compressed length: " << sequence.length() << " processed." << endl;
         logger.trace() << "Zero covered (after filtering) " << zero_covered << endl;
 //Constants;
         for (size_t i = 0; i < 20; i++) {
