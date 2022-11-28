@@ -342,7 +342,7 @@ namespace dbg {
         return alignments_file;
     }
 
-    SparseDBG LoadDBGFromFasta(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
+    SparseDBG LoadDBGFromEdgeSequences(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
         logger.info() << "Loading graph from fasta" << std::endl;
         io::SeqReader reader(lib);
         ParallelRecordCollector<Sequence> sequences(threads);

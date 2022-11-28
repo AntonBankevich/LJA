@@ -2,6 +2,7 @@
 
 #include "common/oneline_utils.hpp"
 #include "common/output_utils.hpp"
+#include "common/string_utils.hpp"
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
 #include "common/verify.hpp"
@@ -196,7 +197,7 @@ public:
     }
 
     unsigned char operator[](const size_t index) const {
-        VERIFY(index < size_);
+        VERIFY_MSG(index < size_, itos(index) + " " + itos(size_));
         const ST *bytes = data_->data();
         if (rtl_) {
             size_t i = from_ + size_ - 1 - index;
@@ -513,7 +514,7 @@ public:
     }
 
     unsigned char operator[](size_t index) const {
-        VERIFY(index < size_);
+        VERIFY_MSG(index < size_, itos(index) + " " + itos(size_));
         index += left_;
         size_t cur = 0;
         while(cur < sequences_.size() && index >= sequences_[cur].size()) {

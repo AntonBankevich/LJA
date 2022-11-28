@@ -70,7 +70,8 @@ CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &d
 
     if(debug)
         DrawSplit(Component(dbg), dir / "split");
-    dbg.printFastaOld(dir / "final_dbg.fasta");
+//    dbg.printFastaOld(dir / "final_dbg.fasta");
+    printGFA(dir / "final_dbg.gfa", Component(dbg), true);
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     std::experimental::filesystem::path res;
     res = dir / "corrected_reads.fasta";

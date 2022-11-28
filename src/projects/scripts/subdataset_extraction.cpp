@@ -53,7 +53,8 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(parser.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
-                    dbg::LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads); //Create dbg
+                         dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger,
+                                                       threads); //Create dbg
     dbg.fillAnchors(w, logger, threads);// Creates index of edge k-mers
     size_t extension_size = 100000;
     ReadLogger readLogger(threads, dir/"read_log.txt");

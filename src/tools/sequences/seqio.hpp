@@ -117,17 +117,24 @@ namespace io {
                     while(stream->peek() != EOF) {
                         std::string line;
                         std::getline(*stream, line);
+                        if(line.empty()) {
+                            break;
+                        }
                         trim(line);
                         if (!line.empty() && line[0] != 'L') {
                             if(line[0] == 'S') {
                                 size_t pos = line.find('\t', 2);
-                                next = {line.substr(pos + 1, line.size() - pos - 1), line.substr(2, pos - 2)};
-                                break;
+                                size_t pos2 = line.find('\t', pos + 1);
+                                if(pos2 == size_t(-1))
+                                    pos2 = line.size();
+                                next = {line.substr(pos + 1, pos2 - pos - 1), line.substr(2, pos - 2)};
+                                choose_next_pos(0);
+                                cur_start = 0;
+                                return;
                             }
-                        } else {
-                            nextFile();
                         }
                     }
+                    nextFile();
                     continue;
                 }
                 std::string id, seq;
@@ -180,7 +187,8 @@ namespace io {
                     std::cerr << "Error: file does not exist " << file_name << std::endl;
                 }
                 VERIFY(std::experimental::filesystem::is_regular_file(file_name));
-                if(endsWith(file_name, "gfa")) {
+                gfa = endsWith(file_name, "gfa");
+                if(gfa) {
                     stream = new std::ifstream(file_name);
                     fastq = false;
                 } else {

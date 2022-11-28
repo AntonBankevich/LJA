@@ -132,8 +132,10 @@ std::string constructMessage() {
 //based on presence of trio data
 ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) {
     std::vector<std::string> input_types = {"reads", "paths", "ref", "parental", "maternal", "pseudo_reads"};
-    CLParser input_parser({{"noec"}, input_types, ""}, {}, {});
+    CLParser input_parser({{"noec", "dimer-compress=32,32,1"}, input_types, ""}, {}, {});
     AlgorithmParameterValues input_values = input_parser.parseCL(command_line, false);
+    StringContig::homopolymer_compressing = true;
+    StringContig::SetDimerParameters(input_values.getValue("dimer-compress"));
     bool noec = input_values.getCheck("noec");
     bool trio = !input_values.getListValue("parental").empty();
     ComplexStage lja(input_types);
@@ -148,7 +150,7 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
         correctionStage1.bindInput("pseudo_reads", "", "pseudo_reads");
         correctionStage1.bindInput("paths", "", "paths");
         SubstageRun &correctionStage2 = lja.addStage(TopologyCorrectionStage(), "TopologyBasedCorrection");
-        correctionStage2.bindInput("reads", "CoverageBasedCorrection", "reads");
+        correctionStage2.bindInput("reads", "CoverageBasedCorrection", "corrected_reads");
         correctionStage2.bindInput("pseudo_reads", "CoverageBasedCorrection", "pseudo_reads");
         correctionStage2.bindInput("paths", "", "paths");
     };

@@ -49,7 +49,6 @@ private:
     std::string name;
     std::string prefix;
     bool finished = false;
-    std::experimental::filesystem::path report = {};
     std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> inputBindings = {};
     std::unordered_map<std::string, std::experimental::filesystem::path> output = {};
 
@@ -70,8 +69,7 @@ public:
     std::string verifyOutput(const std::unordered_map<std::string, std::experimental::filesystem::path> &loaded_output) const;
     std::unordered_map<std::string, std::experimental::filesystem::path> readOutput(const std::experimental::filesystem::path &report_candidate) const;
     bool loadAttempt(logging::Logger &logger, const std::experimental::filesystem::path &dir);
-    std::unordered_map<std::string, std::experimental::filesystem::path>
-    runSubstage(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, bool debug, const AlgorithmParameterValues &parameterValues);
+    void runSubstage(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, bool debug, const AlgorithmParameterValues &parameterValues);
 };
 
 class ComplexStage : public Stage {

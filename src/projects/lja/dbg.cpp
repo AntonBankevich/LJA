@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
     std::string dbg_file = parser.getValue("dbg");
     SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
-                    LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+                    LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
     bool calculate_alignments = parser.getCheck("initial-correct") ||
             parser.getCheck("mult-correct") || parser.getCheck("print-alignments") || parser.getCheck("split");

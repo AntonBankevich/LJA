@@ -29,7 +29,7 @@ namespace dbg {
     }
 
     SparseDBG
-    LoadDBGFromFasta(const io::Library &lib, hashing::RollingHash &hasher, logging::Logger &logger, size_t threads);
+    LoadDBGFromEdgeSequences(const io::Library &lib, hashing::RollingHash &hasher, logging::Logger &logger, size_t threads);
 
     template<class Iterator>
     void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,

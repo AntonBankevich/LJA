@@ -49,7 +49,8 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(parser.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
-                    dbg::LoadDBGFromFasta({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+                         dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger,
+                                                       threads);
     size_t radius = std::stoull(parser.getValue("radius"));
     dbg.fillAnchors(100, logger, threads);
     radius -= std::min(radius, k);

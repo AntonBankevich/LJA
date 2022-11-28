@@ -6,7 +6,7 @@
 #include <string>
 #include <unordered_set>
 
-std::unordered_map<std::string, std::experimental::filesystem::path>
+void
 SubstageRun::runSubstage(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, bool debug, const AlgorithmParameterValues &parameterValues) {
     logger.stage() << "Starting stage " << name << std::endl;
     timespec start{};
@@ -29,14 +29,13 @@ SubstageRun::runSubstage(logging::Logger &logger, size_t threads, const std::exp
     clock_gettime(CLOCK_MONOTONIC, &finish);
     auto worktime = size_t(double(finish.tv_sec - start.tv_sec) + double(finish.tv_nsec - start.tv_nsec) / 1000000000.0);
     std::ofstream os;
-    os.open(report);
+    os.open(dir / "report.txt");
     for(auto &it : output) {
         os << it.first << " " << it.second.string() <<"\n";
     }
     os << "Finished stage " << name << " in " << (itos(worktime / 60 % 60, 2)) << " minutes\n";
     os.close();
     logger.info() << "Finished stage " << name << std::endl;
-    return std::move(output);
 }
 
 void SubstageRun::bindInput(const string &input_name, const string &other_stage_name, const string &output_name) {
@@ -48,6 +47,7 @@ AlgorithmParameterValues SubstageRun::readParameterValues(const AlgorithmParamet
 
 std::experimental::filesystem::path SubstageRun::getResult(const string &output_name) const {
     VERIFY(finished);
+    VERIFY_MSG(output.find(output_name) != output.end(), "Request for unknown output named " + output_name);
     return output.find(output_name)->second;
 }
 
@@ -75,12 +75,12 @@ std::string SubstageRun::verifyOutput(
         const std::unordered_map<std::string, std::experimental::filesystem::path> &loaded_output) const {
     std::stringstream result;
     for(const std::string &output_name : stage->getExpectedOutput()) {
-        if(loaded_output.find(output_name) == output.end() || !std::experimental::filesystem::is_regular_file(loaded_output.find(output_name)->second)) {
-            result << "Stage " + name + " error: output value " + output_name + "was not reported\n";
+        if(loaded_output.find(output_name) == output.end()) {
+            result << "Stage " + name + " error: output value " + output_name + " was not reported\n";
+        } else if(!std::experimental::filesystem::is_regular_file(loaded_output.find(output_name)->second)) {
+            result << "Stage " + name + " error: output file " << loaded_output.find(output_name)->second << " containing output named " <<
+                            output_name << " does not exist or is corrupted\n";
         }
-    }
-    if(!std::experimental::filesystem::is_regular_file(report)) {
-        result << "Stage " + name + "has invalid report\n";
     }
     return result.str();
 }
@@ -116,7 +116,6 @@ bool SubstageRun::loadAttempt(logging::Logger &logger, const std::experimental::
     }
     output = loaded_output;
     logger.info() << "Successfully loaded results of stage " << name << std::endl;
-    report = report_candidate;
     finished = true;
     return true;
 }
@@ -138,7 +137,7 @@ io::Library ComplexStage::getOutput(const std::string &stage_name, const std::st
         VERIFY_MSG(input_values.find(parameter_name) != input_values.end(), "Unexpected superstage input parameter name: " + parameter_name);
         return input_values.find(parameter_name)->second;
     } else {
-        VERIFY_MSG(stages.find(stage_name) != stages.end(), "Unexpected input parameter name: " + stage_name + " " + parameter_name);
+        VERIFY_MSG(stages.find(stage_name) != stages.end(), "Unexpected stage name: " + stage_name);
         return {stages.find(stage_name)->second.getResult(parameter_name)};
     }
 }
