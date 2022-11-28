@@ -48,7 +48,7 @@ HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, multigraph::MultiGra
 }
 
 void HaplotypeRemover::deleteEdgeHaplo(int eid) {
-    logger_.debug() << "Removing " << eid << endl;
+    logger_.debug() << "Removing " << eid <<std::endl;
     mg.internalRemoveEdge(eid);
     return;
 }
@@ -68,14 +68,14 @@ void HaplotypeRemover::compressAllVertices() {
             for (size_t i = 1; i < p.second.size(); i++) {
                 if (haplotypes[p.first].haplotype != haplotypes[p.second[i]].haplotype) {
                     logger_.trace() << "Merging different haplotypes " << haplotypes[p.first].label <<
-                                    " " << haplotypes[p.second[i]].label << endl;
+                                    " " << haplotypes[p.second[i]].label <<std::endl;
                 }
                 haplotypes[p.first].appendKmerStats(haplotypes[p.second[i]]);
             }
             all_count ++;
         }
     }
-    logger_.info() << "Compressing all " << all_count << endl;
+    logger_.info() << "Compressing all " << all_count <<std::endl;
 }
 void HaplotypeRemover::cleanGraph() {
     bool changed = true;
@@ -84,7 +84,7 @@ void HaplotypeRemover::cleanGraph() {
     size_t iter = 0;
     while (changed) {
         changed = false;
-        logger_.info() << "Iteration " << ++iter << " of graph cleaning." << endl;
+        logger_.info() << "Iteration " << ++iter << " of graph cleaning." <<std::endl;
         std::vector<int> eids;
         for (auto &p: mg.edges) {
             eids.push_back(p.first);
@@ -92,7 +92,7 @@ void HaplotypeRemover::cleanGraph() {
         for (auto eid: eids){
             if (mg.edges.find(eid) == mg.edges.end())
                 continue;
-            logger_.debug() << "considering " << eid << " label " << mg.edges[eid].getLabel() << endl;
+            logger_.debug() << "considering " << eid << " label " << mg.edges[eid].getLabel() <<std::endl;
             if (mg.edges[eid].isTip()) {
                 logger_.debug() << "is being deleted as tip\n";
                 if (mg.edges[eid].size() < MAX_TIP_LENGTH) {
@@ -121,7 +121,7 @@ void HaplotypeRemover::cleanGraph() {
         }
         compressAllVertices();
     }
-    logger_.info() << "Deleted tips "<< tips << " Bulges " << bulges << endl;
+    logger_.info() << "Deleted tips "<< tips << " Bulges " << bulges <<std::endl;
 }
 
 std::unordered_map<std::string, std::string> HaplotypeRemover::getBulgeLabels() {
@@ -209,21 +209,21 @@ void HaplotypeRemover::removeHaplotype() {
                     removed_len += mg.edges[eid].size();
                     deleteEdgeHaplo(eid);
 
-                    logger_.trace() << "removing " << eid  << " label " << label << endl;
+                    logger_.trace() << "removing " << eid  << " label " << label <<std::endl;
                     removed ++;
                     changed = true;
                 } else { 
-                    logger_.trace() << "skipping edge label" << label <<" "<< haplotypes[label].haplotype << endl;
+                    logger_.trace() << "skipping edge label" << label <<" "<< haplotypes[label].haplotype <<std::endl;
                 }
             } else {
-                logger_.trace() << "skipping edge NOT FOUND label" << label << endl;
+                logger_.trace() << "skipping edge NOT FOUND label" << label <<std::endl;
                 
             }
         }
         compressAllVertices();
     }
     logger_.info() << "Saved " << bridges << "bridges\n";
-    logger_.info() << "Removed " << removed << " edges of haplo " << haplotype_  << " total len " << removed_len << endl;
+    logger_.info() << "Removed " << removed << " edges of haplo " << haplotype_  << " total len " << removed_len <<std::endl;
 }
 
 void HaplotypeRemover::process() {

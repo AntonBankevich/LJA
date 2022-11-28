@@ -8,6 +8,7 @@
 #include <utility>
 #include <numeric>
 #include <wait.h>
+#include <malloc.h>
 #include "unistd.h"
 
 
@@ -292,20 +293,22 @@ void processRecords(I begin, I end, logging::Logger &logger, size_t threads, std
 }
 
 inline void runInFork(const std::function<void()>& f) {
-    pid_t p = fork();
-    if (p < 0) {
-        std::cout << "Fork failed" << std::endl;
-        exit(1);
-    }
-    if(p == 0) {
-        f();
-        exit(0);
-    } else {
-        int status = 0;
-        waitpid(p, &status, 0);
-        if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
-            std::cout << "Child process crashed" << std::endl;
-            exit(1);
-        }
-    }
+    f();
+    malloc_trim(0);
+//    pid_t p = fork();
+//    if (p < 0) {
+//        std::cout << "Fork failed" << std::endl;
+//        exit(1);
+//    }
+//    if(p == 0) {
+//        f();
+//        exit(0);
+//    } else {
+//        int status = 0;
+//        waitpid(p, &status, 0);
+//        if (WEXITSTATUS(status) || WIFSIGNALED(status)) {
+//            std::cout << "Child process crashed" << std::endl;
+//            exit(1);
+//        }
+//    }
 }

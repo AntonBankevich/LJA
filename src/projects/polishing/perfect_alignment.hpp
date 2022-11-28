@@ -50,7 +50,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
     logger.info() << "Aligning reads back to assembly" << std::endl;
     size_t k = K / 2;
     size_t w = K - k;
-    hashing::RollingHash hasher(k, 239);
+    hashing::RollingHash hasher(k);
     std::unordered_map<hashing::htype, std::vector<std::pair<Contig *, size_t>>, hashing::alt_hasher<hashing::htype>> position_map;
     for(Contig &contig : contigs) {
         for(size_t pos = 1; pos + k <= contig.size(); pos += w) {

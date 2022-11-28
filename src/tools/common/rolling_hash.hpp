@@ -25,9 +25,10 @@ namespace hashing {
         htype hbase;
         htype kpow;
         htype inv;
+        static const htype HBASE = 239;
     public:
 
-        RollingHash(size_t _k, htype _hbase) : k(_k), hbase(_hbase),
+        explicit RollingHash(size_t _k, htype _hbase = HBASE) : k(_k), hbase(_hbase),
                                                kpow(pow(hbase, k - 1)),
                                                inv(pow(hbase, (htype(1u) << (sizeof(htype) * 8u - 1u)) - 1u)) {
             VERIFY(inv * hbase == htype(1));

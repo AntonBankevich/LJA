@@ -1,13 +1,6 @@
-//
-// Created by anton on 23.01.2020.
-//
-
 #pragma once
 #include <iostream>
 #include <vector>
-
-using std::cout;
-using std::endl;
 
 template<class U, class V>
 std::ostream& operator<<(std::ostream& out, const std::pair<U, V>& item) {

@@ -22,7 +22,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
             tips.emplace_back(&edge);
     }
     ParallelRecordCollector<std::pair<hashing::htype, size_t>> candidates(threads);
-    hashing::RollingHash smallHasher(smallK, 239);
+    hashing::RollingHash smallHasher(smallK);
     omp_set_num_threads(threads);
     logger.trace() << "Collecting k-mers from tips" << std::endl;
 #pragma omp parallel for default(none) shared(tips, candidates, dbg, smallHasher)

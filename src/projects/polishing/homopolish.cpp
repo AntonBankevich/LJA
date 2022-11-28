@@ -173,7 +173,7 @@ struct ContigInfo {
         spoa::Graph graph{};
         if (s.size() == 0) {
 #pragma OMP critical
-            logger.trace() << "WARNING: zero strings were provided for consensus counting" << endl;
+            logger.trace() << "WARNING: zero strings were provided for consensus counting" <<std::endl;
             return "";
         }
         size_t cov = 0;
@@ -192,7 +192,7 @@ struct ContigInfo {
         bool only_good = true;
         if (good_cons < 5) {
             only_good = false;
-            logger.debug() << "Few good consensus seqs: " << good_cons << " of " << all_len.size() << endl;
+            logger.debug() << "Few good consensus seqs: " << good_cons << " of " << all_len.size() <<std::endl;
         }
 
         for (const auto& it : s) {
@@ -257,7 +257,7 @@ struct ContigInfo {
             auto consensus = MSAConsensus(complex_strings[start_pos], logger);
             complex_strings[start_pos].push_back(consensus);
         }
-        logger.debug() << " Consenus for contig " << name << " calculated "<< endl;
+        logger.debug() << " Consenus for contig " << name << " calculated "<<std::endl;
         string consensus;
 
 
@@ -266,22 +266,22 @@ struct ContigInfo {
                 consensus = complex_strings[i][complex_strings[i].size() - 1];
                 ss << consensus;
                 auto check = checkMSAConsensus(consensus, complex_strings[i]);
- //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() << endl << "At position " <<start_pos << endl;
+ //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() <<std::endl << "At position " <<start_pos <<std::endl;
                 if (!check.empty()){
-                    logger.debug() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<< endl;
-                    logger.debug() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second << endl;
+                    logger.debug() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<<std::endl;
+                    logger.debug() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second <<std::endl;
                     std::stringstream debug_l;
                     debug_l << "lengths: ";
                     for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
                         debug_l << complex_strings[i][j].length() << " ";
                     }
-                    debug_l <<" : " << consensus.length() << endl;
+                    debug_l <<" : " << consensus.length() <<std::endl;
                     logger.debug() << debug_l.str();
                     for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {
-                        logger.debug() << complex_strings[i][j] << endl;
+                        logger.debug() << complex_strings[i][j] <<std::endl;
                     }
-                    logger.debug() << endl;
-                    logger.debug() << consensus << endl;
+                    logger.debug() <<std::endl;
+                    logger.debug() << consensus <<std::endl;
                 }
                 i += complex_regions[cur_complex_ind].second;
                 if (cur_complex_ind + 1< complex_regions.size())
@@ -310,11 +310,11 @@ struct ContigInfo {
                 i++;
             }
         }
-        logger.trace() <<"Contig " << name << " uncompressed length: " << sequence.length() << " processed." << endl;
-        logger.trace() << "Zero covered (after filtering) " << zero_covered << endl;
+        logger.trace() <<"Contig " << name << " uncompressed length: " << sequence.length() << " processed." <<std::endl;
+        logger.trace() << "Zero covered (after filtering) " << zero_covered <<std::endl;
 //Constants;
         for (size_t i = 0; i < 20; i++) {
-            logger.debug() << i << " " << quantities[i] << endl;
+            logger.debug() << i << " " << quantities[i] <<std::endl;
         }
         return ss.str();
     }
@@ -340,7 +340,7 @@ struct AssemblyInfo {
         for (const auto& contig: assembly) {
 //TODO switch to Contig()
             contigs.emplace(contig.id, ContigInfo(contig.seq.str(), contig.id));
-            logger.debug() << contig.id << endl;
+            logger.debug() << contig.id <<std::endl;
         }
         compression_length= dicompress;
     }
@@ -391,7 +391,7 @@ struct AssemblyInfo {
     }
 
     string uncompress (size_t from, size_t to, const string &s) {
-//        logger.info() << from << " " << to << " " << s.length() << endl;
+//        logger.info() << from << " " << to << " " << s.length() <<std::endl;
         size_t real_from = getUncompressedPos(s, from);
 //can be optimised
         size_t real_to = getUncompressedPos(s, to);
@@ -400,7 +400,7 @@ struct AssemblyInfo {
     }
 
     string uncompressCoords (size_t from, size_t to, const string &s, const vector<size_t> & coords) {
-//        logger.info() << from << " " << to << " " << s.length() << endl;
+//        logger.info() << from << " " << to << " " << s.length() <<std::endl;
         size_t real_from = coords[from];
 //can be optimised
         size_t real_to = coords[to];
@@ -460,10 +460,10 @@ struct AssemblyInfo {
         while ((matched_l < strlen(read) * 0.9 || !(valid_cigar = verifyCigar(cigars, cur_bandwidth)))) {
 //Do we really need this?
             if (matched_l < 50) {
-                logger.debug() << aln.read_id << " ultrashort alignmnent, doing nothing" << endl;
-                logger.debug() <<str_cigars<< endl;
-//                logger.trace() << string(contig) << endl;
-//                logger.trace() << string (read) << endl;
+                logger.debug() << aln.read_id << " ultrashort alignmnent, doing nothing" <<std::endl;
+                logger.debug() <<str_cigars<<std::endl;
+//                logger.trace() << string(contig) <<std::endl;
+//                logger.trace() << string (read) <<std::endl;
                 break;
             } else {
 //We allow large indels now, so we'll have to increase bandwidth significantly to overcome them, otherwise iterative process will be stopped
@@ -474,15 +474,15 @@ struct AssemblyInfo {
                 if (cur_bandwidth > 260) {
                     break;
                 }
-                logger.debug() << aln.read_id << endl << str(cigars) << endl << "aln length " << aln.length()
+                logger.debug() << aln.read_id <<std::endl << str(cigars) <<std::endl << "aln length " << aln.length()
                                << " read length " << strlen(read)
-                               << " matched length " << matched_l << endl;
+                               << " matched length " << matched_l <<std::endl;
                 cigars = align_ksw(contig, read, 1, -5, 5, 2, cur_bandwidth);
                 size_t new_matched_len = matchedLength(cigars);
-                logger.debug() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth << endl
-                               << str(cigars) << endl;
+                logger.debug() << aln.read_id << " alignment replaced using bandwindth " << cur_bandwidth <<std::endl
+                               << str(cigars) <<std::endl;
                 if (new_matched_len <= matched_l && valid_cigar) {
-                    logger.debug() << aln.read_id << " alignmnent length did not improve after moving to bandwidth " << cur_bandwidth << endl;
+                    logger.debug() << aln.read_id << " alignmnent length did not improve after moving to bandwidth " << cur_bandwidth <<std::endl;
                     matched_l = new_matched_len;
                     break;
                 }
@@ -494,7 +494,7 @@ struct AssemblyInfo {
 
     string compressRead(const string& read, vector<size_t>& uncompressed_positions) {
 //TODO:: is it fast?
-//        logger.trace() << read << endl;
+//        logger.trace() << read <<std::endl;
         string res;
         size_t current_coord = 0;
         uncompressed_positions.resize(0);
@@ -528,12 +528,12 @@ struct AssemblyInfo {
                 current_coord ++;
             }
         }
-//        logger.trace() << res.str() << endl;
+//        logger.trace() << res.str() <<std::endl;
         return res;
     }
 
     void processReadPair (logging::Logger &logger, string& read, AlignmentInfo& aln) {
-//        logger.info() << read.id << endl;
+//        logger.info() << read.id <<std::endl;
         if (contigs.find(aln.contig_id) == contigs.end())
             return;
         Sequence uncompressed_read_seq (read);
@@ -548,18 +548,18 @@ struct AssemblyInfo {
         } else {
             compressed_read = compressRead(uncompressed_read_seq.str(), compressed_read_coords);
         }
-        logger.debug() << aln.read_id << " "<<  aln.alignment_start << " " << aln.alignment_end << endl;
+        logger.debug() << aln.read_id << " "<<  aln.alignment_start << " " << aln.alignment_end <<std::endl;
         ContigInfo& current_contig = contigs[aln.contig_id];
 //        compressed_read.erase(std::unique(compressed_read.begin(), compressed_read.end()), compressed_read.end());
         string contig_seq = current_contig.sequence.substr(aln.alignment_start , aln.alignment_end - aln.alignment_start);
         if (compressed_read.length() <= aln.read_start) {
-            logger.trace() << "Read " << aln.read_id << " alignment outside the read bounds" <<endl;
+            logger.trace() << "Read " << aln.read_id << " alignment outside the read bounds" << std::endl;
             return;
         }
         string read_seq = compressed_read.substr(aln.read_start, aln.read_end - aln.read_start);
         auto cigars = getFastAln(logger, aln, contig_seq.c_str(), read_seq.c_str());
         if (matchedLength(cigars) < 50) {
-            logger.debug()<< "Read " << aln.read_id << " not aligned " << endl;
+            logger.debug()<< "Read " << aln.read_id << " not aligned " <<std::endl;
             return;
         }
         int cur_ind = 0;
@@ -606,7 +606,7 @@ struct AssemblyInfo {
                     size_t coord = cont_coords + aln.alignment_start + i;
 
 
-//                    logger.info() << current_contig.sequence[coord]<< compressed_read[read_coords + i] << endl;
+//                    logger.info() << current_contig.sequence[coord]<< compressed_read[read_coords + i] <<std::endl;
                     if (current_contig.sequence[coord] == nucl(compressed_read[read_coords + i]) && current_contig.quantity[coord] != 255 && current_contig.sum[coord] < 60000) {
                         {
                             current_contig.quantity[coord]++;
@@ -638,7 +638,7 @@ struct AssemblyInfo {
                         current_contig.complex_strings[complex_id].push_back(uncompressCoords(complex_start, read_coords + i, uncompressed_read_seq.str(), compressed_read_coords));
                         complex_fragment_finish = -1;
                     } else if (coord > complex_fragment_finish) {
-                        logger.debug() << "Read " << aln.read_id << " missed fragment finish " << complex_fragment_finish << endl;
+                        logger.debug() << "Read " << aln.read_id << " missed fragment finish " << complex_fragment_finish <<std::endl;
                         complex_fragment_finish = -1;
                     }
                 }
@@ -647,7 +647,7 @@ struct AssemblyInfo {
             }
         }
         if (matches < mismatches * 3)
-            logger.debug()<< "Too many mismatches in a read " << aln.read_id << " matches/MM: " << matches << "/" << mismatches << endl;
+            logger.debug()<< "Too many mismatches in a read " << aln.read_id << " matches/MM: " << matches << "/" << mismatches <<std::endl;
     }
 
     void processBatch(logging::Logger &logger, vector<string>& batch, vector<AlignmentInfo>& alignments){
@@ -692,7 +692,7 @@ struct AssemblyInfo {
                 cur.id = split(cur.id)[0];
                 reads_count ++;
                 if (reads_count % 1000 == 0) {
-                    logger.trace() << "Processed " << reads_count << " original reads " << endl;
+                    logger.trace() << "Processed " << reads_count << " original reads " <<std::endl;
                 }
             }
             if (reads_over) {
@@ -705,10 +705,10 @@ struct AssemblyInfo {
                 cur_align = readAlignment(compressed_reads);
                 aln_count ++;
                 if (aln_count % BATCH_SIZE == 0) {
-                    logger.trace() << "Batch of size " <<BATCH_SIZE <<" created, processing" << endl;
+                    logger.trace() << "Batch of size " <<BATCH_SIZE <<" created, processing" <<std::endl;
                     processBatch(logger, contig_batch, align_batch);
 
-                    logger.trace() << "Processed " << aln_count << " compressed mappings " << endl;
+                    logger.trace() << "Processed " << aln_count << " compressed mappings " <<std::endl;
                     contig_batch.resize(0);
                     align_batch.resize(0);
                     //exit(0);
@@ -722,18 +722,18 @@ struct AssemblyInfo {
             cur_compressed = cur_align.read_id;
         }
         processBatch(logger, contig_batch, align_batch);
-        logger.trace() << "Processed final batch of " << align_batch.size() << " compressed reads " << endl;
+        logger.trace() << "Processed final batch of " << align_batch.size() << " compressed reads " <<std::endl;
         vector<Contig> res;
-        logger.info() << "Uncompressing homopolymers in contigs" << endl;
+        logger.info() << "Uncompressing homopolymers in contigs" <<std::endl;
         for (auto& contig: contigs){
-            logger.trace() << "Generating consensus for contig " << contig.first << endl;
+            logger.trace() << "Generating consensus for contig " << contig.first <<std::endl;
             res.emplace_back(Sequence(contig.second.GenerateConsensus(logger)), contig.first);
         }
         size_t total_zero_covered = 0;
         for (auto & contig: contigs) {
             total_zero_covered += contig.second.zero_covered;
         }
-        logger.info() << "Total zero covered nucleotides "  << total_zero_covered << endl;
+        logger.info() << "Total zero covered nucleotides "  << total_zero_covered <<std::endl;
         return std::move(res);
     }
 };

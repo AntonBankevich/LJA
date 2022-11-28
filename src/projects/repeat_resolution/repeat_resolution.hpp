@@ -57,7 +57,7 @@ class RepeatResolver {
 //        }
     }
 
-    void ResolveRepeats(logging::Logger &logger, size_t threads) {
+    std::unordered_map<std::string, std::experimental::filesystem::path> ResolveRepeats(logging::Logger &logger, size_t threads) {
         logger.info() << "Resolving repeats" << std::endl;
         logger.info() << "Constructing paths" << std::endl;
         RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
@@ -90,6 +90,7 @@ class RepeatResolver {
         std::vector<Contig> contigs = mdbg.ExportContigsAndGFA(
             dir/"assembly.hpc.fasta", dir/"mdbg.hpc.gfa", threads, logger);
         logger.info() << "Finished repeat resolution" << std::endl;
+        return {{"graph", dir/"mdbg.hpc.gfa"}, {"assembly", dir/"assembly.hpc.fasta"}};
     }
 };
 

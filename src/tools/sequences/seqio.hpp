@@ -113,6 +113,23 @@ namespace io {
                 return;
             }
             while (stream != nullptr){
+                if(gfa) {
+                    while(stream->peek() != EOF) {
+                        std::string line;
+                        std::getline(*stream, line);
+                        trim(line);
+                        if (!line.empty() && line[0] != 'L') {
+                            if(line[0] == 'S') {
+                                size_t pos = line.find('\t', 2);
+                                next = {line.substr(pos + 1, line.size() - pos - 1), line.substr(2, pos - 2)};
+                                break;
+                            }
+                        } else {
+                            nextFile();
+                        }
+                    }
+                    continue;
+                }
                 std::string id, seq;
                 std::getline(*stream, id);
                 std::getline(*stream, seq);
@@ -163,12 +180,17 @@ namespace io {
                     std::cerr << "Error: file does not exist " << file_name << std::endl;
                 }
                 VERIFY(std::experimental::filesystem::is_regular_file(file_name));
-                if (endsWith(file_name, ".gz")) {
-                    stream = new gzstream::igzstream(file_name.c_str());
-                    fastq = endsWith(file_name, "fastq.gz") or endsWith(file_name, "fq.gz");
-                } else {
+                if(endsWith(file_name, "gfa")) {
                     stream = new std::ifstream(file_name);
-                    fastq = endsWith(file_name, "fastq") or endsWith(file_name, "fq");
+                    fastq = false;
+                } else {
+                    if (endsWith(file_name, ".gz")) {
+                        stream = new gzstream::igzstream(file_name.c_str());
+                        fastq = endsWith(file_name, "fastq.gz") or endsWith(file_name, "fq.gz");
+                    } else {
+                        stream = new std::ifstream(file_name);
+                        fastq = endsWith(file_name, "fastq") or endsWith(file_name, "fq");
+                    }
                 }
                 ++file_it;
             }
@@ -178,6 +200,7 @@ namespace io {
         Library::const_iterator file_it;
         std::istream * stream{};
         bool fastq{};
+        bool gfa{};
         size_t min_read_size;
         size_t overlap;
         StringContig next{};

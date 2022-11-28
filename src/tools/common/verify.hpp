@@ -30,18 +30,29 @@ inline void print_stacktrace() {
     do {                                                         \
         if (!(expr)) {                                           \
             print_stacktrace();                                  \
-            assert(expr);                                             \
-            abort(); \
+            assert(expr);                                        \
+            abort();                                             \
         };                                                       \
     } while(0);
 
-#define VERIFY_MSG(expr, msg)                                             \
+#define VERIFY_MSG(expr, msg)                                    \
     do {                                                         \
-        if (!(expr)) {                                                \
-            std::cout << msg << std::endl;                        \
+        if (!(expr)) {                                           \
+            std::cout << msg << std::endl;                       \
             print_stacktrace();                                  \
-            assert(expr);                                             \
-            abort(); \
+            assert(expr);                                        \
+            abort();                                             \
+        };                                                       \
+    } while(0);
+
+#define VERIFY_ERROR_MSG(msg)                                    \
+    do {                                                         \
+        auto tmp = msg;                                          \
+        if (!(tmp.empty())) {                                    \
+            std::cout << tmp << std::endl;                       \
+            print_stacktrace();                                  \
+            assert(tmp.empty());                                 \
+            abort();                                             \
         };                                                       \
     } while(0);
 

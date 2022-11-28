@@ -1,6 +1,7 @@
 #pragma once
 #include "sparse_dbg.hpp"
 #include "sequences/contigs.hpp"
+#include "graph_alignment_storage.hpp"
 #include <unordered_map>
 #include <utility>
 #include "component.hpp"
@@ -230,3 +231,6 @@ inline void DrawSplit(const dbg::Component &component, const std::experimental::
     std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &){return "black";};
     DrawSplit(component, dir, labeler, colorer, len);
 }
+
+void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
+               dbg::SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small);

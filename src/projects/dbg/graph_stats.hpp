@@ -103,7 +103,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     logger << "\\ ";
     for(size_t i = 0; i < 5; i++)
         logger << i << " ";
-    logger << endl;
+    logger << std::endl;
     for (size_t i = 0; i < inout.size(); i++) {
         if(i % 5 == 0)
             logger << i / 5 << " ";

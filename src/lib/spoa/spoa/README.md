@@ -22,7 +22,7 @@ usage: spoa [options ...] <sequences>
 
   # default output is stdout
   <sequences>
-    input file in FASTA/FASTQ format (can be compressed with gzip)
+    inputBindings file in FASTA/FASTQ format (can be compressed with gzip)
 
   options:
     -m <int>

@@ -11,7 +11,7 @@
 
 int main(int argc, char **argv) {
     CLParser parser({"vertices=none", "unique=none", "dbg=none", "output-dir=",
-                     "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none",
+                     "threads=16", "k-mer-size=", "window=2000", "debug", "disjointigs=none",
                      "reference=none", "compress", "dimer-compress=1000000000,1000000000,1", "unique-threshold=40000", "radius=6000", "bad-cov=7"},
                     {"paths", "reads"},
                     {"o=output-dir", "t=threads", "k=k-mer-size", "w=window"},
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     std::string disjointigs_file = parser.getValue("disjointigs");
     std::string vertices_file = parser.getValue("vertices");
     std::string dbg_file = parser.getValue("dbg");
-    hashing::RollingHash hasher(k, std::stoi(parser.getValue("base")));
+    hashing::RollingHash hasher(k);
     size_t threads = std::stoi(parser.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :

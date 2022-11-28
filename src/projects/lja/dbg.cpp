@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
-    hashing::RollingHash hasher(k, std::stoi(parser.getValue("base")));
+    hashing::RollingHash hasher(k);
     io::Library pseudo_reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("pseudo-reads"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));

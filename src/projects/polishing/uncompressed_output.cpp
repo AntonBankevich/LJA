@@ -4,7 +4,7 @@
 #include <common/logging.hpp>
 #include <common/omp_utils.hpp>
 #include <ksw2/ksw_wrapper.hpp>
-#include "multi_graph.hpp"
+#include "lja/multi_graph.hpp"
 
 struct OverlapRecord {
     OverlapRecord(multigraph::Edge *left, multigraph::Edge *right, const Sequence &seq_left, const Sequence &seq_right, std::vector<cigar_pair> _cigar) : left(left), right(right), seq_left(seq_left), seq_right(seq_right),

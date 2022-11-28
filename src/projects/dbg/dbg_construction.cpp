@@ -83,15 +83,15 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
 
 SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertices, const std::vector<Sequence> &disjointigs,
              const RollingHash &hasher, size_t threads) {
-    logger.info() << "Starting DBG construction." << std::endl;
+    logger.info() << "Assembling junctions and disjointigs into DBG." << std::endl;
     SparseDBG dbg(vertices.begin(), vertices.end(), hasher);
-    logger.info() << "Vertices created." << std::endl;
+    logger.trace() << "Vertices created." << std::endl;
     std::function<void(size_t, Sequence &)> edge_filling_task = [&dbg](size_t pos, Sequence & seq) {
         dbg.processRead(seq);
     };
     processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, edge_filling_task);
 
-    logger.info() << "Filled dbg edges. Adding hanging vertices " << std::endl;
+    logger.trace() << "Filled dbg edges. Adding hanging vertices " << std::endl;
     ParallelRecordCollector<std::pair<Vertex*, Edge *>> tips(threads);
 
     std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
@@ -112,7 +112,7 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype
     for(std::pair<Vertex*, Edge *> edge : tips) {
         Vertex & vertex = dbg.bindTip(*edge.first, *edge.second);
     }
-    logger.info() << "Added " << tips.size() << " hanging vertices" << std::endl;
+    logger.trace() << "Added " << tips.size() << " hanging vertices" << std::endl;
 
     logger.info() << "Merging unbranching paths" << std::endl;
     mergeAll(logger, dbg, threads);
@@ -157,6 +157,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
                       const std::experimental::filesystem::path &dir, size_t threads, const string &disjointigs_file,
                       const string &vertices_file) {
     std::experimental::filesystem::path df;
+    logger.info() << "Starting DBG construction pipeline" << std::endl;
     if (disjointigs_file == "none") {
         std::function<void()> task = [&logger, &lib, &threads, &w, &dir, &hasher]() {
             std::vector<hashing::htype> hash_list;
@@ -196,5 +197,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
         vertices = readHashs(is);
         is.close();
     }
-    return std::move(constructDBG(logger, vertices, disjointigs, hasher, threads));
+    SparseDBG res = constructDBG(logger, vertices, disjointigs, hasher, threads);
+    logger.info() << "Finished DBG construction pipeline" << std::endl;
+    return std::move(res);
 }

@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     size_t k = std::stoi(parser.getValue("k-mer-size"));
     const size_t w = std::stoi(parser.getValue("window"));
     const size_t threads = std::stoi(parser.getValue("threads"));
-    hashing::RollingHash hasher(k, std::stoi(parser.getValue("base")));
+    hashing::RollingHash hasher(k);
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
     std::experimental::filesystem::path ref(parser.getValue("ref"));
     std::vector<hashing::htype> hash_list = constructMinimizers(logger, reads_lib, threads, hasher, w);

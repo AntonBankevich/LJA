@@ -450,7 +450,7 @@ namespace multigraph {
                         pref -= overlap;
                 else {
                     pref = 0;
-                    std::cerr << " wrong overlap " << overlap << " " << e_in->getSeq().size() << endl;
+                    std::cerr << " wrong overlap " << overlap << " " << e_in->getSeq().size() <<std::endl;
                 }
                 Sequence new_seq = e_in->getSeq().Prefix(pref) + e_out->getSeq();
                 string new_label;

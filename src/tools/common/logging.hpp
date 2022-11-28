@@ -92,7 +92,7 @@ namespace logging {
 
     //info goes to console, trace goes to log file. Debug goes to log file if debug is enabled
     //stage like info but for large stage declaration
-    enum LogLevel {stage, info, trace, debug};
+    enum LogLevel {info, trace, debug};
 
     class Logger : public std::streambuf , public std::ostream {
     private:
@@ -159,9 +159,9 @@ namespace logging {
         }
 
         Logger & stage() {
-            curlevel = LogLevel::stage;
+            curlevel = LogLevel::info;
             *this << "==============================================================\n";
-            *this << time.get() << " NEW STAGE: ";
+            *this << time.get() << " INFO: ";
             return *this;
         }
 
