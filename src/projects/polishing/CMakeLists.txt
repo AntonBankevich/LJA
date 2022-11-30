@@ -1,5 +1,5 @@
 project(polishing)
-add_library(lja_homopolish STATIC homopolish.cpp)
+add_library(lja_homopolish STATIC homopolish.cpp uncompressed_output.cpp)
 target_link_libraries(lja_homopolish lja_common lja_sequence spoa ksw2)
 
 add_executable(run_polishing run_polishing.cpp)

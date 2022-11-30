@@ -89,11 +89,8 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     size_t k = 5001;
 
 //TODO: GET RID OF UNNECESSARY DEPENDENCY BETWEEN PROJECTS. THERE IS NO LOGICAL REASON FOR POLISHING TO BE A PART OF TRIO
-    std::vector<std::experimental::filesystem::path> uncompressed_results =
-            PolishingPhase(logger, threads, out_dir, out_dir, output_file,
-                                    corrected_reads, reads, StringContig::max_dimer_size / 2, k, false, true);
-
-
+    std::unordered_map<std::string, std::experimental::filesystem::path> uncompressed_results =
+            RunPolishing(logger, threads, out_dir, output_file, corrected_reads, reads, k, true);
     return output_file;
 }
 

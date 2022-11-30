@@ -139,11 +139,13 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
     bool noec = input_values.getCheck("noec");
     bool trio = !input_values.getListValue("parental").empty();
     ComplexStage lja(input_types);
+    std::pair<std::string, std::string> corrected_reads;
     if(noec) {
         SubstageRun &constructionStage = lja.addStage(NoCorrectionStage(), "Construction");
         constructionStage.bindInput("reads", "", "reads");
         constructionStage.bindInput("pseudo_reads", "", "pseudo_reads");
         constructionStage.bindInput("paths", "", "paths");
+        corrected_reads = {"Construction", "reads"};
     } else {
         SubstageRun &correctionStage1 = lja.addStage(CoverageCorrectionStage(), "CoverageBasedCorrection");
         correctionStage1.bindInput("reads", "", "reads");
@@ -153,6 +155,7 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
         correctionStage2.bindInput("reads", "CoverageBasedCorrection", "corrected_reads");
         correctionStage2.bindInput("pseudo_reads", "CoverageBasedCorrection", "pseudo_reads");
         correctionStage2.bindInput("paths", "", "paths");
+        corrected_reads = {"TopologyBasedCorrection", "corrected_reads"};
     };
     SubstageRun &rr = lja.addStage(MDBGStage(), "MDBG");
     if(noec) {
@@ -171,8 +174,15 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
         trioBinning.bindInput("maternal_yak", "TrioPreprocessing", "maternal_yak");
         trioBinning.bindInput("contigs", "MDBG", "graph");
         SubstageRun &trioSimplification = lja.addStage(TrioSimplificationPhase(), "TrioSimplification");
-        trioSimplification.bindInput("contigs", "MDBG", "graph");
+        trioSimplification.bindInput("graph", "MDBG", "graph");
         trioSimplification.bindInput("binning", "TrioBinning", "binning");
+        trioSimplification.bindInput("corrected_reads", corrected_reads.first, corrected_reads.second);
+        trioSimplification.bindInput("reads", "", "reads");
+    } else {
+        SubstageRun & polishing = lja.addStage(PolishingPhase(), "Polishing");
+        polishing.bindInput("graph", "MDBG", "graph");
+        polishing.bindInput("corrected_reads", corrected_reads.first, corrected_reads.second);
+        polishing.bindInput("reads", "", "reads");
     }
     return std::move(lja);
 }

@@ -40,7 +40,7 @@ AlgorithmParameterValues CLParser::parseCL(const std::vector <std::string> &args
                 }
                 name = short_param_map[s[1]];
             }
-            VERIFY_MSG(result.hasCheck(name) || result.hasValue(name), "Unknown command line parameter: " + s);
+            VERIFY_MSG(!strict || result.hasCheck(name) || result.hasValue(name), "Unknown command line parameter: " + s);
             if (result.hasCheck(name)) {
                 if(long_param_map.find(name) != long_param_map.end()) {
                     for(const std::string &actual_name : long_param_map[name]) {

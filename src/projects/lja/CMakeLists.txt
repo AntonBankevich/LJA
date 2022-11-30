@@ -1,6 +1,6 @@
 project(debruijn)
 
-add_library(lja_pipeline pipeline.cpp gap_closing.cpp ../polishing/uncompressed_output.cpp)
+add_library(lja_pipeline pipeline.cpp )
 target_link_libraries(lja_pipeline lja_ec lja_dbg lja_homopolish lja_common lja_sequence m repeat_resolution lja_trio yak)
 add_executable(lja lja.cpp)
 target_link_libraries(lja lja_pipeline)

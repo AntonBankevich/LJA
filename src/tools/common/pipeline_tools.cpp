@@ -76,10 +76,15 @@ std::string SubstageRun::verifyOutput(
     std::stringstream result;
     for(const std::string &output_name : stage->getExpectedOutput()) {
         if(loaded_output.find(output_name) == output.end()) {
-            result << "Stage " + name + " error: output value " + output_name + " was not reported\n";
+            result << "Stage " << name << " error: output value " << output_name << " was not reported\n";
         } else if(!std::experimental::filesystem::is_regular_file(loaded_output.find(output_name)->second)) {
-            result << "Stage " + name + " error: output file " << loaded_output.find(output_name)->second << " containing output named " <<
+            result << "Stage " << name << " error: output file " << loaded_output.find(output_name)->second << " containing output named " <<
                             output_name << " does not exist or is corrupted\n";
+        }
+    }
+    for(const auto &output_item : loaded_output) {
+        if(stage->getExpectedOutput().find(output_item.first) == stage->getExpectedOutput().end()) {
+            result << "Stage " << name << " error: reported unexpected output value " << output_item.first << " that is stored in file " << output_item.second << "\n";
         }
     }
     return result.str();
@@ -92,9 +97,9 @@ SubstageRun::readOutput(const std::experimental::filesystem::path &report_candid
     std::ifstream is;
     is.open(report_candidate);
     for(size_t i = 0; i < stage->getExpectedOutput().size(); i++) {
+        is >> tmp1 >> tmp2;
         loaded_output[tmp1] = tmp2;
     }
-    is >> tmp1 >> tmp2;
     is.close();
     return std::move(loaded_output);
 }
@@ -180,10 +185,11 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
     }
     VERIFY_MSG(restart_from == "none" || stages.find(restart_from) != stages.end(), restart_from + " is not a name of any of the pipeline stages");
     verifyReady();
-    size_t cnt = 0;
+    size_t cnt = -1;
     for(const std::string& sname: stage_order) {
-        std::experimental::filesystem::path sdir = dir / (itos(cnt, 2) + sname);
-        if(continueRun && restart_from != sname && restart_from != "none") {
+        cnt++;
+        std::experimental::filesystem::path sdir = dir / (itos(cnt, 2) + "_" + sname);
+        if(continueRun && restart_from != sname) {
             bool success = stages.find(sname)->second.loadAttempt(logger, sdir);
             if (!success) {
                 VERIFY_ERROR_MSG("Critical error: could not load stage results for a stage (" + sname + ") before reaching target stage " + restart_from);
@@ -199,7 +205,6 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
             }
         }
         stages.find(sname)->second.runSubstage(logger, threads, sdir, debug, sparameters);
-        cnt++;
     }
     verifyResult();
     malloc_trim(0);

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lja/gap_closing.hpp"
+#include "gap_closing.hpp"
 #include "mult_correction.hpp"
 #include "mitochondria_rescue.hpp"
 
@@ -82,7 +82,7 @@ class TopologyCorrectionStage : public Stage {
 public:
     TopologyCorrectionStage() : Stage(AlgorithmParameters(
             {"k-mer-size=5001", "window=500", "coverage-threshold=3", "reliable-coverage=10", "unique-threshold=40000", "diploid"},
-            {}, ""), {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "pseudo_reads", "final_dbg"}) {
+            {}, ""), {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "pseudo_reads", "final_dbg", "final_aln"}) {
     }
 protected:
     std::unordered_map<std::string, std::experimental::filesystem::path> innerRun(logging::Logger &logger, size_t threads,

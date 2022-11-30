@@ -1,7 +1,7 @@
 #pragma once
 
 #include "multi_graph.hpp"
-#include "gap_closing.hpp"
+#include "error_correction/gap_closing.hpp"
 #include "polishing/perfect_alignment.hpp"
 #include "error_correction/mult_correction.hpp"
 #include "error_correction/mitochondria_rescue.hpp"
