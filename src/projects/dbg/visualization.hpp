@@ -73,13 +73,12 @@ public:
         std::vector<std::pair<const dbg::Edge *, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>>> res;
         std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> next;
         for(dbg::PerfectAlignment<Contig, dbg::Edge> rec : rec_list) {
-            if(next.empty() || next[0].seg_to.contig() == rec.seg_to.contig()) {
-                next.emplace_back(rec);
-            } else {
+            if(!next.empty() && next[0].seg_to.contig() != rec.seg_to.contig()) {
                 dbg::Edge *nedge = &next[0].seg_to.contig();
                 res.emplace_back(nedge, std::move(next));
                 next.clear();
             }
+            next.emplace_back(rec);
         }
         if(!next.empty()) {
             dbg::Edge *nedge = &next[0].seg_to.contig();
@@ -231,6 +230,5 @@ inline void DrawSplit(const dbg::Component &component, const std::experimental::
     std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &){return "black";};
     DrawSplit(component, dir, labeler, colorer, len);
 }
-
 void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
                dbg::SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small);
