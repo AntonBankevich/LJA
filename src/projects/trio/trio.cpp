@@ -18,8 +18,6 @@
 #include <lja/multi_graph.hpp>
 #include <lja/subdataset_processing.hpp>
 
-#include <lja/pipeline.hpp>
-
 using namespace trio;
 using std::vector;
 using std::pair;

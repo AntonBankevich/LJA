@@ -52,7 +52,7 @@ AlgorithmParameterValues CLParser::parseCL(const std::vector <std::string> &args
                 name = "";
             }
         } else {
-            VERIFY_MSG(!strict || isstart, "Incorrect command line: " << name << " is neither a value nor a parameter. Did you forget \"--\" in front of an option name?");
+            VERIFY_MSG(!strict || isstart, "Incorrect command line: " << s << " is neither a value nor a parameter. Did you forget \"--\" in front of an option name?");
             if(isstart)
                 start.push_back(s);
         }
@@ -231,7 +231,7 @@ bool AlgorithmParameterValues::getCheck(const std::string &s) const {
 const std::string &AlgorithmParameterValues::getValue(const std::string &s) const {
     auto it = values.find(s);
     if (it == values.end()) {
-        std::cerr << "Missing parameter " << s << std::endl;
+        std::cerr << "Request for non-existing parameter " << s << std::endl;
         exit(1);
     }
     return it->second;

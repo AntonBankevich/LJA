@@ -5,8 +5,6 @@
 #include "error_correction/topology_ec_stage.hpp"
 #include "polishing/polishing_stage.hpp"
 #include "repeat_resolution/mdbg_stage.hpp"
-#include "pipeline.hpp"
-//TODO: check pipeline.cpp from main
 
 std::string constructMessage() {
     std::stringstream ss;

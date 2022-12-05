@@ -15,10 +15,11 @@ struct Edge {
     double cov;
 };
 int main(int argc, char **argv) {
-    CLParser parser({"dot=", "min_cov=none", "max_cov=none"}, {}, {},"");
-    parser.parseCL(argc, argv);
-    parser.check();
-    std::experimental::filesystem::path path = parser.getValue("dot");
+    AlgorithmParameters parameters({"dot=", "min_cov=none", "max_cov=none"}, {}, "");
+    CLParser parser(parameters, {});
+    AlgorithmParameterValues parameterValues = parser.parseCL(argc, argv);
+    parameterValues.checkMissingValues();
+    std::experimental::filesystem::path path = parameterValues.getValue("dot");
     std::ifstream is;
     is.open(path);
     std::string line;
@@ -43,11 +44,11 @@ int main(int argc, char **argv) {
     }
     for(size_t i = 0; i < hist.size(); i++)
         std::cout << i << " " << hist[i] << std::endl;
-    if(parser.getValue("min_cov") == "none") {
+    if(parameterValues.getValue("min_cov") == "none") {
         return 0;
     }
-    double min_cov = std::stod(parser.getValue("min_cov"));
-    double max_cov = std::stod(parser.getValue("max_cov"));
+    double min_cov = std::stod(parameterValues.getValue("min_cov"));
+    double max_cov = std::stod(parameterValues.getValue("max_cov"));
     std::unordered_map<std::string, std::pair<size_t, size_t>> connections;
     size_t total_length = 0;
     for(Edge &edge : edges) {

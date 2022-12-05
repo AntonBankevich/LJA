@@ -1,6 +1,5 @@
 #include <common/cl_parser.hpp>
 #include "trio/trio.hpp"
-#include "pipeline.hpp"
 
 using namespace trio;
 

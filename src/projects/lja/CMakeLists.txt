@@ -1,9 +1,7 @@
 project(debruijn)
 
-add_library(lja_pipeline pipeline.cpp )
-target_link_libraries(lja_pipeline lja_ec lja_dbg lja_homopolish lja_common lja_sequence m repeat_resolution lja_trio yak)
 add_executable(lja lja.cpp)
-target_link_libraries(lja lja_pipeline)
+target_link_libraries(lja lja_ec lja_dbg lja_homopolish lja_common lja_sequence m repeat_resolution lja_trio yak nano_alignment)
 
 add_executable(jumboDBG dbg.cpp)
 target_link_libraries(jumboDBG lja_ec lja_dbg lja_common lja_sequence m)

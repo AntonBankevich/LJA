@@ -56,7 +56,7 @@ private:
     std::vector<std::string> start;
     std::string command_line;
 public:
-    CLParser(const AlgorithmParameters& parameters, const std::vector<std::string>& short_params, const std::vector<std::string>& long_params,
+    CLParser(const AlgorithmParameters& parameters, const std::vector<std::string>& short_params, const std::vector<std::string>& long_params = {},
              size_t max_start_size = 1);
     CLParser(CLParser &&other) = default;
     CLParser &operator=(CLParser &&other) = default;
