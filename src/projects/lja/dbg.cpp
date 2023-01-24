@@ -151,31 +151,29 @@ std::string constructMessage() {
 }
 
 int main(int argc, char **argv) {
-    CLParser parser({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
-                     "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
-                     "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct",
-                     "initial-correct", "mult-correct", "mult-analyse", "compress", "dimer-compress=1000000000,1000000000,1", "help", "genome-path",
-                     "dump", "extension-size=none", "print-all", "extract-subdatasets", "print-alignments", "subdataset-radius=10000",
-                     "split", "diploid"},
-                    {"reads", "pseudo-reads", "align", "paths", "print-segment"},
-                    {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"},
-                    constructMessage());
-    parser.parseCL(argc, argv);
-    if (parser.getCheck("help")) {
-        std::cout << parser.message() << std::endl;
+    AlgorithmParameters parameters({"vertices=none", "unique=none", "coverages=none", "dbg=none", "output-dir=",
+                                   "threads=16", "k-mer-size=", "window=2000", "base=239", "debug", "disjointigs=none", "reference=none",
+                                   "simplify", "coverage", "cov-threshold=2", "rel-threshold=10", "tip-correct",
+                                   "initial-correct", "mult-correct", "mult-analyse", "compress", "dimer-compress=1000000000,1000000000,1", "help", "genome-path",
+                                   "dump", "extension-size=none", "print-all", "extract-subdatasets", "print-alignments", "subdataset-radius=10000",
+    "split", "diploid"}, {"reads", "pseudo-reads", "align", "paths", "print-segment"}, constructMessage());
+    CLParser parser(parameters, {"h=help", "o=output-dir", "t=threads", "k=k-mer-size","w=window"});
+    AlgorithmParameterValues params = parser.parseCL(argc, argv);
+    if (params.getCheck("help")) {
+        std::cout << params.helpMessage() << std::endl;
         return 0;
     }
-    if (!parser.check().empty()) {
+    if (!params.checkMissingValues().empty()) {
         std::cout << "Failed to parse command line parameters." << std::endl;
-        std::cout << parser.check() << "\n" << std::endl;
-        std::cout << parser.message() << std::endl;
+        std::cout << params.checkMissingValues() << "\n" << std::endl;
+        std::cout << params.helpMessage() << std::endl;
         return 1;
     }
 
-    bool debug = parser.getCheck("debug");
-    StringContig::homopolymer_compressing = parser.getCheck("compress");
-    StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
-    const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
+    bool debug = params.getCheck("debug");
+    StringContig::homopolymer_compressing = params.getCheck("compress");
+    StringContig::SetDimerParameters(params.getValue("dimer-compress"));
+    const std::experimental::filesystem::path dir(params.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
@@ -183,12 +181,12 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < argc; i++) {
         logger << argv[i] << " ";
     }
-    size_t k = std::stoi(parser.getValue("k-mer-size"));
-    const size_t w = std::stoi(parser.getValue("window"));
+    size_t k = std::stoi(params.getValue("k-mer-size"));
+    const size_t w = std::stoi(params.getValue("window"));
     logger << std::endl;
     logger.info() << "Hello! You are running jumboDBG, a tool for construction of de Bruijn graphs for arbitrarily large values of k\n";
     logger.info() << "Note that jumboDBG does not perform any error correction and ignores all reads shorter than k + w = " << k + w << std::endl;
-    if(parser.getCheck("extract-subdatasets")) {
+    if(params.getCheck("extract-subdatasets")) {
         logger.info() << "Enabled subdataset extraction" << std::endl;
     }
     if (k % 2 == 0) {
@@ -196,49 +194,49 @@ int main(int argc, char **argv) {
         k += 1;
     }
     hashing::RollingHash hasher(k);
-    io::Library pseudo_reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("pseudo-reads"));
-    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-    io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
+    io::Library pseudo_reads_lib = oneline::initialize<std::experimental::filesystem::path>(params.getListValue("pseudo-reads"));
+    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(params.getListValue("reads"));
+    io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(params.getListValue("paths"));
     io::Library genome_lib = {};
-    if (parser.getValue("reference") != "none") {
+    if (params.getValue("reference") != "none") {
         logger.info() << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
-        genome_lib = {std::experimental::filesystem::path(parser.getValue("reference"))};
+        genome_lib = {std::experimental::filesystem::path(params.getValue("reference"))};
     }
     io::Library construction_lib = reads_lib + pseudo_reads_lib + genome_lib;
-    size_t threads = std::stoi(parser.getValue("threads"));
+    size_t threads = std::stoi(params.getValue("threads"));
     omp_set_num_threads(threads);
 
-    std::string disjointigs_file = parser.getValue("disjointigs");
-    std::string vertices_file = parser.getValue("vertices");
-    std::string dbg_file = parser.getValue("dbg");
+    std::string disjointigs_file = params.getValue("disjointigs");
+    std::string vertices_file = params.getValue("vertices");
+    std::string dbg_file = params.getValue("dbg");
     SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
                     LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
 
-    bool calculate_alignments = parser.getCheck("initial-correct") ||
-            parser.getCheck("mult-correct") || parser.getCheck("print-alignments") || parser.getCheck("split");
-    bool calculate_coverage = parser.getCheck("coverage") || parser.getCheck("simplify") ||
-            parser.getValue("reference") != "none" || parser.getCheck("tip-correct") ||
-            parser.getCheck("initial-correct") || parser.getCheck("mult-correct") || !paths_lib.empty();
+    bool calculate_alignments = params.getCheck("initial-correct") ||
+            params.getCheck("mult-correct") || params.getCheck("print-alignments") || params.getCheck("split");
+    bool calculate_coverage = params.getCheck("coverage") || params.getCheck("simplify") ||
+            params.getValue("reference") != "none" || params.getCheck("tip-correct") ||
+            params.getCheck("initial-correct") || params.getCheck("mult-correct") || !paths_lib.empty();
     calculate_coverage = calculate_coverage && !calculate_alignments;
-    if (!parser.getListValue("align").empty() || parser.getCheck("print-alignments") ||
-                parser.getCheck("mult-correct") || parser.getCheck("mult-analyse") ||
-                parser.getCheck("split")|| calculate_coverage || calculate_alignments) {
+    if (!params.getListValue("align").empty() || params.getCheck("print-alignments") ||
+                params.getCheck("mult-correct") || params.getCheck("mult-analyse") ||
+                params.getCheck("split")|| calculate_coverage || calculate_alignments) {
         dbg.fillAnchors(w, logger, threads);
     }
 
     if (calculate_coverage) {
-        if (parser.getValue("coverages") == "none") {
+        if (params.getValue("coverages") == "none") {
             CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
         } else {
-            LoadCoverage(parser.getValue("coverages"), logger, dbg);
+            LoadCoverage(params.getValue("coverages"), logger, dbg);
         }
     }
     size_t extension_size = std::max<size_t>(k * 5 / 2, 3000);
     if (k > 1500)
         extension_size = 1000000;
-    if(parser.getValue("extension-size") != "none")
-        extension_size = std::stoull(parser.getValue("extension-size"));
+    if(params.getValue("extension-size") != "none")
+        extension_size = std::stoull(params.getValue("extension-size"));
 
     ReadLogger readLogger(threads, dir/"read_log.txt");
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true);
@@ -253,19 +251,19 @@ int main(int argc, char **argv) {
         refStorage.fill(refReader.begin(), refReader.end(), dbg, w + k - 1, logger, threads);
     }
 
-    if(parser.getCheck("mult-correct")) {
-        MultCorrect(logger, threads, dbg, dir, readStorage, 50000, 0, parser.getCheck("diploid"), debug);
+    if(params.getCheck("mult-correct")) {
+        MultCorrect(logger, threads, dbg, dir, readStorage, 50000, 0, params.getCheck("diploid"), debug);
     }
 
-    if(parser.getCheck("initial-correct")) {
-        size_t threshold = std::stoull(parser.getValue("cov-threshold"));
-        size_t reliable = std::stoull(parser.getValue("rel-threshold"));
+    if(params.getCheck("initial-correct")) {
+        size_t threshold = std::stoull(params.getValue("cov-threshold"));
+        size_t reliable = std::stoull(params.getValue("rel-threshold"));
         std::vector<StringContig> ref_vector;
-        if (parser.getValue("reference") != "none") {
-            ref_vector = io::SeqReader(parser.getValue("reference")).readAll();
+        if (params.getValue("reference") != "none") {
+            ref_vector = io::SeqReader(params.getValue("reference")).readAll();
         }
         initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
-                       threshold, 2 * threshold, reliable, false, 60000, parser.getCheck("dump"));
+                       threshold, 2 * threshold, reliable, false, 60000, params.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     }
@@ -295,15 +293,15 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(parser.getCheck("print-alignments") || parser.getCheck("mult-correct")) {
+    if(params.getCheck("print-alignments") || params.getCheck("mult-correct")) {
         readStorage.printReadAlignments(logger, dir / "alignments.txt");
     }
 
-    if(parser.getCheck("mult-correct") || parser.getCheck("initial-correct")) {
+    if(params.getCheck("mult-correct") || params.getCheck("initial-correct")) {
         readStorage.printReadFasta(logger, dir / "corrected.fasta");
     }
 
-    if(parser.getCheck("print-all")) {
+    if(params.getCheck("print-all")) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
         GraphAlignmentStorage storage(dbg);
@@ -331,7 +329,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(parser.getCheck("extract-subdatasets")) {
+    if(params.getCheck("extract-subdatasets")) {
         std::experimental::filesystem::path subdatasets_dir = dir / "subdatasets";
         ensure_dir_existance(subdatasets_dir);
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
@@ -341,7 +339,7 @@ int main(int argc, char **argv) {
         GraphAlignmentStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         size_t cnt = 0;
-        size_t radius = std::stoull(parser.getValue("subdataset-radius"));
+        size_t radius = std::stoull(params.getValue("subdataset-radius"));
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
             comps.emplace_back(Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
@@ -374,7 +372,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    std::vector<std::string> path_segments = parser.getListValue("print-segment");
+    std::vector<std::string> path_segments = params.getListValue("print-segment");
     if(!path_segments.empty()) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
@@ -409,7 +407,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(parser.getCheck("genome-path")) {
+    if(params.getCheck("genome-path")) {
         logger.info() << "Printing additional figures with reference alignments" << std::endl;
         logger.info() << "Aligning genome" << std::endl;
         GraphAlignmentStorage storage(dbg);
@@ -434,7 +432,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(parser.getValue("dbg") == "none") {
+    if(params.getValue("dbg") == "none") {
         if(debug) {
             logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
             printFasta(dir / "graph.fasta", Component(dbg));
@@ -450,7 +448,7 @@ int main(int argc, char **argv) {
         printDot(dir / "graph.dot", Component(dbg));
     }
 
-    if (parser.getCheck("tip-correct")) {
+    if (params.getCheck("tip-correct")) {
         logger.info() << "Removing tips from reads" << std::endl;
         std::experimental::filesystem::path out = dir / "tip_correct.fasta";
         ParallelRecordCollector<Contig> alignment_results(threads);
@@ -483,18 +481,18 @@ int main(int argc, char **argv) {
         os.close();
     }
 
-    if (!parser.getListValue("align").empty()) {
-        io::Library align_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("align"));
+    if (!params.getListValue("align").empty()) {
+        io::Library align_lib = oneline::initialize<std::experimental::filesystem::path>(params.getListValue("align"));
         alignLib(logger, dbg, align_lib, hasher, w, dir, threads);
     }
 
 //    findTips(logger, dbg, threads);
-    if (parser.getValue("reference") != "none") {
-        analyseGenome(dbg, parser.getValue("reference"), k + w - 1, dir / "ref.info", dir / "cov.info", dir / "mult.info", logger);
+    if (params.getValue("reference") != "none") {
+        analyseGenome(dbg, params.getValue("reference"), k + w - 1, dir / "ref.info", dir / "cov.info", dir / "mult.info", logger);
     }
-    if (parser.getCheck("simplify")) {
+    if (params.getCheck("simplify")) {
         logger.info() << "Removing low covered edges" << std::endl;
-        size_t threshold = std::stoull(parser.getValue("cov-threshold"));
+        size_t threshold = std::stoull(params.getValue("cov-threshold"));
         std::vector<Sequence> edges;
         std::vector<hashing::htype> vertices_again;
         for(auto & it : dbg) {
