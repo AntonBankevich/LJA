@@ -27,11 +27,11 @@ std::unordered_map<std::string, std::vector<nano::GraphContig>> AlignOnt(logging
         batch[contig.id] = contig;
         if (batch.size() > BATCH_SIZE) {
             batch_num++;
-//            reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
+            reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
             batch.clear();
         }
     }
-//    reads_aligner.Align(batch, input_gfa, dir, threads, ++batch_num);
+    reads_aligner.Align(batch, input_gfa, dir, threads, ++batch_num);
     batch.clear();
     std::unordered_map<std::string, std::vector<nano::GraphContig>> result;
     for (int i = 1; i < batch_num + 1; ++ i) {
@@ -114,7 +114,7 @@ size_t Score(const std::vector<cigar_pair> &cigar, const Sequence &from_seq, con
 
 std::vector<cigar_pair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq) {
     KSWAligner kswAligner(1, 5, 10, 2);
-    return  kswAligner.iterativeBandAlign(to_seq.str(), from_seq.str(), 5, 100, 0.01);
+    return kswAligner.iterativeBandAlign(to_seq.str(), from_seq.str(), 5, 100, 0.01);
 }
 
 size_t Score(const Sequence &from_seq, const Sequence &to_seq, const std::vector<std::pair<size_t, size_t>> &to_ignore) {
@@ -297,6 +297,7 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
                     p++;
                 }
                 if(p == cp.length) {
+                    p = 0;
                     while (p < cp.length && from_seq[left - to_pos + from_pos + p] != to_seq[left + p]) {
                         p++;
                     }
@@ -371,14 +372,15 @@ private:
     const multigraph::MultiGraph *mg;
     std::unordered_map<int, std::unordered_map<int, int>> min_dist;
     size_t max_size;
-    size_t inf = size_t(-1) / 2;
+    size_t max_diff;
+    static int INF;
 
     size_t getMinDist(int v1, int v2) {
         if(min_dist.find(v1) == min_dist.end()) {
             typedef std::pair<int, int> StoredValue;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
             std::unordered_map<int, size_t> res;
-            queue.emplace(-mg->vertices.at(v1).size(), v1);
+            queue.emplace(0, v1);
             while(!queue.empty()) {
                 StoredValue next = queue.top();
                 queue.pop();
@@ -393,15 +395,15 @@ private:
         }
         const std::unordered_map<int, int> &m2 = min_dist.at(v1);
         if(m2.find(v2) == m2.end())
-            return inf;
+            return INF;
         else
             return m2.at(v2);
     }
 public:
-    BulgeFinder(multigraph::MultiGraph &mg, size_t max_size) : mg(&mg) {
+    BulgeFinder(multigraph::MultiGraph &mg, size_t max_size, size_t max_diff) : mg(&mg), max_size(max_size), max_diff(max_diff) {
     }
 
-    std::vector<Detour> findBulges(const std::vector<multigraph::Edge *> &path) {
+    std::vector<Detour> findSimpleBulges(const std::vector<multigraph::Edge *> &path) {
         std::vector<Detour> res;
         for(size_t i = 1; i + 1 < path.size(); i++) {
             multigraph::Vertex & start = *path[i]->start;
@@ -412,6 +414,68 @@ public:
                 }
             }
         }
+        return std::move(res);
+    }
+
+    bool recoursiveFindBulges(std::vector<std::vector<multigraph::Edge *>> &bulges, std::vector<multigraph::Edge *> &bulge,
+                          const multigraph::Edge &last_edge, int clen, int tlen) {
+        if(bulge.back()->end == last_edge.end && bulge.back() != &last_edge && tlen - max_diff <= clen <= tlen + max_diff) {
+            bulges.emplace_back(bulge);
+            if(bulges.size() >= 20)
+                return false;
+        }
+        for(multigraph::Edge *edge : bulge.back()->end->outgoing) {
+            int new_len = clen + edge->size() - edge->end->size();
+            int min_bulge_len = new_len + getMinDist(edge->end->id, last_edge.end->id);
+            if(min_bulge_len <= tlen + max_diff) {
+                bulge.push_back(edge);
+                bool res = recoursiveFindBulges(bulges, bulge, last_edge, new_len, tlen);
+                bulge.pop_back();
+                if(!res)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    bool recoursiveFindBulge(std::vector<Detour> &res, const std::vector<multigraph::Edge *> &path, size_t start, size_t end, int path_len = -INF) {
+        if(path_len == -INF) {
+            int path_len = -int(path[start]->start->size());
+            for (size_t i = start; i < end; i++) {
+                path_len += int(path[i]->size()) - int(path[i]->end->size());
+                if (path_len > max_size) {
+                    return true;
+                }
+            }
+        }
+        std::vector<std::vector<multigraph::Edge *>> bulges;
+        bool found_all = true;
+        for(multigraph::Edge *edge : path[start]->start->outgoing) {
+            if(edge == path[start])
+                continue;
+            std::vector<multigraph::Edge*> bulge = {edge};
+            found_all &=!recoursiveFindBulges(bulges, bulge, *path[end - 1], int(edge->size() - edge->start->size() - edge->end->size()), path_len);
+        }
+        for(std::vector<multigraph::Edge *> &bulge : bulges) {
+            res.emplace_back(start, end, std::move(bulge));
+        }
+        return found_all;
+    }
+
+    std::vector<Detour> findBulges(const std::vector<multigraph::Edge *> &path) {
+        std::vector<Detour> res;
+        bool found_all;
+        for(size_t i = 1; i + 1 < path.size(); i++) {
+            int len = -int(path[i]->start->size());
+            for(size_t j = i + 1; j + 1 < path.size(); j++) {
+                len += int(path[j]->size()) - int(path[j]->end->size());
+                if(len > max_size) {
+                    break;
+                }
+                found_all &= recoursiveFindBulge(res, path, i, j, len);
+            }
+        }
+        std::cout << path.size() << " " << res.size() << " " << found_all << std::endl;
         return std::move(res);
     }
 };
@@ -456,7 +520,7 @@ void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq) {
 
 bool CheckAndReplace(const Sequence &read_seq, const std::vector<std::pair<size_t, size_t>> &nails, std::vector<multigraph::Edge *> &path,
                      const Detour &detour){
-    Sequence s = read_seq.Subseq(nails[detour.start - 1].first, nails[detour.end - 1].first);
+    Sequence s = read_seq.Subseq(nails[detour.start - 1].first, nails[detour.end - 1].first + 1);
 //    Sequence s1 = BuildSequence(std::next(path.begin(), detour.start), std::next(path.begin(), detour.end),
 //                                nails[detour.start].second, path[detour.end]->end->size() - nails[detour.end].second - 1);
 //    Sequence s2 = BuildSequence(detour.path.begin(), detour.path.end(), nails[detour.start].second, path[detour.end]->end->size() - nails[detour.end].second - 1);
@@ -484,6 +548,7 @@ bool CheckAndReplace(const Sequence &read_seq, const std::vector<std::pair<size_
     return false;
 }
 
+int BulgeFinder::INF = std::numeric_limits<int>::max() / 2;
 
 void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, multigraph::MultiGraph &graph) {
     std::vector<int> ids = CodeToPath(graphContig.path);
@@ -532,7 +597,7 @@ int main(int argc, char **argv) {
     multigraph::MultiGraph mg = mmg.DBG();
 
     std::unordered_map<std::string, std::vector<nano::GraphContig>> result = AlignOnt(logger, threads, dir, mg, reads);
-    BulgeFinder bulgeFinder(mg, 100000);
+    BulgeFinder bulgeFinder(mg, 5000, 1000);
     for(auto &it : result) {
         std::cout << it.first << " " << it.second.size() << std::endl;
         for(nano::GraphContig &al : it.second) {

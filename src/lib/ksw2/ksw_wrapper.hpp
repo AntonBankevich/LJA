@@ -83,6 +83,31 @@ private:
     int8_t sc_mis;
     int gapo;
     int gape;
+    inline int64_t cost(const char *tseq, const char *qseq, std::vector<cigar_pair> &cigar) {
+        size_t from_pos = 0;
+        size_t to_pos = 0;
+        int64_t res = 0;
+        for(cigar_pair &cp: cigar) {
+            if(cp.type == 'M') {
+                for(size_t i = 0; i < cp.length; i++) {
+                    if(tseq[to_pos + i] == qseq[from_pos + i])
+                        res += sc_mch;
+                    else
+                        res -= sc_mis;
+                }
+            }
+            if(cp.type != 'I') {
+                to_pos += cp.length;
+                res -= gapo + gape * (cp.length - 1);
+            }
+            if(cp.type != 'D') {
+                from_pos += cp.length;
+                res -= gapo + gape * (cp.length - 1);
+            }
+        }
+        return res;
+    }
+
 public:
     KSWAligner(int8_t scMch, int8_t scMis, int gapo, int gape) : sc_mch(scMch), sc_mis(scMis), gapo(gapo), gape(gape) {}
 
