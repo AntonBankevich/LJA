@@ -77,6 +77,6 @@ int main(int argc, char **argv) {
         os << "\n";
     }
     os.close();
-    logger.info() << "Finished alignemtns. Resulting paths printed to " << (dir / "alignments.txt") << std::endl;
+    logger.info() << "Finished alignments. Resulting paths printed to " << (dir / "alignments.txt") << std::endl;
     return 0;
 }

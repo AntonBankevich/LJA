@@ -50,8 +50,11 @@ inline double Divergence(const char *tseq, const char *qseq, std::vector<cigar_p
 }
 
 
-inline std::vector<cigar_pair> align_ksw(const char *tseq, const char *qseq, int8_t sc_mch, int8_t sc_mis, int gapo, int gape, int width){
+inline std::vector<cigar_pair> align_ksw(const char *tseq, const char *qseq, int8_t sc_mch, int8_t sc_mis, int gapo, int gape, int width, int end_bonus = 0){
     int i; int8_t a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
+    int flag = 0;
+    if(end_bonus != 0)
+        flag = KSW_EZ_EXTZ_ONLY;
     int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
     int tl = strlen(tseq), ql = strlen(qseq);
     uint8_t *ts, *qs, c[256];
@@ -65,7 +68,7 @@ inline std::vector<cigar_pair> align_ksw(const char *tseq, const char *qseq, int
     qs = (uint8_t*)malloc(ql);
     for (i = 0; i < tl; ++i) ts[i] = c[(uint8_t)tseq[i]]; // encode to 0/1/2/3
     for (i = 0; i < ql; ++i) qs[i] = c[(uint8_t)qseq[i]];
-    ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, width, -1, 0, 0, &ez);
+    ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, width, -1, end_bonus, flag, &ez);
     std::vector<cigar_pair> res;
     for (i = 0; i < ez.n_cigar; ++i) // print CIGAR
 //        printf("%d%c", ez.cigar[i]>>4, "MID"[ez.cigar[i]&0xf]);
@@ -112,30 +115,30 @@ public:
     KSWAligner(int8_t scMch, int8_t scMis, int gapo, int gape) : sc_mch(scMch), sc_mis(scMis), gapo(gapo), gape(gape) {}
 
 
-    std::vector<cigar_pair> align(const char *tseq, const char *qseq, int width) const {
-        return align_ksw(tseq, qseq, sc_mch, sc_mis, gapo, gape, width);
+    std::vector<cigar_pair> align(const char *tseq, const char *qseq, int width, int end_bonus = 0) const {
+        return align_ksw(tseq, qseq, sc_mch, sc_mis, gapo, gape, width, end_bonus);
     }
 
-    std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width, double max_divergence) const {
+    std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width, double max_divergence, int end_bonus = 0) const {
         size_t l1 = strlen(tseq);
         size_t l2 = strlen(qseq);
         min_width = std::max<size_t>(min_width, std::max(l1, l2) - std::min(l1, l2));
         while(min_width < max_width) {
-            auto res = align(tseq, qseq, min_width);
+            auto res = align(tseq, qseq, min_width, end_bonus);
             if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
                 return std::move(res);
             }
             min_width = std::min(min_width * 2, max_width);
         }
-        return align(tseq, qseq, min_width);
+        return align(tseq, qseq, min_width, end_bonus);
     }
 
-    std::vector<cigar_pair> align(const std::string &tseq, const std::string &qseq, int width) const {
-        return align(tseq.c_str(), qseq.c_str(), width);
+    std::vector<cigar_pair> align(const std::string &tseq, const std::string &qseq, int width, int end_bonus) const {
+        return align(tseq.c_str(), qseq.c_str(), width, end_bonus);
     }
 
-    std::vector<cigar_pair> iterativeBandAlign(const std::string &tseq, const std::string &qseq, int min_width, int max_width, double max_divergence) const {
-        return iterativeBandAlign(tseq.c_str(), qseq.c_str(), min_width, max_width, max_divergence);
+    std::vector<cigar_pair> iterativeBandAlign(const std::string &tseq, const std::string &qseq, int min_width, int max_width, double max_divergence, int end_bonus) const {
+        return iterativeBandAlign(tseq.c_str(), qseq.c_str(), min_width, max_width, max_divergence, end_bonus);
     }
 };
 
