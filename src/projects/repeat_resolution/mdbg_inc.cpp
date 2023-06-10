@@ -34,6 +34,7 @@ void MultiplexDBGIncreaser::CollapseEdge(MultiplexDBG &graph,
 
     RREdgeProperty &edge_prop = e_it->second.prop();
     graph.rr_paths->Remove(edge_prop.Index());
+    graph.ont_paths->Remove(edge_prop.Index());
 
     if (graph.count_in_neighbors(s)==0 and graph.count_out_neighbors(e)==0) {
         // isolated vertex. Need to freeze

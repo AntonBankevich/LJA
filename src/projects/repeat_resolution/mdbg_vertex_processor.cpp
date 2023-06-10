@@ -128,13 +128,34 @@ MDBGComplexVertexProcessor::SplitVertex(MultiplexDBG &graph,
     return {edge2vertex, new_vertices};
 }
 
-void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
+bool MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
                                          const RRVertexType &vertex,
                                          std::set<Sequence> &merged_self_loops) {
+
+    //std::cerr << "Start Process\n";
     const RRVertexProperty &v_prop = graph.node_prop(vertex);
-
     auto[ac_s2e, ac_e2s] = graph.GetEdgepairsVertex(vertex);
-
+    bool is_ont = false;
+    if (ac_s2e.size() == 0) {
+        is_ont = true;
+        std::cerr << "Resolve with ont!\n";
+        std::tie(ac_s2e, ac_e2s) = graph.GetEdgepairsVertexFromONT(vertex);
+        std::cerr << "Map size " << ac_s2e.size() << std::endl;
+        // bool dont = false;
+        for (const auto &[edge1, edge1_neighbors] : ac_s2e) {
+            for (const auto &edge2 : edge1_neighbors) {
+                //if (graph.untouched_edges.count(edge1) > 0) { std::cerr << "Dont\n"; dont = true;}
+                std::cerr << edge1 << " " << edge2 << std::endl;
+            }
+        }
+        //if (dont) { ac_s2e.clear(); ac_e2s.clear();}
+    }
+    std::cerr << "Split ont\n";
+    auto start = std::chrono::high_resolution_clock::now();
+    graph.SplitONTPaths(ac_s2e, vertex);
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    std::cerr << "Time elapsed: " << duration.count() << endl;
     /*
     {
         auto[in_edges, out_edges] = graph.GetNeighborEdgesIndexes(vertex);

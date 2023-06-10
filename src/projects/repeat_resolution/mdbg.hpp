@@ -23,6 +23,7 @@ class MultiplexDBG
                               graph_lite::Container::MULTISET> {
     friend class MultiplexDBGIncreaser;
     RRPaths *rr_paths;
+    RRPaths *ont_paths;
     uint64_t next_edge_index{0};
     uint64_t next_vert_index{0};
     uint64_t n_iter{0};
@@ -77,9 +78,9 @@ class MultiplexDBG
 
  public:
     MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges, uint64_t start_k,
-                 RRPaths *rr_paths, bool contains_rc);
+                 RRPaths *rr_paths, RRPaths *ont_paths, bool contains_rc);
 
-    MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *rr_paths, uint64_t start_k,
+    MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *rr_paths, RRPaths *ont_paths, uint64_t start_k,
                  UniqueClassificator &classificator);
 
     MultiplexDBG(const MultiplexDBG &) = delete;
@@ -144,6 +145,13 @@ class MultiplexDBG
     std::unordered_map<RREdgeIndexType, std::unordered_set<RREdgeIndexType>>;
     [[nodiscard]] std::pair<EdgeNeighborMap, EdgeNeighborMap>
     GetEdgepairsVertex(const RRVertexType &vertex) const;
+
+    using EdgeNeighborMapCnt =
+    std::unordered_map<RREdgeIndexType, std::unordered_map<RREdgeIndexType, RREdgeIndexType>>;
+    [[nodiscard]] std::pair<EdgeNeighborMap, EdgeNeighborMap>
+    GetEdgepairsVertexFromONT(const RRVertexType &vertex) const;
+
+    void SplitONTPaths(const EdgeNeighborMap &ac_s2e, const RRVertexType &vertex);
 
     NeighborsIterator FindInEdgeIterator(const RRVertexType &v,
                                          const RREdgeIndexType &edge);

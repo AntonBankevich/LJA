@@ -6,6 +6,28 @@
 
 using namespace repeat_resolution;
 
+void MultiplexDBG::SplitONTPaths(const MultiplexDBG::EdgeNeighborMap &ac_s2e,
+                                    const RRVertexType &vertex) {
+    const auto[in_edges, out_edges] = GetNeighborEdgesIndexes(vertex);
+    std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>> split_transitions;
+    for (const RREdgeIndexType &in_ind : in_edges) {
+        for (const RREdgeIndexType &out_ind : out_edges) {
+            bool contains_transition = false;
+            for (const auto &[edge1, edge1_neighbors] : ac_s2e) {
+                for (const auto &edge2 : edge1_neighbors) {
+                    if (in_ind == edge1 && out_ind == edge2) {
+                        contains_transition = true;
+                    }
+                }
+            }
+            if (!contains_transition) {
+                split_transitions.push_back({in_ind, out_ind});
+            }
+        }
+    }
+    ont_paths->SplitByTransitions(split_transitions);
+}
+
 std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
     dbg::SparseDBG &dbg, const UniqueClassificator &classificator) {
     const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg]() {
@@ -172,14 +194,15 @@ void MultiplexDBG::FreezeUnpairedVertices() {
             FreezeVertex(vertex);
         } else if (in_edges.size() >= 2 and out_edges.size() >= 2) {
             auto[ac_s2e, ac_e2s] = GetEdgepairsVertex(vertex);
+            auto[ac_s2e_ont, ac_e2s_ont] = GetEdgepairsVertexFromONT(vertex);
             for (const RREdgeIndexType &edge : in_edges) {
-                if (ac_s2e.find(edge)==ac_s2e.end()) {
+                if (ac_s2e.find(edge)==ac_s2e.end() && ac_s2e_ont.find(edge)==ac_s2e_ont.end()) {
                     FreezeVertex(vertex);
                     break;
                 }
             }
             for (const RREdgeIndexType &edge : out_edges) {
-                if (ac_e2s.find(edge)==ac_e2s.end()) {
+                if (ac_e2s.find(edge)==ac_e2s.end() && ac_e2s_ont.find(edge)==ac_e2s_ont.end()) {
                     FreezeVertex(vertex);
                     break;
                 }
@@ -248,6 +271,7 @@ void MultiplexDBG::MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
     RREdgeProperty &e2_prop = e2_it->second.prop();
     const RREdgeIndexType e2_index = e2_prop.Index();
     rr_paths->Merge(e1_prop.Index(), e2_prop.Index());
+    ont_paths->Merge(e1_prop.Index(), e2_prop.Index());
     const RRVertexProperty &v1 = node_prop(s1);
     const RRVertexProperty &v3 = node_prop(e2_it->first);
     e1_prop.Merge(std::move(node_prop(s2)), std::move(e2_prop));
@@ -271,6 +295,7 @@ RREdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
 
     RREdgeProperty e_new_prop = Add(vleft_prop, vright_prop, new_index);
     rr_paths->Add(eleft_prop.Index(), eright_prop.Index(), e_new_prop.Index());
+    ont_paths->Add(eleft_prop.Index(), eright_prop.Index(), e_new_prop.Index());
     add_edge_with_prop(vleft, vright, std::move(e_new_prop));
     return new_index;
 }
@@ -284,9 +309,9 @@ RRVertexType MultiplexDBG::GetNewVertex(MDBGSeq seq) {
 }
 
 MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
-                           const uint64_t start_k, RRPaths *const rr_paths,
+                           const uint64_t start_k, RRPaths *const rr_paths, RRPaths *const ont_paths,
                            bool contains_rc)
-    : rr_paths{rr_paths}, start_k{start_k}, contains_rc{contains_rc} {
+    : rr_paths{rr_paths}, ont_paths{ont_paths}, start_k{start_k}, contains_rc{contains_rc} {
     for (const SuccinctEdgeInfo &edge_info : edges) {
         const dbg::Edge *edge = edge_info.edge;
         next_vert_index = std::max(next_vert_index, 1 + edge_info.start_ind);
@@ -320,11 +345,25 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
     SpreadFrost();
 }
 
-MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
+MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths, RRPaths *const ont_paths,
                            const uint64_t start_k,
                            UniqueClassificator &classificator)
     : MultiplexDBG(SparseDBG2SuccinctEdgeInfo(dbg, classificator), start_k,
-                   rr_paths, true) {}
+                   rr_paths, ont_paths, true) {
+
+ //    untouched_edges.clear();
+/*    std::set<std::string> names {"269168962946293831180279746995339996626A", "269168962946293831180279746995339996626C", "18393013046091380232189201679543901463G",
+      "18393013046091380232189201679543901463A", "166487761363905377086360068926896636287G", "166487761363905377086360068926896636287T",};
+    size_t i = 0;
+    for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
+        const dbg::Edge &edge = *it;
+        std::cerr << edge.getId() << " " << i << std::endl;
+        if (names.count(edge.getId()) > 0) {
+           untouched_edges.insert(i);
+        }
+        ++i;
+    }*/
+}
 
 void MultiplexDBG::ExportToDot(
     const std::experimental::filesystem::path &path) const {
@@ -638,6 +677,120 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
     extend_transitions_single_loop(in_edges, out_edges, ac_s2e, ac_e2s);
     extend_transitions_all_unique(in_edges, out_edges, ac_s2e, ac_e2s);
 
+    return std::make_pair(ac_s2e, ac_e2s);
+}
+
+std::pair<MultiplexDBG::EdgeNeighborMap, MultiplexDBG::EdgeNeighborMap>
+MultiplexDBG::GetEdgepairsVertexFromONT(const RRVertexType &vertex) const {
+    auto get_init_transitions_ont =
+        [this](const std::vector<RREdgeIndexType> &in_edges,
+               const std::vector<RREdgeIndexType> &out_edges) {
+          EdgeNeighborMapCnt ac_s2e_cnt, ac_e2s_cnt;
+          //ont_paths->PrintRRPaths();
+          int sum_cnt = 0;
+          for (const RREdgeIndexType &in_ind : in_edges) {
+              for (const RREdgeIndexType &out_ind : out_edges) {
+                  if (ont_paths->ContainsPair(in_ind, out_ind)) {
+                      ac_s2e_cnt[in_ind][out_ind] = ont_paths->PairCount(in_ind, out_ind);
+                      ac_e2s_cnt[out_ind][in_ind] = ac_s2e_cnt[in_ind][out_ind];
+                      sum_cnt += ac_s2e_cnt[in_ind][out_ind];
+                  }
+              }
+          }
+          EdgeNeighborMap ac_s2e, ac_e2s;
+          const int threshold = 3;
+          const int sm_threshold = sum_cnt/(in_edges.size()*out_edges.size());
+          for (const auto &[in_ind, out_inds] : ac_s2e_cnt) {
+              for (const auto&[out_ind, cnt] : out_inds) {
+                  std::cerr << "Pairs to resolve: " << in_ind << " " << out_ind << " " << cnt << std::endl;
+                  if (cnt > std::max(threshold, sm_threshold)) {
+                      std::cerr << "Pairs to resolve: Choose: " << in_ind << " " << out_ind << " " << cnt << std::endl;
+                      ac_s2e[in_ind].emplace(out_ind);
+                      ac_e2s[out_ind].emplace(in_ind);
+                  }
+              }
+          }
+          return std::make_pair(ac_s2e, ac_e2s);
+        };
+
+    auto extend_transitions_single_loop_ont =
+        [this, &vertex](const std::vector<RREdgeIndexType> &in_edges,
+                        const std::vector<RREdgeIndexType> &out_edges,
+                        EdgeNeighborMap &ac_s2e, EdgeNeighborMap &ac_e2s) {
+          std::vector<RREdgeIndexType> loops;
+          for (const RREdgeIndexType &index : in_edges) {
+              if (std::find(out_edges.begin(), out_edges.end(), index)!=
+                  out_edges.end()) {
+                  loops.push_back(index);
+              }
+          }
+
+          if (loops.size()==1) {
+              const RREdgeIndexType loop = loops.front();
+              const RREdgeProperty &loop_prop =
+                  FindOutEdgeConstiterator(vertex, loop)->second.prop();
+              if (loop_prop.IsUnique()) {
+                  if (in_edges.size()==2) {
+                      const size_t loop_index = in_edges.back()==loop;
+                      const size_t nonloop = in_edges[loop_index ^ 1];
+                      ac_s2e[nonloop].emplace(loop);
+                      ac_e2s[loop].emplace(nonloop);
+                  }
+                  if (out_edges.size()==2) {
+                      const size_t loop_index = out_edges.back()==loop;
+                      const size_t nonloop = out_edges[loop_index ^ 1];
+                      ac_s2e[loop].emplace(nonloop);
+                      ac_e2s[nonloop].emplace(loop);
+                  }
+              }
+          }
+        };
+
+    auto extend_transitions_all_unique_ont =
+        [this, &vertex](const std::vector<RREdgeIndexType> &in_edges,
+                        const std::vector<RREdgeIndexType> &out_edges,
+                        EdgeNeighborMap &ac_s2e, EdgeNeighborMap &ac_e2s) {
+          std::vector<RREdgeIndexType> unpaired_in, unpaired_out;
+          for (const RREdgeIndexType &index : out_edges) {
+              if (ac_e2s.find(index)==ac_e2s.end()) {
+                  unpaired_out.push_back(index);
+              }
+          }
+          for (const RREdgeIndexType &index : in_edges) {
+              if (ac_s2e.find(index)==ac_s2e.end()) {
+                  unpaired_in.push_back(index);
+              }
+          }
+
+          bool all_in_unique =
+              std::all_of(in_edges.begin(), in_edges.end(),
+                          [this, &vertex](const RREdgeIndexType &edge_index) {
+                            return FindInEdgeConstiterator(vertex, edge_index)
+                                ->second.prop()
+                                .IsUnique();
+                          });
+          bool all_out_unique =
+              std::all_of(out_edges.begin(), out_edges.end(),
+                          [this, &vertex](const RREdgeIndexType &edge_index) {
+                            return FindOutEdgeConstiterator(vertex, edge_index)
+                                ->second.prop()
+                                .IsUnique();
+                          });
+          if (unpaired_in.size()==1 and unpaired_out.size()==1 and
+              (all_in_unique or all_out_unique)) {
+              const RRVertexType unp_in = unpaired_in.front();
+              const RRVertexType unp_out = unpaired_out.front();
+              VERIFY(ac_s2e.find(unp_in)==ac_s2e.end());
+              VERIFY(ac_e2s.find(unp_out)==ac_e2s.end());
+              ac_s2e[unp_in] = {unp_out};
+              ac_e2s[unp_out] = {unp_in};
+          }
+        };
+
+    const auto[in_edges, out_edges] = GetNeighborEdgesIndexes(vertex);
+    auto[ac_s2e, ac_e2s] = get_init_transitions_ont(in_edges, out_edges);
+    extend_transitions_single_loop_ont(in_edges, out_edges, ac_s2e, ac_e2s);
+    extend_transitions_all_unique_ont(in_edges, out_edges, ac_s2e, ac_e2s);
     return std::make_pair(ac_s2e, ac_e2s);
 }
 
