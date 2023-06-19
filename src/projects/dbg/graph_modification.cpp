@@ -322,7 +322,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
                 Vertex &start = subgraph.getVertex(old_read.path.start());
                 new_al = CompactPath(start, old_read.path.cpath(), old_read.path.leftSkip(), old_read.path.rightSkip()).getAlignment();
             } else {
-                new_al = GraphAligner(subgraph).align(al.Seq());
+                new_al = GraphAligner(subgraph).align(al.Seq(), old_read.id);
             }
             new_storage.reroute(new_read, new_al, "Remapping");
             new_storage.apply(new_read);

@@ -459,7 +459,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edg
     return res;
 }
 
-dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
+dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::string &name) const {
     std::vector<hashing::KWH> kmers = dbg.extractVertexPositions(seq, 1);
     size_t k = dbg.hasher().getK();
     GraphAlignment res;
@@ -476,7 +476,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq) const {
             if (!kwh.hasNext()) {
 #pragma omp critical
                 {
-                    std::cout << "Error: could not align sequence " << seq.size() << std::endl;
+                    std::cout << "Error: could not align sequence " << name << " " << seq.size() << std::endl;
                     std::cout << seq << std::endl;
                     abort();
                 };

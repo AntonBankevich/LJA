@@ -1,6 +1,7 @@
 #pragma once
 #include "dbg/sparse_dbg.hpp"
 #include "dbg/graph_alignment_storage.hpp"
+#include "dbg/visualization.hpp"
 #include "reliable_fillers.hpp"
 #include "diploidy_analysis.hpp"
 
@@ -57,6 +58,7 @@ public:
         size_t new_rel = 0;
         if(component.countBorderEdges() != 4 || component.realCC() != 2 || !component.isAcyclic())
             return 0;
+
         std::unordered_set<dbg::Edge *> used;
         size_t found = 0;
         for(size_t cnt = 0; cnt < 2; cnt++) {
@@ -66,26 +68,26 @@ public:
                 std::unordered_map<dbg::Vertex *, std::pair<size_t, dbg::Edge *>> prev;
                 std::vector<dbg::Vertex *> order = component.topSort();
                 for(dbg::Vertex * vit : order) {
-                    size_t best_score = 0;
-                    dbg::Edge *p = nullptr;
-                    for(dbg::Edge &edge : vit->rc()) {
-                        size_t score = 0;
-                        if(!component.contains(*edge.end())) {
-                            VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
-                            if(used.find(&edge) == used.end())
-                                score = 1000000;
-                            else
-                                score = 0;
-                        } else {
-                            if(used.find(&edge) == used.end())
-                                score = edge.intCov() - std::min(edge.intCov(), edge.size());
+	            size_t best_score = 0;
+	            dbg::Edge *p = nullptr;
+	            for(dbg::Edge &edge : vit->rc()) {
+		        size_t score = 0;
+		        if(!component.contains(*edge.end())) {
+		            VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
+		            if(used.find(&edge) == used.end())
+		                score = 1000000000;
+		            else
+		                score = 0;
+		        } else {
+	                    if(used.find(&edge) == used.end())
+	                        score = edge.intCov() - std::min(edge.intCov(), edge.size());
                             else if(edge.getCoverage() < 8) {
                                 score = 0;
                             } else {
                                 score = edge.size() * 2;
                             }
                         }
-                        score += prev[&edge.end()->rc()].first;
+	                score += prev[&edge.end()->rc()].first;
                         if(score > best_score) {
                             best_score = score;
                             p = &edge.rc();
