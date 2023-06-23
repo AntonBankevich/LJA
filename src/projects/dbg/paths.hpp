@@ -209,7 +209,7 @@ namespace dbg {
 
         GraphAlignment align(const EdgePosition &pos, const Sequence &seq) const;
         GraphAlignment align(const Sequence &seq, Edge *edge_to, size_t pos_to);
-        GraphAlignment align(const Sequence &seq) const;
+        GraphAlignment align(const Sequence &seq, const std::string &name = "") const;
         std::vector<PerfectAlignment<Contig, Edge>> carefulAlign(Contig &contig) const;
         std::vector<PerfectAlignment<Edge, Edge>> oldEdgeAlign(Edge &contig) const;
         std::vector<PerfectAlignment<Contig, Edge>> sparseAlign(Contig &contig) const;

@@ -11,6 +11,7 @@
 
 #include "graphlite.hpp"
 #include <deque>
+#include "optional"
 
 namespace graph_lite {
     namespace detail {

@@ -122,7 +122,10 @@ public:
     std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width, double max_divergence, int end_bonus = 0) const {
         size_t l1 = strlen(tseq);
         size_t l2 = strlen(qseq);
-        min_width = std::max<size_t>(min_width, std::max(l1, l2) - std::min(l1, l2));
+//        min_width = std::max<size_t>(min_width, std::max(l1, l2) - std::min(l1, l2));
+        min_width += std::max(l1, l2) - std::min(l1, l2);
+        max_width += std::max(l1, l2) - std::min(l1, l2);
+        int64_t prev_cost = -1000000;
         while(min_width < max_width) {
             auto res = align(tseq, qseq, min_width, end_bonus);
             if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {

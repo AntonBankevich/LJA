@@ -143,7 +143,7 @@ std::string ManyKCorrector::correctRead(GraphAlignment &read_path) {
     message = join("_", messages);
     if(corrected.len() < 100) {
 #pragma omp critical
-            std::cout << corrected.len() << " " << message << "\noppa " << read_path.str(true) << "\noppa " << corrected.str(true) << std::endl;
+            std::cout << corrected.len() << " " << message << "\n " << read_path.str(true) << "\n " << corrected.str(true) << std::endl;
     }
     read_path = corrected;
     return message;

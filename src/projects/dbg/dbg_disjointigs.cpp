@@ -29,22 +29,6 @@ void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
         VERIFY(edge.end() != nullptr);
         VERIFY(!rec.seq.empty());
         Path path = Path::WalkForward(edge);
-//        Vertex &rec1 = path.back().end()->rc();
-//        const Edge &edge1 = path.size() > 1 ? path[path.size() - 2].end()->sparseRcEdge(path.back()) :
-//                                   rec.sparseRcEdge(path.back());
-//        std::vector<Edge> path1 = rec1.walkForward(edge1);
-//        bool oppa1 = (rec < path.back().end()->rc() || (rec == path.back().end()->rc() && rec.pathSeq(path) <= !rec.pathSeq(path)));
-//        bool oppa2 = (rec1 < path1.back().end()->rc() || (rec1 == path1.back().end()->rc() && rec1.pathSeq(path1) <= !rec1.pathSeq(path1)));
-//        htype oppa = htype(63100013936723) * 1000000000000 * 1000000000000 + htype(716503108335) * 1000000000000  + 449034034478;
-//        if(rec.hash() == oppa || path.back().end()->hash() == oppa ||
-//        if(     (oppa1 == oppa2 && rec.pathSeq(path) != !rec.pathSeq(path)) ||
-//                (!oppa1 && !oppa2 && rec.pathSeq(path) == !rec.pathSeq(path))) {
-//            std::cout << "Incorrect comparison of vertices. Antisymmetry is broken " << oppa1 << " " << oppa2 <<
-//                        " " << (rec.pathSeq(path) == !rec.pathSeq(path)) << std::endl;
-//            std::cout << rec.hash()<< " "<< rec.isCanonical() << rec1.hash() << " " << rec1.isCanonical() << std::endl;
-//            std::cout << rec.pathSeq(path) << std::endl << !rec.pathSeq(path)<< std::endl << rec1.pathSeq(path1) << std::endl;
-//            VERIFY(false)
-//        }
         if(rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
             Sequence disjointig = buildDisjointig(path);
             for(size_t i = 1; i < path.size(); i++) {

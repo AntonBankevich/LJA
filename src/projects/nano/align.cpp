@@ -34,7 +34,7 @@ std::unordered_map<std::string, std::vector<nano::GraphContig>> AlignOnt(logging
 //    reads_aligner.Align(batch, input_gfa, dir, threads, ++batch_num);
     batch.clear();
     std::unordered_map<std::string, std::vector<nano::GraphContig>> result;
-    for (int i = 1; i < batch_num + 1; ++ i) {
+    for (int i = 1; i <= batch_num + 1; ++ i) {
         for(auto &it : reads_aligner.ExtractPaths(dir, i)) {
             result[it.first].insert(result[it.first].end(), it.second.begin(), it.second.end());
         }
@@ -125,7 +125,7 @@ std::pair<size_t, size_t> FromToLen(const std::vector<cigar_pair> &cigar) {
 }
 
 std::vector<cigar_pair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq, int end_bonus = 0) {
-    KSWAligner kswAligner(1, 5, 10, 2);
+    KSWAligner kswAligner(1, 5, 5, 3);
     return kswAligner.iterativeBandAlign(to_seq.str(), from_seq.str(), 5, 100, 0.01, end_bonus);
 }
 
@@ -395,7 +395,7 @@ private:
             typedef std::pair<int, int> StoredValue;
             std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
             std::unordered_map<int, int> res;
-            queue.emplace(0, v1);
+            queue.emplace(-int(mg->vertices.at(v1).size()), v1);
             while(!queue.empty()) {
                 StoredValue next = queue.top();
                 queue.pop();
@@ -436,7 +436,7 @@ public:
     bool recursiveFindBulges(std::vector<std::vector<multigraph::Edge *>> &bulges, std::vector<multigraph::Edge *> &bulge,
                              const multigraph::Edge &last_edge, int clen, int tlen) {
         if(bulge.back()->end == last_edge.end && bulge.back() != &last_edge && tlen - max_diff <= clen <= tlen + max_diff) {
-            bulges.emplace_back(bulge);
+            bulges.push_back(bulge);
             if(bulges.size() >= 20)
                 return false;
         }
@@ -459,10 +459,10 @@ public:
             path_len = -int(path[start]->start->size());
             for (size_t i = start; i < end; i++) {
                 path_len += int(path[i]->size()) - int(path[i]->end->size());
-                if (path_len > max_size) {
-                    return true;
-                }
             }
+        }
+        if (path_len > max_size) {
+            return true;
         }
         std::vector<std::vector<multigraph::Edge *>> bulges;
         bool found_all = true;
@@ -578,6 +578,7 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
         std::vector<std::pair<size_t, size_t>> nails = Nails(graph, from_seq, mpath, cigar);
         std::vector<multigraph::Edge *> path(mpath.begin(), mpath.end());
         for(const Detour &detour : bulgeFinder.findBulges(path)) {
+            std::cout << detour.path.size() << " " << detour.end - detour.start << std::endl;
             if(CheckAndReplace(from_seq, nails, path, detour)) {
                 mpath = {std::move(path), mpath.getSkipLeft(), mpath.getSkipRight()};
                 cigar = defaultAlign(from_seq, mpath.getSeq());
@@ -586,48 +587,47 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
             }
         }
     }
-//    if(mpath.size() > 1) {
-//        std::vector<std::pair<size_t, size_t>> nails = Nails(graph, from_seq, mpath, cigar);
-//        multigraph::Vertex &last_junction = mpath.vertex(mpath.size() - 1);
-//        for(multigraph::Edge *out: last_junction.outgoing) {
-//            if(out == &mpath.edge(mpath.size() - 1))
-//                continue;
-//            if(out->size() < mpath.edge(mpath.size() - 1).size() - mpath.getSkipRight())
-//                continue;
-//            multigraph::Edge &edge = *out;
-//            Sequence s = from_seq.Subseq(nails.back().first, from_seq.size());
-//            Sequence s1 = mpath.edge(mpath.size() - 1).getSeq().Subseq(nails.back().second, mpath.edge(mpath.size() - 1).size() - mpath.getSkipRight());
-//            Sequence s2 = edge.getSeq().Subseq(nails.back().second, edge.size());
-//            s2 = s2.Subseq(0, std::min(s2.size(), s.size() + 1000));
-//            std::vector<std::pair<size_t, size_t>> to_ignore = Mark(s);
-//            std::vector<cigar_pair> al1 = defaultAlign(s, s1, 1000000);
-//            std::vector<cigar_pair> al2 = defaultAlign(s, s2, 1000000);
-//            size_t score1 = Score(al1, s, s1, to_ignore);
-//            size_t score2 = Score(al2, s, s2, to_ignore);
-//            std::pair<size_t, size_t> fromto1 = FromToLen(al1);
-//            std::pair<size_t, size_t> fromto2 = FromToLen(al2);
+    if(mpath.size() > 1) {
+        std::vector<std::pair<size_t, size_t>> nails = Nails(graph, from_seq, mpath, cigar);
+        multigraph::Vertex &last_junction = mpath.vertex(mpath.size() - 1);
+        for(multigraph::Edge *out: last_junction.outgoing) {
+            if(out == &mpath.edge(mpath.size() - 1))
+                continue;
+            if(out->size() < mpath.edge(mpath.size() - 1).size() - mpath.getSkipRight())
+                continue;
+            multigraph::Edge &edge = *out;
+            Sequence s = from_seq.Subseq(nails.back().first, from_seq.size());
+            Sequence s1 = mpath.edge(mpath.size() - 1).getSeq().Subseq(nails.back().second, mpath.edge(mpath.size() - 1).size() - mpath.getSkipRight());
+            Sequence s2 = edge.getSeq().Subseq(nails.back().second, edge.size());
+            s2 = s2.Subseq(0, std::min(s2.size(), s.size() + 1000));
+            std::vector<std::pair<size_t, size_t>> to_ignore = Mark(s);
+            std::vector<cigar_pair> al1 = defaultAlign(s, s1, 1000000);
+            std::vector<cigar_pair> al2 = defaultAlign(s, s2, 1000000);
+            size_t score1 = Score(al1, s, s1, to_ignore);
+            size_t score2 = Score(al2, s, s2, to_ignore);
+            std::pair<size_t, size_t> fromto1 = FromToLen(al1);
+            std::pair<size_t, size_t> fromto2 = FromToLen(al2);
 //            if(fromto1.first < s.size()) {
-//                std::cout << "gopa" << std::endl;
 //                AnalyseAndPrint(s, s1, 1000000);
 //            }
-//            if(fromto1.first >= s.size() - 5 && fromto2.first >= s.size() - 5 &&  score1 > score2) {
-//                std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(s, s1, {}) << " " << Score(s, s2, {}) << std::endl;
-//                for(multigraph::Edge *edge : mpath) {
-//                    std::cout << edge->getId() << " ";
-//                }
-//                std::cout << std::endl;
-//                std::vector<multigraph::Edge *> res(mpath.begin(), mpath.end() - 1);
-//                res.push_back(out);
-//                mpath = MPath(std::move(res), mpath.getSkipLeft(), edge.size() - fromto2.second);
-//                for(multigraph::Edge *edge : mpath) {
-//                    std::cout << edge->getId() << " ";
-//                }
-//                std::cout << std::endl;
-//                AnalyseAndPrint(s, s1, 1000000);
-//                AnalyseAndPrint(s, s2, 1000000);
-//            }
-//        }
-//    }
+            if(fromto1.first >= s.size() - 5 && fromto2.first >= s.size() - 5 &&  score1 > score2) {
+                std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(s, s1, {}) << " " << Score(s, s2, {}) << std::endl;
+                for(multigraph::Edge *edge : mpath) {
+                    std::cout << edge->getId() << " ";
+                }
+                std::cout << std::endl;
+                std::vector<multigraph::Edge *> res(mpath.begin(), mpath.end() - 1);
+                res.push_back(out);
+                mpath = MPath(std::move(res), mpath.getSkipLeft(), edge.size() - fromto2.second);
+                for(multigraph::Edge *edge : mpath) {
+                    std::cout << edge->getId() << " ";
+                }
+                std::cout << std::endl;
+                AnalyseAndPrint(s, s1, 1000000);
+                AnalyseAndPrint(s, s2, 1000000);
+            }
+        }
+    }
 }
 
 

@@ -170,6 +170,9 @@ public:
     Sequence(const Sequence &s)
             : Sequence(s, s.from_, s.size_, s.rtl_) {}
 
+    Sequence(Sequence && s) noexcept
+            : from_(s.from_), size_(s.size_), rtl_(s.rtl_), data_(std::move(s.data_)) {}
+
     static Sequence Concat(const std::vector<Sequence> &v) {
         std::stringstream ss;
         for(const auto &seq : v) {

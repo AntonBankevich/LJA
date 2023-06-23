@@ -122,8 +122,9 @@ private:
     std::string finish;
 public:
     template<class StageType>
-    LoggedProgram(std::string name, StageType stage, CLParser clParser, const std::string &start, const std::string &finish) :
-            name(std::move(name)), stage(new StageType(std::move(stage))), clParser(std::move(clParser)), start(start), finish(finish) {
+    LoggedProgram(std::string name, StageType stage, CLParser clParser, std::string start, std::string finish) :
+            name(std::move(name)), stage(new StageType(std::move(stage))), clParser(std::move(clParser)),
+            start(std::move(start)), finish(std::move(finish)) {
     }
 
     template<class StageType>

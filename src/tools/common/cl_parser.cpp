@@ -95,6 +95,16 @@ AlgorithmParameters::AlgorithmParameters(const std::vector<std::string>& one_val
             values[s] = delim;
         }
     }
+    if(this->help_message.empty()) {
+        std::stringstream ss;
+        for(auto &it: this->values) {
+            ss << "\t--" << it.first << " <value>\n";
+        }
+        for(auto &it: this->checks) {
+            ss << "\t--" << it.first << "\n";
+        }
+        this->help_message = ss.str();
+    }
 }
 
 AlgorithmParameters::AlgorithmParameters(const std::vector<std::pair<std::string, AlgorithmParameters>> &to_combine,
@@ -176,7 +186,7 @@ std::string AlgorithmParameters::checkMissingValues(const AlgorithmParameterValu
 AlgorithmParameters AlgorithmParameters::AddParameters(const AlgorithmParameters &other, const std::string &name,
                                                        const std::string &prefix) const {
     AlgorithmParameters res = *this;
-    res.help_message = res.help_message + "\nParameters of " + name + "\n" + other.help_message;
+    res.help_message = res.help_message + "\nParameters of " + name + ":\n" + other.help_message;
 
     std::unordered_set<std::string> all_params;
     std::unordered_set<std::string> all_libs;

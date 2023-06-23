@@ -221,12 +221,12 @@ std::string ComplexStage::verifyBinding() const {
 
 int LoggedProgram::run(const std::vector<std::string> &command_line) {
     AlgorithmParameterValues params = clParser.parseCL(command_line);
-    std::string message = stage->getParameters().checkMissingValues(params);
-    VERIFY_MSG(message.empty(), message);
     if (params.hasCheck("help") && params.getCheck("help")) {
         std::cout << params.helpMessage() << std::endl;
         return 0;
     }
+    std::string message = clParser.getParameters().checkMissingValues(params);
+    VERIFY_MSG(message.empty(), message);
     VERIFY(params.hasValue("output-dir"));
     bool debug = false;
     if (params.hasCheck("debug") && params.getCheck("debug"))

@@ -129,7 +129,7 @@ std::vector<cigar_pair> UncompressOverlap(const Sequence &hpcOverlap, const Sequ
         right_seq = right_seq.Subseq(0, right_seq.size() - (rightHomoSize(right_seq) - rightHomoSize(left_seq)));
     }
     KSWAligner kswAligner(1, 5, 10, 2);
-    return kswAligner.iterativeBandAlign(left_seq.str(), right_seq.str(), 5, 100, 0.01);
+    return kswAligner.iterativeBandAlign(left_seq.str(), right_seq.str(), 5, 100, 0.01, 0);
 }
 
 std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,

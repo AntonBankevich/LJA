@@ -1,5 +1,7 @@
 #include <common/cl_parser.hpp>
+#include <common/pipeline_tools.hpp>
 #include "homopolish.hpp"
+#include "polishing_stage.hpp"
 
 /*
  * я выдам записи вида read_id contig_id alignment_start alignment_end
@@ -8,34 +10,13 @@
  *
  */
 int main(int argc, char **argv) {
-    CLParser parser({"alignments=", "contigs=", "output=", "debug=none", "threads=8", "compress=16"}, {"reads"},
-                    {});
-
-    parser.parseCL(argc, argv);
-
-    if (!parser.check().empty()) {
-        std::cout << "Incorrect parameters" << std::endl;
-        std::cout << parser.check() << std::endl;
-        return 1;
-    }
-    std::experimental::filesystem::path dir(parser.getValue("output"));
-    ensure_dir_existance(dir);
-    logging::LoggerStorage ls(dir, "dbg");
-    logging::Logger logger;
-    logger.addLogFile(ls.newLoggerFile(), logging::debug);
-    logger << join(" ", argv, argv + argc);
-    omp_set_num_threads(stoi(parser.getValue("threads")));
-    size_t dicompress = std::stoull(parser.getValue("compress"));
-    size_t threads = std::stoull(parser.getValue("threads"));
-    std::experimental::filesystem::path contigs_file(parser.getValue("contigs"));
-    std::experimental::filesystem::path alignments_file(parser.getValue("alignments"));
-    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-    std::vector<Contig> assembly = io::SeqReader(contigs_file).readAllContigs();
-    std::vector<Contig> res = Polish(logger, threads, assembly, alignments_file, reads_lib, dicompress);
-    std::ofstream res_os;
-    res_os.open(dir / "corrected_contigs.fasta");
-    for(Contig &contig : res) {
-        res_os << ">" << contig.getId() << "\n" << contig.seq << "\n";
-    }
-    res_os.close();
+//    AlgorithmParameters parameters({"threads=", "output-dir="}, {"nano", "graph"}, "");
+//    CLParser parser(parameters, {"o=output-dir", "t=threads"});
+//    CLParser parser({"alignments=", "contigs=", "output=", "debug=none", "threads=8", "compress=16"}, {"reads"},
+//                    {});
+    PolishingPhase phase;
+    AlgorithmParameters params = AlgorithmParameters::Basic().AddParameters(phase.getParameters(), "polishing", "");
+    CLParser parser(params, {"o=output-dir", "t=threads"});
+    LoggedProgram polishing("polishing", std::move(phase), std::move(parser), "Starting polishing procedure", "Finished polishing procedure");
+    polishing.run(oneline::initialize<std::string, char*>(argv, argv + argc));
 }

@@ -3,5 +3,3 @@
 //
 
 #include "sequence.hpp"
-
-//size_t oppa_cnt = 0;

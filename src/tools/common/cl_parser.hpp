@@ -22,6 +22,10 @@ public:
     AlgorithmParameters() = default;
     AlgorithmParameters(const std::vector<std::string>& one_value_parameters, const std::vector<std::string>& lib_params, std::string help_message);
     AlgorithmParameters(const std::vector<std::pair<std::string, AlgorithmParameters>> &to_combine, const std::string &help_message);
+    static AlgorithmParameters Basic() {return {{"output-dir=", "threads=16", "help", "debug"}, {},
+        "General parameters:\n"
+        "\t--output-dir <file_name>  Name of output folder. Results will be stored there.\n"
+        "\t--threads <int>  Number of threads to be used by parallel processing.\n"};}
 
     AlgorithmParameters AddParameters(const AlgorithmParameters &other, const std::string &name, const std::string &prefix) const;
 
@@ -64,6 +68,7 @@ public:
 //    TODO: check what happens with quotes
     AlgorithmParameterValues parseCL(const std::vector<std::string>& args, bool strict = true);
     AlgorithmParameterValues parseCL(int argc, char **argv);
+    const AlgorithmParameters &getParameters() const {return parameters;}
     const std::vector<std::string> &getStart() const {return start;}
     const std::string &getCL() const {return command_line;}
 };

@@ -451,9 +451,13 @@ bool RecordStorage::apply(AlignedRead &alignedRead) {
 
 void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected,
                             const string &message) {
-    if(log_changes)
+    if (log_changes)
         readLogger->logRerouting(alignedRead, initial, corrected, message);
-    alignedRead.correct(CompactPath(corrected));
+    if(corrected.len() < 500)
+        delayedInvalidateRead(alignedRead, "Deleted_after_" + message);
+    else {
+        alignedRead.correct(CompactPath(corrected));
+    }
 }
 
 void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &corrected, const string &message) {

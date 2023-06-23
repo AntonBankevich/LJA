@@ -188,11 +188,8 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
 int main(int argc, char **argv) {
     std::vector<std::string> command_line = oneline::initialize<std::string, char*>(argv, argv + argc);
     ComplexStage lja = ConstructLJApipeline(command_line);
-    AlgorithmParameters basic({"output-dir=", "threads=16", "debug"}, {},
-                              "General parameters:\n"
-                              "  --output-dir <file_name>  Name of output folder. Results will be stored there.\n"
-                              "  --threads <int>  Number of threads to be used by parallel processing.\n");
-    CLParser parser(basic.AddParameters(lja.getParameters(), "lja", ""), {"o=output-dir", "t=threads"},
+    AlgorithmParameters parameters = AlgorithmParameters::Basic().AddParameters(lja.getParameters(), "lja", "");
+    CLParser parser(parameters, {"o=output-dir", "t=threads"},
                     {"diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid", "diploid=MDBG.diploid"});
     LoggedProgram lja_program("lja", std::move(lja), std::move(parser),
                               "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads.",
