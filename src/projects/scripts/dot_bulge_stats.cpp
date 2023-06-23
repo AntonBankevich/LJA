@@ -18,7 +18,12 @@ int main(int argc, char **argv) {
     AlgorithmParameters parameters({"dot=", "min_cov=none", "max_cov=none"}, {}, "");
     CLParser parser(parameters, {});
     AlgorithmParameterValues parameterValues = parser.parseCL(argc, argv);
-    parameterValues.checkMissingValues();
+    if (!parameterValues.checkMissingValues().empty()) {
+        std::cout << "Failed to parse command line parameters." << std::endl;
+        std::cout << parameterValues.checkMissingValues() << "\n" << std::endl;
+        std::cout << parameterValues.helpMessage() << std::endl;
+        return 1;
+    }
     std::experimental::filesystem::path path = parameterValues.getValue("dot");
     std::ifstream is;
     is.open(path);

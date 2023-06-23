@@ -2,7 +2,7 @@
 
 #include <utility>
 #include <cstdio>
-#include "multi_graph.hpp"
+#include "dbg/multi_graph.hpp"
 using namespace dbg;
 std::string RepeatResolver::COMMAND = "{} {} -i {} -o {} > {}";
 

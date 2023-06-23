@@ -14,15 +14,18 @@
 
 using namespace dbg;
 int main(int argc, char **argv) {
-    CLParser parser({"output-dir=", "k-mer-size=", "window=", "threads=8", "base=239", "repeat-length=10000"}, {"ref"},{"o=output-dir", "k=k-mer-size", "w=window", "t=threads"});
-    parser.parseCL(argc, argv);
-    if (!parser.check().empty()) {
-        std::cout << "Incorrect parameters" << std::endl;
-        std::cout << parser.check() << std::endl;
+    AlgorithmParameters params({"output-dir=", "k-mer-size=", "window=", "threads=8", "base=239", "repeat-length=10000"},
+                        {"ref"}, "");
+    CLParser parser(params, {"o=output-dir", "k=k-mer-size", "w=window", "t=threads"}, {});
+    AlgorithmParameterValues parameterValues = parser.parseCL(argc, argv);
+    if (!parameterValues.checkMissingValues().empty()) {
+        std::cout << "Failed to parse command line parameters." << std::endl;
+        std::cout << parameterValues.checkMissingValues() << "\n" << std::endl;
+        std::cout << parameterValues.helpMessage() << std::endl;
         return 1;
     }
     StringContig::homopolymer_compressing = true;
-    const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
+    const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
@@ -30,12 +33,12 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < argc; i++) {
         logger << argv[i] << " ";
     }
-    size_t k = std::stoull(parser.getValue("k-mer-size"));
-    const size_t w = std::stoull(parser.getValue("window"));
-    const size_t threads = std::stoull(parser.getValue("threads"));
-    size_t repeat_length = std::stoull(parser.getValue("repeat-length"));
+    size_t k = std::stoull(parameterValues.getValue("k-mer-size"));
+    const size_t w = std::stoull(parameterValues.getValue("window"));
+    const size_t threads = std::stoull(parameterValues.getValue("threads"));
+    size_t repeat_length = std::stoull(parameterValues.getValue("repeat-length"));
     hashing::RollingHash hasher(k);
-    io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("ref"));
+    io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("ref"));
     SparseDBG dbg = DBGPipeline(logger, hasher, w, ref_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string());
     dbg.fillAnchors(w, logger, threads);
 //    sdbg.printStats(logger);

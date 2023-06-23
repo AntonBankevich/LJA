@@ -2,7 +2,7 @@
 #include <experimental/filesystem>
 #include <unordered_map>
 #include <common/dir_utils.hpp>
-#include "lja/multi_graph.hpp"
+#include "dbg/multi_graph.hpp"
 using namespace multigraph;
 int main(int argc, char **argv) {
     MultiGraph mg;

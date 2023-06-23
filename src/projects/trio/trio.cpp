@@ -15,7 +15,7 @@
 #include <array>
 #include <algorithm>
 
-#include <lja/multi_graph.hpp>
+#include <dbg/multi_graph.hpp>
 #include <lja/subdataset_processing.hpp>
 
 using namespace trio;

@@ -10,24 +10,26 @@
 #include <dbg/subdatasets.hpp>
 
 int main(int argc, char **argv) {
-    CLParser parser({"vertices=none", "unique=none", "dbg=none", "output-dir=",
-                     "threads=16", "k-mer-size=", "window=2000", "debug", "disjointigs=none",
-                     "reference=none", "compress", "dimer-compress=1000000000,1000000000,1", "unique-threshold=40000", "radius=1000", "bad-cov=7", "track-paths"},
-                    {"paths", "reads"},
+    AlgorithmParameters params({"vertices=none", "unique=none", "dbg=none", "output-dir=",
+                               "threads=16", "k-mer-size=", "window=2000", "debug", "disjointigs=none",
+                               "reference=none", "compress", "dimer-compress=1000000000,1000000000,1",
+                               "unique-threshold=40000", "radius=1000", "bad-cov=7", "track-paths"},
+                               {"paths", "reads"}, "");
+    CLParser parser(params,
                     {"o=output-dir", "t=threads", "k=k-mer-size", "w=window"},
-                    "");
-    parser.parseCL(argc, argv);
-    if (!parser.check().empty()) {
+                    {});
+    AlgorithmParameterValues parameterValues = parser.parseCL(argc, argv);
+    if (!parameterValues.checkMissingValues().empty()) {
         std::cout << "Failed to parse command line parameters." << std::endl;
-        std::cout << parser.check() << "\n" << std::endl;
-        std::cout << parser.message() << std::endl;
+        std::cout << parameterValues.checkMissingValues() << "\n" << std::endl;
+        std::cout << parameterValues.helpMessage() << std::endl;
         return 1;
     }
 
-    bool debug = parser.getCheck("debug");
-    StringContig::homopolymer_compressing = parser.getCheck("compress");
-    StringContig::SetDimerParameters(parser.getValue("dimer-compress"));
-    const std::experimental::filesystem::path dir(parser.getValue("output-dir")); //initialization of dir
+    bool debug = parameterValues.getCheck("debug");
+    StringContig::homopolymer_compressing = parameterValues.getCheck("compress");
+    StringContig::SetDimerParameters(parameterValues.getValue("dimer-compress"));
+    const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir")); //initialization of dir
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
@@ -36,21 +38,21 @@ int main(int argc, char **argv) {
         logger << argv[i] << " ";
     }
     logger << std::endl;
-    size_t k = std::stoi(parser.getValue("k-mer-size"));
-    const size_t w = std::stoi(parser.getValue("window"));
-    double bad_cov = std::stod(parser.getValue("bad-cov"));
-    bool track_paths = parser.getCheck("track-paths");
-    size_t unique_threshold = std::stoi(parser.getValue("unique-threshold"));
-    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-    io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("paths"));
+    size_t k = std::stoi(parameterValues.getValue("k-mer-size"));
+    const size_t w = std::stoi(parameterValues.getValue("window"));
+    double bad_cov = std::stod(parameterValues.getValue("bad-cov"));
+    bool track_paths = parameterValues.getCheck("track-paths");
+    size_t unique_threshold = std::stoi(parameterValues.getValue("unique-threshold"));
+    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("reads"));
+    io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("paths"));
     io::Library ref_lib;
-    if(parser.getValue("reference") != "none")
-        ref_lib =  oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reference"));
-    std::string disjointigs_file = parser.getValue("disjointigs");
-    std::string vertices_file = parser.getValue("vertices");
-    std::string dbg_file = parser.getValue("dbg");
+    if(parameterValues.getValue("reference") != "none")
+        ref_lib =  oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("reference"));
+    std::string disjointigs_file = parameterValues.getValue("disjointigs");
+    std::string vertices_file = parameterValues.getValue("vertices");
+    std::string dbg_file = parameterValues.getValue("dbg");
     hashing::RollingHash hasher(k);
-    size_t threads = std::stoi(parser.getValue("threads"));
+    size_t threads = std::stoi(parameterValues.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
                          dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger,
@@ -86,7 +88,7 @@ int main(int argc, char **argv) {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
         io::SeqReader reader(paths_lib);
-        size_t radius = std::stoull(parser.getValue("radius"));
+        size_t radius = std::stoull(parameterValues.getValue("radius"));
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
             std::cout << contig.id << " " << contig.size() << " " << dbg::GraphAligner(dbg).carefulAlign(contig).size() << std::endl;

@@ -7,7 +7,7 @@
 #include <sequences/seqio.hpp>
 #include "common/logging.hpp"
 #include <common/string_utils.hpp>
-#include "lja/multi_graph.hpp"
+#include "dbg/multi_graph.hpp"
 #include "haplo_stats.hpp"
 
 namespace trio {

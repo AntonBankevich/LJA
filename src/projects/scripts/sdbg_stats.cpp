@@ -13,15 +13,17 @@
 
 using namespace dbg;
 int main(int argc, char **argv) {
-    CLParser parser({"output-dir=", "ref=", "k-mer-size=", "window=", "add-ends", "threads=8", "base=239"}, {"reads"},{"o=output-dir", "k=k-mer-size", "w=window", "t=threads"});
-    parser.parseCL(argc, argv);
-    if (!parser.check().empty()) {
-        std::cout << "Incorrect parameters" << std::endl;
-        std::cout << parser.check() << std::endl;
+    AlgorithmParameters params({"output-dir=", "ref=", "k-mer-size=", "window=", "add-ends", "threads=8", "base=239"}, {"reads"}, "");
+    CLParser parser(params, {"o=output-dir", "k=k-mer-size", "w=window", "t=threads"}, {});
+    AlgorithmParameterValues parameterValues = parser.parseCL(argc, argv);
+    if (!parameterValues.checkMissingValues().empty()) {
+        std::cout << "Failed to parse command line parameters." << std::endl;
+        std::cout << parameterValues.checkMissingValues() << "\n" << std::endl;
+        std::cout << parameterValues.helpMessage() << std::endl;
         return 1;
     }
     StringContig::homopolymer_compressing = true;
-    const std::experimental::filesystem::path dir(parser.getValue("output-dir"));
+    const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
     logging::Logger logger;
@@ -29,17 +31,17 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < argc; i++) {
         logger << argv[i] << " ";
     }
-    size_t k = std::stoi(parser.getValue("k-mer-size"));
-    const size_t w = std::stoi(parser.getValue("window"));
-    const size_t threads = std::stoi(parser.getValue("threads"));
+    size_t k = std::stoi(parameterValues.getValue("k-mer-size"));
+    const size_t w = std::stoi(parameterValues.getValue("window"));
+    const size_t threads = std::stoi(parameterValues.getValue("threads"));
     hashing::RollingHash hasher(k);
-    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parser.getListValue("reads"));
-    std::experimental::filesystem::path ref(parser.getValue("ref"));
+    io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("reads"));
+    std::experimental::filesystem::path ref(parameterValues.getValue("ref"));
     std::vector<hashing::htype> hash_list = constructMinimizers(logger, reads_lib, threads, hasher, w);
     SparseDBG sdbg = constructSparseDBGFromReads(logger, reads_lib, threads, hasher, hash_list, w);
 //    sdbg.printStats(logger);
     sdbg.checkSeqFilled(threads, logger);
-    if(parser.getCheck("add-ends"))
+    if(parameterValues.getCheck("add-ends"))
         tieTips(logger, sdbg, w, threads);
     simpleStats(logger, sdbg);
     io::SeqReader reader(ref);

@@ -250,7 +250,14 @@ int LoggedProgram::run(const std::vector<std::string> &command_line) {
     for(const std::string &iname : stage->getExpectedInput()) {
         input[iname] = oneline::initialize<std::experimental::filesystem::path>(params.getListValue(iname));
     }
-    stage->run(logger, threads, dir, debug, params, input);
+    std::unordered_map<std::string, std::experimental::filesystem::path> output = stage->run(logger, threads, dir, debug, params, input);
+    VERIFY(output.size() == stage->getExpectedOutput().size());
+    if(!stage->getExpectedOutput().empty()) {
+        logger.info() << "Results can be found in the following file(s): " << std::endl;
+        for(auto &it: output) {
+            logger.info() << it.first << " : " << it.second << std::endl;
+        }
+    }
     logger.info() << finish << std::endl;
     return 0;
 }

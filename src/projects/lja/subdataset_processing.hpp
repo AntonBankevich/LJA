@@ -7,7 +7,7 @@
 #include "../dbg/graph_printing.hpp"
 #include "../dbg/visualization.hpp"
 #include "common/hash_utils.hpp"
-#include "multi_graph.hpp"
+#include "dbg/multi_graph.hpp"
 #include <utility>
 
 class RepeatResolver {

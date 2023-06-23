@@ -2,7 +2,7 @@
 #include <vector>
 #include <unordered_map>
 #include <experimental/filesystem>
-#include "../lja/multi_graph.hpp"
+#include "dbg/multi_graph.hpp"
 #include "../lja/subdataset_processing.hpp"
 #include "sequences/seqio.hpp"
 

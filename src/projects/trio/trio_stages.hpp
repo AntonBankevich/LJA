@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yak/yak_lib.h>
-#include <lja/multi_graph.hpp>
+#include <dbg/multi_graph.hpp>
 #include <polishing/polishing_stage.hpp>
 #include "trio.hpp"
 

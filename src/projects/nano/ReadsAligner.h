@@ -5,7 +5,7 @@
 #ifndef DR_READSALIGNER_H
 #define DR_READSALIGNER_H
 
-#include <lja/multi_graph.hpp>
+#include <dbg/multi_graph.hpp>
 #include <nano/GraphContig.hpp>
 
 
