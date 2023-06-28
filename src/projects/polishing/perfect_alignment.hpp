@@ -111,9 +111,9 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         contigsAndRC.emplace_back(contig.RC());
     }
     std::vector<AlignmentRecord> final = RealignReads(logger, threads, contigsAndRC, read_start, read_end, K);
-    logger.info() << "Printing alignments to " << (dir/"alignments.txt") << std::endl;
     std::experimental::filesystem::path good_fname = dir/"good_alignments.txt";
     std::experimental::filesystem::path bad_fname = dir/"partial_alignments.txt";
+    logger.info() << "Printing alignments to " << good_fname.string() << std::endl;
     std::ofstream os;
     std::ofstream os_bad;
     os.open(good_fname);

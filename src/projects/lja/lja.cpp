@@ -193,6 +193,8 @@ int main(int argc, char **argv) {
                     {"diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid", "diploid=MDBG.diploid"});
     LoggedProgram lja_program("lja", std::move(lja), std::move(parser),
                               "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads.",
-                              "LJA pipeline finished.");
+                              "LJA pipeline finished.",
+                              {{"Final assembly", "assembly", "assembly.fasta"},
+                               {"Final assembly graph", "graph", "mdbg.gfa"}});
     return lja_program.run(command_line);
 }

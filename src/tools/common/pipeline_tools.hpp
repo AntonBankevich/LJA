@@ -101,6 +101,7 @@ public:
         parameters = parameters.AddParameters(stage.getParameters(), name, prefix);
         stage_order.emplace_back(name);
         stages.insert({name, SubstageRun(std::move(stage), *this, name, prefix)});
+        expected_output = stage.getExpectedOutput();
         return stages[name];
     }
     const SubstageRun &getStage(const std::string &name) const;
@@ -113,6 +114,15 @@ public:
                       const AlgorithmParameterValues &parameterValues, const std::unordered_map<std::string, io::Library> &input) override;
 };
 
+struct OutputItem {
+    OutputItem(string name, string stageOutputName, std::string output_file_name) : name(std::move(name)),
+                            outout_id(std::move(stageOutputName)), output_file_name(std::move(output_file_name)) {}
+
+    std::string name;
+    std::string outout_id;
+    string output_file_name;
+};
+
 class LoggedProgram {
 private:
     std::string name;
@@ -120,16 +130,17 @@ private:
     CLParser clParser;
     std::string start;
     std::string finish;
+    std::vector<OutputItem> output;
 public:
     template<class StageType>
-    LoggedProgram(std::string name, StageType stage, CLParser clParser, std::string start, std::string finish) :
+    LoggedProgram(std::string name, StageType stage, CLParser clParser, std::string start, std::string finish, std::vector<OutputItem> output = {}) :
             name(std::move(name)), stage(new StageType(std::move(stage))), clParser(std::move(clParser)),
-            start(std::move(start)), finish(std::move(finish)) {
+            start(std::move(start)), finish(std::move(finish)), output(std::move(output)) {
     }
 
     template<class StageType>
-    LoggedProgram(std::string name, StageType _stage) :
-            name(std::move(name)), stage(new StageType(std::forward<StageType>(_stage))), clParser(stage->getParameters(), {}, {}, 0) {
+    LoggedProgram(std::string name, StageType _stage, std::vector<OutputItem> output = {}) :
+            name(std::move(name)), stage(new StageType(std::forward<StageType>(_stage))), clParser(stage->getParameters(), {}, {}, 0), output(std::move(output)) {
         AlgorithmParameters params = stage->getParameters();
     }
     int run(const std::vector<std::string> &command_line);

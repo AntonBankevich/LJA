@@ -382,5 +382,6 @@ RecordStorage MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &db
     CorrectBasedOnUnique(logger, threads, dbg, reads_storage, more_more_unique, dir/"round2.txt");
     if(debug)
         DrawMult(dir / "final", dbg, unique_threshold, reads_storage, more_unique);
-    return std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
+    auto res = std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
+    return std::move(res);
 }

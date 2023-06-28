@@ -87,7 +87,6 @@ int main(int argc, char **argv) {
     } else {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        io::SeqReader reader(paths_lib);
         size_t radius = std::stoull(parameterValues.getValue("radius"));
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();

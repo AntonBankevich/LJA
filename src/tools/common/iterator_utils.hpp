@@ -7,6 +7,8 @@ template<class Iterator>
 class SkippingIterator {
 public:
     typedef typename Iterator::value_type value_type;
+    typedef value_type &reference;
+    typedef value_type &pointer;
 private:
     Iterator iterator;
     Iterator end;
@@ -25,6 +27,10 @@ public:
 
     value_type &operator*() const {
         return *iterator;
+    }
+
+    pointer operator->() const {
+        return &(operator*());
     }
 
     SkippingIterator& operator++() {
@@ -53,6 +59,7 @@ class ApplyingIterator {
 public:
     typedef V value_type;
     typedef V &reference;
+    typedef V &pointer;
 private:
     typedef typename Iterator::reference old_value_type;
 
@@ -92,6 +99,10 @@ public:
         return *values[cur];
     }
 
+    pointer operator->() const {
+        return &(operator*());
+    }
+
     ApplyingIterator& operator++() {
         cur++;
         seek();
@@ -112,6 +123,110 @@ public:
         return !operator==(other);
     }
 };
+
+template<class T>
+T& Dereference(T*&pointer) {return *pointer;}
+
+template<class T>
+T& ConstDereference(T*const &pointer) {return *pointer;}
+
+
+template<class Iterator, typename V>
+class TransformingIterator {
+public:
+    typedef V value_type;
+    typedef V &reference;
+    typedef V *pointer;
+private:
+    typedef typename Iterator::reference old_value_type;
+
+    Iterator iterator;
+    Iterator end;
+    std::function<reference(old_value_type)> transform;
+
+public:
+    TransformingIterator(Iterator iterator, Iterator end,
+                     const std::function<reference(old_value_type)> &transform) :
+            iterator(iterator), end(end), transform(transform) {
+    }
+
+    static TransformingIterator<Iterator, V> DereferencingIterator(Iterator iterator, Iterator end) {
+        return {iterator, end, std::function<V&(V*&)>(&Dereference<V>)};
+    }
+
+    static TransformingIterator<Iterator, V> DereferencingConstIterator(Iterator iterator, Iterator end) {
+        return {iterator, end, std::function<V&(V*const&)>(&ConstDereference<V>)};
+    }
+
+    reference operator*() const {
+        return transform(*iterator);
+    }
+
+    pointer operator->() const {
+        return &(operator*());
+    }
+
+    TransformingIterator& operator++() {
+        ++iterator;
+        return *this;
+    }
+
+    TransformingIterator operator++(int) const {
+        TransformingIterator other = *this;
+        ++other;
+        return other;
+    }
+
+    bool operator==(const TransformingIterator &other) const {
+        return iterator== other.iterator && end == other.end;
+    }
+
+    bool operator!=(const TransformingIterator &other) const {
+        return !operator==(other);
+    }
+};
+
+template<class Iterator, typename V>
+class TransformingGenerator {
+public:
+    typedef V value_type;
+    typedef V reference;
+private:
+    typedef typename Iterator::reference old_value_type;
+
+    Iterator iterator;
+    Iterator end;
+    std::function<reference(old_value_type)> transform;
+
+public:
+    TransformingGenerator(Iterator iterator, Iterator end,
+                         const std::function<reference(old_value_type)> &transform) :
+            iterator(iterator), end(end), transform(transform) {
+    }
+
+    reference operator*() const {
+        return transform(*iterator);
+    }
+
+    TransformingGenerator& operator++() {
+        return ++iterator;
+    }
+
+    TransformingGenerator operator++(int) const {
+        TransformingGenerator other = *this;
+        ++other;
+        return other;
+    }
+
+    bool operator==(const TransformingGenerator &other) const {
+        return iterator== other.iterator && end == other.end;
+    }
+
+    bool operator!=(const TransformingGenerator &other) const {
+        return !operator==(other);
+    }
+};
+
 
 template<class Iterator>
 class IterableStorage {

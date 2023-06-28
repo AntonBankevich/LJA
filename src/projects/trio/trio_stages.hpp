@@ -70,16 +70,15 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   const std::experimental::filesystem::path &haployak,
                                                   const char haplotype, const io::Library &corrected_reads,
                                                   const io::Library & reads,   const std::experimental::filesystem::path &dir, const size_t saved_bridge_cutoff) {
-    multigraph::MultiGraph mmg;
-    mmg.LoadGFA(diplo_graph, true);
+    multigraph::MultiGraph mmg = multigraph::MultiGraphHelper::LoadGFA(diplo_graph, true);
 //TODO:: it would be cool not to create twice
-    multigraph::MultiGraph mg = mmg.DBG();
+    multigraph::MultiGraph mg = multigraph::MultiGraphHelper::TransformToVertexGraph(mmg);
     std::string out_name = "haplotype_";
     out_name += other_haplo(trio::Haplotype(haplotype));
     std::experimental::filesystem::path out_dir = dir / out_name;
     trio::HaplotypeRemover hr(logger, mg, haployak, trio::Haplotype(haplotype), out_dir, saved_bridge_cutoff);
     hr.process();
-    mg.printEdgeGFA(output_file, true);
+    multigraph::MultiGraphHelper::printEdgeGFA(mg, output_file, true);
 
 //printing alignments and contigs, should be refactored
     std::string out_aligns = out_name; out_aligns += ".alignments";

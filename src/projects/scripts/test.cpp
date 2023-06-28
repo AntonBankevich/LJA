@@ -11,21 +11,20 @@ int main(int argc, char **argv) {
     //multigraph::MultiGraph mg = mmg.DBG();
 
     multigraph::Vertex &v = mg.addVertex(Sequence("AT"), 23, "vertex");
-    std::cerr <<&v << " "<< &mg.vertices[23] <<std::endl;
+    std::cerr <<v.getId() << " "<< mg.getVertexById(23) <<std::endl;
     auto &e1 = mg.addEdge(v, v, Sequence("ATATAT"), 239, "e1");
     auto &e2 = mg.addEdge(v, v, Sequence("ATCAT"), 240, "e2");
-    std::cerr << &mg.vertices[23] <<std::endl;
-    for (size_t i = 0; i < mg.vertices[23].outgoing.size() ; i++ ){
-        std::cerr<<"EEEdge " <<mg.vertices[23].outgoing[i]->getId() <<std::endl;
+    std::cerr << mg.getVertexById(23) <<std::endl;
+    for (multigraph::Edge &edge : *mg.getVertexById(23)){
+        std::cerr<<"EEEdge " <<edge.getId() <<std::endl;
     }
-    mg.printEdgeGFA("bd.gfa");
-    mg.printVertexGFA("vertex.gfa");
-    std::cout<<mg.vertices.size() << " v/e " << mg.edges.size() <<std::endl;
+    multigraph::MultiGraphHelper::printEdgeGFA(mg, "bd.gfa");
+    multigraph::MultiGraphHelper::printVertexGFA(mg, "vertex.gfa");
+    std::cout<<mg.size() << " v/e " << mg.edgeNumber() <<std::endl;
     std::cout.flush();
-    std::cout <<"in/out degs" << mg.vertices[23].inDeg() << " " <<mg.vertices[23].outDeg() <<std::endl;
-    std::cout << mg.edges[239].start->id << " " << mg.edges[239].end->id <<std::endl;
-    mg.printEdges("edges.fasta", false);
-    mg.deleteEdgeById(239);
-    mg.printEdgeGFA("ad.gfa");
-
+    std::cout <<"in/out degs" << mg.getVertexById(23)->inDeg() << " " <<mg.getVertexById(23)->outDeg() <<std::endl;
+    std::cout << mg.getEdgeById(239)->start().getId() << " " << mg.getEdgeById(239)->end().getId() <<std::endl;
+    multigraph::MultiGraphHelper::printExtractedContigs(mg, "edges.fasta", false);
+    mg.internalRemoveEdge(*mg.getEdgeById(239));
+    multigraph::MultiGraphHelper::printEdgeGFA(mg, "ad.gfa");
 }

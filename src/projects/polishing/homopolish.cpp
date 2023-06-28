@@ -733,7 +733,7 @@ struct AssemblyInfo {
         for (auto & contig: contigs) {
             total_zero_covered += contig.second.zero_covered;
         }
-        logger.info() << "Total zero covered nucleotides "  << total_zero_covered <<std::endl;
+        logger.info() << "Total zero covered nucleotides: "  << total_zero_covered <<std::endl;
         return std::move(res);
     }
 };

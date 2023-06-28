@@ -333,8 +333,8 @@ std::function<std::string(Edge &)> RecordStorage::labeler() const {
 
 void RecordStorage::addRead(AlignedRead &&read) {
     reads.emplace_back(std::move(read));
-    addSubpath(read.path);
-    addSubpath(read.path.RC());
+    addSubpath(reads.back().path);
+    addSubpath(reads.back().path.RC());
 }
 
 void RecordStorage::delayedInvalidateRead(AlignedRead &read, const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
@@ -391,7 +391,8 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
             cnt += 1;
         }
     }
-    logger.info() << "Could not correct " << cnt.get() << " reads. They were removed or truncated." << std::endl;
+    if(cnt.get() > 0)
+        logger.info() << "Could not correct " << cnt.get() << " reads. They were removed or truncated." << std::endl;
 }
 
 void RecordStorage::invalidateSubreads(logging::Logger &logger, size_t threads) {

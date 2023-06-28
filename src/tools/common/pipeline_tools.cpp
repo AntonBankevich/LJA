@@ -183,7 +183,14 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
         substage = substage.substr(pos + 1, restart_from.size() - pos - 1);
         restart_from = restart_from.substr(0, pos);
     }
-    VERIFY_MSG(restart_from == "none" || stages.find(restart_from) != stages.end(), restart_from + " is not a name of any of the pipeline stages");
+    if(restart_from != "none" && stages.find(restart_from) == stages.end()) {
+        std::cerr << restart_from + " is not a name of any of the pipeline stages" << std::endl;
+        std::cerr << "Here is the list of all stage names in the pipeline:" << std::endl;
+        for(const std::string& sname: stage_order) {
+            std::cerr << sname << std::endl;
+        }
+    }
+    VERIFY(restart_from == "none" || stages.find(restart_from) != stages.end());
     verifyReady();
     size_t cnt = -1;
     for(const std::string& sname: stage_order) {
@@ -208,6 +215,9 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
     }
     verifyResult();
     malloc_trim(0);
+    if(!stages.empty()) {
+        return stages.find(stage_order.back())->second.output;
+    }
     return {};
 }
 
@@ -250,14 +260,26 @@ int LoggedProgram::run(const std::vector<std::string> &command_line) {
     for(const std::string &iname : stage->getExpectedInput()) {
         input[iname] = oneline::initialize<std::experimental::filesystem::path>(params.getListValue(iname));
     }
-    std::unordered_map<std::string, std::experimental::filesystem::path> output = stage->run(logger, threads, dir, debug, params, input);
-    VERIFY(output.size() == stage->getExpectedOutput().size());
-    if(!stage->getExpectedOutput().empty()) {
-        logger.info() << "Results can be found in the following file(s): " << std::endl;
-        for(auto &it: output) {
-            logger.info() << it.first << " : " << it.second << std::endl;
+    std::unordered_map<std::string, std::experimental::filesystem::path> stage_output = stage->run(logger, threads, dir, debug, params, input);
+    VERIFY(stage_output.size() == stage->getExpectedOutput().size());
+    if(!output.empty()) {
+        logger.info() << "Final results can be found in the following file(s): " << std::endl;
+        for(auto &rec : output) {
+            std::experimental::filesystem::path path = stage_output.at(rec.outout_id);
+            std::experimental::filesystem::remove(dir / rec.output_file_name);
+            std::experimental::filesystem::copy(path, dir / rec.output_file_name);
+        }
+        for(auto &rec : output) {
+            logger.info() << rec.name << ": " << dir / rec.output_file_name << std::endl;
+        }
+    } else if(!stage->getExpectedOutput().empty()) {
+        logger.info() << "Final results can be found in the following file(s): " << std::endl;
+        for(auto &it: stage_output) {
+            logger.info() << it.first << ": " << it.second << std::endl;
         }
     }
     logger.info() << finish << std::endl;
     return 0;
 }
+
+

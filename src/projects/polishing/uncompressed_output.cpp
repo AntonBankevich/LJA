@@ -4,10 +4,13 @@
 #include <common/logging.hpp>
 #include <common/omp_utils.hpp>
 #include <ksw2/ksw_wrapper.hpp>
+#include <utility>
 #include "dbg/multi_graph.hpp"
+using namespace multigraph;
 
 struct OverlapRecord {
-    OverlapRecord(multigraph::Edge *left, multigraph::Edge *right, const Sequence &seq_left, const Sequence &seq_right, std::vector<cigar_pair> _cigar) : left(left), right(right), seq_left(seq_left), seq_right(seq_right),
+    OverlapRecord(multigraph::Edge &left, multigraph::Edge &right, Sequence seq_left, Sequence seq_right, std::vector<cigar_pair> _cigar) :
+                            left(left.getId()), right(right.getId()), seq_left(std::move(seq_left)), seq_right(std::move(seq_right)),
                                                                                                     cigar(std::move(_cigar)) {
         if(!cigar.empty() && cigar.back().type == 'I')
             cigar.pop_back();
@@ -15,8 +18,8 @@ struct OverlapRecord {
             cigar = {cigar.begin() + 1, cigar.end()};
     }
 
-    multigraph::Edge *left;
-    multigraph::Edge *right;
+    EdgeId left;
+    EdgeId right;
     Sequence seq_left, seq_right;
     std::vector<cigar_pair> cigar;
     std::string cigarString() const {
@@ -142,26 +145,27 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     }
     ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
     omp_set_num_threads(threads);
-    std::vector<size_t> v_ids;
-    for (auto &p: graph.vertices)
-        v_ids.push_back(p.first);
+    std::vector<multigraph::VertexId> v_ids;
+    for (Vertex &v: graph.vertices())
+        if(v.isCanonical())
+            v_ids.push_back(v.getId());
 #pragma omp parallel for default(none) shared(graph, v_ids, cigars_collection, uncompression_results, logger, debug, std::cout)
     for(size_t i = 0; i < v_ids.size(); i++) {
-        multigraph::Vertex &vertex = graph.vertices[v_ids[i]];
-        if(!vertex.isCanonical())
-            continue;
-        for (multigraph::Edge *out_edge : vertex.outgoing) {
-            for (multigraph::Edge *inc_edge : vertex.rc->outgoing) {
-                VERIFY_OMP(out_edge->getSeq().startsWith(vertex.seq));
-                VERIFY_OMP(inc_edge->getSeq().startsWith(!vertex.seq));
-                std::vector<cigar_pair> cigar = UncompressOverlap(graph.vertices[v_ids[i]].seq, uncompression_results[inc_edge->rc->getId()],
-                                                                  uncompression_results[out_edge->getId()]);
-                OverlapRecord overlapRecord(inc_edge->rc, out_edge, uncompression_results[inc_edge->rc->getId()],
-                                                                  uncompression_results[out_edge->getId()], cigar);
+        Vertex &vertex = *v_ids[i];
+        for (Edge &out_edge : vertex) {
+            for (Edge &inc_edge : vertex.rc()) {
+                VERIFY_OMP(out_edge.getSeq().startsWith(vertex.getSeq()));
+                VERIFY_OMP(inc_edge.getSeq().startsWith(!vertex.getSeq()));
+                std::vector<cigar_pair> cigar = UncompressOverlap(vertex.getSeq(), uncompression_results[inc_edge.rc().getId().innerId()],
+                                                                  uncompression_results[out_edge.getId().innerId()]);
+                OverlapRecord overlapRecord(inc_edge.rc(), out_edge, uncompression_results[inc_edge.rc().getId().innerId()],
+                                                                  uncompression_results[out_edge.getId().innerId()], cigar);
                 if(debug) {
 #pragma omp critical
                     {
-                        logger.debug() << inc_edge->getId() << " " << std::endl << out_edge->getId() << " " <<overlapRecord.cigarString() << " " << overlapRecord.startSize() << " " << overlapRecord.endSize() << std::endl;
+                        logger.debug() << inc_edge.getId() << " " << std::endl << out_edge.getId() << " "
+                                << overlapRecord.cigarString() << " " << overlapRecord.startSize() << " "
+                                << overlapRecord.endSize() << std::endl;
                         std::pair<std::string, std::string> al = overlapRecord.str();
                         logger.debug() << al.first << "\n" << al.second << std::endl;
                     }
@@ -170,60 +174,56 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
             }
         }
     }
-    logger.info() << "Printing final gfa file to " << (out_dir / "mdbg.gfa") << std::endl;
+    logger.info() << "Printing polished gfa file to " << (out_dir / "mdbg.gfa") << std::endl;
     std::ofstream os;
     os.open(out_dir / "mdbg.gfa");
     os << "H\tVN:Z:1.0" << std::endl;
     std::unordered_map<multigraph::Edge *, std::string> eids;
-    for(auto &p : graph.edges){
-        multigraph::Edge *edge = &p.second;
-        if (edge->isCanonical()) {
-            os << "S\t" << itos(edge->getId()) << "\t" << uncompression_results[edge->getId()] << "\n";
+    for(Edge &edge : graph.edges()){
+        if (edge.isCanonical()) {
+            os << "S\t" << edge.getId() << "\t" << uncompression_results[edge.getId().innerId()] << "\n";
         }
     }
     for(OverlapRecord &rec : cigars_collection) {
         bool inc_sign = rec.left->isCanonical();
-        int incId = inc_sign ? rec.left->getId() : rec.left->rc->getId();
+        EdgeId incId = inc_sign ? rec.left->getId() : rec.left->rc().getId();
         bool out_sign = rec.right->isCanonical();
-        int outId = out_sign ? rec.right->getId() : rec.right->rc->getId();
+        EdgeId outId = out_sign ? rec.right->getId() : rec.right->rc().getId();
         os << "L\t" << incId << "\t" << (inc_sign ? "+" : "-") << "\t" << outId << "\t"
            << (out_sign ? "+" : "-") << "\t" << rec.cigarString() << "\n";
     }
     os.close();
     std::ofstream os_cut;
-    std::unordered_map<multigraph::Vertex *, size_t> cut; //Choice of vertex side for cutting
-    for(auto &p : graph.vertices) {
-        multigraph::Vertex *v = &p.second;
-        if(v->seq <= !v->seq) {
-            if(v->outDeg() == 1) {
-                cut[v] = 0;
+    std::unordered_map<VertexId, size_t> cut; //Choice of vertex side for cutting
+    for(Vertex &v : graph.vertices()) {
+        if(v.isCanonical()) {
+            if(v.outDeg() == 1) {
+                cut[v.getId()] = 0;
             } else {
-                cut[v] = 1;
+                cut[v.getId()] = 1;
             }
-            cut[v->rc] = 1 - cut[v];
+            cut[v.rc().getId()] = 1 - cut[v.getId()];
         }
     }
-    std::unordered_map<multigraph::Edge*, size_t> cuts; //Sizes of cuts from the edge start
-    for(auto &p : graph.edges) {
-        multigraph::Edge *e = &p.second;
-        cuts[e] = 0;
+    std::unordered_map<EdgeId, size_t> cuts; //Sizes of cuts from the edge start
+    for(Edge &e : graph.edges()) {
+        cuts[e.getId()] = 0;
     }
     for(OverlapRecord &rec : cigars_collection) {
-        cuts[rec.left->rc] = cut[rec.left->rc->start] * rec.endSize();
-        cuts[rec.right] = cut[rec.right->start] * rec.startSize();
+        cuts[rec.left->rc().getId()] = cut[rec.left->rc().start().getId()] * rec.endSize();
+        cuts[rec.right] = cut[rec.right->start().getId()] * rec.startSize();
     }
     std::vector<Contig> res;
-    for(auto &p : graph.edges) {
-        multigraph::Edge *edge = &p.second;
-        if(edge->isCanonical()) {
+    for(Edge &edge : graph.edges()) {
+        if(edge.isCanonical()) {
             //TODO make canonical be the same as positive id
-            size_t cut_left = cuts[edge];
-            size_t cut_right = cuts[edge->rc];
-            Sequence seq = uncompression_results[edge->getId()];
+            size_t cut_left = cuts[edge.getId()];
+            size_t cut_right = cuts[edge.rc().getId()];
+            Sequence seq = uncompression_results[edge.getId().innerId()];
             if(cut_left + cut_right >= seq.size()) {
                 continue;
             }
-            res.emplace_back(seq.Subseq(cut_left, seq.size() - cut_right), itos(edge->getId()));
+            res.emplace_back(seq.Subseq(cut_left, seq.size() - cut_right), itos(edge.getId().innerId()));
         }
     }
     return std::move(res);

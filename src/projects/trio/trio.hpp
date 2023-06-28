@@ -30,7 +30,7 @@ struct HaplotypeRemover {
 
     void process();
 
-    void deleteEdgeHaplo(int eid);
+    void deleteEdgeHaplo(multigraph::EdgeId eid);
 
     void compressAllVertices();
 

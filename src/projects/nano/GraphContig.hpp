@@ -90,12 +90,11 @@ namespace nano {
         }
     };
 
-    inline const multigraph::Edge *GetEdgebyStr(const std::string &edge_id_str,
+    inline multigraph::ConstEdgeId GetEdgebyStr(const std::string &edge_id_str,
                                                 const multigraph::MultiGraph &mg_) {
         int edge_id = atoi(edge_id_str.substr(0, edge_id_str.size() - 1).c_str());
         edge_id = edge_id_str[edge_id_str.size() - 1] == '-'? -edge_id: edge_id;
-        if (mg_.edges.count(edge_id) == 0) return nullptr;
-        return &mg_.edges.at(edge_id);
+        return mg_.getEdgeById(edge_id);
     }
 
 }
