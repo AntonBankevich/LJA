@@ -11,6 +11,7 @@
 #include "common/hash_utils.hpp"
 #include <common/oneline_utils.hpp>
 #include <common/iterator_utils.hpp>
+#include <utility>
 #include <vector>
 #include <numeric>
 #include <unordered_map>
@@ -44,8 +45,8 @@ namespace dbg {
         std::string id = "";
         friend class Vertex;
         bool is_reliable = false;
-        Edge(Vertex *_start, Vertex *_end, const Sequence &_seq) :
-                start_(_start), end_(_end), cov(0), extraInfo(-1), seq(_seq) {
+        Edge(Vertex *_start, Vertex *_end, Sequence _seq) :
+                start_(_start), end_(_end), cov(0), extraInfo(-1), seq(std::move(_seq)) {
         }
         static Edge &fake() {return _fake;}
         std::string getId() const;
@@ -107,7 +108,8 @@ namespace dbg {
         hashing::htype hash() const {return hash_;}
         Vertex &rc() {return *rc_;}
         const Vertex &rc() const {return *rc_;}
-        void setSequence(const Sequence &_seq);
+        void setSequence(Sequence _seq);
+//        void clearSequence();
         void lock() {omp_set_lock(&writelock);}
         void unlock() {omp_unset_lock(&writelock);}
         std::vector<Edge>::iterator begin() const {return outgoing_.begin();}
@@ -128,7 +130,6 @@ namespace dbg {
         std::string oldId() const;
         std::string getShortId() const;
         void incCoverage();
-        void clearSequence();
         Edge &addEdgeLockFree(const Edge &edge);
         void addEdge(const Edge &e);
         Edge &getOutgoing(unsigned char c) const;

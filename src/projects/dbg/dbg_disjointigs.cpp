@@ -32,7 +32,7 @@ void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
         if(rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
             Sequence disjointig = buildDisjointig(path);
             for(size_t i = 1; i < path.size(); i++) {
-                path.getVertex(i).clearSequence();
+                path.getVertex(i).mark();
             }
             if (!disjointig.empty())
                 res.add(disjointig.copy());
@@ -91,7 +91,7 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
             [&sdbg, &res](size_t pos, std::pair<const htype, Vertex> & pair) {
                 Vertex &rec = pair.second;
                 htype hash = pair.first;
-                if(rec.isJunction() || rec.seq.empty())
+                if(rec.isJunction() || rec.marked())
                     return;
                 Edge &edge = *rec.begin();
                 VERIFY(edge.end() != nullptr);
@@ -107,10 +107,9 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
                         return;
                     }
                 }
-                Sequence tmp = rec.seq;
-                rec.clearSequence();
-                Sequence disjointig = path.Seq();
-                res.add(tmp + disjointig + disjointig);
+                rec.mark();
+                Sequence disjointig = path.truncSeq();
+                res.add(rec.seq + disjointig + disjointig);
             };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
 }
@@ -118,6 +117,7 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
 std::vector<Sequence> extractDisjointigs(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
     logger.info() << "Starting to extract disjointigs." << std::endl;
     ParallelRecordCollector<Sequence> res(threads);
+    sdbg.resetMarkers();
     logger.trace() << "Extracting linear disjointigs." << std::endl;
     extractLinearDisjointigs(sdbg, res, logger, threads);
     logger.trace() << "Finished extracting linear disjointigs." << std::endl;

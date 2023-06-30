@@ -241,34 +241,25 @@ void Vertex::incCoverage() {
     rc().coverage_ += 1;
 }
 
-void Vertex::setSequence(const Sequence &_seq) {
+void Vertex::setSequence(Sequence _seq) {
     lock();
     if (seq.empty()) {
-        if (seq.empty()) {
-            seq = Sequence(_seq.str());
-            unlock();
-            rc_->lock();
-            rc_->seq = !_seq;
-            rc_->unlock();
-        } else {
-            unlock();
-        }
+        seq = std::move(_seq);
+        unlock();
+        rc_->lock();
+        rc_->seq = !seq;
+        rc_->unlock();
     } else {
-//            if(seq != _seq) {
-//                std::cout << seq << std::endl << _seq << std::endl;
-//                VERIFY(false);
-//            }
-//            VERIFY(_seq == seq);
         unlock();
     }
 }
 
-void Vertex::clearSequence() {
-    if (!seq.empty()) {
-        seq = Sequence();
-        rc_->seq = Sequence();
-    }
-}
+//void Vertex::clearSequence() {
+//    if (!seq.empty()) {
+//        seq = Sequence();
+//        rc_->seq = Sequence();
+//    }
+//}
 
 Edge &Vertex::addEdgeLockFree(const Edge &edge) {
     VERIFY(this == edge.start());
@@ -692,7 +683,7 @@ void SparseDBG::processRead(const Sequence &seq) {
     for (size_t i = 0; i < kmers.size(); i++) {
         vertices.emplace_back(&getVertex(kmers[i]));
         if (i == 0 || vertices[i] != vertices[i - 1]) {
-            vertices.back()->setSequence(kmers[i].getSeq());
+            vertices.back()->setSequence(kmers[i].getSeq().copy());
             vertices.back()->incCoverage();
         }
     }
@@ -830,8 +821,12 @@ void SparseDBG::removeMarked() {
 }
 
 void SparseDBG::resetMarkers() {
-    for(dbg::Edge &edge: edges())
+    for(dbg::Edge &edge: edges()) {
         edge.mark(dbg::EdgeMarker::common);
+    }
+    for(dbg::Vertex &vertex : vertices()) {
+        vertex.unmark();
+    }
 }
 
 //const Vertex &SparseDBG::getVertex(const hashing::KWH &kwh) const {

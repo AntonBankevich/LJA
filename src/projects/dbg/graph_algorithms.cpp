@@ -270,6 +270,7 @@ namespace dbg {
 
     void mergeAll(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
         logger.trace() << "Merging unbranching paths" << std::endl;
+        sdbg.resetMarkers();
         mergeLinearPaths(logger, sdbg, threads);
 //    sdbg.checkConsistency(threads, logger);
         mergeCyclicPaths(logger, sdbg, threads);

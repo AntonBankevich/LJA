@@ -196,8 +196,10 @@ public:
     Sequence &operator=(Sequence &&other) = default;
 
     Sequence copy() const {
-        return Sequence(str());
-    }
+        Sequence res = Sequence(size_, 0);
+        res.InitFromNucls(*this, this->rtl_);
+        return std::move(res);
+;    }
 
     unsigned char operator[](const size_t index) const {
         VERIFY_MSG(index < size_, itos(index) + " " + itos(size_));
