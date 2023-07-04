@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
         std::cerr << names[i] << " " << from[i] << " " << to[i] << " " << contig.size() << std::endl;
         to[i] = std::min(contig.size(), to[i]);
         VERIFY(from[i] < to[i]);
-        std::cout << ">" << names[i] + "_" + itos(from[i]) + "_" + itos(to[i]) << "\n" << contig.seq.Subseq(from[i], to[i]) << "\n";
+        std::cout << ">" << names[i] + "_" + itos(from[i]) + "_" + itos(to[i]) << "\n" << contig.getSeq().Subseq(from[i], to[i]) << "\n";
     }
     return 0;
 }

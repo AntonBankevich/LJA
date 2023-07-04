@@ -98,12 +98,12 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype
             [&tips](size_t pos, std::pair<const hashing::htype, Vertex> & pair) {
                 Vertex &rec = pair.second;
                 for (Edge &edge : rec) {
-                    if(edge.end() == nullptr) {
+                    if(edge.getFinish() == nullptr) {
                         tips.emplace_back(&rec, &edge);
                     }
                 }
                 for (Edge &edge : rec.rc()) {
-                    if(edge.end() == nullptr) {
+                    if(edge.getFinish() == nullptr) {
                         tips.emplace_back(&rec.rc(), &edge);
                     }
                 }

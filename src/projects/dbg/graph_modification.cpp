@@ -21,7 +21,7 @@ GraphAlignment realignRead(const GraphAlignment &al,
         std::cout << al.str() << std::endl;
         std::cout << it->second << std::endl;
     }
-    VERIFY_OMP(new_start_edge != nullptr, "Could not find start edge for alignment");
+    VERIFY_OMP(new_start_edge != nullptr, "Could not find getStart edge for alignment");
     size_t cur = 0;
     size_t read_length = al.len();
     size_t position_in_read_path = 0;
@@ -38,7 +38,7 @@ GraphAlignment realignRead(const GraphAlignment &al,
                 VERIFY_OMP(position_in_read_sequence < read_length, "Alignment inconsistency 1");
                 VERIFY_OMP(position_in_read_path < al.size(), "Alignment inconsistency 2");
             }
-            new_start_edge = &new_start_edge->end()->getOutgoing(al[position_in_read_path].contig().seq[cur - position_in_read_sequence]);
+            new_start_edge = &new_start_edge->getFinish()->getOutgoing(al[position_in_read_path].contig().getSeq()[cur - position_in_read_sequence]);
             new_start_pos = 0;
         }
     }
@@ -52,7 +52,7 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
     ParallelRecordCollector<size_t> lenStorage(threads);
     for(Edge &edge : dbg.edges()) {
         edge.mark(EdgeMarker::common);
-        if(!edge.start()->isJunction() || !edge.end()->isJunction())
+        if(!edge.getStart()->isJunction() || !edge.getFinish()->isJunction())
             edge.mark(EdgeMarker::correct);
     }
     for(RecordStorage *rit : storages) {
@@ -73,13 +73,13 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
     SparseDBG subgraph(dbg.hasher());
     for(Vertex &v : dbg.verticesUnique()) {
         subgraph.addVertex(v.hash());
-        subgraph.getVertex(v).setSequence(v.seq);
+        subgraph.getVertex(v).setSeq(v.getSeq());
     }
     for(Edge & edge : dbg.edges()) {
         if(edge.intCov() > 0) {
-            Vertex &start = subgraph.getVertex(*edge.start());
-            Vertex &end = subgraph.getVertex(*edge.end());
-            start.addEdge(Edge(&start, &end, edge.seq));
+            Vertex &start = subgraph.getVertex(*edge.getStart());
+            Vertex &end = subgraph.getVertex(*edge.getFinish());
+            start.addEdge(Edge(start, end, edge.getSeq()));
         }
     }
     subgraph.checkConsistency(threads, logger);
@@ -153,7 +153,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     ParallelRecordCollector<size_t> lenStorage(threads);
     for(Edge &edge : dbg.edges()) {
         edge.mark(EdgeMarker::common);
-        if(!edge.start()->isJunction() || !edge.end()->isJunction())
+        if(!edge.getStart()->isJunction() || !edge.getFinish()->isJunction())
             edge.mark(EdgeMarker::correct);
     }
     for(RecordStorage *rit : storages) {
@@ -171,9 +171,9 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                     if(seg.contig() == seg.contig().rc())
                         segmentStorage.emplace_back(seg.RC());
                 } else {
-                    seg.contig().start()->lock();
+                    seg.contig().getStart()->lock();
                     seg.contig().mark(EdgeMarker::correct);
-                    seg.contig().start()->unlock();
+                    seg.contig().getStart()->unlock();
                 }
             }
             if (len > 0)
@@ -288,7 +288,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
 //    subgraph.checkDBGConsistency(threads, logger);
     GraphAligner aligner(subgraph);
     std::function<void(size_t, Edge &)> task = [&aligner](size_t num, Edge &edge) {
-        GraphAlignment al = aligner.align(edge.start()->seq + edge.seq);
+        GraphAlignment al = aligner.align(edge.getStart()->getSeq() + edge.getSeq());
         VERIFY(al.len() == edge.size());
         edge.is_reliable = (al.size() == 1 && al[0].left == 0 && al[0].right == al[0].contig().size());
         edge.rc().is_reliable = edge.is_reliable;
@@ -340,17 +340,17 @@ Connection::Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence 
 }
 
 Connection Connection::shrink() const {
-    size_t k = pos1.edge->start()->seq.size();
+    size_t k = pos1.edge->getStart()->getSeq().size();
     size_t left = 0;
     size_t right = 0;
-    while(left + k < connection.size() && pos1.pos + left < pos1.edge->seq.size() &&
-          pos1.edge->seq[pos1.pos + left] == connection[left + k]) {
+    while(left + k < connection.size() && pos1.pos + left < pos1.edge->getSeq().size() &&
+          pos1.edge->getSeq()[pos1.pos + left] == connection[left + k]) {
         left++;
     }
     dbg::EdgePosition rc = pos2.RC();
     Sequence rcSeq = !connection;
-    while(right + k < connection.size() && rc.pos + right < rc.edge->seq.size() &&
-          rc.edge->seq[rc.pos + right] == rcSeq[right + k]) {
+    while(right + k < connection.size() && rc.pos + right < rc.edge->getSeq().size() &&
+          rc.edge->getSeq()[rc.pos + right] == rcSeq[right + k]) {
         right++;
     }
     VERIFY(left + right + k < connection.size());

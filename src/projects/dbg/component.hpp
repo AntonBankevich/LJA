@@ -88,11 +88,11 @@ namespace dbg {
             Vertex &vert = graph.getVertex(val.second);
             for (Edge &edge : vert) {
                 if (edge.getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.size(), edge.end()->hash());
+                    queue.emplace(val.first + edge.size(), edge.getFinish()->hash());
             }
             for (Edge &edge : vert.rc()) {
                 if (edge.getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.size(), edge.end()->hash());
+                    queue.emplace(val.first + edge.size(), edge.getFinish()->hash());
             }
         }
         return Component(graph, v.begin(), v.end());

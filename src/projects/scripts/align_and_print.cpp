@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     io::SeqReader graphReader(dbg_file);
     for(StringContig s : graphReader) {
         Contig rseq = s.makeContig();
-        dbg::GraphAlignment al = aligner.align(rseq.seq);
+        dbg::GraphAlignment al = aligner.align(rseq.getSeq());
         VERIFY(al.size() == 1);
         edge_mapping[&al.front().contig()] = s.id;
         edge_mapping[&al.front().contig().rc()] = "-" + s.id;

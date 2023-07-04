@@ -216,17 +216,17 @@ void RecordStorage::fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_si
     std::function<void(size_t, StringContig &)> read_task = [this, min_read_size, &tmpReads, &cnt, &dbg](size_t pos, StringContig & scontig) {
         Contig contig = scontig.makeContig();
         if(contig.size() < min_read_size) {
-            tmpReads.emplace_back(pos, contig.id, dbg::CompactPath());
+            tmpReads.emplace_back(pos, contig.getId(), dbg::CompactPath());
             return;
         }
-        dbg::GraphAlignment path = dbg::GraphAligner(dbg).align(contig.seq);
+        dbg::GraphAlignment path = dbg::GraphAligner(dbg).align(contig.getSeq());
         dbg::CompactPath cpath(path);
         dbg::GraphAlignment rcPath = path.RC();
         dbg::CompactPath crcPath(rcPath);
         addSubpath(cpath);
         addSubpath(crcPath);
         cnt += cpath.size();
-        tmpReads.emplace_back(pos, contig.id, cpath);
+        tmpReads.emplace_back(pos, contig.getId(), cpath);
     };
     processRecords(begin, end, logger, threads, read_task);
     reads.resize(tmpReads.size());

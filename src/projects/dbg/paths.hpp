@@ -12,7 +12,7 @@ namespace dbg {
 
         Path(Vertex &_start, std::vector<Edge *> _path) : start_(&_start), path(std::move(_path)) {}
         explicit Path(Vertex &_start) : start_(&_start) {}
-        explicit Path(Edge &edge) : start_(edge.start()), path({&edge}) {}
+        explicit Path(Edge &edge) : start_(edge.getStart()), path({&edge}) {}
         static Path WalkForward(Edge &start);
 
         Edge &operator[](size_t i) {return *path[i];}
@@ -20,7 +20,7 @@ namespace dbg {
         Vertex &getVertex(size_t i);
         Vertex &getVertex(size_t i) const;
         Vertex &start() const {return *start_;}
-        Vertex &finish() const {return path.empty() ? start() : *path.back()->end();}
+        Vertex &finish() const {return path.empty() ? start() : *path.back()->getFinish();}
         size_t find(Edge &edge, size_t pos = 0) const;
         size_t find(Vertex &v, size_t pos = 0) const;
         Edge &back() const {return *path.back();}
@@ -55,25 +55,25 @@ namespace dbg {
                 ++begin;
             }
             if(!als.empty())
-                start_ = als.front().contig().start();
+                start_ = als.front().contig().getStart();
         }
-        explicit GraphAlignment(std::vector<Segment<Edge>> &&_path) : start_(_path.front().contig().start()), als(std::move(_path)) {}
+        explicit GraphAlignment(std::vector<Segment<Edge>> &&_path) : start_(_path.front().contig().getStart()), als(std::move(_path)) {}
         explicit GraphAlignment(const Path &_path);
         GraphAlignment(Vertex *_start, std::vector<Segment<Edge>> &&_path) : start_(_start), als(std::move(_path)) {}
         explicit GraphAlignment(Vertex &_start) : start_(&_start) {}
-        explicit GraphAlignment(Edge &start) : start_(start.start()), als({{start, 0, start.size()}}) {}
+        explicit GraphAlignment(Edge &start) : start_(start.getStart()), als({{start, 0, start.size()}}) {}
         GraphAlignment() : start_(nullptr) {}
 
         Vertex &start() const {return *start_;}
-        Vertex &finish() const {return als.empty() ? *start_ : *als.back().contig().end();}
+        Vertex &finish() const {return als.empty() ? *start_ : *als.back().contig().getFinish();}
         Segment<Edge> &back() {return als.back();}
         Segment<Edge> &front() {return als.front();}
         const Segment<Edge> &back() const {return als.back();}
         const Segment<Edge> &front() const {return als.front();}
         const Segment<Edge> &operator[](size_t i) const {return als[i];}
         Segment<Edge> &operator[](size_t i) {return als[i];}
-        Vertex &getVertex(size_t i) const {return i == 0 ? *start_ : *als[i - 1].contig().end();}
-        Vertex &getVertex(size_t i)  {return i == 0 ? *start_ : *als[i - 1].contig().end();}
+        Vertex &getVertex(size_t i) const {return i == 0 ? *start_ : *als[i - 1].contig().getFinish();}
+        Vertex &getVertex(size_t i)  {return i == 0 ? *start_ : *als[i - 1].contig().getFinish();}
         size_t find(Edge &edge, size_t pos = 0) const;
         size_t find(Vertex &v, size_t pos = 0) const;
         typename std::vector<Segment<Edge>>::iterator begin() {return als.begin();}
@@ -166,13 +166,13 @@ namespace dbg {
         dbg::Vertex &getVertex() const {
             Segment<Edge> &segment = alignment->operator[](ind);
             if(segment.left + seg_pos == 0)
-                return *segment.contig().start();
+                return *segment.contig().getStart();
             if(segment.left + seg_pos == segment.contig().size())
-                return *segment.contig().end();
+                return *segment.contig().getFinish();
             VERIFY(false);
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "UnreachableCode"
-            return *segment.contig().start();
+            return *segment.contig().getStart();
 #pragma clang diagnostic pop
         }
     };

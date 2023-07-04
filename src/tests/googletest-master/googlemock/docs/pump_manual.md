@@ -116,18 +116,18 @@ Func(a1 + a2 + a3);  // If n is 3.
 
 We support the following meta programming constructs:
 
-| `$var id = exp`                  | Defines a named constant value. `$id` is |
+| `$var getId() = exp`                  | Defines a named constant value. `$getId()` is |
 :                                  : valid util the end of the current meta   :
 :                                  : lexical block.                           :
 | :------------------------------- | :--------------------------------------- |
-| `$range id exp..exp`             | Sets the range of an iteration variable, |
+| `$range getId() exp..exp`             | Sets the range of an iteration variable, |
 :                                  : which can be reused in multiple loops    :
 :                                  : later.                                   :
-| `$for id sep [[ code ]]`         | Iteration. The range of `id` must have   |
-:                                  : been defined earlier. `$id` is valid in  :
+| `$for getId() sep [[ code ]]`         | Iteration. The range of `getId()` must have   |
+:                                  : been defined earlier. `$getId()` is valid in  :
 :                                  : `code`.                                  :
 | `$($)`                           | Generates a single `$` character.        |
-| `$id`                            | Value of the named constant or iteration |
+| `$getId()`                            | Value of the named constant or iteration |
 :                                  : variable.                                :
 | `$(exp)`                         | Value of the expression.                 |
 | `$if exp [[ code ]] else_branch` | Conditional.                             |
@@ -145,12 +145,12 @@ in such places for a new-line to show up in your output.
 
 ```ebnf
 code ::= atomic_code*
-atomic_code ::= $var id = exp
-    | $var id = [[ code ]]
-    | $range id exp..exp
-    | $for id sep [[ code ]]
+atomic_code ::= $var getId() = exp
+    | $var getId() = [[ code ]]
+    | $range getId() exp..exp
+    | $for getId() sep [[ code ]]
     | $($)
-    | $id
+    | $getId()
     | $(exp)
     | $if exp [[ code ]] else_branch
     | [[ code ]]

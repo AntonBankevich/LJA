@@ -18,11 +18,16 @@ GetEdgeInfo(std::map<RRVertexType, dbg::Vertex> &vertexes,
             int k, bool unique) {
     for (const auto &[st, en, str] : raw_edge_info) {
         Sequence seq(str);
-        vertexes.emplace(st, st);
+        if(vertexes.find(st) == vertexes.end())
+            vertexes.emplace(st, st);
+        if(vertexes.find(en) == vertexes.end())
+            vertexes.emplace(en, en);
         dbg::Vertex &st_v = vertexes.at(st);
-        st_v.seq = seq.Prefix(k);
+        dbg::Vertex &en_v = vertexes.at(en);
+        st_v.setSeq(seq.Prefix(k));
+        en_v.setSeq(seq.Suffix(k));
 
-        edges.emplace_back(&st_v, nullptr, seq.Subseq(k));
+        edges.emplace_back(st_v, en_v, seq.Subseq(k));
     }
 
     std::vector<SuccinctEdgeInfo> edge_info;

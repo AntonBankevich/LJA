@@ -354,7 +354,7 @@ public:
 inline std::ostream &operator<<(std::ostream &os, const Sequence &s);
 
 /**
- * start of Sequence is Seq with preferred size
+ * getStart of Sequence is Seq with preferred size
  */
 
 // O(1)

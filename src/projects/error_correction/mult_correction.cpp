@@ -66,9 +66,9 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const Rec
         Edge &edge = *edgeIt;
         if (unique_extensions.find(&edge) != unique_extensions.end())
             continue;
-        Vertex & start = *edge.start();
+        Vertex & start = *edge.getStart();
         const VertexRecord &rec = reads_storage.getRecord(start);
-        Sequence seq = edge.seq.Subseq(0, 1);
+        Sequence seq = edge.getSeq().Subseq(0, 1);
         CompactPath path = rec.getFullUniqueExtension(seq, 1, 0);
         if(path.size() == 1)
             continue;
@@ -82,14 +82,14 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const Rec
         }
         if(!classificator.isUnique(al.back().contig()) || al.size() == 1)
             continue;
-        unique_extensions.emplace(&edge, CompactPath(*edge.end(), CompactPath(al).cpath().Subseq(1), 0, 0));
+        unique_extensions.emplace(&edge, CompactPath(*edge.getFinish(), CompactPath(al).cpath().Subseq(1), 0, 0));
         CompactPath res1(al.RC().subalignment(1, al.size()));
         unique_extensions.emplace(&al.back().contig().rc(), res1);
     }
 }
 
 Path greedyExtension(const VertexRecord &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
-    Path path(*edge.start());
+    Path path(*edge.getStart());
     path += edge;
     Sequence seq = CompactPath(path).cpath();
     while(true) {
@@ -99,7 +99,7 @@ Path greedyExtension(const VertexRecord &rec, const AbstractUniquenessStorage &c
         for(Edge &next_candidate : path.finish()) {
             if(classificator.isError(next_candidate))
                 continue;
-            Sequence next = seq + next_candidate.seq.Subseq(0, 1);
+            Sequence next = seq + next_candidate.getSeq().Subseq(0, 1);
             size_t val = rec.countStartsWith(next);
             if(val > best_val) {
                 best_val = val;
@@ -116,10 +116,10 @@ Path greedyExtension(const VertexRecord &rec, const AbstractUniquenessStorage &c
 }
 
 inline CompactPath findBulgeExtension(const VertexRecord &rec, const Edge &edge, const CompactPath & greedy) {
-    if(edge.end()->outDeg() != 2)
+    if(edge.getFinish()->outDeg() != 2)
         return greedy;
-    Edge &edge1 = edge.end()->operator[](0);
-    Edge &edge2 = edge.end()->operator[](1);
+    Edge &edge1 = edge.getFinish()->front();
+    Edge &edge2 = edge.getFinish()->back();
     CompactPath cp1 = rec.getFullUniqueExtension(edge.firstNucl() + edge1.firstNucl(), 1, 0);
     CompactPath cp2 = rec.getFullUniqueExtension(edge.firstNucl() + edge2.firstNucl(), 1, 0);
     if(greedy.cpath().startsWith(cp2.cpath())) {
@@ -147,7 +147,7 @@ inline CompactPath findBulgeExtension(const VertexRecord &rec, const Edge &edge,
     }
     if(!cp1.cpath().Subseq(b1).nonContradicts(cp2.cpath().Subseq(b2)))
         return greedy;
-    return CompactPath(*edge.start(), choice + greedy.cpath().Subseq(b1));
+    return CompactPath(*edge.getStart(), choice + greedy.cpath().Subseq(b1));
 }
 
 inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const RecordStorage &reads_storage,
@@ -157,7 +157,7 @@ inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const 
         Edge &edge = *edgeIt;
         if(unique_extensions.find(&edge) != unique_extensions.end())
             continue;
-        const VertexRecord &rec = reads_storage.getRecord(*edge.start());
+        const VertexRecord &rec = reads_storage.getRecord(*edge.getStart());
         Path path = greedyExtension(rec, classificator, edge);
         VERIFY(edge == path[0]);
         path = findBulgeExtension(rec, edge, CompactPath(path)).getPath();
@@ -233,8 +233,8 @@ GraphAlignment correctRead(std::unordered_map<const Edge *, CompactPath> &unique
 //                          << CompactPath(al.subalignment(i + 1, al.size())) << "\n" << compactPath << std::endl;
             new_al += replacement;
             while(new_al.finish().outDeg() == 1 && deficite > 0) {
-                size_t len = std::min(deficite, new_al.finish()[0].size());
-                new_al += Segment<Edge>(new_al.finish()[0], 0, len);
+                size_t len = std::min(deficite, new_al.finish().front().size());
+                new_al += Segment<Edge>(new_al.finish().front(), 0, len);
                 deficite -= len;
             }
             bad = true;
@@ -296,8 +296,8 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     for(Edge & edge : sdbg.edgesUnique()) {
         if(edge.size() > k + 5000)
             continue;
-        if(reads_storage.getRecord(*edge.start()).isDisconnected(edge) ||
-           reads_storage.getRecord(*edge.rc().start()).isDisconnected(edge.rc())) {
+        if(reads_storage.getRecord(*edge.getStart()).isDisconnected(edge) ||
+           reads_storage.getRecord(*edge.rc().getStart()).isDisconnected(edge.rc())) {
             bad_edges.emplace(&edge);
             bad_edges.emplace(&edge.rc());
         }
@@ -320,17 +320,18 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
             res.addUnique(edge);
             continue;
         }
-        const VertexRecord &rec = reads_storage.getRecord(*edge.start());
-        CompactPath unique_extension = rec.getFullUniqueExtension(edge.seq.Subseq(0, 1), 1, 0);
+        const VertexRecord &rec = reads_storage.getRecord(*edge.getStart());
+        CompactPath unique_extension = rec.getFullUniqueExtension(edge.getSeq().Subseq(0, 1), 1, 0);
         GraphAlignment al = unique_extension.getAlignment();
         Path path = al.path();
         size_t len = 0;
         for(size_t i = 1; i < path.size(); i++) {
             if(classificator.isUnique(path[i])) {
                 if(len < 3000 && rec.countStartsWith(CompactPath(path.subPath(0, i + 1)).cpath()) >= 4) {
-                    if(i == 1 && edge.start()->inDeg() == 2 && edge.end()->outDeg() == 2 && edge.start()->outDeg() == 1 && edge.end()->inDeg() == 1) {
-                        if(classificator.isUnique(edge.start()->rc()[0]) && classificator.isUnique(edge.start()->rc()[1]) &&
-                                classificator.isUnique(edge.end()->operator[](0)) && classificator.isUnique(edge.end()->operator[](1))) {
+                    if(i == 1 && edge.getStart()->inDeg() == 2 && edge.getFinish()->outDeg() == 2 &&
+                            edge.getStart()->outDeg() == 1 && edge.getFinish()->inDeg() == 1) {
+                        if(classificator.isUnique(edge.getStart()->rc().front()) && classificator.isUnique(edge.getStart()->rc().back()) &&
+                           classificator.isUnique(edge.getFinish()->front()) && classificator.isUnique(edge.getFinish()->back())) {
                             continue;
                         }
                     }

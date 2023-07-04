@@ -24,7 +24,7 @@ namespace dbg {
                 _start(&path.getVertex(0)), _first_skip(first_skip), _last_skip(last_skip) {
             std::vector<char> edges;
             for (const auto &edge: path) {
-                edges.push_back(edge->seq[0]);
+                edges.push_back(edge->getSeq()[0]);
             }
             _edges = Sequence(edges);
         }
@@ -33,7 +33,7 @@ namespace dbg {
                 _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
             std::vector<char> edges;
             for (const auto &seg: path) {
-                edges.push_back(seg.contig().seq[0]);
+                edges.push_back(seg.contig().getSeq()[0]);
             }
             _edges = Sequence(edges);
         }
@@ -42,7 +42,7 @@ namespace dbg {
                 _start(&path.getVertex(left)), _first_skip(path[left].left), _last_skip(path[right - 1].RC().left) {
             std::vector<char> edges;
             for (size_t i = left; i < right; i++) {
-                edges.push_back(path[i].contig().seq[0]);
+                edges.push_back(path[i].contig().getSeq()[0]);
             }
             _edges = Sequence(edges);
         }
@@ -60,7 +60,7 @@ namespace dbg {
                 VERIFY(cur->hasOutgoing(_edges[i]));
                 Edge &edge = cur->getOutgoing(_edges[i]);
                 path.emplace_back(edge, 0, edge.size());
-                cur = edge.end();
+                cur = edge.getFinish();
             }
             if (_first_skip > 0)
                 path.front().left += _first_skip;
@@ -75,7 +75,7 @@ namespace dbg {
             for(size_t i = 0; i < _edges.size(); i++) {
                 Edge &edge = cur->getOutgoing(_edges[i]);
                 path.emplace_back(&edge);
-                cur = edge.end();
+                cur = edge.getFinish();
             }
             return {*_start, std::move(path)};
         }

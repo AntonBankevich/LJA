@@ -8,6 +8,8 @@ struct RawSeg {
     size_t left;
     size_t right;
 
+    std::string getId() {return id;}
+
     RawSeg(std::string id, size_t left, size_t right) : id(std::move(id)), left(left), right(right) {}
 
     bool operator<(const RawSeg &other) const {
@@ -54,7 +56,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
     std::unordered_map<hashing::htype, std::vector<std::pair<Contig *, size_t>>, hashing::alt_hasher<hashing::htype>> position_map;
     for(Contig &contig : contigs) {
         for(size_t pos = 1; pos + k <= contig.size(); pos += w) {
-            hashing::htype h = hasher.hash(contig.seq, pos);
+            hashing::htype h = hasher.hash(contig.getSeq(), pos);
             position_map[h].emplace_back(&contig, pos);
         }
     }
@@ -62,7 +64,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
     std::function<void(size_t,StringContig)> task = [&result, &hasher, &position_map, K](size_t num, StringContig contig) {
         Contig read = contig.makeContig();
         std::vector<std::pair<Contig *, int>> res;
-        hashing::KWH kwh(hasher, read.seq, 0);
+        hashing::KWH kwh(hasher, read.getSeq(), 0);
         while (true) {
             if (position_map.find(kwh.fHash()) != position_map.end()) {
                 for(std::pair<Contig *, size_t> &pos : position_map[kwh.fHash()]) {
@@ -80,7 +82,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
             size_t clen = 0;
             for(int rpos = 0; rpos <= read.size(); rpos++) {
                 if(rpos < read.size() && rpos + al.second >= 0 && rpos + al.second < al.first->size() &&
-                         read.seq[rpos] == al.first->seq[rpos + al.second]) {
+                   read.getSeq()[rpos] == al.first->getSeq()[rpos + al.second]) {
                     clen++;
                 } else {
                     if(clen > K) {
@@ -122,11 +124,11 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         size_t len = rec.contig_len;
         if((rec.seg_from.left != 0 && rec.seg_to.left != 0) ||
            (rec.seg_from.right != len && rec.seg_to.right != rec.seg_to.contig().size())) {
-            os_bad << rec.seg_from.id << " " << rec.seg_from.left << " " << rec.seg_from.right << " "
+            os_bad << rec.seg_from.getId() << " " << rec.seg_from.left << " " << rec.seg_from.right << " "
                    << rec.seg_to.contig().getId() << " " << rec.seg_to.left << " " << rec.seg_to.right
                    << "\n";
         } else {
-            os << rec.seg_from.id << " " << rec.seg_from.left << " " << rec.seg_from.right << " "
+            os << rec.seg_from.getId() << " " << rec.seg_from.left << " " << rec.seg_from.right << " "
                << rec.seg_to.contig().getId() << " " << rec.seg_to.left << " " << rec.seg_to.right
                << "\n";
         }

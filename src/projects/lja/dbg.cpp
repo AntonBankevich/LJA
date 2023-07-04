@@ -318,9 +318,9 @@ int main(int argc, char **argv) {
             if(cnt > 200)
                 break;
             Contig contig = scontig.makeContig();
-            std::string fname = "contig_" + std::to_string(cnt) + "_" + mask(contig.id) + ".dot";
+            std::string fname = "contig_" + std::to_string(cnt) + "_" + mask(contig.getId()) + ".dot";
             const std::experimental::filesystem::path seg_file = dir / fname;
-            logger.info() << "Printing contig " << contig.id << " to dot file " << (seg_file) << std::endl;
+            logger.info() << "Printing contig " << contig.getId() << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
             Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 100);
             coordinates_dot.open(seg_file);
@@ -353,12 +353,12 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.getK() + w - 1)
                 return;
-            GraphAlignment al = GraphAligner(dbg).align(contig.seq);
+            GraphAlignment al = GraphAligner(dbg).align(contig.getSeq());
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].contains(al.getVertex(i))) {
 #pragma omp critical
-                        *os[j] << ">" << contig.id << "\n" <<initial_seq << "\n";
+                        *os[j] << ">" << contig.getId() << "\n" << initial_seq << "\n";
                         break;
                     }
                 }
@@ -388,17 +388,17 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             storage.addContig(contig);
             for(auto & seg_rec : seg_recs) {
-                if(std::get<0>(seg_rec) == contig.id) {
-                    segs.emplace_back(contig.seq.Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
-                } else if (std::get<0>(seg_rec) == "-" + contig.id) {
-                    segs.emplace_back((!contig.seq).Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
+                if(std::get<0>(seg_rec) == contig.getId()) {
+                    segs.emplace_back(contig.getSeq().Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
+                } else if (std::get<0>(seg_rec) == "-" + contig.getId()) {
+                    segs.emplace_back((!contig.getSeq()).Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
                 }
             }
         }
         storage.Fill(threads);
         for(Contig &seg : segs) {
-            const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.id) + ".dot");
-            logger.info() << "Printing segment " << seg.id << " to dot file " << (seg_file) << std::endl;
+            const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.getId()) + ".dot");
+            logger.info() << "Printing segment " << seg.getId() << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
             Component comp = Component::neighbourhood(dbg, seg, dbg.hasher().getK() + 100);
             coordinates_dot.open(seg_file);
@@ -457,7 +457,7 @@ int main(int argc, char **argv) {
             Contig read = contig.makeContig();
             if(read.size() < w + hasher.getK() - 1)
                 return;
-            GraphAlignment gal = GraphAligner(dbg).align(read.seq);
+            GraphAlignment gal = GraphAligner(dbg).align(read.getSeq());
             if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
                 gal = gal.subalignment(1, gal.size());
             }
@@ -469,14 +469,14 @@ int main(int argc, char **argv) {
                     return;
             }
             if (gal.size() > 0) {
-                alignment_results.emplace_back(gal.Seq(), read.id);
+                alignment_results.emplace_back(gal.Seq(), read.getId());
             }
         };
         std::ofstream os(dir / "tip_correct.fasta");
         io::SeqReader reader(reads_lib);
         processRecords(reader.begin(), reader.end(), logger, threads, task);
         for(Contig & rec : alignment_results) {
-            os << ">" << rec.id << "\n" << rec.seq << "\n";
+            os << ">" << rec.getId() << "\n" << rec.getSeq() << "\n";
         }
         os.close();
     }
@@ -500,13 +500,13 @@ int main(int argc, char **argv) {
             bool add = false;
             for(Edge & edge : vert) {
                 if (edge.getCoverage() >= threshold) {
-                    edges.push_back(vert.seq + edge.seq);
+                    edges.push_back(vert.getSeq() + edge.getSeq());
                     add = true;
                 }
             }
             for(Edge & edge : vert.rc()) {
                 if (edge.getCoverage() >= threshold){
-                    edges.push_back(vert.rc().seq + edge.seq);
+                    edges.push_back(vert.rc().getSeq() + edge.getSeq());
                     add = true;
                 }
             }
@@ -519,10 +519,10 @@ int main(int argc, char **argv) {
             Vertex &vert = it.second;
             Vertex &other = dbg.getVertex(vert.hash());
             for(Edge & edge : vert) {
-                edge.incCov(other.getOutgoing(edge.seq[0]).intCov());
+                edge.incCov(other.getOutgoing(edge.getSeq()[0]).intCov());
             }
             for(Edge & edge : vert.rc()) {
-                edge.incCov(other.rc().getOutgoing(edge.seq[0]).intCov());
+                edge.incCov(other.rc().getOutgoing(edge.getSeq()[0]).intCov());
             }
         }
         printDot(dir / "simp_graph1.dot", Component(simp_dbg));

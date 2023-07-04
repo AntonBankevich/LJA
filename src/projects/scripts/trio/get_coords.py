@@ -21,12 +21,12 @@ class Vertex:
         self.seq = ""
         self.outgoing = []
         self.incoming = []
-        self.id = ver_id
+        self.getId() = ver_id
         self.k = 0
-        self.rc_id = (self.id // 4) * 4 + 3 - (self.id % 4)
+        self.rc_id = (self.getId() // 4) * 4 + 3 - (self.getId() % 4)
 
     def __str__(self):
-        return (f'id {self.id}, out: {self.outgoing}, inc: {self.incoming}')
+        return (f'getId() {self.getId()}, out: {self.outgoing}, inc: {self.incoming}')
 
     # starts, end, rc_start, rc_end   0,1,2,3, rc_id = 3 - id
 
@@ -67,7 +67,7 @@ class Edge:
         return (self.edge_id // 2) * 2 + (self.edge_id % 2 + 1) % 2
 
     def __str__(self):
-        return (f'id {self.edge_id}, start: {self.start_vertex}, end: {self.end_vertex}')
+        return (f'getId() {self.edge_id}, getStart: {self.start_vertex}, end: {self.end_vertex}')
 
     def length(self):
         return len(self.seq)
@@ -85,7 +85,7 @@ class HaplotypeStats:
         #s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],c[0<<2|2], c[2<<2|0], c[0<<2|1], c[1<<2|0], s->cnt[i].nk, c[0])
         arr = triobin_str.split()
         self.haplotype  = arr[1]
-        self.id = int(arr[0])
+        self.getId() = int(arr[0])
         self.decisive_strips = [int(arr[2]), int(arr[3])]
         self.decisive_counts = [int(arr[4]), int(arr[5])]
         self.total_kmers = int(arr[8])
@@ -199,12 +199,12 @@ class Graph:
 
     def get_coords(self, line):
         arr = line.split('_')
-        start = 0
+        getStart = 0
         for eid in arr:
             edge =  self.edges[int(eid) * 2]
-            next = start +  len(edge.seq) - self.vertices[edge.end_vertex].k
-            print(f'{eid} : {start} {next}')
-            start = next
+            next = getStart +  len(edge.seq) - self.vertices[edge.end_vertex].k
+            print(f'{eid} : {getStart} {next}')
+            getStart = next
 
     def print_to_gfa(self, outfile):
         labels = {}
@@ -310,11 +310,11 @@ def get_ids(link_name):
     return res
 
 
-def get_small_component(id, min_size, max_size, min_cov, neighbours, global_used, segments):
+def get_small_component(getId(), min_size, max_size, min_cov, neighbours, global_used, segments):
     used = set()
-    if id in global_used:
+    if getId() in global_used:
         return used
-    in_job = [id]
+    in_job = [getId()]
     while in_job:
         cur_v = in_job.pop()
         if cur_v not in used:
@@ -332,7 +332,7 @@ def get_small_component(id, min_size, max_size, min_cov, neighbours, global_used
     total_cov /= total_len
     #    if total_len >= low_cutoff and total_len <= high_cutoff and total_cov > min_coverage:
     #    if total_len >= ids[id].length and total_len > 1000 and total_cov > 10 and len(used) < 2:
-    if total_len < max_size and total_len > min_size and total_cov > min_cov and total_len > segments[id].length:
+    if total_len < max_size and total_len > min_size and total_cov > min_cov and total_len > segments[getId()].length:
         return used
     else:
         return set()
@@ -438,9 +438,9 @@ def construct_graph(edge_component, segments, links):
             canonic_vertices[canonic_ids[v]].incoming.append(i)
     #    for v in canonic_vertices.keys():
     #        print(canonic_vertices[v])
-    for id in edges.keys():
-        edges[id].start_vertex = canonic_ids[edges[id].start_vertex]
-        edges[id].end_vertex = canonic_ids[edges[id].end_vertex]
+    for getId() in edges.keys():
+        edges[getId()].start_vertex = canonic_ids[edges[getId()].start_vertex]
+        edges[getId()].end_vertex = canonic_ids[edges[getId()].end_vertex]
     #        print(edges[id])
     G = Graph(canonic_vertices, edges)
     return G

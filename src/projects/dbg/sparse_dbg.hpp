@@ -16,6 +16,8 @@
 #include <numeric>
 #include <unordered_map>
 #include <unordered_set>
+#include <forward_list>
+#include <list>
 
 namespace dbg {
     enum EdgeMarker {
@@ -34,28 +36,35 @@ namespace dbg {
 
     class Edge {
     private:
-        Vertex *start_;
-        Vertex *end_;
+        Vertex *start;
+        Vertex *finish;
         mutable size_t cov;
         static Edge _fake;
         mutable EdgeMarker marker = EdgeMarker::common;
-    public:
-        mutable size_t extraInfo;//TODO remove
         Sequence seq;
-        std::string id = "";
+        Edge(Vertex *_start, Vertex *_end, Sequence _seq) :
+                start(_start), finish(_end), cov(0), extraInfo(-1), seq(std::move(_seq)) {
+        }
+        friend class dbg::Vertex;
+    public:
+        typedef int id_type;
+        mutable size_t extraInfo;//TODO remove
+        const Sequence &getSeq() const {return seq;}
         friend class Vertex;
         bool is_reliable = false;
-        Edge(Vertex *_start, Vertex *_end, Sequence _seq) :
-                start_(_start), end_(_end), cov(0), extraInfo(-1), seq(std::move(_seq)) {
+        Edge(Vertex &_start, Vertex &_end, Sequence _seq) :
+                start(&_start), finish(&_end), cov(0), extraInfo(-1), seq(std::move(_seq)) {
         }
+        Edge() : start(nullptr), finish(nullptr), cov(0), extraInfo(-1), seq() {}
+
         static Edge &fake() {return _fake;}
         std::string getId() const;
         std::string oldId() const;
         std::string getShortId() const;
         EdgeMarker getMarker() const {return marker;};
         bool checkCorrect() const {return IsMarkerCorrect(marker);}
-        Vertex *end() const;
-        Vertex *start() const;
+        Vertex *getFinish() const;
+        Vertex *getStart() const;
         size_t getTipSize() const;
         void  setTipSize(size_t val) const;
         size_t updateTipSize() const;
@@ -87,7 +96,7 @@ namespace dbg {
     class Vertex {
     private:
         friend class SparseDBG;
-        mutable std::vector<Edge> outgoing_{};
+        mutable std::list<Edge> outgoing_{};
         Vertex *rc_;
         hashing::htype hash_;
         omp_lock_t writelock = {};
@@ -95,8 +104,8 @@ namespace dbg {
         bool canonical = false;
         bool mark_ = false;
         explicit Vertex(hashing::htype hash, Vertex *_rc);
-    public:
         Sequence seq;
+    public:
 
         explicit Vertex(hashing::htype hash = 0);
         Vertex(const Vertex &) = delete;
@@ -108,15 +117,26 @@ namespace dbg {
         hashing::htype hash() const {return hash_;}
         Vertex &rc() {return *rc_;}
         const Vertex &rc() const {return *rc_;}
-        void setSequence(Sequence _seq);
+        void setSeq(Sequence _seq);
+        const Sequence &getSeq() const {return seq;}
 //        void clearSequence();
         void lock() {omp_set_lock(&writelock);}
         void unlock() {omp_unset_lock(&writelock);}
-        std::vector<Edge>::iterator begin() const {return outgoing_.begin();}
-        std::vector<Edge>::iterator end() const {return outgoing_.end();}
+        std::list<Edge>::iterator begin() const {return outgoing_.begin();}
+        std::list<Edge>::iterator end() const {return outgoing_.end();}
         size_t outDeg() const {return outgoing_.size();}
         size_t inDeg() const {return rc_->outgoing_.size();}
-        Edge &operator[](size_t ind) const {return outgoing_[ind];}
+        Edge &front() const {return outgoing_.front();}
+        Edge &back() const {return outgoing_.back();}
+//        Edge &operator[](size_t ind) const {
+//            if(ind == outgoing_.size() - 1)
+//                return outgoing_.back();
+//            auto it = outgoing_.begin();
+//            for(size_t i = 0; i < ind; i++){
+//                ++it;
+//            }
+//            return *it;
+//        }
 
 
         size_t coverage() const;
@@ -132,6 +152,7 @@ namespace dbg {
         void incCoverage();
         Edge &addEdgeLockFree(const Edge &edge);
         void addEdge(const Edge &e);
+        void addSequence(const Sequence &edge_seq) {addEdge(Edge(this, nullptr, edge_seq));}
         Edge &getOutgoing(unsigned char c) const;
         bool hasOutgoing(unsigned char c) const;
         bool isJunction() const;
@@ -150,7 +171,7 @@ namespace dbg {
         EdgePosition() : edge(nullptr), pos(0) {}
 
         Sequence kmerSeq() const {return edge->kmerSeq(pos);}
-        unsigned char lastNucl() const {return edge->seq[pos - 1];}
+        unsigned char lastNucl() const {return edge->getSeq()[pos - 1];}
         bool isBorder() const {return pos == 0 || pos == edge->size();}
 
         std::vector<EdgePosition> step() const;
@@ -226,6 +247,9 @@ namespace dbg {
         Vertex &addVertex(const hashing::KWH &kwh);
         Vertex &addVertex(const Sequence &seq);
         Vertex &addVertex(const Vertex &other_graph_vertex);
+//        Edge &addEdge(Vertex &from, Vertex &to, Sequence seq, int id = 0) {
+//            Edge edge(from, to, seq, id);
+//        }
 
 
         std::vector<hashing::KWH> extractVertexPositions(const Sequence &seq, size_t max = size_t(-1)) const;

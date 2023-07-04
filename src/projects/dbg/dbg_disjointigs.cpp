@@ -7,27 +7,27 @@ Sequence buildDisjointig(Path &path) {
     Sequence disjointig = path.Seq();
     const Vertex &last = path.finish().rc();
     const Edge &lastEdge = path.back().sparseRcEdge();
-    size_t k = path.start().seq.size();
+    size_t k = path.start().getSeq().size();
     if(path[0].intCov() + lastEdge.intCov() + k > disjointig.size())
         return Sequence{};
     disjointig = disjointig.Subseq(path[0].intCov(), disjointig.size() - lastEdge.intCov());
     if (path.start().inDeg() > 1 && path.start().outDeg() == 1) {
         VERIFY(path[0].intCov() == 0);
         const Edge& extra = *path.start().rc().begin();
-        disjointig = !(extra.seq.Subseq(0, extra.intCov())) + disjointig;
+        disjointig = !(extra.getSeq().Subseq(0, extra.intCov())) + disjointig;
     }
     if(last.inDeg() > 1 && last.outDeg() == 1) {
         VERIFY(lastEdge.intCov() == 0);
         const Edge& extra = *last.rc().begin();
-        disjointig = disjointig + extra.seq.Subseq(0, extra.intCov());
+        disjointig = disjointig + extra.getSeq().Subseq(0, extra.intCov());
     }
     return disjointig;
 }
 
 void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
     for(Edge & edge : rec) {
-        VERIFY(edge.end() != nullptr);
-        VERIFY(!rec.seq.empty());
+        VERIFY(edge.getFinish() != nullptr);
+        VERIFY(!rec.getSeq().empty());
         Path path = Path::WalkForward(edge);
         if(rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
             Sequence disjointig = buildDisjointig(path);
@@ -42,11 +42,15 @@ void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
 
 void prepareVertex(Vertex &vertex) {
     vertex.sortOutgoing();
-    for(size_t i = 1; i < vertex.outDeg(); i++) {
-        vertex[i].incCov(vertex[i].seq.commonPrefix(vertex[i - 1].seq));
-    }
-    if(vertex.outDeg() > 1) {
-        vertex[0].incCov(vertex[1].intCov());
+    Edge *prev = nullptr;
+    for(Edge &edge : vertex) {
+        if(prev != nullptr) {
+            edge.incCov(edge.getSeq().commonPrefix(prev->getSeq()));
+            if (*prev == vertex.front()) {
+                prev->incCov(edge.getSeq().commonPrefix(prev->getSeq()));
+            }
+        }
+        prev = &edge;
     }
 }
 
@@ -69,14 +73,14 @@ void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence>
                     processVertex(rec, res);
                     processVertex(rec.rc(), res);
                     if (rec.inDeg() != 1 && rec.outDeg() != 1 &&  (rec.inDeg() != 0 || rec.outDeg() != 0)) {
-                        Sequence disjointig  = rec.seq;
+                        Sequence disjointig  = rec.getSeq();
                         if (rec.inDeg() > 0) {
                             Edge &e1 = *rec.rc().begin();
-                            disjointig = !(e1.seq.Subseq(0, e1.intCov())) + disjointig;
+                            disjointig = !(e1.getSeq().Subseq(0, e1.intCov())) + disjointig;
                         }
                         if (rec.outDeg() > 0) {
                             Edge &e2 = *rec.begin();
-                            disjointig = disjointig + e2.seq.Subseq(0, e2.intCov());
+                            disjointig = disjointig + e2.getSeq().Subseq(0, e2.intCov());
                         }
                         res.add(disjointig.copy());
                     }
@@ -94,22 +98,22 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
                 if(rec.isJunction() || rec.marked())
                     return;
                 Edge &edge = *rec.begin();
-                VERIFY(edge.end() != nullptr);
+                VERIFY(edge.getFinish() != nullptr);
                 Path path = Path::WalkForward(edge);
                 if(path.finish() != rec) {
                     std::cout << &path.finish() << std::endl;
                     std::cout << path.finish().hash() << std::endl;
-                    std::cout << rec.seq << std::endl;
+                    std::cout << rec.getSeq() << std::endl;
                 }
                 VERIFY(path.finish() == rec);
                 for(size_t i = 0; i + 1 < path.size(); i++) {
-                    if(*(path[i].end()) < rec) {
+                    if(*(path[i].getFinish()) < rec) {
                         return;
                     }
                 }
                 rec.mark();
                 Sequence disjointig = path.truncSeq();
-                res.add(rec.seq + disjointig + disjointig);
+                res.add(rec.getSeq() + disjointig + disjointig);
             };
     processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
 }

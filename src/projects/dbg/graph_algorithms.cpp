@@ -51,15 +51,15 @@ namespace dbg {
                     Vertex &cvertex = pair.second;
                     for (auto *vit: {&cvertex, &cvertex.rc()}) {
                         Vertex &vertex = *vit;
-                        VERIFY(!vertex.seq.empty());
+                        VERIFY(!vertex.getSeq().empty());
                         for (const Edge &ext: vertex) {
-                            if (ext.end() == nullptr) {
-                                Sequence seq = vertex.seq + ext.seq;
+                            if (ext.getFinish() == nullptr) {
+                                Sequence seq = vertex.getSeq() + ext.getSeq();
                                 KWH kwh(sdbg.hasher(), seq, ext.size());
                                 new_edges.add(seq);
                                 new_minimizers.emplace_back(kwh.hash());
                             } else {
-                                old_edges.add({&vertex, ext.seq});
+                                old_edges.add({&vertex, ext.getSeq()});
                             }
                         }
                     }
@@ -90,7 +90,7 @@ namespace dbg {
             }
         }
         if (ok && rec.inDeg() == 1) {
-            queue.add(&(rec.rc()[0].end()->rc()));
+            queue.add(&(rec.rc().front().getFinish()->rc()));
         }
     }
 
@@ -132,7 +132,7 @@ namespace dbg {
             {
                 for (auto &it: sdbg) {
                     Vertex &rec = it.second;
-                    VERIFY_OMP(!rec.seq.empty());
+                    VERIFY_OMP(!rec.getSeq().empty());
 #pragma omp task default(none) shared(sdbg, rec, logger, queue)
                     {
                         UpdateVertexTips(rec, queue);
@@ -153,7 +153,7 @@ namespace dbg {
                 {
                     for (auto &it: prev_queue) {
                         Vertex &rec = *it;
-                        VERIFY_OMP(!rec.seq.empty());
+                        VERIFY_OMP(!rec.getSeq().empty());
 #pragma omp task default(none) shared(sdbg, rec, logger, queue)
                         {
                             UpdateVertexTips(rec, queue);
@@ -173,17 +173,17 @@ namespace dbg {
         Sequence newSeq = path.Seq();
         size_t cov = 0;
         for (const Edge *e: path) {
-            if (e->end()->hash() != path.start().hash()) {
-                e->end()->mark();
-                e->end()->rc().mark();
+            if (e->getFinish()->hash() != path.start().hash()) {
+                e->getFinish()->mark();
+                e->getFinish()->rc().mark();
             }
             cov += e->intCov();
         }
-        size_t k = path.start().seq.size();
-        Edge &new_edge = path.start().addEdgeLockFree(Edge(&path.start(), &path.finish(), newSeq.Subseq(k)));
+        size_t k = path.start().getSeq().size();
+        Edge &new_edge = path.start().addEdgeLockFree(Edge(path.start(), path.finish(), newSeq.Subseq(k)));
         new_edge.incCov(cov - new_edge.intCov());
         Edge &rc_new_edge = path.finish().rc().addEdgeLockFree(
-                Edge(&path.finish().rc(), &path.start().rc(), (!newSeq).Subseq(k)));
+                Edge(path.finish().rc(), path.start().rc(), (!newSeq).Subseq(k)));
         rc_new_edge.incCov(cov - rc_new_edge.intCov());
     }
 
@@ -191,21 +191,21 @@ namespace dbg {
         Path path = Path::WalkForward(edge);
         Vertex &end = path.finish().rc();
         if (path.size() > 1 && end.hash() >= start.hash()) {
-            VERIFY(start.seq.size() > 0)
-            VERIFY(end.seq.size() > 0);
+            VERIFY(start.getSeq().size() > 0)
+            VERIFY(end.getSeq().size() > 0);
             Sequence newSeq(path.Seq());
             if (start != end)
                 end.lock();
             size_t cov = 0;
             for (size_t i = 0; i + 1 < path.size(); i++) {
 //            path[i].end()->clear();
-                path[i].end()->mark();
-                path[i].end()->rc().mark();
+                path[i].getFinish()->mark();
+                path[i].getFinish()->rc().mark();
                 cov += path[i].intCov();
             }
             cov += path.back().intCov();
-            Edge &new_edge = start.addEdgeLockFree(Edge(&start, &end.rc(), newSeq.Subseq(start.seq.size())));
-            Edge &rc_new_edge = end.addEdgeLockFree(Edge(&end, &start.rc(), (!newSeq).Subseq(start.seq.size())));
+            Edge &new_edge = start.addEdgeLockFree(Edge(start, end.rc(), newSeq.Subseq(start.getSeq().size())));
+            Edge &rc_new_edge = end.addEdgeLockFree(Edge(end, start.rc(), (!newSeq).Subseq(start.getSeq().size())));
             new_edge.incCov(cov - new_edge.intCov());
             rc_new_edge.incCov(cov - rc_new_edge.intCov());
             if (start != end)
@@ -244,11 +244,11 @@ namespace dbg {
                     if (start.isJunction() || start.marked()) {
                         return;
                     }
-                    Path path = Path::WalkForward(start[0]);
+                    Path path = Path::WalkForward(start.front());
                     VERIFY(path.finish() == start);
                     bool ismin = true;
                     for (const Edge *e: path) {
-                        if (e->end()->hash() < start.hash()) {
+                        if (e->getFinish()->hash() < start.hash()) {
                             ismin = false;
                             break;
                         }
@@ -262,7 +262,7 @@ namespace dbg {
         logger.trace() << "Found " << loops.size() << " perfect loops" << std::endl;
         for (htype loop: loops) {
             Vertex &start = sdbg.getVertex(loop);
-            Path path = Path::WalkForward(start[0]);
+            Path path = Path::WalkForward(start.front());
             mergeLoop(path);
         }
         logger.trace() << "Finished merging cyclic paths" << std::endl;
@@ -293,10 +293,10 @@ namespace dbg {
             Vertex &v = pair.second;
             os << v.hash() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
             for (const Edge &edge: v) {
-                os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
+                os << size_t(edge.getSeq()[0]) << " " << edge.intCov() << std::endl;
             }
             for (const Edge &edge: v.rc()) {
-                os << size_t(edge.seq[0]) << " " << edge.intCov() << std::endl;
+                os << size_t(edge.getSeq()[0]) << " " << edge.intCov() << std::endl;
             }
         }
 //    dbg.printCoverageStats(logger);
@@ -315,19 +315,19 @@ namespace dbg {
             Contig read = contig.makeContig();
             if (read.size() < w + hasher.getK() - 1)
                 return;
-            Path path = GraphAligner(dbg).align(read.seq).path();
+            Path path = GraphAligner(dbg).align(read.getSeq()).path();
             std::stringstream ss;
-            ss << read.id << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
+            ss << read.getId() << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
             for (size_t i = 0; i < path.size(); i++) {
-                ss << acgt[path[i].seq[0]];
+                ss << acgt[path[i].getSeq()[0]];
             }
             alignment_results.emplace_back(ss.str());
             Contig rc_read = read.RC();
-            Path rc_path = GraphAligner(dbg).align(rc_read.seq).path();
+            Path rc_path = GraphAligner(dbg).align(rc_read.getSeq()).path();
             std::stringstream rc_ss;
-            rc_ss << rc_read.id << " " << rc_path.start().hash() << int(rc_path.start().isCanonical()) << " ";
+            rc_ss << rc_read.getId() << " " << rc_path.start().hash() << int(rc_path.start().isCanonical()) << " ";
             for (size_t i = 0; i < rc_path.size(); i++) {
-                rc_ss << acgt[rc_path[i].seq[0]];
+                rc_ss << acgt[rc_path[i].getSeq()[0]];
             }
             alignment_results.emplace_back(rc_ss.str());
         };

@@ -18,7 +18,8 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
     size_t k = dbg.hasher().getK();
     std::vector<dbg::Edge *> tips;
     for (dbg::Edge &edge : dbg.edges()) {
-        if (edge.size() > min_overlap && edge.getCoverage() > 2 && edge.end()->outDeg() == 0 && edge.end()->inDeg() == 1)
+        if (edge.size() > min_overlap && edge.getCoverage() > 2 && edge.getFinish()->outDeg() == 0 &&
+                edge.getFinish()->inDeg() == 1)
             tips.emplace_back(&edge);
     }
     ParallelRecordCollector<std::pair<hashing::htype, size_t>> candidates(threads);
@@ -28,7 +29,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
 #pragma omp parallel for default(none) shared(tips, candidates, dbg, smallHasher)
     for (size_t i = 0; i < tips.size(); i++) {
         size_t max_len = std::min(tips[i]->size(), max_overlap);
-        hashing::KWH kwh(smallHasher, tips[i]->seq, tips[i]->size() - max_len);
+        hashing::KWH kwh(smallHasher, tips[i]->getSeq(), tips[i]->size() - max_len);
         while (true) {
             candidates.emplace_back(kwh.hash(), i);
             if (!kwh.hasNext())
@@ -70,8 +71,8 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
         m2 = d2;
         if(m1 >= 2 && m2 >= 2)
             continue;
-        Sequence s1 = tips[pairs[i].first]->start()->seq + tips[pairs[i].first]->seq;
-        Sequence s2 = tips[pairs[i].second]->start()->seq + tips[pairs[i].second]->seq;
+        Sequence s1 = tips[pairs[i].first]->getStart()->getSeq() + tips[pairs[i].first]->getSeq();
+        Sequence s2 = tips[pairs[i].second]->getStart()->getSeq() + tips[pairs[i].second]->getSeq();
         std::pair<size_t, size_t> overlap = CheckOverlap(s1, !s2, min_overlap, max_overlap, allowed_divergence);
         if (overlap.first > 0) {
 #pragma omp atomic update
@@ -87,16 +88,16 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
         if(deg[rec.from] == 1 && deg[rec.to] == 1) {
             Sequence new_seq = tips[rec.from]->suffix(0);
             new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(tips[rec.to]->suffix(0));
-            new_seq = tips[rec.from]->start()->seq + new_seq.Subseq(k);
+            new_seq = tips[rec.from]->getStart()->getSeq() + new_seq.Subseq(k);
             new_seq = StringContig(new_seq.str(), "new").makeSequence();
-            if(!new_seq.endsWith(!tips[rec.to]->start()->seq) || !new_seq.startsWith(tips[rec.from]->start()->seq) ||
+            if(!new_seq.endsWith(!tips[rec.to]->getStart()->getSeq()) || !new_seq.startsWith(tips[rec.from]->getStart()->getSeq()) ||
                HasInnerDuplications(new_seq, dbg.hasher()))
                 continue;
             size_t left_match = 0;
             size_t right_match = 0;
-            while(left_match < tips[rec.from]->size() && new_seq[k + left_match] == tips[rec.from]->seq[left_match])
+            while(left_match < tips[rec.from]->size() && new_seq[k + left_match] == tips[rec.from]->getSeq()[left_match])
                 left_match++;
-            while(right_match < tips[rec.to]->size() && (!new_seq)[k + right_match] == tips[rec.to]->seq[right_match])
+            while(right_match < tips[rec.to]->size() && (!new_seq)[k + right_match] == tips[rec.to]->getSeq()[right_match])
                 right_match++;
             dbg::EdgePosition p1(*tips[rec.from], left_match);
             dbg::EdgePosition p2(*tips[rec.to], right_match);
@@ -121,7 +122,7 @@ void processVertex(dbg::SparseDBG &dbg, const Sequence &seq) {
         return;
     dbg::Vertex &v1 = dbg.getVertex(kwh);
     for(dbg::Edge &edge : v1) {
-        if(edge.seq[0] != seq[k]) {
+        if(edge.getSeq()[0] != seq[k]) {
             edge.is_reliable = false;
             edge.rc().is_reliable = false;
         } else {

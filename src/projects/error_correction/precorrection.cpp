@@ -34,7 +34,7 @@ dbg::GraphAlignment FindOnlyPathForward(dbg::Vertex &start, double reliable_cove
 }
 
 dbg::GraphAlignment PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
-    dbg::GraphAlignment res = FindOnlyPathForward(*seg.contig().start(), reliable_coverage, seg.size());
+    dbg::GraphAlignment res = FindOnlyPathForward(*seg.contig().getStart(), reliable_coverage, seg.size());
     if(res.len() >= seg.size()) {
         res.cutBack(res.len() - seg.size());
         return std::move(res);
@@ -44,12 +44,13 @@ dbg::GraphAlignment PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable
 }
 
 dbg::GraphAlignment PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
-    dbg::GraphAlignment res = FindOnlyPathForward(*bulge.start(), reliable_coverage, bulge.size() + 20, bulge.end());
-    if(&res.finish() == bulge.end() && res.endClosed() && res.len() + 20 > bulge.size()) {
+    dbg::GraphAlignment res = FindOnlyPathForward(*bulge.getStart(), reliable_coverage, bulge.size() + 20,
+                                                  bulge.getFinish());
+    if(&res.finish() == bulge.getFinish() && res.endClosed() && res.len() + 20 > bulge.size()) {
         return std::move(res);
     } else {
-        res = FindOnlyPathForward(bulge.end()->rc(), reliable_coverage, bulge.size() + 20, &bulge.start()->rc()).RC();
-        if(&res.start() == bulge.start() && res.startClosed() && res.len() + 20 > bulge.size())
+        res = FindOnlyPathForward(bulge.getFinish()->rc(), reliable_coverage, bulge.size() + 20, &bulge.getStart()->rc()).RC();
+        if(&res.start() == bulge.getStart() && res.startClosed() && res.len() + 20 > bulge.size())
             return std::move(res);
         else {
             std::vector<dbg::GraphAlignment> candidates = FindPlausibleBulgeAlternatives(dbg::GraphAlignment() + bulge, 10, reliable_coverage);

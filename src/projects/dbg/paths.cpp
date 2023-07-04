@@ -1,12 +1,12 @@
 #include "paths.hpp"
 using namespace dbg;
 Path Path::WalkForward(dbg::Edge &start) {
-    Path res(*start.start());
+    Path res(*start.getStart());
     res += start;
-    Vertex *next = start.end();
-    while(next != nullptr && next != start.start() && !next->isJunction()) {
-        res += (*next)[0];
-        next = (*next)[0].end();
+    Vertex *next = start.getStart();
+    while(next != nullptr && next != start.getStart() && !next->isJunction()) {
+        res += next->front();
+        next = next->front().getFinish();
     }
     return std::move(res);
 }
@@ -23,7 +23,7 @@ dbg::Path dbg::Path::RC() {
     for (size_t i = path.size(); i > 0; i--) {
         rcPath.emplace_back(&path[i - 1]->rc());
     }
-    return Path(back().end()->rc(), rcPath);
+    return Path(back().getFinish()->rc(), rcPath);
 }
 
 dbg::Vertex &dbg::Path::getVertex(size_t i) {
@@ -31,7 +31,7 @@ dbg::Vertex &dbg::Path::getVertex(size_t i) {
     if (i == 0)
         return *start_;
     else
-        return *path[i - 1]->end();
+        return *path[i - 1]->getFinish();
 }
 
 dbg::Vertex &dbg::Path::getVertex(size_t i) const {
@@ -39,7 +39,7 @@ dbg::Vertex &dbg::Path::getVertex(size_t i) const {
     if (i == 0)
         return *start_;
     else
-        return *path[i - 1]->end();
+        return *path[i - 1]->getFinish();
 }
 
 size_t dbg::Path::find(dbg::Edge &edge, size_t pos) const {
@@ -68,9 +68,9 @@ double dbg::Path::minCoverage() const {
 
 Sequence dbg::Path::Seq() const {
     SequenceBuilder sb;
-    sb.append(start().seq);
+    sb.append(start().getSeq());
     for (const Edge *e : path) {
-        sb.append(e->seq);
+        sb.append(e->getSeq());
     }
     return sb.BuildSequence();
 }
@@ -78,7 +78,7 @@ Sequence dbg::Path::Seq() const {
 Sequence dbg::Path::truncSeq() const {
     SequenceBuilder sb;
     for (const Edge *e : path) {
-        sb.append(e->seq);
+        sb.append(e->getSeq());
     }
     return sb.BuildSequence();
 }
@@ -164,7 +164,7 @@ dbg::GraphAlignment &dbg::GraphAlignment::extend(const Sequence &seq) {
                 return *this;
             }
         } else {
-            if (als.back().contig().seq[als.back().right] == c) {
+            if (als.back().contig().getSeq()[als.back().right] == c) {
                 addStep();
             } else {
                 invalidate();
@@ -185,7 +185,7 @@ bool dbg::GraphAlignment::startClosed() const {
 
 unsigned char dbg::GraphAlignment::lastNucl() const {
     VERIFY(als.back().size() > 0);
-    return als.back().contig().seq[als.back().right - 1];
+    return als.back().contig().getSeq()[als.back().right - 1];
 }
 
 size_t dbg::GraphAlignment::leftSkip() const {
@@ -202,7 +202,7 @@ std::vector<dbg::GraphAlignment> dbg::GraphAlignment::allSteps() {
         return {std::move(copy.addStep())};
     }
     std::vector<GraphAlignment> res;
-    Vertex &end = als.size() == 0 ? *start_ : *back().contig().end();
+    Vertex &end = als.size() == 0 ? *start_ : *back().contig().getFinish();
     for (Edge &edge : end) {
         GraphAlignment copy = *this;
         res.emplace_back(std::move(copy.addStep(edge)));
@@ -232,18 +232,18 @@ Sequence dbg::GraphAlignment::map(std::unordered_map<const Edge *, Sequence> &ed
         auto it = edge_map.find(&seg.contig());
         if (it == edge_map.end()) {
             if (start) {
-                sb.append((start_->seq + seg.contig().seq).Subseq(seg.left, seg.right + start_->seq.size()));
+                sb.append((start_->getSeq() + seg.contig().getSeq()).Subseq(seg.left, seg.right + start_->getSeq().size()));
                 start = false;
             } else {
                 sb.append(seg.seq());
             }
         } else {
-            size_t left = start_->seq.size();
+            size_t left = start_->getSeq().size();
             if (start) {
                 left = 0;
             }
-            size_t right = start_->seq.size();
-            size_t sz = it->second.size() - start_->seq.size();
+            size_t right = start_->getSeq().size();
+            size_t sz = it->second.size() - start_->getSeq().size();
             if (seg.left == 0 && seg.right == seg.contig().size()) {
                 right += sz;
             } else if (seg.left == 0) {
@@ -268,12 +268,12 @@ Sequence dbg::GraphAlignment::Seq() const {
         return {};
     }
     SequenceBuilder sb;
-    size_t k = start_->seq.size();
+    size_t k = start_->getSeq().size();
     if (als[0].left >= k)
-        sb.append(als[0].contig().seq.Subseq(als[0].left - k, als[0].right));
+        sb.append(als[0].contig().getSeq().Subseq(als[0].left - k, als[0].right));
     else {
-        sb.append(start_->seq.Subseq(als[0].left, k));
-        sb.append(als[0].contig().seq.Subseq(0, als[0].right));
+        sb.append(start_->getSeq().Subseq(als[0].left, k));
+        sb.append(als[0].contig().getSeq().Subseq(0, als[0].right));
     }
     for (size_t i = 1; i < als.size(); i++) {
         sb.append(als[i].seq());
@@ -344,13 +344,13 @@ void dbg::GraphAlignment::operator+=(const dbg::GraphAlignment &other) {
 
 void dbg::GraphAlignment::operator+=(const Segment<Edge> &other) {
     if(!valid()) {
-        start_ = other.contig().start();
+        start_ = other.contig().getStart();
     }
     if (!als.empty() && als.back().right < als.back().contig().size()) {
         als.back() = als.back() + other;
     } else {
         VERIFY(als.empty() || other.left == 0);
-        VERIFY(finish() == *other.contig().start());
+        VERIFY(finish() == *other.contig().getStart());
         als.push_back(other);
     }
 }
@@ -405,11 +405,11 @@ std::string dbg::GraphAlignment::str(bool show_coverage) const {
     std::stringstream ss;
     ss << leftSkip() << " " << start().getId();
     for(const Segment<Edge> &seg : als) {
-        ss << " " << seg.size() << "ACGT"[seg.contig().seq[0]];
+        ss << " " << seg.size() << "ACGT"[seg.contig().getSeq()[0]];
         if(show_coverage) {
             ss << "(" << seg.contig().getCoverage() << ")";
         }
-        ss << " " << seg.contig().end()->getId();
+        ss << " " << seg.contig().getFinish()->getId();
     }
     ss << " " << rightSkip();
     return ss.str();
@@ -439,7 +439,7 @@ size_t dbg::GraphAlignment::find(dbg::Vertex &v, size_t pos) const {
     return pos;
 }
 
-GraphAlignment::GraphAlignment(const Path &_path) : start_(_path.front().start()) {
+GraphAlignment::GraphAlignment(const Path &_path) : start_(_path.front().getStart()) {
     operator+=(_path);
 }
 
@@ -452,7 +452,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edg
         res += Segment<Edge>(*edge_to, pos_to, pos_to + len);
         cur += len;
         if(cur < seq.size()) {
-            edge_to = &edge_to->end()->getOutgoing(seq[cur]);
+            edge_to = &edge_to->getFinish()->getOutgoing(seq[cur]);
             pos_to = 0;
         }
     }
@@ -471,7 +471,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::str
                 VERIFY(kwh.pos < pos.pos);
                 VERIFY(pos.pos + seq.size() - kwh.pos <= pos.edge->size() + k);
                 Segment<Edge> seg(*pos.edge, pos.pos - kwh.pos, pos.pos + seq.size() - kwh.pos - k);
-                return {pos.edge->start(), std::vector<Segment<Edge>>({seg})};
+                return {pos.edge->getStart(), std::vector<Segment<Edge>>({seg})};
             }
             if (!kwh.hasNext()) {
 #pragma omp critical
@@ -489,7 +489,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::str
     if (kmers.front().pos > 0) {
         Vertex &rcstart = prestart->rc();
         if (!rcstart.hasOutgoing(seq[kmers.front().pos - 1] ^ 3)) {
-            std::cout << "No outgoing for start" << std::endl << seq << std::endl <<
+            std::cout << "No outgoing for getStart" << std::endl << seq << std::endl <<
                       kmers.front().pos << " " << seq[kmers.front().pos - 1] << std::endl
                       << kmers.front().getSeq() << std::endl;
             VERIFY(false);
@@ -504,8 +504,8 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::str
     while(cpos < seq.size()) {
         if(!prestart->hasOutgoing(seq[cpos])) {
             std::cout << "No outgoing for middle\n" << seq << "\n" << cpos << " " << prestart->getId() <<
-                " " << prestart->outDeg() << "\n" << seq.Subseq(cpos -k, cpos) << "\n" << prestart->seq << "\n" <<
-                size_t(seq[cpos]) << std::endl;
+                      " " << prestart->outDeg() << "\n" << seq.Subseq(cpos -k, cpos) << "\n" << prestart->getSeq() << "\n" <<
+                      size_t(seq[cpos]) << std::endl;
             for(Edge &tmp : *prestart) {
                 std::cout << tmp.getId() << " " << tmp.size() << std::endl;
             }
@@ -515,19 +515,19 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::str
         size_t len = std::min<size_t>(next.size(), seq.size() - cpos);
         res += Segment<Edge>(next, 0, len);
         cpos += len;
-        prestart = next.end();
+        prestart = next.getFinish();
     }
     return std::move(res);
 }
 
 dbg::GraphAlignment dbg::GraphAligner::align(const dbg::EdgePosition &pos, const Sequence &seq) const {
-    GraphAlignment res(pos.edge->start(), {{*pos.edge, pos.pos, pos.pos}});
+    GraphAlignment res(pos.edge->getStart(), {{*pos.edge, pos.pos, pos.pos}});
     Edge *cedge = pos.edge;
     size_t epos = pos.pos;
     for (size_t cpos = 0; cpos < seq.size(); cpos++) {
         unsigned char c = seq[cpos];
         if (epos == cedge->size()) {
-            Vertex &v = *cedge->end();
+            Vertex &v = *cedge->getFinish();
             if (v.hasOutgoing(c)) {
                 cedge = &v.getOutgoing(c);
                 res.addStep(*cedge);
@@ -536,7 +536,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const dbg::EdgePosition &pos, const
                 return {};
             }
         } else {
-            if (cedge->seq[epos] == c) {
+            if (cedge->getSeq()[epos] == c) {
                 res.addStep();
                 epos += 1;
             } else {
@@ -550,7 +550,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const dbg::EdgePosition &pos, const
 std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>>
 dbg::GraphAligner::oldEdgeAlign(dbg::Edge
                                 &contig) const {
-    Sequence seq = contig.start()->seq + contig.seq;
+    Sequence seq = contig.getStart()->getSeq() + contig.getSeq();
     std::vector<PerfectAlignment<Edge, Edge>> res;
     hashing::KWH kwh(dbg.hasher(), seq, 0);
     size_t k = dbg.hasher().getK();
@@ -567,7 +567,7 @@ dbg::GraphAligner::oldEdgeAlign(dbg::Edge
             }
             if (edge == nullptr && dbg.isAnchor(kwh.hash())) {
                 EdgePosition gpos = dbg.getAnchor(kwh);
-                if (gpos.edge->seq[gpos.pos] == seq[kwh.pos + k]) {
+                if (gpos.edge->getSeq()[gpos.pos] == seq[kwh.pos + k]) {
                     edge = gpos.edge;
                     pos = gpos.pos;
                 }
@@ -583,7 +583,7 @@ dbg::GraphAligner::oldEdgeAlign(dbg::Edge
 }
 
 std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::carefulAlign(Contig &contig) const {
-    Sequence seq = contig.seq;
+    Sequence seq = contig.getSeq();
     size_t k = dbg.hasher().getK();
     if(contig.size() < k) {
         return {};
@@ -599,7 +599,7 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::careful
                     && kwh.pos > 0 && rcVertex.hasOutgoing(seq[kwh.pos - 1] ^ 3)) {
                     Edge &edge = rcVertex.getOutgoing(seq[kwh.pos - 1] ^ 3);
                     size_t len = 1;
-                    while (len < edge.size() && len < kwh.pos && edge.seq[len] == (seq[kwh.pos - len - 1] ^ 3))
+                    while (len < edge.size() && len < kwh.pos && edge.getSeq()[len] == (seq[kwh.pos - len - 1] ^ 3))
                         len += 1;
                     res.emplace_back(Segment<Contig>(contig, kwh.pos - len, kwh.pos),
                                      Segment<Edge>(edge.rc(), edge.size() - len, edge.size()));
@@ -608,7 +608,7 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::careful
                     Edge &edge = vertex.getOutgoing(seq[kwh.pos + k]);
                     size_t len = 1;
                     while (len < edge.size() && kwh.pos + k + len < seq.size() &&
-                           edge.seq[len] == seq[kwh.pos + k + len])
+                           edge.getSeq()[len] == seq[kwh.pos + k + len])
                         len += 1;
                     res.emplace_back(Segment<Contig>(contig, kwh.pos, kwh.pos + len),
                                      Segment<Edge>(edge, 0, len));
@@ -617,8 +617,8 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::careful
                 EdgePosition pos = dbg.getAnchor(kwh);
 //                TODO replace this code with a call to expand method of PerfectAlignment class after each edge is marked by its full sequence
                 Edge &edge = *pos.edge;
-                Vertex &start = *pos.edge->start();
-                CompositeSequence edge_seq({start.seq, edge.seq});
+                Vertex &start = *pos.edge->getStart();
+                CompositeSequence edge_seq({start.getSeq(), edge.getSeq()});
                 size_t left_from = kwh.pos;
                 size_t right_from = kwh.pos + k;
                 size_t left_to = pos.pos;
@@ -649,8 +649,8 @@ PerfectAlignment<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Se
     PerfectAlignment<Contig, dbg::Edge> best({seg.contig(), seg.left, seg.left}, {Edge::fake(), 0, 0});
     for(Edge &edge : vertex) {
         size_t len = 0;
-        while(len < edge.size() && seg.left + vertex.seq.size() + len < seg.contig().size()) {
-            if(seg.contig()[seg.left + vertex.seq.size() + len] != edge.seq[len])
+        while(len < edge.size() && seg.left + vertex.getSeq().size() + len < seg.contig().size()) {
+            if(seg.contig()[seg.left + vertex.getSeq().size() + len] != edge.getSeq()[len])
                 break;
             len++;
         }
@@ -667,8 +667,8 @@ PerfectAlignment<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Se
 
 PerfectAlignment<Contig, dbg::Edge> bestExtension(Edge &edge, const Segment<Contig> &seg) {
     size_t len = 0;
-    while(len < edge.size() && seg.left + edge.start()->seq.size() + len < seg.contig().size()) {
-        if(seg.contig()[seg.left + edge.start()->seq.size() + len] != edge.seq[len])
+    while(len < edge.size() && seg.left + edge.getStart()->getSeq().size() + len < seg.contig().size()) {
+        if(seg.contig()[seg.left + edge.getStart()->getSeq().size() + len] != edge.getSeq()[len])
             break;
         len++;
     }
@@ -687,7 +687,7 @@ PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendLeft(const hashing::KWH 
         return best;
     }
     PerfectAlignment<Contig, Edge> start_al = bestExtension(start.rc(), Segment<Contig>(rc_contig, contig.size() - k - kwh.pos, contig.size() - k));
-    if(start_al.seg_to.contig().end() == nullptr) return best;
+    if(start_al.seg_to.contig().getFinish() == nullptr) return best;
     return {Segment<Contig>(contig, contig.size() - k - start_al.seg_from.right, contig.size() - k - start_al.seg_from.left),
             Segment<Edge>(start_al.seg_to.contig().sparseRcEdge(),
                           start_al.seg_to.contig().size() - start_al.seg_to.right, start_al.seg_to.contig().size() - start_al.seg_to.left)};
@@ -707,7 +707,7 @@ PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendRight(const hashing::KWH
 }
 
 std::vector<PerfectAlignment<Contig, dbg::Edge>> GraphAligner::sparseAlign(Contig &contig) const {
-    std::vector<hashing::KWH> vlist = dbg.extractVertexPositions(contig.seq);
+    std::vector<hashing::KWH> vlist = dbg.extractVertexPositions(contig.getSeq());
     std::vector<PerfectAlignment<Contig, dbg::Edge>> result;
     size_t k = dbg.hasher().getK();
     if(vlist.empty())

@@ -2,13 +2,13 @@
 
 BulgePath::BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_) : path(path_), start_(nullptr) {
     VERIFY(path.size() > 0);
-    start_ = path.front().first->start();
+    start_ = path.front().first->getStart();
 }
 
 dbg::Vertex &BulgePath::finish() const {
     if(path.empty())
         return *start_;
-    return *path.back().first->end();
+    return *path.back().first->getFinish();
 }
 
 dbg::Vertex &BulgePath::start() const {
@@ -19,14 +19,14 @@ dbg::Vertex &BulgePath::getVertex(size_t ind) const {
     VERIFY(ind <= size());
     if(ind == size())
         return finish();
-    return *path[ind].first->start();
+    return *path[ind].first->getStart();
 }
 
 void BulgePath::extend(double threshold) {
     dbg::Vertex &last = finish();
     size_t deg = last.outDeg();
-    if(last[0].getCoverage() > threshold && last[deg - 1].getCoverage() > threshold)
-        path.emplace_back(&last[0], &last[deg - 1]);
+    if(last.front().getCoverage() > threshold && last.back().getCoverage() > threshold)
+        path.emplace_back(&last.front(), &last.back());
     else {
         for(dbg::Edge &edge: last) {
             if(edge.getCoverage() > threshold) {
@@ -34,8 +34,8 @@ void BulgePath::extend(double threshold) {
                 return;
             }
         }
-        VERIFY(last.outDeg() == 2 && last[0].end() == last[1].end());
-        path.emplace_back(&last[0], &last[1]);
+        VERIFY(last.outDeg() == 2 && last.front().getFinish() == last.back().getFinish());
+        path.emplace_back(&last.front(), &last.back());
     }
 }
 
@@ -60,7 +60,7 @@ BulgePath BulgePath::operator+(const BulgePath &other) const {
 dbg::Vertex &BulgePath::vertexAt(size_t ind) {
     if(ind == 0)
         return *start_;
-    return *path[ind - 1].first->end();
+    return *path[ind - 1].first->getFinish();
 }
 
 size_t BulgePath::length() const {
@@ -94,10 +94,10 @@ std::string BulgePath::str() const {
     ss << start().getShortId();
     for(const auto &p : path) {
         if(p.first == p.second) {
-            ss << "-" << p.first->size() << "ACGT"[p.first->seq[0]] << "-" << p.first->end()->getShortId();
+            ss << "-" << p.first->size() << "ACGT"[p.first->getSeq()[0]] << "-" << p.first->getFinish()->getShortId();
         } else {
-            ss << "-(" << p.first->size() << "ACGT"[p.first->seq[0]] << "," <<
-               p.second->size() << "ACGT"[p.second->seq[0]] << ")-" << p.first->end()->getShortId();
+            ss << "-(" << p.first->size() << "ACGT"[p.first->getSeq()[0]] << "," <<
+               p.second->size() << "ACGT"[p.second->getSeq()[0]] << ")-" << p.first->getFinish()->getShortId();
         }
     }
     return ss.str();
@@ -132,7 +132,7 @@ bool BulgePathFinder::checkVertexForward(const dbg::Vertex &v) {
     if(cnt > 1 && cnt != v.outDeg())
         return false;
     return cnt == 1 ||
-           (v.outDeg() == 2 && v[0].end() == v[1].end() && v[0].size() < v[1].size() * 1.3 && v[1].size() < v[0].size() * 1.3);
+           (v.outDeg() == 2 && v.front().getFinish() == v.back().getFinish() && v.front().size() < v.back().size() * 1.3 && v.back().size() < v.front().size() * 1.3);
 }
 
 bool BulgePathFinder::isInner(const dbg::Vertex &v) {
@@ -177,7 +177,7 @@ BulgePathFinder::BulgePathFinder(dbg::SparseDBG &dbg, double threshold) : dbg(db
         }
     }
     for(dbg::Edge &edge : dbg.edges()) {
-        if(visited.find(edge.end()) == visited.end() && visited.find((edge.start())) == visited.end())
+        if(visited.find(edge.getFinish()) == visited.end() && visited.find((edge.getStart())) == visited.end())
             paths.emplace_back(edge);
     }
 }
@@ -188,7 +188,7 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
         if(bp.size() == 1) {
             dbg::Edge &edge = *bp[0].first;
             if(edge.size() > min_len || (
-                    (edge.start()->inDeg() == 0 || edge.end()->outDeg() == 0) &&
+                                                (edge.getStart()->inDeg() == 0 || edge.getFinish()->outDeg() == 0) &&
                     edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
                 res.emplace_back(&edge);
             }

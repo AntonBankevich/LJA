@@ -140,8 +140,8 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     logger.info() << "Calculating overlaps between adjacent uncompressed edges" << std::endl;
     std::unordered_map<int, Sequence> uncompression_results;
     for(const Contig &contig : uncompressed) {
-        uncompression_results[std::stoi(contig.id)] = contig.seq;
-        uncompression_results[-std::stoi(contig.id)] = !contig.seq;
+        uncompression_results[std::stoi(contig.getId())] = contig.getSeq();
+        uncompression_results[-std::stoi(contig.getId())] = !contig.getSeq();
     }
     ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
     omp_set_num_threads(threads);

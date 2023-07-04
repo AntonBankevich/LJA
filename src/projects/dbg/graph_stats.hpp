@@ -11,7 +11,7 @@ inline void simpleStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     size_t elen = 0;
     for(dbg::Vertex &v : dbg.vertices()) {
         for(dbg::Edge &edge : v) {
-            if(edge.end() == nullptr || edge == edge.sparseRcEdge()) {
+            if(edge.getFinish() == nullptr || edge == edge.sparseRcEdge()) {
                 e_cnt += 2;
                 elen += 2 * edge.size();
             } else {
@@ -37,8 +37,8 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     for (auto &val: dbg) {
         dbg::Vertex &tmp = val.second;
         if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-            dbg::Path path = dbg::Path::WalkForward(tmp[0]);
-            if (path.back().end() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
+            dbg::Path path = dbg::Path::WalkForward(tmp.front());
+            if (path.back().getFinish() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge *edge : path) {
                     isolatedSize += edge->size();
@@ -47,8 +47,8 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
             }
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-            dbg::Path path = dbg::Path::WalkForward(tmp.rc()[0]);
-            if (path.back().end() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
+            dbg::Path path = dbg::Path::WalkForward(tmp.rc().front());
+            if (path.back().getFinish() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge *edge : path) {
                     isolatedSize += edge->size();
@@ -62,20 +62,20 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         inout[std::min<size_t>(4u, tmp.outDeg()) * 5 + std::min<size_t>(4u, tmp.inDeg())] += 1;
         inout[std::min<size_t>(4u, tmp.inDeg()) * 5 + std::min<size_t>(4u, tmp.outDeg())] += 1;
         if (tmp.outDeg() == 1 && tmp.inDeg() == 0) {
-            dbg::Vertex &tmp1 = tmp[0].end()->rc();
-            VERIFY(tmp[0].end() != nullptr);
+            dbg::Vertex &tmp1 = tmp.front().getFinish()->rc();
+            VERIFY(tmp.front().getFinish() != nullptr);
         }
         if (tmp.outDeg() == 0 && tmp.inDeg() == 1) {
-            dbg::Vertex &tmp1 = tmp.rc()[0].end()->rc();
-            VERIFY(tmp.rc()[0].end() != nullptr);
+            dbg::Vertex &tmp1 = tmp.rc().front().getFinish()->rc();
+            VERIFY(tmp.rc().front().getFinish() != nullptr);
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 1) {
             n11 += 1;
         }
         if (tmp.inDeg() + tmp.outDeg() == 1) {
             n01 += 1;
-            dbg::Edge tip_edge = tmp.outDeg() == 1 ? tmp[0] : tmp.rc()[0];
-            if (tip_edge.end()->outDeg() > 1) {
+            dbg::Edge tip_edge = tmp.outDeg() == 1 ? tmp.front() : tmp.rc().front();
+            if (tip_edge.getFinish()->outDeg() > 1) {
                 ltips += tip_edge.size();
                 ntips += 1;
             }

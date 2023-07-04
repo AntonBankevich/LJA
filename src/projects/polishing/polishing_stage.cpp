@@ -19,7 +19,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
     os_cut.open(dir / "assembly.fasta");
     for(Contig &contig : assembly) {
         if(contig.size() > 1500)
-            os_cut << ">" << contig.id << "\n" << contig.seq << "\n";
+            os_cut << ">" << contig.getId() << "\n" << contig.getSeq() << "\n";
     }
     os_cut.close();
     return {{"assembly", dir / "assembly.fasta"}, {"graph", dir / "mdbg.gfa"}};

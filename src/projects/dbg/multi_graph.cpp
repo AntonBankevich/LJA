@@ -216,7 +216,7 @@ namespace multigraph {
         return *res;
     }
 
-    Edge &MultiGraph::addEdge(Vertex &from, Vertex &to, const Sequence &seq, int id, std::string label) {
+    Edge &MultiGraph::addEdge(Vertex &from, Vertex &to, Sequence seq, int id, std::string label) {
         if(id == 0) {
             if(seq <= !seq)
                 id = maxEId + 1;
@@ -231,7 +231,7 @@ namespace multigraph {
         }
 
         EdgeId res = edges_map.emplace(std::piecewise_construct, std::forward_as_tuple(id),
-                                       std::forward_as_tuple(from, to, seq, id, label)).first->second.getId();
+                                       std::forward_as_tuple(from, to, std::move(seq), id, label)).first->second.getId();
         res->start().addOutgoing(*res);
         EdgeId rc = res;
         if(seq != !seq) {
@@ -433,7 +433,7 @@ namespace multigraph {
         std::ofstream os;
         os.open(f);
         for(const Contig &contig : extractContigs(mg, cut_overlaps)) {
-            os << ">" << contig.id << "\n" << contig.seq << "\n";
+            os << ">" << contig.getId() << "\n" << contig.getSeq() << "\n";
         }
         os.close();
     }

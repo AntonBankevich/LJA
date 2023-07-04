@@ -2,24 +2,29 @@
 
 #include <sequences/sequence.hpp>
 #include <unordered_map>
+#include <common/disjoint_sets.hpp>
+
+//using namespace multigraph;
+//std::unordered_map<std::string, std::experimental::filesystem::path> RunGraphPolishing(
+//        logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+//        const io::Library &graph_gfa,
+//        const io::Library &corrected_edges, bool debug) {
+//    MultiGraph mg = MultiGraphHelper::LoadGFA(graph_gfa.front(), true);
+//    mg = MultiGraphHelper::TransformToVertexGraph(mg, 5001);
+//    DisjointSet<EdgePosition
+//    return {};
+//}
 //
-//class SegmentCorrection {
-//private:
-//    Sequence initial;
-//    Sequence corrected;
-//    bool ready;
+//class GraphPolishingPhase : public Stage {
 //public:
-//    void setCorrectedSequence(Sequence corrected_) {corrected = std::move(corrected_);}
-//    const Sequence & getInitial() const {return initial;}
-//    const Sequence & getCorrected() const {
-//        VERIFY(ready);
-//        return corrected;
+//    GraphPolishingPhase() : Stage(AlgorithmParameters(
+//            {},
+//            {}, ""), {"graph", "corrected_edges"}, {"graph"}) {
 //    }
-//    bool isReady() const {return ready;}
-//};
-//class GraphPolisher {
-//    std::vector<SegmentCorrection> corrections;
-//    std::unordered_map<>
-//public:
-//
+//protected:
+//    std::unordered_map<std::string, std::experimental::filesystem::path> innerRun(logging::Logger &logger, size_t threads,
+//                                                                                  const std::experimental::filesystem::path &dir, bool debug,
+//                                                                                  const AlgorithmParameterValues &parameterValues, const std::unordered_map<std::string, io::Library> &input) override {
+//        return RunGraphPolishing(logger, threads, dir, input.at("graph"), input.at("corrected_edges"), debug);
+//    }
 //};

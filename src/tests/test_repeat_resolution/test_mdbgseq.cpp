@@ -25,8 +25,10 @@ TEST(EdgeSegment, Basic) {
     Sequence seq("AATTCCGG");
     uint64_t k = 2;
     Vertex st(0);
-    st.seq = seq.Prefix(k);
-    dbg::Edge edge(&st, nullptr, seq.Suffix(seq.size() - k));
+    Vertex en(1);
+    st.setSeq(seq.Prefix(k));
+    en.setSeq(seq.Suffix(k));
+    dbg::Edge edge(st, en, seq.Suffix(seq.size() - k));
     EdgeSegment segm(&edge, 0, seq.size());
     ASSERT_TRUE(segm.LeftFull());
     ASSERT_TRUE(segm.RightFull());
@@ -59,11 +61,13 @@ TEST(EdgeSegment, Basic) {
 }
 
 TEST(MDBGSeq, SingleSegment) {
-    Sequence s1("ACGT");
+    Sequence s1("AATTCCGG");
     uint64_t k = 2;
     Vertex st(0);
-    st.seq = s1.Prefix(k);
-    dbg::Edge edge1(&st, nullptr, s1.Subseq(k));
+    Vertex en(1);
+    st.setSeq(s1.Prefix(k));
+    en.setSeq(s1.Suffix(k));
+    dbg::Edge edge1(st, en, s1.Suffix(s1.size() - k));
     MDBGSeq seq1(&edge1, 0, s1.size());
     ASSERT_EQ(seq1.ToSequence(), s1);
     ASSERT_EQ(seq1.Size(), s1.size());
@@ -89,23 +93,29 @@ TEST(MDBGSeq, SingleSegment) {
 TEST(MDBGSeq, SeveralSegments) {
     uint64_t k = 2;
 
-    Sequence s1("ACGT");
-    Vertex st1(0);
-    st1.seq = s1.Prefix(k);
-    dbg::Edge edge1(&st1, nullptr, s1.Subseq(k));
+    Sequence s1("AATTCCGG");
+    Vertex st(0);
+    Vertex en(1);
+    st.setSeq(s1.Prefix(k));
+    en.setSeq(s1.Suffix(k));
+    dbg::Edge edge1(st, en, s1.Suffix(s1.size() - k));
     MDBGSeq seq1(&edge1, 0, s1.size());
 
     Sequence s2("ACC");
     Vertex st2(0);
-    st2.seq = s2.Prefix(k);
-    dbg::Edge edge2(&st2, nullptr, s2.Subseq(k));
+    Vertex en2(1);
+    st2.setSeq(s2.Prefix(k));
+    en2.setSeq(s2.Suffix(k));
+    dbg::Edge edge2(st2, en2, s2.Subseq(k));
     MDBGSeq seq2(&edge2, 0, s2.size());
     seq1.Append(std::move(seq2));
 
     Sequence s3("TGA");
     Vertex st3(0);
-    st3.seq = s3.Prefix(k);
-    dbg::Edge edge3(&st3, nullptr, s3.Subseq(k));
+    Vertex en3(1);
+    st3.setSeq(s3.Prefix(k));
+    en3.setSeq(s3.Suffix(k));
+    dbg::Edge edge3(st3, en3, s3.Subseq(k));
     MDBGSeq seq3(&edge3, 0, s3.size());
     seq1.Prepend(std::move(seq3));
 

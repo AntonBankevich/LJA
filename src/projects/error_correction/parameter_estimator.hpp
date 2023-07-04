@@ -84,7 +84,7 @@ std::vector<const dbg::Edge *> CoveredPath(const dbg::Edge &start, double min_co
     std::vector<const dbg::Edge *> res = {&start};
     size_t len = start.size();
     while(len < max_len) {
-        std::vector<const dbg::Edge *> out = GetOutgoing(*res.back()->end(), min_cov);
+        std::vector<const dbg::Edge *> out = GetOutgoing(*res.back()->getFinish(), min_cov);
         if(out.size() == 1) {
             res.emplace_back(out[0]);
             len += out[0]->size();
@@ -102,8 +102,8 @@ const dbg::Edge *SeekCovered(const dbg::Vertex &start, double min_cov) {
                 return &edge;
         }
         for(const dbg::Edge &edge : *tmp) {
-            if (edge.end()->outDeg() > 0) {
-                tmp = edge.end();
+            if (edge.getFinish()->outDeg() > 0) {
+                tmp = edge.getFinish();
                 break;
             }
         }
@@ -116,8 +116,8 @@ DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const RecordSto
     for(dbg::Vertex &v : dbg.vertices()) {
         if(v.inDeg() != 1 || v.outDeg() != 2)
             continue;
-        double min_cov= std::min(v[0].getCoverage(), v[1].getCoverage());
-        if(min_cov < 4 || min_cov * 10 < v.rc()[0].getCoverage())
+        double min_cov= std::min(v.front().getCoverage(), v.back().getCoverage());
+        if(min_cov < 4 || min_cov * 10 < v.rc().front().getCoverage())
             continue;
         observations.emplace_back(size_t(min_cov));
     }

@@ -13,12 +13,12 @@ EdgeSegment::EdgeSegment(const dbg::Edge *edge, const uint64_t start,
     : edge{edge}, start{start}, end{end} {
     VERIFY(start <= end);
     VERIFY(edge!=nullptr);
-    VERIFY(end <= edge->size() + GetStK());
+    VERIFY_MSG(end <= edge->size() + GetStK(), itos(start) + " " + itos(end) + " " + itos(GetStK()) + " " + itos(edge->size()));
 }
 
 bool EdgeSegment::RightFull() const {
     VERIFY(edge!=nullptr);
-    size_t k = edge->start()->seq.size();
+    size_t k = edge->getStart()->getSeq().size();
     return end==GetStK() + edge->size();
 }
 

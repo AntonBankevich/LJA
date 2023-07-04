@@ -19,8 +19,8 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     for(StringContig sc : io::SeqReader(paths_lib)) {
         Contig contig = sc.makeContig();
         if(contig.size() > 100000) {
-            paths.emplace_back(contig.seq.Subseq(0, 50000), contig.id + "_start");
-            paths.emplace_back(contig.seq.Subseq(contig.size() - 50000), contig.id + "_end");
+            paths.emplace_back(contig.getSeq().Subseq(0, 50000), contig.getId() + "_start");
+            paths.emplace_back(contig.getSeq().Subseq(contig.size() - 50000), contig.getId() + "_end");
         } else {
             paths.emplace_back(std::move(contig));
         }

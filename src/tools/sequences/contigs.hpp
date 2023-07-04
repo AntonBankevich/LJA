@@ -52,7 +52,7 @@ public:
     }
 
     Sequence seq() const {
-        return contig_ptr->seq.Subseq(left, right);
+        return contig_ptr->getSeq().Subseq(left, right);
     }
 
     size_t dist(const Segment<T> &other) const {
@@ -142,28 +142,80 @@ public:
     }
 };
 
+template<class T>
+class Position{
+    T *contig_ptr;
+    size_t pos;
+public:
+    Position(T &contig, size_t pos) : contig_ptr(&contig), pos(pos){
+        VERIFY(0 <= pos && pos <= contig_ptr->size())
+    }
+
+    T &contig() const {return *contig_ptr;}
+    size_t getPos() const {return pos;}
+    Sequence Suffix() const {return contig_ptr->getSeq().Subseq(pos);}
+    Sequence Prefix() const {return contig_ptr->getSeq().Subseq(0, pos);}
+
+    size_t dist(Position<T> &other) const {
+        VERIFY(contig_ptr == other.contig_ptr);
+        return pos < other.pos ? other.pos - pos : pos - other.pos;
+    }
+
+    size_t dist(Segment<T> other) const {
+        VERIFY(contig_ptr == other.contig_ptr);
+        if(pos < other.left) return other.left - pos;
+        if(pos > other.right) return pos - other.right;
+        return 0;
+    }
+
+    Position<T> RC() const {return {contig_ptr->rc(), contig_ptr->size() - pos};}
+
+    bool operator<(const Position<T> &other) const {
+        return contig() < other.contig() ||
+               (contig() == other.contig() && (pos < other.pos));
+    }
+
+    bool operator>(const Position<T> &other) const {
+        return contig() > other.contig() ||
+               (contig() == other.contig() && (pos > other.pos));
+    }
+
+    bool operator==(const Position<T> &other) const {
+        return contig() == other.contig() && pos == other.pos;
+    }
+
+    bool operator!=(const Position<T> &other) const {
+        return contig() != other.contig() || pos != other.pos;
+    }
+};
+
 template <class T>
 inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg) {
     return os << seg.contig().getId() << seg.coordinaresStr();
 }
 
-template<class T>
-class NamedSequence {
-public:
-    string id;
-    Sequence seq;
-//protected:
-//    T * _rc;
-public:
-//    NamedSequence(const Sequence &_seq, string _id, T *_rc) : seq(_seq), id(std::move(_id)), _rc(_rc){
-//    }
+template <class T>
+inline std::ostream& operator<<(std::ostream& os, const Position<T>& seg) {
+    return os << seg.contig().getId() << "[" << seg.getPos() << "]";
+}
 
-    NamedSequence(const Sequence &_seq, string _id) : seq(_seq), id(std::move(_id)){
-//        _rc = new T(!seq, basic::Reverse(id), static_cast<T*>(this));
+template<class T, typename I>
+class NamedSequence {
+private:
+    Sequence seq;
+    I id;
+public:
+    typedef I id_type;
+
+    NamedSequence(Sequence _seq, I _id) : seq(std::move(_seq)), id(std::move(_id)){
     }
 
-    std::string getId() const {
+    const I &getId() const {
         return id;
+    }
+
+    const Sequence &getSeq() const {
+        return seq;
     }
 
     Segment<T> asSegment() const {
@@ -190,7 +242,7 @@ public:
     }
 
     size_t size() const {
-        return seq.size();
+        return getSeq().size();
     }
 
 //    NamedSequence &rc() const {
@@ -198,41 +250,41 @@ public:
 //    }
 
     bool operator==(const NamedSequence &other) const {
-        return id == other.id;
+        return getId() == other.getId();
     }
 
     char operator[](size_t ind) const {
-        return seq[ind];
+        return getSeq()[ind];
     }
 
     string str() const {
-        return seq.str();
+        return getSeq().str();
     }
 
     bool isNull() const {
-        return seq.empty();
+        return getSeq().empty();
     }
 };
 
-class Contig: public NamedSequence<Contig> {
+class Contig: public NamedSequence<Contig, std::string> {
 public:
     Contig(): NamedSequence(Sequence(), ""){
     }
 
-    Contig(const Sequence &_seq, const string &_id): NamedSequence(_seq, _id) {
+    Contig(Sequence _seq, string _id): NamedSequence(std::move(_seq), std::move(_id)) {
     }
 
 //    Contig(const Sequence &_seq, const string &_id, Contig *_rc): NamedSequence(_seq, _id, _rc) {
 //    }
 
-    Contig(const string &_seq, const string &_id): NamedSequence(Sequence(_seq), _id) {
+    Contig(const string &_seq, string _id): NamedSequence(Sequence(_seq), std::move(_id)) {
     }
 
     Contig RC() const {
-        if(id[0] == '-')
-            return Contig(!seq, id.substr(1, id.size() - 1));
+        if(getId()[0] == '-')
+            return {!getSeq(), getId().substr(1, getId().size() - 1)};
         else
-            return Contig(!seq, "-" + id);
+            return {!getSeq(), "-" + getId()};
     }
 
     bool operator<(const Contig &other) {
@@ -341,22 +393,5 @@ public:
 
     size_t size() const {
         return seq.size();
-    }
-};
-
-
-
-template <class T>
-class SequenceCollection {
-private:
-    std::unordered_map<std::string, T *> items;
-public:
-    SequenceCollection() {
-    }
-
-    SequenceCollection(const std::vector<T*> & sequences) {
-        for(T *item: sequences){
-            items[item->id] = item;
-        }
     }
 };

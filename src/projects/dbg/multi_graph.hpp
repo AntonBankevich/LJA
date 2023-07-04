@@ -17,6 +17,8 @@ namespace multigraph {
     class MultiGraph;
     class Vertex;
     class Edge;
+    typedef Position<Edge> EdgePosition;
+    typedef Segment<Edge> EdgeSegment;
 
     typedef ObjectId<Vertex, int> VertexId;
     typedef ObjectId<Edge, int> EdgeId;
@@ -81,9 +83,11 @@ namespace multigraph {
         Edge *_rc = nullptr;
         void setRC(Edge &other) {_rc = &other;}
     public:
-        explicit Edge(Vertex &start, Vertex &end, const Sequence &seq, int id = 0, std::string label = "") :
-                    seq(seq), id(id), sz(seq.size()), canonical(seq <= !seq), label(std::move(label)),
+        explicit Edge(Vertex &start, Vertex &end, Sequence seq, int id = 0, std::string label = "") :
+                    seq(std::move(seq)), id(id), label(std::move(label)),
                     _start(&start), _end(&end) {
+            sz = seq.size();
+            canonical = seq <= !seq;
         }
         Edge(const Vertex &) = delete;
         Edge(Edge && e) noexcept : seq(std::move(e.seq)), id(e.id), sz(e.sz), canonical(e.canonical), label(std::move(e.label)) {
@@ -145,7 +149,7 @@ namespace multigraph {
         void checkConsistency() const;
 
         Vertex &addVertex(const Sequence &seq, int id = 0, std::string label = "");
-        Edge &addEdge(Vertex &from, Vertex &to, const Sequence &seq, int id = 0, std::string label = "");
+        Edge &addEdge(Vertex &from, Vertex &to, Sequence seq, int id = 0, std::string label = "");
 
         void internalRemoveEdge(Edge &edge);
         void internalRemoveIsolatedVertex (Vertex &vertex);

@@ -4,7 +4,7 @@
 using namespace dbg;
 void MakeUnreliable(Edge &e) {
     e.is_reliable = false;
-    for(Edge &edge : *e.end()) {
+    for(Edge &edge : *e.getFinish()) {
         if(edge.is_reliable) {
             edge.is_reliable = false;
             MakeUnreliable(edge);
@@ -26,25 +26,25 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
     std::unordered_map<Vertex *, size_t> max_tip;
     std::vector<Edge*> queue;
     for(Edge &edge : sdbg.edges()) {
-        if(edge.end()->outDeg() == 0 && edge.end()->inDeg() == 1 && edge.size() < 15000 && edge.getCoverage() < reliable_threshold) {
-            max_tip[edge.end()] = 0;
+        if(edge.getFinish()->outDeg() == 0 && edge.getFinish()->inDeg() == 1 && edge.size() < 15000 && edge.getCoverage() < reliable_threshold) {
+            max_tip[edge.getFinish()] = 0;
             queue.emplace_back(&edge);
         }
     }
     while(!queue.empty()) {
         Edge &new_edge = *queue.back();
         queue.pop_back();
-        Vertex &v = *new_edge.start();
+        Vertex &v = *new_edge.getStart();
         bool good = true;
         size_t val = 0;
         Edge *best = nullptr;
         for(Edge &out : v) {
-            if(max_tip.find(out.end()) == max_tip.end()) {
+            if(max_tip.find(out.getFinish()) == max_tip.end()) {
                 good = false;
                 break;
             } else {
-                if(val < max_tip[out.end()] + out.size()) {
-                    val = max_tip[out.end()] + out.size();
+                if(val < max_tip[out.getFinish()] + out.size()) {
+                    val = max_tip[out.getFinish()] + out.size();
                     best = &out;
                 }
             }

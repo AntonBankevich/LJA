@@ -22,7 +22,7 @@ private:
     }
 
     void printEdge(std::ostream &os, dbg::Vertex & start, dbg::Edge &edge) {
-        dbg::Vertex &end = *edge.end();
+        dbg::Vertex &end = *edge.getFinish();
         if (!start.isCanonical())
             os << "-";
         os << start.hash() % 100000 << " -> ";
@@ -129,9 +129,9 @@ public:
 
 inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extra_label = "",
                const std::string &color = "black") {
-    dbg:: Vertex &end = *edge.end();
-    os << "\"" << edge.start()->getShortId() << "\" -> \"" << end.getShortId() <<
-       "\" [label=\"" << "ACGT"[edge.seq[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")\"";
+    dbg:: Vertex &end = *edge.getFinish();
+    os << "\"" << edge.getStart()->getShortId() << "\" -> \"" << end.getShortId() <<
+       "\" [label=\"" << "ACGT"[edge.getSeq()[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;
@@ -156,8 +156,8 @@ inline void printDot(std::ostream &os, const dbg::Component &component, const st
     os << "digraph {\nnodesep = 0.5;\n";
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> extended;
     for(dbg::Edge &edge : component.edgesUnique()) {
-        extended.emplace(edge.end()->hash());
-        extended.emplace(edge.start()->hash());
+        extended.emplace(edge.getFinish()->hash());
+        extended.emplace(edge.getStart()->hash());
     }
     for(hashing::htype vid : extended) {
         for(dbg::Vertex * vit : component.graph().getVertices(vid)) {

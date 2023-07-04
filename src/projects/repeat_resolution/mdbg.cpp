@@ -22,8 +22,8 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
     std::vector<SuccinctEdgeInfo> edge_info;
     for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;
-        const RRVertexType start_ind = vert2ind.at(edge.start()->getId());
-        const RRVertexType end_ind = vert2ind.at(edge.end()->getId());
+        const RRVertexType start_ind = vert2ind.at(edge.getStart()->getId());
+        const RRVertexType end_ind = vert2ind.at(edge.getFinish()->getId());
         edge_info.push_back(
             {start_ind, end_ind, &edge, classificator.isUnique(edge)});
     }
@@ -806,7 +806,7 @@ std::vector<Contig> MultiplexDBG::ExportContigs(
     std::vector<Contig> edges =
         GetContigs(vertex_seqs, edge_seqs, vertex2rc, vertex_can, edge_can);
     for (const Contig &contig : edges) {
-        os << ">" << contig.id << "\n" << contig.seq << "\n";
+        os << ">" << contig.getId() << "\n" << contig.getSeq() << "\n";
     }
     os.close();
     return edges;
