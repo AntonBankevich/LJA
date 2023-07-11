@@ -115,6 +115,31 @@ public:
     KSWAligner(int8_t scMch, int8_t scMis, int gapo, int gape) : sc_mch(scMch), sc_mis(scMis), gapo(gapo), gape(gape) {}
 
 
+    inline int64_t cost(const char *tseq, const char *qseq, std::vector<cigar_pair> &cigar) const {
+        size_t from_pos = 0;
+        size_t to_pos = 0;
+        int64_t res = 0;
+        for(cigar_pair &cp: cigar) {
+            if(cp.type == 'M') {
+                for(size_t i = 0; i < cp.length; i++) {
+                    if(tseq[to_pos + i] == qseq[from_pos + i])
+                        res += sc_mch;
+                    else
+                        res -= sc_mis;
+                }
+            }
+            if(cp.type != 'I') {
+                to_pos += cp.length;
+                res -= gapo + gape * (cp.length - 1);
+            }
+            if(cp.type != 'D') {
+                from_pos += cp.length;
+                res -= gapo + gape * (cp.length - 1);
+            }
+        }
+        return res;
+    }
+
     std::vector<cigar_pair> align(const char *tseq, const char *qseq, int width, int end_bonus = 0) const {
         return align_ksw(tseq, qseq, sc_mch, sc_mis, gapo, gape, width, end_bonus);
     }
@@ -122,15 +147,18 @@ public:
     std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width, double max_divergence, int end_bonus = 0) const {
         size_t l1 = strlen(tseq);
         size_t l2 = strlen(qseq);
-//        min_width = std::max<size_t>(min_width, std::max(l1, l2) - std::min(l1, l2));
         min_width += std::max(l1, l2) - std::min(l1, l2);
         max_width += std::max(l1, l2) - std::min(l1, l2);
-        int64_t prev_cost = -1000000;
-        while(min_width < max_width) {
+        int64_t prev_cost = -1000000;        
+        while(true) {
             auto res = align(tseq, qseq, min_width, end_bonus);
-            if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
+	    int64_t new_cost = cost(tseq, qseq, res);
+            if(new_cost == prev_cost)
                 return std::move(res);
-            }
+//          if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
+//              return std::move(res);
+//          }
+            prev_cost = new_cost;
             min_width = std::min(min_width * 2, max_width);
         }
         return align(tseq, qseq, min_width, end_bonus);

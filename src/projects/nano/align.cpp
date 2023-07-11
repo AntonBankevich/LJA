@@ -34,7 +34,7 @@ std::unordered_map<std::string, std::vector<nano::GraphContig>> AlignOnt(logging
 //    reads_aligner.Align(batch, input_gfa, dir, threads, ++batch_num);
     batch.clear();
     std::unordered_map<std::string, std::vector<nano::GraphContig>> result;
-    for (int i = 1; i <= batch_num + 1; ++ i) {
+    for (int i = 1; i <= batch_num + 1; i++) {
         for(auto &it : reads_aligner.ExtractPaths(dir, i)) {
             result[it.first].insert(result[it.first].end(), it.second.begin(), it.second.end());
         }
@@ -122,6 +122,11 @@ std::pair<size_t, size_t> FromToLen(const std::vector<cigar_pair> &cigar) {
             from_len += cp.length;
     }
     return {from_len, to_len};
+}
+
+std::vector<cigar_pair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq) {
+    KSWAligner kswAligner(1, 5, 5, 3);
+    return  kswAligner.iterativeBandAlign(to_seq.str(), from_seq.str(), 5, 300, 0.01);
 }
 
 std::vector<cigar_pair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq, int end_bonus = 0) {
@@ -560,6 +565,7 @@ bool CheckAndReplace(const Sequence &read_seq, const std::vector<std::pair<size_
         std::cout << std::endl;
         AnalyseAndPrint(s, s1);
         AnalyseAndPrint(s, s2);
+        AnalyseAndPrint(s1, s2);
         return true;
     }
     return false;

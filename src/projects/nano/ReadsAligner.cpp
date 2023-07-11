@@ -17,7 +17,7 @@ void ReadsAlignerGA::Align(const std::unordered_map<std::string, Contig> &sequen
                            const size_t threads,
                            int batch_num){
     const std::experimental::filesystem::path &batch_fasta = SaveBatch(sequences, output_dir, batch_num);
-    std::string command = "/home/anton/tools/miniconda3/bin/GraphAligner -g " + string(graph) +
+    std::string command = "GraphAligner -g " + string(graph) +
                           " -f " + string(batch_fasta) +
                           " -a " + string(output_dir / ("batch_" + std::to_string(batch_num) + ".gaf") ) +
                           " -x dbg -t " + std::to_string(threads);
