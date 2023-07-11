@@ -40,8 +40,8 @@ AlgorithmParameterValues CLParser::parseCL(const std::vector <std::string> &args
                 }
                 name = short_param_map[s[1]];
             }
-            VERIFY_MSG(!strict || result.hasCheck(name) || result.hasValue(name), "Unknown command line parameter: " + s);
-            if (result.hasCheck(name)) {
+            VERIFY_MSG(!strict || result.hasCheck(name) || result.hasValue(name) || long_param_map.find(name) != long_param_map.end(), "Unknown command line parameter: " + s);
+            if (result.hasCheck(name) || (long_param_map.find(name) != long_param_map.end() && result.hasCheck(long_param_map.at(name).front()))) {
                 if(long_param_map.find(name) != long_param_map.end()) {
                     for(const std::string &actual_name : long_param_map[name]) {
                         result.addCheck(actual_name, strict);
@@ -210,7 +210,7 @@ AlgorithmParameters AlgorithmParameters::AddParameters(const AlgorithmParameters
 }
 
 void AlgorithmParameterValues::addValue(const std::string &name, const std::string &val, bool strict) {
-    VERIFY(!strict || hasValue(name));
+    VERIFY_MSG(!strict || hasValue(name), name);
     if(!hasValue(name))
         return;
     if(isList(name)) {
@@ -228,7 +228,7 @@ void AlgorithmParameterValues::addValue(const std::string &name, const std::stri
 }
 
 void AlgorithmParameterValues::addCheck(const std::string &name, bool strict) {
-    VERIFY(!strict || hasCheck(name));
+    VERIFY_MSG(!strict || hasCheck(name), name);
     if(hasCheck(name))
         checks[name] = true;
 }
