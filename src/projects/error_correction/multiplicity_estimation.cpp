@@ -22,7 +22,7 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
                     max_flow = 2;
                 if(edge.size() > 1000 && edge.getCoverage() < unique_coverage)
                     max_flow = 1;
-                int eid = addEdge(vertex_mapping[&v], vertex_mapping[edge.getFinish()], min_flow, max_flow);
+                int eid = addEdge(vertex_mapping[&v], vertex_mapping[&edge.getFinish()], min_flow, max_flow);
                 VERIFY(eid > 0);
                 edgeids.emplace_back(eid, &edge);
             } else {
@@ -64,7 +64,7 @@ std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> MappedNetwork::findBo
 
 void UniqueClassificator::markPseudoHets() const {
     for(Edge &edge : dbg.edges()) {
-        Vertex &start = *edge.getFinish();
+        Vertex &start = edge.getFinish();
         if(!isUnique(edge) || start.outDeg() != 2 || start.inDeg() != 1)
             continue;
         Edge &correct = start.front().getCoverage() > start.back().getCoverage() ? start.front() : start.back();
@@ -72,9 +72,9 @@ void UniqueClassificator::markPseudoHets() const {
         incorrect.is_reliable = false;
         incorrect.rc().is_reliable = false;
         GraphAlignment cor_ext = reads_storage.getRecord(start).
-                getFullUniqueExtension(correct.getSeq().Subseq(0, 1), 1, 0).getAlignment();
+                getFullUniqueExtension(correct.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
         GraphAlignment incor_ext = reads_storage.getRecord(start).
-                getFullUniqueExtension(incorrect.getSeq().Subseq(0, 1), 1, 0).getAlignment();
+                getFullUniqueExtension(incorrect.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
         for(Segment<Edge> &seg : incor_ext) {
             bool found= false;
             for(Segment<Edge> &seg1 : cor_ext) {
@@ -117,7 +117,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
                 for(Segment<Edge> seg : al) {
                     updateBounds(seg.contig(), 1, 1);
                 }
-            } else if(edge.getStart()->inDeg() == 0 && edge.size() > unique_len / 3) {
+            } else if(edge.getStart().inDeg() == 0 && edge.size() > unique_len / 3) {
                 updateBounds(edge, 1, 1);
                 cnt++;
             }
@@ -127,11 +127,11 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     logger.info() << "Marking extra edges as unique based on read paths" << std::endl;
     std::vector<Edge *> extra_unique;
     for(Edge &edge : dbg.edges()) {
-        if(isUnique(edge) || edge.getFinish()->outDeg() > 1) {
+        if(isUnique(edge) || edge.getFinish().outDeg() > 1) {
             continue;
         }
-        const VertexRecord &rec = reads_storage.getRecord(*edge.getStart());
-        CompactPath unique_extension = rec.getFullUniqueExtension(edge.getSeq().Subseq(0, 1), 1, 0);
+        const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
+        CompactPath unique_extension = rec.getFullUniqueExtension(edge.truncSeq().Subseq(0, 1), 1, 0);
         GraphAlignment al = unique_extension.getAlignment();
         Path path = al.path();
         size_t len = 0;
@@ -144,11 +144,12 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         }
         if(!isUnique(path.back()) ||len > 3000 || rec.countStartsWith(CompactPath(path).cpath()) < 4)
             continue;
-        CompactPath back_unique = reads_storage.getRecord(path.finish().rc()).getFullUniqueExtension(path.back().rc().getSeq().Subseq(0, 1), 1, 0);
+        CompactPath back_unique = reads_storage.getRecord(path.finish().rc()).getFullUniqueExtension(
+                path.back().rc().truncSeq().Subseq(0, 1), 1, 0);
         if(back_unique.size() >= path.size()) {
             extra_unique.emplace_back(&edge);
             cnt++;
-            logger.trace() << "Found extra unique edge " << edge.getId() << " " << edge.size() << " " << edge.getCoverage() << std::endl;
+            logger.trace() << "Found extra unique edge " << edge.getInnerId() << " " << edge.size() << " " << edge.getCoverage() << std::endl;
         }
     }
     for(Edge *eit : extra_unique) {
@@ -213,22 +214,22 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
     if(start.outDeg() !=2 || end.inDeg() != 2)
         return false;
     std::vector<Edge *> bad_candidates;
-    if(start.front().getStart() == &end || start.back().getStart() == &end) {
-        size_t ind = start.front().getStart() == &end ? 0 : 1;
-        Edge &e1 = start.front().getStart() == &end ? start.front() : start.back();
-        Edge &e21 = start.front().getStart() == &end ? start.back() : start.front();
-        if(e21.getFinish()->outDeg() != 2)
+    if(start.front().getStart() == end || start.back().getStart() == end) {
+        size_t ind = start.front().getStart() == end ? 0 : 1;
+        Edge &e1 = start.front().getStart() == end ? start.front() : start.back();
+        Edge &e21 = start.front().getStart() == end ? start.back() : start.front();
+        if(e21.getFinish().outDeg() != 2)
             return false;
-        Edge &e221 = e21.getFinish()->front();
-        Edge &e222 = e21.getFinish()->back();
+        Edge &e221 = e21.getFinish().front();
+        Edge &e222 = e21.getFinish().back();
         if(e221.getFinish() != e222.getFinish())
             return false;
-        if(e221.getFinish()->outDeg() != 1)
+        if(e221.getFinish().outDeg() != 1)
             return false;
-        Edge &e23 = e221.getFinish()->front();
-        if(e23.getFinish() != &end)
+        Edge &e23 = e221.getFinish().front();
+        if(e23.getFinish() != end)
             return false;
-        if(!component.contains(*e21.getFinish()) || !component.contains(*e23.getStart()))
+        if(!component.contains(e21.getFinish()) || !component.contains(e23.getStart()))
             return false;
         bad_candidates = {&e221, &e222};
     } else {
@@ -240,25 +241,24 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
         Edge &e31 = end.rc().front().size() > end.rc().back().size() ? end.rc().back().rc() : end.rc().front().rc();
         Edge &e32 = end.rc().front().size() > end.rc().back().size() ? end.rc().front().rc() : end.rc().back().rc();
         VERIFY(e31.size() <= e32.size());
-        if(e12.getFinish()->outDeg() != 2 || e31.getStart()->inDeg() != 2 || e11.getFinish() != e31.getStart() ||
-                e12.getFinish() !=
-                                                                                                            e32.getStart())
+        if(e12.getFinish().outDeg() != 2 || e31.getStart().inDeg() != 2 || e11.getFinish() != e31.getStart() ||
+                e12.getFinish() != e32.getStart())
             return false;
-        Edge &e2 = e12.getFinish()->front().getFinish() == e31.getStart() ? e12.getFinish()->front() : e12.getFinish()->back();
-        if(!component.contains(*e2.getStart()) || ! component.contains(*e2.getFinish()))
+        Edge &e2 = e12.getFinish().front().getFinish() == e31.getStart() ? e12.getFinish().front() : e12.getFinish().back();
+        if(!component.contains(e2.getStart()) || ! component.contains(e2.getFinish()))
             return false;
         bad_candidates = {&e11, &e2, &e32};
     }
     std::function<double(Edge* const &)> f = [](Edge * const &edge){return edge->getCoverage();};
     Edge &bad = *bad_candidates[MinIndex<Edge *, double>(bad_candidates, f)];
     std::unordered_set<Edge *> nonUnique = {&bad, &bad.rc()};
-    if(*bad.getStart() == start) {
+    if(bad.getStart() == start) {
         nonUnique.emplace(&start.front());
         nonUnique.emplace(&start.back());
         nonUnique.emplace(&start.front().rc());
         nonUnique.emplace(&start.back().rc());
     }
-    if(*bad.getFinish() == end) {
+    if(bad.getFinish() == end) {
         nonUnique.emplace(&end.rc().front());
         nonUnique.emplace(&end.rc().back());
         nonUnique.emplace(&end.rc().back().rc());
@@ -362,9 +362,9 @@ std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordS
     double max_cov= 0;
     double min_cov= 100000;
     for(Edge &edge : subcomponent.edges()) {
-        if(is_unique(edge) && subcomponent.contains(*edge.getFinish())) {
-            const VertexRecord & record = reads_storage.getRecord(*edge.getStart());
-            std::string s = edge.getSeq().Subseq(0, 1).str();
+        if(is_unique(edge) && subcomponent.contains(edge.getFinish())) {
+            const VertexRecord & record = reads_storage.getRecord(edge.getStart());
+            std::string s = edge.truncSeq().Subseq(0, 1).str();
             size_t cnt = record.countStartsWith(Sequence(s + "A")) +
                          record.countStartsWith(Sequence(s + "C")) +
                          record.countStartsWith(Sequence(s + "G")) +
@@ -383,7 +383,7 @@ std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordS
 
 Edge &getStart(const Component &component) {
     for(Edge &edge : component.edges()) {
-        if(!component.contains(*edge.getFinish()))
+        if(!component.contains(edge.getFinish()))
             return edge.rc();
     }
     VERIFY(false);
@@ -393,7 +393,7 @@ std::vector<Vertex *> topSort(const Component &component) {
     std::vector<Vertex *> stack;
     std::vector<Vertex *> res;
     std::unordered_set<Vertex *> visited;
-    stack.emplace_back(getStart(component).getFinish());
+    stack.emplace_back(&getStart(component).getFinish());
     while(!stack.empty()) {
         Vertex *cur = stack.back();
         if(visited.find(cur) != visited.end()) {
@@ -402,7 +402,7 @@ std::vector<Vertex *> topSort(const Component &component) {
         }
         bool ok = true;
         for(Edge &e : *cur) {
-            if(component.contains(*e.getFinish()) && visited.find(e.getFinish()) == visited.end())
+            if(component.contains(e.getFinish()) && visited.find(&e.getFinish()) == visited.end())
                 ok = false;
         }
         if(ok) {
@@ -411,9 +411,9 @@ std::vector<Vertex *> topSort(const Component &component) {
             res.emplace_back(&cur->rc());
         } else {
             for(Edge &e : *cur) {
-                VERIFY(component.contains(*e.getFinish()));
-                if(visited.find(e.getFinish()) == visited.end())
-                    stack.emplace_back(e.getFinish());
+                VERIFY(component.contains(e.getFinish()));
+                if(visited.find(&e.getFinish()) == visited.end())
+                    stack.emplace_back(&e.getFinish());
             }
         }
     }
@@ -427,19 +427,19 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
         return;
     }
     VERIFY(order.front()->inDeg() == 1);
-    VERIFY(!component.contains(*order.front()->rc().front().getFinish()));
+    VERIFY(!component.contains(order.front()->rc().front().getFinish()));
     VERIFY(order.back()->outDeg() == 1);
-    VERIFY(!component.contains(*order.back()->front().getFinish()));
+    VERIFY(!component.contains(order.back()->front().getFinish()));
     std::unordered_map<Vertex *, std::pair<Edge *, size_t>> prev;
     for(Vertex *cur : order) {
         Edge *pedge = nullptr;
         size_t val = 0;
         for(Edge &edge : cur->rc()) {
-            if(!component.contains(*edge.getFinish())) {
+            if(!component.contains(edge.getFinish())) {
                 break;
             }
-            VERIFY(prev.find(&edge.getFinish()->rc()) != prev.end());
-            size_t score = edge.intCov() + prev[&edge.getFinish()->rc()].second;
+            VERIFY(prev.find(&edge.getFinish().rc()) != prev.end());
+            size_t score = edge.intCov() + prev[&edge.getFinish().rc()].second;
             if(score > val) {
                 pedge = &edge.rc();
                 val = score;
@@ -452,10 +452,13 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
         edge.is_reliable = false;
     }
     Vertex *end = order.back();
+    size_t cnt = 0;
     while(prev[end].first != nullptr) {
         prev[end].first->is_reliable = true;
         prev[end].first->rc().is_reliable = true;
-        end = prev[end].first->getFinish();
+        end = &prev[end].first->getStart();
+        cnt++;
+        VERIFY(cnt < 50);
     }
 }
 
@@ -514,19 +517,19 @@ std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
     if(start.inDeg() != 2 || start.outDeg() != 1)
         return {nullptr, nullptr};
     Edge &forward_edge = start.front();
-    Vertex &end = *forward_edge.getFinish();
+    Vertex &end = forward_edge.getFinish();
     if(start == end || start == end.rc())
         return {nullptr, nullptr};
     if(end.inDeg() != 1 || end.outDeg() != 2)
         return {nullptr, nullptr};
-    Edge &back_edge = (end.front().getFinish() == &start) ? end.front() : end.back();
+    Edge &back_edge = (end.front().getFinish() == start) ? end.front() : end.back();
     if(forward_edge.size() > 30000 || back_edge.size() > 50000)
         return {nullptr, nullptr};
-    if(back_edge.getStart() != &end || back_edge.getFinish() != &start)
+    if(back_edge.getStart() != end || back_edge.getFinish() != start)
         return {nullptr, nullptr};
     Edge &out = end.front() == back_edge ? end.back() : end.front();
     Edge &in = start.rc().front().rc() == back_edge ? start.rc().back().rc() : start.rc().front().rc();
-    if(component.contains(*out.getFinish()) || component.contains(*in.getStart()))
+    if(component.contains(out.getFinish()) || component.contains(in.getStart()))
         return {nullptr, nullptr};
     return {&forward_edge, &back_edge};
 }
@@ -540,8 +543,8 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
             continue;
         Edge &forward_edge = *check.first;
         Edge &back_edge = *check.second;
-        Vertex &start = *forward_edge.getStart();
-        Vertex &end = *forward_edge.getFinish();
+        Vertex &start = forward_edge.getStart();
+        Vertex &end = forward_edge.getFinish();
         Edge &out = end.front() == back_edge ? end.back() : end.front();
         Edge &in = start.rc().front().rc() == back_edge ? start.rc().back().rc() : start.rc().front().rc();
         std::pair<double, double> tmp = minmaxCov(comp, reads_storage, more_unique.asFunction());
@@ -553,22 +556,22 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
         size_t vote2 = floor(back_edge.getCoverage() / med_cov + 0.5);
         if(vote1 * dev * 2 > med_cov || vote1 != vote2 + 1)
             continue;
-        GraphAlignment longest = reads_storage.getRecord(*in.getStart()).
-                getFullUniqueExtension(in.getSeq().Subseq(0, 1), 1, 0).getAlignment();
+        GraphAlignment longest = reads_storage.getRecord(in.getStart()).
+                getFullUniqueExtension(in.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
         size_t pos = longest.find(out);
         if(pos != size_t(-1)) {
             VERIFY(pos % 2 == 0 && pos >= 2);
             if(pos / 2 != vote1) {
-                logger.trace() << "Coverage contradicts bridging read. Skipping loop " << forward_edge.getId() << " "
-                        << back_edge.getId() << " with size " << forward_edge.size() + back_edge.size()
+                logger.trace() << "Coverage contradicts bridging read. Skipping loop " << forward_edge.getInnerId() << " "
+                               << back_edge.getInnerId() << " with size " << forward_edge.size() + back_edge.size()
                         << " and multiplicity " << vote2 << " vs "  << pos / 2 - 1 << std::endl;
             }
             continue;
         }
-        Sequence bad = (back_edge.getSeq().Subseq(0, 1) + forward_edge.getSeq().Subseq(0, 1)) * (vote2 + 1);
+        Sequence bad = (back_edge.truncSeq().Subseq(0, 1) + forward_edge.truncSeq().Subseq(0, 1)) * (vote2 + 1);
         if(reads_storage.getRecord(end).countStartsWith(bad) > 0) {
-            logger.trace() << "Coverage contradicts circling read. Skipping loop " << forward_edge.getId() << " "
-                        << back_edge.getId() << " with size " << forward_edge.size() + back_edge.size()
+            logger.trace() << "Coverage contradicts circling read. Skipping loop " << forward_edge.getInnerId() << " "
+                           << back_edge.getInnerId() << " with size " << forward_edge.size() + back_edge.size()
                         << " and multiplicity " << vote2 << std::endl;
         }
         GraphAlignment alignment;
@@ -579,9 +582,9 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
             alignment += forward_edge;
         }
         alignment += Segment<Edge>(out, 0, std::min<size_t>(out.size(), 1000));
-        res.addRead(AlignedRead(back_edge.getId() + "_" + itos(vote2), alignment));
-        logger.trace() << "Resolved loop " << forward_edge.getId() << " " << back_edge.getId() <<
-                " with size " << forward_edge.size() + back_edge.size() << " and multiplicity " << vote2 << std::endl;
+        res.addRead(AlignedRead(back_edge.getInnerId() + "_" + itos(vote2), alignment));
+        logger.trace() << "Resolved loop " << forward_edge.getInnerId() << " " << back_edge.getInnerId() <<
+                       " with size " << forward_edge.size() + back_edge.size() << " and multiplicity " << vote2 << std::endl;
     }
     return std::move(res);
 }

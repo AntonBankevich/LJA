@@ -22,12 +22,8 @@ public:
     AlgorithmParameters() = default;
     AlgorithmParameters(const std::vector<std::string>& one_value_parameters, const std::vector<std::string>& lib_params, std::string help_message);
     AlgorithmParameters(const std::vector<std::pair<std::string, AlgorithmParameters>> &to_combine, const std::string &help_message);
-    static AlgorithmParameters Basic() {return {{"output-dir=", "threads=16", "help", "debug"}, {},
-        "General parameters:\n"
-        "\t--output-dir <file_name>  Name of output folder. Results will be stored there.\n"
-        "\t--threads <int>  Number of threads to be used by parallel processing.\n"};}
 
-    AlgorithmParameters AddParameters(const AlgorithmParameters &other, const std::string &name, const std::string &prefix) const;
+    void AddParameters(const AlgorithmParameters &other, const std::string &name, const std::string &prefix);
 
     const std::string &helpMessage() const {return help_message;}
     virtual ~AlgorithmParameters() = default;
@@ -36,6 +32,18 @@ public:
     bool isList(const std::string &s) const {return values.find(s) != values.end() && !values.find(s)->second.empty() && values.find(s)->second[0] == delim[0];}
     AlgorithmParameterValues fillValuesFrom(const std::string &prefix, const AlgorithmParameterValues & parameterValues) const;
     std::string checkMissingValues(const AlgorithmParameterValues &other) const;
+    std::string str() const {
+        std::stringstream ss;
+        ss << "Values:";
+        for(auto &it : values) {
+            ss << " " << it.first;
+        }
+        ss << " Checks:";
+        for(auto &it : checks) {
+            ss << " " << it.first;
+        }
+        return ss.str();
+    }
 };
 
 class AlgorithmParameterValues : public AlgorithmParameters {

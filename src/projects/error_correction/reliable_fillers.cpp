@@ -96,7 +96,7 @@ std::vector<dbg::Edge *> BridgeReliableFiller::bridges(dbg::Edge &start) {
             //Close edge processing
             open_close[&next] = {open_close[&next].first, closed.size()};
             closed.emplace_back(&next);
-            for(dbg::Edge &edge : *next.getFinish()) {
+            for(dbg::Edge &edge : next.getFinish()) {
                 if(reachable.find(&edge) != reachable.end()) {
                     reachable.emplace(&next);
                     break;
@@ -109,7 +109,7 @@ std::vector<dbg::Edge *> BridgeReliableFiller::bridges(dbg::Edge &start) {
         //Open new edge processing
         open_close[&next] = {open_close.size(), size_t(-1)};
         stack.emplace_back(&next, size_t(-1)); //Put a marker into stack that indicates that processing of next is closed
-        for(dbg::Edge &edge : *next.getFinish()) {
+        for(dbg::Edge &edge : next.getFinish()) {
             stack.emplace_back(&edge, dist + next.size());
         }
     }
@@ -125,7 +125,7 @@ std::vector<dbg::Edge *> BridgeReliableFiller::bridges(dbg::Edge &start) {
                 result.emplace_back(&candidate);
             }
         }
-        for(dbg::Edge &edge : *candidate.getFinish()) {
+        for(dbg::Edge &edge : candidate.getFinish()) {
             if(reachable.find(&edge) != reachable.end()) {
                 latest = std::min(latest, open_close[&edge].second);
             }
@@ -215,22 +215,22 @@ size_t ConnectionReliableFiller::Fill(dbg::SparseDBG &dbg) {
             dbg::Edge *next = queue.top().second;
             double dist = queue.top().first;
             queue.pop();
-            if(res.find(next->getFinish()) != res.end() || checkInner(*next->getFinish()))
+            if(res.find(&next->getFinish()) != res.end() || checkInner(next->getFinish()))
                 continue;
-            res.emplace(next->getFinish(), std::make_pair(dist, next));
-            if (checkBorder(next->getFinish()->rc()) != nullptr) {
-                dbg::GraphAlignment al(next->getFinish()->rc());
+            res.emplace(&next->getFinish(), std::make_pair(dist, next));
+            if (checkBorder(next->getFinish().rc()) != nullptr) {
+                dbg::GraphAlignment al(next->getFinish().rc());
                 while(next != last) {
                     al += next->rc();
                     new_reliable.emplace_back(next);
 //                        logger << "New edge marked as reliable " << next->size() << "(" << next->getCoverage() << ")" << std::endl;
-                    next = res[next->getStart()].second;
+                    next = res[&next->getStart()].second;
                 }
 //                    logger << "Path of size " << al.size() << " and length " << al.len() << " marked as reliable." << std::endl;
                 cnt_paths += 1;
                 break;
             } else {
-                for(dbg::Edge &edge : *next->getFinish()) {
+                for(dbg::Edge &edge : next->getFinish()) {
                     double score = edge.size() / std::max<double>(std::min(edge.getCoverage(), threshold), 1);
                     queue.emplace(dist + score, &edge);
                 }

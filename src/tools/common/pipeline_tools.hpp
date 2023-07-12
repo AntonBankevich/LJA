@@ -32,6 +32,15 @@ public:
     const std::unordered_set<std::string> &getExpectedInput() const {return expected_input;}
     const std::unordered_set<std::string> &getExpectedOutput() const {return expected_output;}
     const AlgorithmParameters &getParameters() const {return parameters;}
+    AlgorithmParameters getStandaloneParameters() const {
+        AlgorithmParameters basic({"output-dir=", "threads=16", "help", "debug"},
+                                  {expected_input.begin(), expected_input.end()},
+                                  "General parameters:\n"
+                                  "\t--output-dir <file_name>  Name of output folder. Results will be stored there.\n"
+        "\t--threads <int>  Number of threads to be used by parallel processing.\n");
+        basic.AddParameters(parameters, "", "");
+        return std::move(basic);
+    }
 
     std::unordered_map<std::string, std::experimental::filesystem::path> run(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
                                          bool debug, const AlgorithmParameterValues &parameterValues, const std::unordered_map<std::string, io::Library> &input);
@@ -78,10 +87,10 @@ private:
     std::unordered_map<std::string, SubstageRun> stages = {};
     std::unordered_map<std::string, io::Library> input_values = {};
 public:
-    explicit ComplexStage(std::vector<std::string> expected_input) :
-                        Stage(AlgorithmParameters({"continue", "restart-from=none"}, expected_input,
+    explicit ComplexStage(const std::vector<std::string>& expected_input) :
+                        Stage(AlgorithmParameters({"continue", "restart-from=none"}, {},
                       "Pipeline parameters:\n  --continue Continue program from the last save point.\n  --restart-from <stage name>  Restart program from stage (see stage names in log).\n"),
-                              std::move(expected_input), {}) {
+                              expected_input, {}) {
     }
 
     ComplexStage(ComplexStage &&other)  noexcept : Stage(other) {
@@ -98,7 +107,7 @@ public:
         if(prefix.empty()) {
             prefix = name + ".";
         }
-        parameters = parameters.AddParameters(stage.getParameters(), name, prefix);
+        parameters.AddParameters(stage.getParameters(), name, prefix);
         stage_order.emplace_back(name);
         stages.insert({name, SubstageRun(std::move(stage), *this, name, prefix)});
         expected_output = stage.getExpectedOutput();

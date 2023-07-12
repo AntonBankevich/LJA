@@ -71,10 +71,10 @@ void VertexRecord::removePath(const Sequence &seq) {
 }
 
 bool VertexRecord::isDisconnected(const Edge &edge) const {
-    if(edge.getFinish()->outDeg() == 0)
+    if(edge.getFinish().outDeg() == 0)
         return false;
     for(const std::pair<Sequence, size_t> &rec : paths) { // NOLINT(readability-use-anyofallof)
-        if(rec.second > 0 && rec.first[0] == edge.getSeq()[0] && rec.first.size() > 1)
+        if(rec.second > 0 && rec.first[0] == edge.truncSeq()[0] && rec.first.size() > 1)
             return false;
     }
     return true;
@@ -311,11 +311,11 @@ RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, s
 std::function<std::string(Edge &)> RecordStorage::labeler() const {
     if(track_suffixes)
         return [this](Edge &edge) {
-            const VertexRecord &rec = getRecord(*edge.getStart());
+            const VertexRecord &rec = getRecord(edge.getStart());
             std::stringstream ss;
             size_t cnt = 0;
             for (const auto &ext : rec) {
-                if (ext.first[0] == edge.getSeq()[0]) {
+                if (ext.first[0] == edge.truncSeq()[0]) {
                     if(cnt < 30)
                         ss << ext.first << "(" << ext.second << ")\\n";
                     cnt++;

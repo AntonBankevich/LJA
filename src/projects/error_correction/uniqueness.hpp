@@ -5,13 +5,13 @@
 class AbstractUniquenessStorage {
 private:
     bool checkEdge(const dbg::Edge &edge) const {
-        if(edge.getFinish()->outDeg() == 0 || edge.getFinish()->outDeg() + 1 != edge.getFinish()->inDeg())
+        if(edge.getFinish().outDeg() == 0 || edge.getFinish().outDeg() + 1 != edge.getFinish().inDeg())
             return false;
-        for(const dbg::Edge &e : *edge.getFinish()) {
+        for(const dbg::Edge &e : edge.getFinish()) {
             if(!isUnique(e))
                 return false;
         }
-        for(const dbg::Edge &e : edge.getFinish()->rc()) {
+        for(const dbg::Edge &e : edge.getFinish().rc()) {
             if(e != edge.rc() && !isUnique(e))
                 return false;
         }

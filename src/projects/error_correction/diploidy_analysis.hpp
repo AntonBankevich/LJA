@@ -12,7 +12,7 @@ private:
     std::vector<std::pair<dbg::Edge *, dbg::Edge *>> path;
 public:
     explicit BulgePath(dbg::Vertex &_start) : start_(&_start) {}
-    explicit BulgePath(dbg::Edge &edge) : start_(edge.getStart()) {path.emplace_back(&edge, &edge);}
+    explicit BulgePath(dbg::Edge &edge) : start_(&edge.getStart()) {path.emplace_back(&edge, &edge);}
     explicit BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_);
 
     dbg::Vertex &finish() const;

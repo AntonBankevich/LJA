@@ -22,7 +22,7 @@ namespace dbg {
         logger.trace() << "Starting to fill edges" << std::endl;
         std::function<void(size_t, std::pair<Vertex *, Sequence> &)> task = [&sdbg](size_t pos,
                                                                                     std::pair<Vertex *, Sequence> &contig) {
-            sdbg.processEdge(*contig.first, contig.second);
+            sdbg.processFullEdgeSequence(contig.first->getSeq() + contig.second);
         };
         processObjects(begin, end, logger, threads, task);
         logger.trace() << "Sparse graph edges filled." << std::endl;
@@ -46,10 +46,6 @@ namespace dbg {
     void findTipLengths(logging::Logger &logger, size_t threads, SparseDBG &sdbg, double threshold);
 
     void findTips(logging::Logger &logger, SparseDBG &sdbg, size_t threads);
-
-    void mergeLoop(Path path);
-
-    void MergeEdge(SparseDBG &sdbg, Vertex &start, Edge &edge);
 
     void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads);
 

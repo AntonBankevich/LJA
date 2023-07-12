@@ -21,12 +21,12 @@ class Vertex:
         self.seq = ""
         self.outgoing = []
         self.incoming = []
-        self.getId() = ver_id
+        self.getInnerId() = ver_id
         self.k = 0
-        self.rc_id = (self.getId() // 4) * 4 + 3 - (self.getId() % 4)
+        self.rc_id = (self.getInnerId() // 4) * 4 + 3 - (self.getInnerId() % 4)
 
     def __str__(self):
-        return (f'getId() {self.getId()}, out: {self.outgoing}, inc: {self.incoming}')
+        return (f'getInnerId() {self.getInnerId()}, out: {self.outgoing}, inc: {self.incoming}')
 
     # starts, end, rc_start, rc_end   0,1,2,3, rc_id = 3 - id
 
@@ -67,7 +67,7 @@ class Edge:
         return (self.edge_id // 2) * 2 + (self.edge_id % 2 + 1) % 2
 
     def __str__(self):
-        return (f'getId() {self.edge_id}, getStart: {self.start_vertex}, end: {self.end_vertex}')
+        return (f'getInnerId() {self.edge_id}, getStart: {self.start_vertex}, end: {self.end_vertex}')
 
     def length(self):
         return len(self.seq)
@@ -85,7 +85,7 @@ class HaplotypeStats:
         #s->seq[i].name, type, s->cnt[i].sc[0], s->cnt[i].sc[1],c[0<<2|2], c[2<<2|0], c[0<<2|1], c[1<<2|0], s->cnt[i].nk, c[0])
         arr = triobin_str.split()
         self.haplotype  = arr[1]
-        self.getId() = int(arr[0])
+        self.getInnerId() = int(arr[0])
         self.decisive_strips = [int(arr[2]), int(arr[3])]
         self.decisive_counts = [int(arr[4]), int(arr[5])]
         self.total_kmers = int(arr[8])
@@ -301,11 +301,11 @@ def get_ids(link_name):
     return res
 
 
-def get_small_component(getId(), min_size, max_size, min_cov, neighbours, global_used, segments):
+def get_small_component(getInnerId(), min_size, max_size, min_cov, neighbours, global_used, segments):
     used = set()
-    if getId() in global_used:
+    if getInnerId() in global_used:
         return used
-    in_job = [getId()]
+    in_job = [getInnerId()]
     while in_job:
         cur_v = in_job.pop()
         if cur_v not in used:
@@ -323,7 +323,7 @@ def get_small_component(getId(), min_size, max_size, min_cov, neighbours, global
     total_cov /= total_len
     #    if total_len >= low_cutoff and total_len <= high_cutoff and total_cov > min_coverage:
     #    if total_len >= ids[id].length and total_len > 1000 and total_cov > 10 and len(used) < 2:
-    if total_len < max_size and total_len > min_size and total_cov > min_cov and total_len > segments[getId()].length:
+    if total_len < max_size and total_len > min_size and total_cov > min_cov and total_len > segments[getInnerId()].length:
         return used
     else:
         return set()
@@ -429,9 +429,9 @@ def construct_graph(edge_component, segments, links):
             canonic_vertices[canonic_ids[v]].incoming.append(i)
     #    for v in canonic_vertices.keys():
     #        print(canonic_vertices[v])
-    for getId() in edges.keys():
-        edges[getId()].start_vertex = canonic_ids[edges[getId()].start_vertex]
-        edges[getId()].end_vertex = canonic_ids[edges[getId()].end_vertex]
+    for getInnerId() in edges.keys():
+        edges[getInnerId()].start_vertex = canonic_ids[edges[getInnerId()].start_vertex]
+        edges[getInnerId()].end_vertex = canonic_ids[edges[getInnerId()].end_vertex]
     #        print(edges[id])
     G = Graph(canonic_vertices, edges)
     return G
@@ -666,7 +666,7 @@ def run_extraction(graph_f, haplotypes_f):
     haplotypes = {}
     for line in open(haplotypes_f, 'r'):
         haplo = HaplotypeStats(line)
-        haplotypes[haplo.getId()] = haplo
+        haplotypes[haplo.getInnerId()] = haplo
 
     unique = set()
     total = 0

@@ -86,7 +86,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
                     clen++;
                 } else {
                     if(clen > K) {
-                        RawSeg seg_from(read.getId(), rpos - clen, rpos);
+                        RawSeg seg_from(read.getInnerId(), rpos - clen, rpos);
                         Segment<Contig> seg_to(*al.first, rpos + al.second - clen, rpos + al.second);
                         result.emplace_back(read.size(), num, seg_from, seg_to);
                     }
@@ -125,11 +125,11 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
         if((rec.seg_from.left != 0 && rec.seg_to.left != 0) ||
            (rec.seg_from.right != len && rec.seg_to.right != rec.seg_to.contig().size())) {
             os_bad << rec.seg_from.getId() << " " << rec.seg_from.left << " " << rec.seg_from.right << " "
-                   << rec.seg_to.contig().getId() << " " << rec.seg_to.left << " " << rec.seg_to.right
+                   << rec.seg_to.contig().getInnerId() << " " << rec.seg_to.left << " " << rec.seg_to.right
                    << "\n";
         } else {
             os << rec.seg_from.getId() << " " << rec.seg_from.left << " " << rec.seg_from.right << " "
-               << rec.seg_to.contig().getId() << " " << rec.seg_to.left << " " << rec.seg_to.right
+               << rec.seg_to.contig().getInnerId() << " " << rec.seg_to.left << " " << rec.seg_to.right
                << "\n";
         }
     }

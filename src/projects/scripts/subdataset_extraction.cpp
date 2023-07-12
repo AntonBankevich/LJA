@@ -90,10 +90,10 @@ int main(int argc, char **argv) {
         size_t radius = std::stoull(parameterValues.getValue("radius"));
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
-            std::cout << contig.getId() << " " << contig.size() << " " << dbg::GraphAligner(dbg).carefulAlign(contig).size() << std::endl;
+            std::cout << contig.getInnerId() << " " << contig.size() << " " << dbg::GraphAligner(dbg).carefulAlign(contig).size() << std::endl;
             storage.addContig(contig);
             subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
-            subdatasets.back().id = contig.getId();
+            subdatasets.back().id = contig.getInnerId();
         }
     }
     storage.Fill(threads);

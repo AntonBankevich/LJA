@@ -81,7 +81,7 @@ namespace io {
         }
 
         const Sequence &operator*() {
-            return reader.get().getSeq();
+            return reader.get().truncSeq();
         }
 
         bool operator==(const SeqIterator &other) const {

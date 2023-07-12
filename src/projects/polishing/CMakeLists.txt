@@ -4,3 +4,6 @@ target_link_libraries(lja_homopolish lja_common lja_sequence lja_dbg spoa ksw2)
 
 add_executable(run_polishing run_polishing.cpp)
 target_link_libraries(run_polishing lja_homopolish)
+
+add_executable(graph_polishing graph_polishing.cpp)
+target_link_libraries(graph_polishing lja_common lja_sequence lja_dbg)

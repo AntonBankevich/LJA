@@ -33,7 +33,7 @@ FilterAlternatives(const GraphAlignment &initial, const std::vector<GraphAlignme
                    size_t max_diff, double threshold) {
     size_t len = initial.len();
     std::vector<GraphAlignment> res;
-    size_t k = initial.getVertex(0).getSeq().size();
+    size_t k = initial.getVertex(0).size();
     for(const GraphAlignment &al : als) {
         CompactPath cpath(al);
         bool ok = true;
@@ -155,7 +155,7 @@ std::string TournamentPathCorrector::correctRead(GraphAlignment &path) {
         VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos), "End");
         Edge &edge = path[path_pos].contig();
         if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
-            (edge.getStart()->inDeg() > 0 && edge.getFinish()->outDeg() > 0 && (edge.getCoverage() > threshold || edge.size() > 10000)) ) {
+            (edge.getStart().inDeg() > 0 && edge.getFinish().outDeg() > 0 && (edge.getCoverage() > threshold || edge.size() > 10000)) ) {
 //              Tips need to pass reliable threshold to avoid being corrected.
             corrected_path.push_back(path[path_pos]);
             continue;
@@ -292,8 +292,8 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
             }
             collapsable_cnt.emplace_back(&edge);
             collapsable_cnt.emplace_back(&rcEdge);
-            bool edge_supp = rec.countStartsWith(Sequence(std::vector<char>({char(edge.getSeq()[0])}))) > 0;
-            bool alt_supp = rec.countStartsWith(Sequence(std::vector<char>({char(alt.getSeq()[0])}))) > 0;
+            bool edge_supp = rec.countStartsWith(Sequence(std::vector<char>({char(edge.truncSeq()[0])}))) > 0;
+            bool alt_supp = rec.countStartsWith(Sequence(std::vector<char>({char(alt.truncSeq()[0])}))) > 0;
             if(edge_supp != alt_supp) {
                 genome_cnt.emplace_back(&edge);
                 genome_cnt.emplace_back(&rcEdge);

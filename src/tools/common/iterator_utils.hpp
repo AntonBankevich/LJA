@@ -54,6 +54,40 @@ public:
     }
 };
 
+template<typename I>
+class CountingIterator {
+public:
+    typedef I value_type;
+    typedef I reference;
+    typedef I pointer;
+private:
+    I pos;
+
+public:
+    CountingIterator(I pos) : pos(pos){
+    }
+
+    CountingIterator& operator++() {
+        pos++;
+        return *this;
+    }
+
+    CountingIterator operator++(int) const {
+        CountingIterator other = *this;
+        ++other;
+        return other;
+    }
+
+    bool operator==(const CountingIterator &other) const {
+        return pos == other.pos;
+    }
+
+    bool operator!=(const CountingIterator &other) const {
+        return !operator==(other);
+    }
+
+};
+
 template<class Iterator, typename V, size_t MAX_SIZE = 8>
 class ApplyingIterator {
 public:

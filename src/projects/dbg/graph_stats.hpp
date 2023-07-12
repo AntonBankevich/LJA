@@ -11,13 +11,17 @@ inline void simpleStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     size_t elen = 0;
     for(dbg::Vertex &v : dbg.vertices()) {
         for(dbg::Edge &edge : v) {
-            if(edge.getFinish() == nullptr || edge == edge.sparseRcEdge()) {
+            if(edge == edge.rc()) {
                 e_cnt += 2;
                 elen += 2 * edge.size();
             } else {
                 e_cnt++;
                 elen += edge.size();
             }
+        }
+        for(const Sequence &seq : v.getHanging()) {
+            e_cnt += 2;
+            elen += 2 * seq.size();
         }
     }
     logger << "Unique edges: " << e_cnt / 2 << std::endl;
@@ -38,7 +42,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         dbg::Vertex &tmp = val.second;
         if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
             dbg::Path path = dbg::Path::WalkForward(tmp.front());
-            if (path.back().getFinish() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
+            if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge *edge : path) {
                     isolatedSize += edge->size();
@@ -48,7 +52,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
             dbg::Path path = dbg::Path::WalkForward(tmp.rc().front());
-            if (path.back().getFinish() != nullptr && path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
+            if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge *edge : path) {
                     isolatedSize += edge->size();
@@ -61,21 +65,13 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         arr[std::min(arr.size() - 1, tmp.inDeg())] += 1;
         inout[std::min<size_t>(4u, tmp.outDeg()) * 5 + std::min<size_t>(4u, tmp.inDeg())] += 1;
         inout[std::min<size_t>(4u, tmp.inDeg()) * 5 + std::min<size_t>(4u, tmp.outDeg())] += 1;
-        if (tmp.outDeg() == 1 && tmp.inDeg() == 0) {
-            dbg::Vertex &tmp1 = tmp.front().getFinish()->rc();
-            VERIFY(tmp.front().getFinish() != nullptr);
-        }
-        if (tmp.outDeg() == 0 && tmp.inDeg() == 1) {
-            dbg::Vertex &tmp1 = tmp.rc().front().getFinish()->rc();
-            VERIFY(tmp.rc().front().getFinish() != nullptr);
-        }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 1) {
             n11 += 1;
         }
         if (tmp.inDeg() + tmp.outDeg() == 1) {
             n01 += 1;
             dbg::Edge tip_edge = tmp.outDeg() == 1 ? tmp.front() : tmp.rc().front();
-            if (tip_edge.getFinish()->outDeg() > 1) {
+            if (tip_edge.getFinish().outDeg() > 1) {
                 ltips += tip_edge.size();
                 ntips += 1;
             }

@@ -12,7 +12,7 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
       std::unordered_map<std::string, uint64_t> vert2ind;
       uint64_t cnt{0};
       for (const dbg::Vertex &vertex : dbg.vertices()) {
-          const std::string &id = vertex.getId();
+          const std::string &id = vertex.getInnerId();
           vert2ind.emplace(id, cnt);
           ++cnt;
       }
@@ -22,8 +22,8 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
     std::vector<SuccinctEdgeInfo> edge_info;
     for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;
-        const RRVertexType start_ind = vert2ind.at(edge.getStart()->getId());
-        const RRVertexType end_ind = vert2ind.at(edge.getFinish()->getId());
+        const RRVertexType start_ind = vert2ind.at(edge.getStart().getInnerId());
+        const RRVertexType end_ind = vert2ind.at(edge.getFinish().getInnerId());
         edge_info.push_back(
             {start_ind, end_ind, &edge, classificator.isUnique(edge)});
     }
@@ -806,7 +806,7 @@ std::vector<Contig> MultiplexDBG::ExportContigs(
     std::vector<Contig> edges =
         GetContigs(vertex_seqs, edge_seqs, vertex2rc, vertex_can, edge_can);
     for (const Contig &contig : edges) {
-        os << ">" << contig.getId() << "\n" << contig.getSeq() << "\n";
+        os << ">" << contig.getInnerId() << "\n" << contig.getSeq() << "\n";
     }
     os.close();
     return edges;

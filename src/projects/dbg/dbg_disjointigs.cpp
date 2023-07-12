@@ -6,36 +6,37 @@ using namespace dbg;
 Sequence buildDisjointig(Path &path) {
     Sequence disjointig = path.Seq();
     const Vertex &last = path.finish().rc();
-    const Edge &lastEdge = path.back().sparseRcEdge();
-    size_t k = path.start().getSeq().size();
-    if(path[0].intCov() + lastEdge.intCov() + k > disjointig.size())
+    const Edge &lastEdge = path.back().rc();
+    size_t k = path.start().size();
+    if(path[0].intCov() + lastEdge.intCov() + k >= disjointig.size())
         return Sequence{};
     disjointig = disjointig.Subseq(path[0].intCov(), disjointig.size() - lastEdge.intCov());
     if (path.start().inDeg() > 1 && path.start().outDeg() == 1) {
         VERIFY(path[0].intCov() == 0);
         const Edge& extra = *path.start().rc().begin();
-        disjointig = !(extra.getSeq().Subseq(0, extra.intCov())) + disjointig;
+        disjointig = !(extra.truncSeq().Subseq(0, extra.intCov())) + disjointig;
     }
     if(last.inDeg() > 1 && last.outDeg() == 1) {
         VERIFY(lastEdge.intCov() == 0);
         const Edge& extra = *last.rc().begin();
-        disjointig = disjointig + extra.getSeq().Subseq(0, extra.intCov());
+        disjointig = disjointig + extra.truncSeq().Subseq(0, extra.intCov());
     }
     return disjointig;
 }
 
 void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
     for(Edge & edge : rec) {
-        VERIFY(edge.getFinish() != nullptr);
         VERIFY(!rec.getSeq().empty());
         Path path = Path::WalkForward(edge);
         if(rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
             Sequence disjointig = buildDisjointig(path);
-            for(size_t i = 1; i < path.size(); i++) {
-                path.getVertex(i).mark();
-            }
-            if (!disjointig.empty())
+            if (!disjointig.empty()) {
+                VERIFY(disjointig.size() > rec.size());
                 res.add(disjointig.copy());
+            }
+        }
+        for(size_t i = 1; i < path.size(); i++) {
+            path.getVertex(i).mark();
         }
     }
 }
@@ -45,9 +46,9 @@ void prepareVertex(Vertex &vertex) {
     Edge *prev = nullptr;
     for(Edge &edge : vertex) {
         if(prev != nullptr) {
-            edge.incCov(edge.getSeq().commonPrefix(prev->getSeq()));
+            edge.incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
             if (*prev == vertex.front()) {
-                prev->incCov(edge.getSeq().commonPrefix(prev->getSeq()));
+                prev->incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
             }
         }
         prev = &edge;
@@ -75,14 +76,15 @@ void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence>
                     if (rec.inDeg() != 1 && rec.outDeg() != 1 &&  (rec.inDeg() != 0 || rec.outDeg() != 0)) {
                         Sequence disjointig  = rec.getSeq();
                         if (rec.inDeg() > 0) {
-                            Edge &e1 = *rec.rc().begin();
-                            disjointig = !(e1.getSeq().Subseq(0, e1.intCov())) + disjointig;
+                            Edge &e1 = rec.rc().front();
+                            disjointig = !(e1.truncSeq().Subseq(0, e1.intCov())) + disjointig;
                         }
                         if (rec.outDeg() > 0) {
-                            Edge &e2 = *rec.begin();
-                            disjointig = disjointig + e2.getSeq().Subseq(0, e2.intCov());
+                            Edge &e2 = rec.front();
+                            disjointig = disjointig + e2.truncSeq().Subseq(0, e2.intCov());
                         }
-                        res.add(disjointig.copy());
+                        if(res.size() > rec.size() || rec.inDeg() > 0 || rec.outDeg() > 0)
+                            res.add(disjointig.copy());
                     }
                 }
             };
@@ -91,31 +93,28 @@ void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence>
 
 void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger &logger,
                                 size_t threads) {
-    std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
-            [&sdbg, &res](size_t pos, std::pair<const htype, Vertex> & pair) {
-                Vertex &rec = pair.second;
-                htype hash = pair.first;
-                if(rec.isJunction() || rec.marked())
+    std::function<void(size_t, Vertex &)> task =
+            [&sdbg, &res](size_t pos, Vertex & vertex) {
+                if(vertex.isJunction() || vertex.marked())
                     return;
-                Edge &edge = *rec.begin();
-                VERIFY(edge.getFinish() != nullptr);
+                Edge &edge = *vertex.begin();
                 Path path = Path::WalkForward(edge);
-                if(path.finish() != rec) {
-                    std::cout << &path.finish() << std::endl;
-                    std::cout << path.finish().hash() << std::endl;
-                    std::cout << rec.getSeq() << std::endl;
+                if(path.finish() != vertex) {
+                    std::cout << path.start().getInnerId() << " " << path.finish().getInnerId() << " " << path.size() <<
+                    " " << path.finish().isJunction()<< " "  << "ACGT"[path.back().rc().truncSeq()[0]] << std::endl;
                 }
-                VERIFY(path.finish() == rec);
+                VERIFY(path.finish() == vertex);
                 for(size_t i = 0; i + 1 < path.size(); i++) {
-                    if(*(path[i].getFinish()) < rec) {
+                    if(path[i].getFinish() < vertex || path[i].getFinish() < vertex.rc()) {
                         return;
                     }
                 }
-                rec.mark();
-                Sequence disjointig = path.truncSeq();
-                res.add(rec.getSeq() + disjointig + disjointig);
+                vertex.mark();
+                Sequence disjointig = path.Seq();
+                VERIFY(disjointig.size() > vertex.size());
+                res.add(disjointig);
             };
-    processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
+    processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, task);
 }
 
 std::vector<Sequence> extractDisjointigs(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {

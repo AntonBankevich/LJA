@@ -1,8 +1,6 @@
 #include "sparse_dbg.hpp"
 using namespace dbg;
 
-Edge Edge::_fake = Edge();
-
 bool IsMarkerCorrect(EdgeMarker marker) {
     return marker == EdgeMarker::correct || marker == EdgeMarker::unique || marker == EdgeMarker::repeat;
 }
@@ -25,45 +23,8 @@ size_t Edge::updateTipSize() const {
 }
 
 Edge &Edge::rc() const {
-    VERIFY(!getStart()->getSeq().empty());
-    Vertex &vend = finish->rc();
-    unsigned char c;
-    size_t k = vend.getSeq().size();
-    if(size() > k) {
-        c = (!getSeq())[k];
-    } else {
-        c = (!start->getSeq())[k - size()];
-    }
-    return vend.getOutgoing(c);
-}
-
-Edge &Edge::sparseRcEdge() const {
-    Vertex &vend = getFinish()->rc();
-    VERIFY(!start->getSeq().empty());
-    for(Edge &candidate : vend) {
-        if(*candidate.getFinish() == start->rc() && candidate.size() == size() &&
-           (size() <= start->getSeq().size() || candidate.getSeq().startsWith((!getSeq()).Subseq(start->getSeq().size())))) {
-            return candidate;
-        }
-    }
-    std::cout << start->getSeq() + getSeq() << std::endl;
-    std::cout << getSeq() << std::endl;
-    std::cout << vend.getSeq() << std::endl;
-    for(Edge &candidate : vend) {
-        if(*candidate.getFinish() == start->rc() && candidate.size() == size() &&
-           (size() <= getSeq().size() || candidate.getSeq().startsWith((!getSeq()).Subseq(start->getSeq().size())))) {
-            std::cout << vend.getSeq() + candidate.getSeq() << std::endl;
-        }
-    }
-    VERIFY(false);
-    return vend.front();
-}
-
-void Edge::bindTip(Vertex &start, Vertex &end) {
-    VERIFY(finish == nullptr);
-    finish = &end;
-    Sequence rcseq = !(start.getSeq() + getSeq());
-    end.rc().addEdgeLockFree(Edge(end.rc(), start.rc(), rcseq.Subseq(start.getSeq().size())));
+    VERIFY(!getStart().getSeq().empty());
+    return *_rc;
 }
 
 size_t Edge::getTipSize() const {
@@ -74,16 +35,8 @@ void Edge::setTipSize(size_t val) const {
     extraInfo = val;
 }
 
-Vertex *Edge::getStart() const {
-    return start;
-}
-
-Vertex *Edge::getFinish() const {
-    return finish;
-}
-
 size_t Edge::size() const {
-    return getSeq().size();
+    return truncSeq().size();
 }
 
 double Edge::getCoverage() const {
@@ -113,7 +66,7 @@ bool Edge::operator<(const Edge &other) const {
         return false;
     if(start != other.start)
         return *start < *other.start;
-    return this->getSeq() < other.getSeq();
+    return this->truncSeq() < other.truncSeq();
 }
 
 bool Edge::operator>(const Edge &other) const {
@@ -121,7 +74,7 @@ bool Edge::operator>(const Edge &other) const {
         return false;
     if(start != other.start)
         return *start > *other.start;
-    return other.getSeq() < getSeq();
+    return other.truncSeq() < truncSeq();
 }
 
 bool Edge::operator<=(const Edge &other) const {
@@ -130,46 +83,68 @@ bool Edge::operator<=(const Edge &other) const {
 
 std::string Edge::str() const {
     std::stringstream ss;
-    const dbg::Vertex &v = *getStart();
-    ss << v.hash() << v.isCanonical() << "ACGT"[getSeq()[0]];
+    const dbg::Vertex &v = getStart();
+    ss << v.hash() << v.isCanonical() << "ACGT"[truncSeq()[0]];
     return ss.str();
 }
 
 Sequence Edge::kmerSeq(size_t pos) const {
-    VERIFY(pos <= getSeq().size());
+    VERIFY(pos <= truncSeq().size());
     size_t k = start->getSeq().size();
     if (pos >= k)
-        return getSeq().Subseq(pos - k, pos);
+        return truncSeq().Subseq(pos - k, pos);
     else {
-        return getStart()->getSeq().Subseq(pos) + getSeq().Subseq(0, pos);
+        return getStart().getSeq().Subseq(pos) + truncSeq().Subseq(0, pos);
     }
 }
 
 Sequence Edge::suffix(size_t pos) const {
-    VERIFY(pos <= getSeq().size());
+    VERIFY(pos <= truncSeq().size());
     size_t k = start->getSeq().size();
     if (pos >= k)
-        return getSeq().Subseq(pos - k, getSeq().size());
+        return truncSeq().Subseq(pos - k, truncSeq().size());
     else {
-        return getStart()->getSeq().Subseq(pos) + getSeq().Subseq(0, getSeq().size());
+        return getStart().getSeq().Subseq(pos) + truncSeq().Subseq(0, truncSeq().size());
     }
 }
 
-std::string Edge::getId() const {
-    return start->getId() + "ACGT"[getSeq()[0]];
+std::string Edge::getInnerId() const {
+    return start->getInnerId() + "ACGT"[truncSeq()[0]];
 }
 
 std::string Edge::oldId() const {
-    return start->oldId() + "ACGT"[getSeq()[0]];
+    return start->oldId() + "ACGT"[truncSeq()[0]];
 }
 
 
 std::string Edge::getShortId() const {
-    return start->getShortId() + "ACGT"[getSeq()[0]];
+    return start->getShortId() + "ACGT"[truncSeq()[0]];
 }
 
 Sequence Edge::firstNucl() const {
-    return getSeq().Subseq(0, 1);
+    return truncSeq().Subseq(0, 1);
+}
+
+Sequence Edge::getSeq() const {
+    VERIFY(!start->getSeq().empty());
+    return start->getSeq() + seq;
+}
+
+size_t Edge::getTruncSize() const {return start->size();}
+
+void Edge::DeleteEdge(Edge &edge) {
+    VertexLocker locker({edge.start, edge.finish});
+    DeleteEdgeLockFree(edge);
+}
+
+void Edge::DeleteEdgeLockFree(Edge &edge) {
+    Vertex &start = *edge.start;
+    Vertex &rcstart = *edge.finish;
+    Edge &rcedge = edge.rc();
+    if(edge != rcedge) {
+        rcstart.innerRemoveEdge(rcedge);
+    }
+    start.innerRemoveEdge(edge);
 }
 
 //std::ostream &operator<<(std::ostream &os, const Edge &edge) {
@@ -190,29 +165,23 @@ size_t Vertex::coverage() const {
 }
 
 bool Vertex::isCanonical(const Edge &edge) const {
-    const Vertex &other = edge.getFinish()->rc();
+    const Vertex &other = edge.getFinish().rc();
     if(hash() != other.hash())
         return hash() < other.hash();
     if (isCanonical() != other.isCanonical())
         return isCanonical();
     const Edge &rc_edge = edge.rc();
-    return edge.getSeq() <= rc_edge.getSeq();
+    return edge.truncSeq() <= rc_edge.truncSeq();
 }
 
 void Vertex::checkConsistency() const {
     for (const Edge &edge : outgoing_) {
-        if (edge.getFinish() != nullptr) {
-            if (edge.rc().getFinish() != &(this->rc())) {
-                std::cout << this << " " << getSeq() << " " << edge.getSeq() << " " << edge.rc().getFinish() << " "
-                          << &(this->rc()) << std::endl;
-            }
-            VERIFY(edge.rc().getFinish() == &(this->rc()));
-            VERIFY(edge.start == this);
-        }
+        VERIFY(edge.rc().getFinish() == this->rc());
+        VERIFY(std::find(edge.getFinish().rc().begin(), edge.getFinish().rc().end(), edge.rc()) != edge.getFinish().rc().end());
     }
 }
 
-std::string Vertex::getId() const {
+std::string Vertex::getInnerId() const {
     std::stringstream ss;
     if(!isCanonical())
         ss << "-";
@@ -254,45 +223,104 @@ void Vertex::setSeq(Sequence _seq) {
     }
 }
 
+//}
+
+void Vertex::addSequence(const Sequence &new_seq) {
+    lock();
+    for (Edge &edge : outgoing_) {
+        if (new_seq.size() < edge.size() && edge.truncSeq().Subseq(new_seq.size()) == new_seq) {
+            unlock();
+            return;
+        }
+    }
+    for (Sequence &out : hanging) {
+        if (new_seq.size() > out.size() && new_seq.Subseq(0, out.size())== out) {
+            out = new_seq;
+            unlock();
+            return;
+        } else if(new_seq.size() <= out.size() && out.Subseq(0, new_seq.size())== new_seq) {
+            unlock();
+            return;
+        }
+    }
+    hanging.emplace_back(new_seq);
+    unlock();
+}
+
 //void Vertex::clearSequence() {
 //    if (!seq.empty()) {
 //        seq = Sequence();
 //        rc_->seq = Sequence();
 //    }
-//}
-
-Edge &Vertex::addEdgeLockFree(const Edge &edge) {
-    VERIFY(this == edge.getStart());
-    for (Edge &e : outgoing_) {
-        if (edge.size() <= e.size()) {
-            if (edge.getSeq() == e.getSeq().Subseq(0, edge.size())) {
-                return e;
-            }
-        } else if (edge.getSeq().Subseq(0, e.size()) == e.getSeq()) {
-            e = edge;
-            return e;
+Edge &Vertex::addEdgeLockFree(Vertex &end, const Sequence &full_sequence) {
+    for(Edge &edge: outgoing_) {
+        if(edge.getFinish() == end && edge.truncSeq() == full_sequence.Subseq(size())) {
+            return edge;
         }
     }
-    outgoing_.emplace_back(edge);
-    return outgoing_.back();
+    Edge &res = innerAddEdge(end, full_sequence);
+    if(end.rc() != *this || full_sequence != !full_sequence) {
+        Edge &rc_edge = end.rc().innerAddEdge(rc(), !full_sequence);
+        res._rc = &rc_edge;
+        rc_edge._rc = &res;
+    } else {
+        res._rc = &res;
+    }
+    VERIFY(res.size() == res.rc().size());
+    return res;
 }
 
-void Vertex::addEdge(const Edge &e) {
-    omp_set_lock(&writelock);
-    addEdgeLockFree(e);
-    omp_unset_lock(&writelock);
+Edge &Vertex::innerAddEdge(Vertex &end, const Sequence &full_sequence) {
+    outgoing_.emplace_back(*this, end, full_sequence.Subseq(size()));
+    Edge &edge = outgoing_.back();
+    _outDeg++;
+    for(auto it = hanging.begin(); it != hanging.end(); ++it) {
+        if(it->size() <= edge.size() && edge.truncSeq().Subseq(0, it->size()) == *it) {
+            hanging.erase(it);
+            break;
+        }
+    }
+    return edge;
 }
+
+Edge &Vertex::addEdge(Vertex &end, const Sequence &full_sequence) {
+    VertexLocker locker({this, &end.rc()});
+    return addEdgeLockFree(end, full_sequence);
+}
+
+//Edge &Vertex::addEdgeLockFree(const Edge &edge) {
+//    VERIFY(this == edge.getStart());
+//    for (Edge &e : outgoing_) {
+//        if (edge.size() <= e.size()) {
+//            if (edge.truncSeq() == e.truncSeq().Subseq(0, edge.size())) {
+//                return e;
+//            }
+//        } else if (edge.truncSeq().Subseq(0, e.size()) == e.truncSeq()) {
+//            e = edge;
+//            return e;
+//        }
+//    }
+//    outgoing_.emplace_back(edge);
+//    return outgoing_.back();
+//}
+//
+//Edge &Vertex::addEdge(const Edge &e) {
+//    omp_set_lock(&writelock);
+//    Edge &res = addEdgeLockFree(e);
+//    omp_unset_lock(&writelock);
+//    return res;
+//}
 
 Edge &Vertex::getOutgoing(unsigned char c) const {
     for (Edge &edge : outgoing_) {
-        if (edge.getSeq()[0] == c) {
+        if (edge.truncSeq()[0] == c) {
             return edge;
         }
     }
     std::cout << getSeq() << std::endl;
     std::cout << size_t(c) << std::endl;
     for (const Edge &edge : outgoing_) {
-        std::cout << edge.getSeq() << std::endl;
+        std::cout << edge.truncSeq() << std::endl;
     }
     VERIFY(false);
     return outgoing_.front();
@@ -300,7 +328,7 @@ Edge &Vertex::getOutgoing(unsigned char c) const {
 
 bool Vertex::hasOutgoing(unsigned char c) const {
     for (const Edge &edge : outgoing_) {
-        if (edge.getSeq()[0] == c) {
+        if (edge.truncSeq()[0] == c) {
             return true;
         }
     }
@@ -315,13 +343,16 @@ bool Vertex::operator>(const Vertex &other) const {
     return hash_ > other.hash_ || (hash_ == other.hash_ && !canonical && other.canonical);
 }
 
+//TODO: create method deleteEdge and do this properly
 void Vertex::clear() {
     outgoing_.clear();
-    rc_->outgoing_.clear();
+    hanging.clear();
+    _outDeg = 0;
 }
 
 void Vertex::clearOutgoing() {
     outgoing_.clear();
+    _outDeg = 0;
 }
 
 Vertex::Vertex(hashing::htype hash) : hash_(hash), rc_(new Vertex(hash, this)), canonical(true) {
@@ -351,6 +382,18 @@ bool Vertex::operator==(const Vertex &other) const {
 
 bool Vertex::operator!=(const Vertex &other) const {
     return this != &other;
+}
+
+void Vertex::innerRemoveEdge(Edge &edge) {
+    if(edge._rc != nullptr) {
+        edge._rc->_rc = nullptr;
+    }
+    auto it = std::find(outgoing_.begin(), outgoing_.end(), edge);
+    if(it != outgoing_.end()) {
+        outgoing_.erase(it);
+        _outDeg--;
+        VERIFY(outDeg() == outgoing_.size());
+    }
 }
 
 void SparseDBG::checkSeqFilled(size_t threads, logging::Logger &logger) {
@@ -384,20 +427,19 @@ SparseDBG SparseDBG::Subgraph(std::vector<Segment<Edge>> &pieces) {
         Vertex *left;
         Vertex *right;
         if (seg.left == 0) {
-            left = &res.getVertex(seg.contig().getStart()->getSeq());
+            left = &res.getVertex(seg.contig().getStart().getSeq());
         } else {
             left = &res.addVertex(seg.contig().kmerSeq(seg.left));
         }
         Segment<Edge> rcSeg = seg.RC();
         if (rcSeg.left == 0) {
-            right = &res.getVertex(rcSeg.contig().getStart()->getSeq());
+            right = &res.getVertex(rcSeg.contig().getStart().getSeq());
         } else if(seg == rcSeg) {
             right = left;
         } else {
             right = &res.addVertex(rcSeg.contig().kmerSeq(rcSeg.left));
         }
-        left->addEdge(Edge(*left, right->rc(), seg.seq()));
-        right->addEdge(Edge(*right, left->rc(), rcSeg.seq()));
+        left->addEdge(right->rc(), seg.fullSeq());
     }
     return std::move(res);
 }
@@ -415,15 +457,14 @@ SparseDBG SparseDBG::SplitGraph(const std::vector<EdgePosition> &breaks) {
             broken_edges.emplace(&epos.edge->rc());
         }
     }
-    for(Edge &edge : edges()) {
+    for(Edge &edge : edgesUnique()) {
         if(broken_edges.find(&edge) == broken_edges.end()) {
-            Vertex &start = res.getVertex(*edge.getStart());
-            Vertex &end = res.getVertex(*edge.getFinish());
-            Edge new_edge(start, end, edge.getSeq());
-            start.addEdge(new_edge);
+            Vertex &start = res.getVertex(edge.getStart());
+            Vertex &end = res.getVertex(edge.getFinish());
+            start.addEdge(end, edge.getSeq());
         } else {
-            Vertex &newVertex = res.getVertex(*edge.getStart());
-            res.processEdge(newVertex, edge.getSeq());
+            Vertex &newVertex = res.getVertex(edge.getStart());
+            res.processFullEdgeSequence(edge.getSeq());
         }
     }
     return std::move(res);
@@ -446,7 +487,7 @@ SparseDBG SparseDBG::AddNewSequences(logging::Logger &logger, size_t threads, co
         }
     }
     std::function<void(size_t, Edge &)> task = [&res](size_t num, Edge &edge) {
-        res.processEdge(edge);
+        res.processFullEdgeSequence(edge.getSeq());
     };
     omp_set_num_threads(threads);
     processObjects(this->edgesUnique().begin(), this->edgesUnique().end(), logger, threads, task);
@@ -474,10 +515,10 @@ void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
     logger.trace() << "Checking kmer index" << std::endl;
     std::function<void(size_t, Edge &)> task =
             [this](size_t pos, Edge &edge) {
-                hashing::KWH kwh(hasher(), edge.getStart()->getSeq() + edge.getSeq(), 0);
+                hashing::KWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 0);
                 while (true) {
                     if(this->containsVertex(kwh.hash())) {
-                        VERIFY_OMP((kwh.pos == 0 && this->getVertex(kwh) == *edge.getStart()) || (kwh.pos == edge.size() && this->getVertex(kwh) == *edge.getFinish()), "Vertex kmer index corruption");
+                        VERIFY_OMP((kwh.pos == 0 && this->getVertex(kwh) == edge.getStart()) || (kwh.pos == edge.size() && this->getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
                     }
                     if(this->isAnchor(kwh.hash())) {
                         EdgePosition ep = getAnchor(kwh);
@@ -498,7 +539,7 @@ void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
     for(Vertex &vertex: vertices()) {
         std::vector<char> out;
         for(Edge &edge : vertex) {
-            out.emplace_back(edge.getSeq()[0]);
+            out.emplace_back(edge.truncSeq()[0]);
         }
         std::sort(out.begin(), out.end());
         for(size_t i = 0; i + 1 < out.size(); i++) {
@@ -510,7 +551,7 @@ void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
     ParallelRecordCollector<hashing::htype> hashs(threads);
     std::function<void(size_t, Edge &)> task1 =
             [this, &hashs](size_t pos, Edge &edge) {
-                hashing::KWH kwh(hasher(), edge.getStart()->getSeq() + edge.getSeq(), 1);
+                hashing::KWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 1);
                 for(size_t i = 1; i < edge.size(); i++) {
                     hashs.emplace_back(kwh.hash());
                     kwh = kwh.next();
@@ -553,13 +594,6 @@ Vertex &SparseDBG::addVertex(const Vertex &other_graph_vertex) {
     }
 }
 
-Vertex &SparseDBG::bindTip(Vertex &start, Edge &tip) {
-    Sequence seq = start.getSeq() + tip.getSeq();
-    Vertex &end = addVertex(seq.Subseq(seq.size() - hasher().getK()));
-    tip.bindTip(start, end);
-    return end;
-}
-
 Vertex &SparseDBG::getVertex(const hashing::KWH &kwh) {
     auto it = v.find(kwh.hash());
     VERIFY(it != v.end());
@@ -590,9 +624,9 @@ void SparseDBG::fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
     logger.trace() << "Adding anchors from long edges for alignment" << std::endl;
     ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
     std::function<void(size_t, Edge &)> task = [&res, w, this](size_t pos, Edge &edge) {
-        Vertex &vertex = *edge.getStart();
+        Vertex &vertex = edge.getStart();
         if (edge.size() > w) {
-            Sequence seq = vertex.getSeq() + edge.getSeq();
+            Sequence seq = vertex.getSeq() + edge.truncSeq();
 //                    Does not run for the first and last kmers.
             for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
                 if (kmer.pos % w == 0) {
@@ -619,9 +653,9 @@ void SparseDBG::fillAnchors(size_t w, logging::Logger &logger, size_t threads,
     logger.trace() << "Adding anchors from long edges for alignment" << std::endl;
     ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
     std::function<void(size_t, Edge &)> task = [&res, w, this, &to_add](size_t pos, Edge &edge) {
-        Vertex &vertex = *edge.getStart();
+        Vertex &vertex = edge.getStart();
         if (edge.size() > w || !to_add.empty()) {
-            Sequence seq = vertex.getSeq() + edge.getSeq();
+            Sequence seq = vertex.getSeq() + edge.truncSeq();
 //                    Does not run for the first and last kmers.
             for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
                 if (kmer.pos % w == 0 || to_add.find(kmer.hash()) != to_add.end()) {
@@ -668,8 +702,8 @@ void SparseDBG::printFastaOld(const std::experimental::filesystem::path &out) {
     std::ofstream os;
     os.open(out);
     for(Edge &edge : edges()) {
-        os << ">" << edge.getStart()->hash() << edge.getStart()->isCanonical() << "ACGT"[edge.getSeq()[0]] << "\n" <<
-           edge.getStart()->getSeq() << edge.getSeq() << "\n";
+        os << ">" << edge.getStart().hash() << edge.getStart().isCanonical() << "ACGT"[edge.truncSeq()[0]] << "\n" <<
+           edge.getStart().getSeq() << edge.truncSeq() << "\n";
     }
     os.close();
 }
@@ -696,11 +730,9 @@ void SparseDBG::processRead(const Sequence &seq) {
             kmers[i + 1].pos - kmers[i].pos < hasher_.getK()) {
             continue;
         }
-        vertices[i]->addEdge(Edge(*vertices[i], *vertices[i + 1], Sequence(seq.Subseq(kmers[i].pos + hasher_.getK(),
+        vertices[i]->addEdge(*vertices[i + 1], Sequence(seq.Subseq(kmers[i].pos,
                                                                                     kmers[i + 1].pos +
-                                                                                    hasher_.getK()).str())));
-        vertices[i + 1]->rc().addEdge(Edge(vertices[i + 1]->rc(), vertices[i]->rc(),
-                                           !Sequence(seq.Subseq(kmers[i].pos, kmers[i + 1].pos).str())));
+                                                                                    hasher_.getK()).str()));
     }
     if (kmers.front().pos > 0) {
         vertices.front()->rc().addSequence(!(seq.Subseq(0, kmers[0].pos)));
@@ -711,46 +743,26 @@ void SparseDBG::processRead(const Sequence &seq) {
 }
 
 //This method does not add rc edges so should be run for both edge and its rc
-void SparseDBG::processEdge(Vertex &vertex, Sequence old_seq) {
-    Sequence seq = vertex.getSeq() + old_seq;
-    std::vector<hashing::KWH> kmers = extractVertexPositions(seq);
-    VERIFY(kmers.front().pos == 0 && kmers.back().pos == old_seq.size());
+void SparseDBG::processFullEdgeSequence(const Sequence &full_seq) {
+    std::vector<hashing::KWH> kmers = extractVertexPositions(full_seq);
+    VERIFY(kmers.front().pos == 0 && kmers.back().pos == full_seq.size() - hasher_.getK());
     std::vector<Vertex *> vertices;
-    for (size_t i = 0; i < kmers.size(); i++) {
-        vertices.emplace_back(&getVertex(kmers[i]));
+    for (auto & kmer : kmers) {
+        vertices.emplace_back(&getVertex(kmer));
+    }
+    for(size_t i = 0; i < vertices.size(); i++) {
+        if(i == 0 || vertices[i] != vertices[i-1]) {
+            vertices[i]->setSeq(full_seq.Subseq(kmers[i].pos, kmers[i].pos + hasher_.getK()));
+        }
     }
     for (size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
-        VERIFY(kmers[i].pos + hasher_.getK() <= seq.size())
         if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
             (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
             kmers[i + 1].pos - kmers[i].pos < hasher_.getK()) {
             continue;
         }
-        vertices[i]->addEdge(
-                Edge(*vertices[i], *vertices[i + 1], old_seq.Subseq(kmers[i].pos, kmers[i + 1].pos)));
-    }
-}
-
-void SparseDBG::processEdge(Edge &other_graph_edge) {
-    Sequence seq = other_graph_edge.getStart()->getSeq() + other_graph_edge.getSeq();
-    std::vector<hashing::KWH> kmers = extractVertexPositions(seq);
-    VERIFY(kmers.front().pos == 0 && kmers.back().pos == other_graph_edge.size());
-    std::vector<Vertex *> vertices;
-    for (size_t i = 0; i < kmers.size(); i++) {
-        vertices.emplace_back(&getVertex(kmers[i]));
-    }
-    for (size_t i = 0; i + 1 < vertices.size(); i++) {
-//            TODO: if too memory heavy save only some of the labels
-        VERIFY(kmers[i].pos + hasher_.getK() <= seq.size())
-        if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
-            (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
-            kmers[i + 1].pos - kmers[i].pos < hasher_.getK()) {
-            continue;
-        }
-        vertices[i]->addEdge(Edge(*vertices[i], *vertices[i + 1], other_graph_edge.getSeq().Subseq(kmers[i].pos, kmers[i + 1].pos)));
-        vertices[i + 1]->rc().addEdge(Edge(vertices[i + 1]->rc(), vertices[i]->rc(),
-                  other_graph_edge.rc().getSeq().Subseq(other_graph_edge.size() - kmers[i + 1].pos, other_graph_edge.size() - kmers[i].pos)));
+        vertices[i]->addEdge(*vertices[i + 1], full_seq.Subseq(kmers[i].pos, kmers[i + 1].pos + hasher().getK()));
     }
 }
 
@@ -841,7 +853,7 @@ void SparseDBG::resetMarkers() {
 std::vector<EdgePosition> EdgePosition::step() const {
     if (pos == edge->size()) {
         std::vector<EdgePosition> res;
-        Vertex &v = *edge->getFinish();
+        Vertex &v = edge->getFinish();
         for (Edge &next : v) {
             res.emplace_back(next, 1);
         }

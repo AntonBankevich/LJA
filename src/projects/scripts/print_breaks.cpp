@@ -62,11 +62,11 @@ int main(int argc, char **argv) {
         for(size_t i = 0; i + 1 < al.size(); i++) {
             if(al[i].seg_to.contig() == al[i - 1].seg_to.contig() || al[i].seg_from.right + k + 5000 < al[i + 1].seg_from.left)
                 continue;
-            if(al[i].seg_to.contig().getFinish()->outDeg() == 0 || al[i + 1].seg_to.contig().getStart()->inDeg() == 0) {
+            if(al[i].seg_to.contig().getFinish().outDeg() == 0 || al[i + 1].seg_to.contig().getStart().inDeg() == 0) {
                 logger.trace() << "Possible break " << al[i] << " " << al[i + 1] << std::endl;
                 Segment<Contig> seg = al[i].seg_from.unite(al[i + 1].seg_from).extendRight(k).extendBy(radius);
                 logger.trace() << "Printing segment " << seg << std::endl;
-                os << ">" << seg.contig().getId() << "_" << seg.left << "_" << seg.right << "\n" << seg.seq() << "\n";
+                os << ">" << seg.contig().getInnerId() << "_" << seg.left << "_" << seg.right << "\n" << seg.truncSeq() << "\n";
             }
         }
     }

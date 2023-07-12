@@ -74,7 +74,7 @@ ManyKCorrector::calculateLowRegions(const std::vector<size_t> &last_reliable, co
         const Segment<Edge> &seg = read_path[i];
         Edge &edge = seg.contig();
         if (edge.getCoverage() < reliable_threshold && !edge.is_reliable &&
-            (edge.getStart()->inDeg() == 0 || edge.getFinish()->outDeg() == 0 || edge.getCoverage() <= bad_threshold)) {
+            (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0 || edge.getCoverage() <= bad_threshold)) {
             size_t left = last_reliable[i];
             size_t right = next_reliable[i];
             if(positions.empty() || left > positions.back()) {

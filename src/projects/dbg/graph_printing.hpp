@@ -7,16 +7,16 @@ namespace dbg {
         size_t cnt = 0;
         size_t masked_cnt = 1;
         for (Edge &edge : component.edges()) {
-            Sequence edge_seq = edge.getStart()->getSeq() + edge.getSeq();
-            Vertex &end = *edge.getFinish();
+            Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
+            Vertex &end = edge.getFinish();
             out << ">" << cnt << "_";
-            if(mask && !component.contains(*edge.getStart())) {
+            if(mask && !component.contains(edge.getStart())) {
                 out << masked_cnt << "0000";
                 masked_cnt++;
             }
-            out << edge.getStart()->hash() << int(edge.getStart()->isCanonical());
+            out << edge.getStart().hash() << int(edge.getStart().isCanonical());
             out << "_";
-            if(mask && !component.contains(*edge.getFinish())) {
+            if(mask && !component.contains(edge.getFinish())) {
                 out << masked_cnt << "0000";
                 masked_cnt++;
             }
@@ -30,9 +30,9 @@ namespace dbg {
     inline void printAssembly(std::ostream &out, const Component &component) {
         size_t cnt = 0;
         for (Edge &edge : component.edgesUnique()) {
-            Sequence edge_seq = edge.getStart()->getSeq() + edge.getSeq();
-            Vertex &end = *edge.getFinish();
-            out << ">" << cnt << "_" << edge.getStart()->hash() << int(edge.getStart()->isCanonical()) <<
+            Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
+            Vertex &end = edge.getFinish();
+            out << ">" << cnt << "_" << edge.getStart().hash() << int(edge.getStart().isCanonical()) <<
                 "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size()
                         << "_" << edge.getCoverage() << "\n";
             out << edge_seq << "\n";
@@ -53,17 +53,17 @@ namespace dbg {
         size_t cnt = 0;
         size_t k = component.graph().hasher().getK();
         for (Edge &edge : component.edges()) {
-            Sequence edge_seq = edge.getStart()->getSeq() + edge.getSeq();
+            Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
             if(edge.size() > cut) {
-                if(!component.contains(*edge.getStart())) {
-                    edge_seq = cheatingCutStart(edge_seq, edge.getSeq()[0], cut, k);
-                } else if(!component.contains(*edge.getFinish())) {
-                    edge_seq = !cheatingCutStart(!edge_seq, edge.rc().getSeq()[0], cut, k);
+                if(!component.contains(edge.getStart())) {
+                    edge_seq = cheatingCutStart(edge_seq, edge.truncSeq()[0], cut, k);
+                } else if(!component.contains(edge.getFinish())) {
+                    edge_seq = !cheatingCutStart(!edge_seq, edge.rc().truncSeq()[0], cut, k);
                 }
             }
-            Vertex &end = *edge.getFinish();
-            out << ">" << cnt << "_" << edge.getStart()->hash() << int(edge.getStart()->isCanonical()) <<
-                "_" << end.hash() << int(end.isCanonical()) << "_" << edge_seq.size() - edge.getStart()->getSeq().size()
+            Vertex &end = edge.getFinish();
+            out << ">" << cnt << "_" << edge.getStart().hash() << int(edge.getStart().isCanonical()) <<
+                "_" << end.hash() << int(end.isCanonical()) << "_" << edge_seq.size() - edge.getStart().getSeq().size()
                 << "_" << edge.getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
@@ -90,14 +90,14 @@ namespace dbg {
         size_t cnt = 0;
         std::unordered_map<const Edge *, std::string> eids;
         for (Edge &edge : component.edges()) {
-            if (edge.getStart()->isCanonical(edge)) {
+            if (edge.getStart().isCanonical(edge)) {
                 eids[&edge] = edge.oldId();
                 eids[&edge.rc()] = edge.oldId();
                 if (calculate_coverage)
-                    out << "S\t" << edge.oldId() << "\t" << edge.getStart()->getSeq() << edge.getSeq()
+                    out << "S\t" << edge.oldId() << "\t" << edge.getStart().getSeq() << edge.truncSeq()
                         << "\tKC:i:" << edge.intCov() << "\n";
                 else
-                    out << "S\t" << edge.oldId() << "\t" << edge.getStart()->getSeq() << edge.getSeq() << "\n";
+                    out << "S\t" << edge.oldId() << "\t" << edge.getStart().getSeq() << edge.truncSeq() << "\n";
             }
         }
         for (Vertex &vertex : component.verticesUnique()) {

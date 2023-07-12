@@ -22,7 +22,7 @@ private:
     }
 
     void printEdge(std::ostream &os, dbg::Vertex & start, dbg::Edge &edge) {
-        dbg::Vertex &end = *edge.getFinish();
+        dbg::Vertex &end = edge.getFinish();
         if (!start.isCanonical())
             os << "-";
         os << start.hash() % 100000 << " -> ";
@@ -90,7 +90,7 @@ public:
     void print(std::ostream &os) {
         for(auto &it : alignments) {
             const dbg::Edge &edge = *it.first;
-            os << edge.getId() << "\n";
+            os << edge.getInnerId() << "\n";
             if (alignments.find(&edge) == alignments.end())
                 return;
             const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(&edge)->second;
@@ -128,9 +128,9 @@ public:
 
 inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extra_label = "",
                const std::string &color = "black") {
-    dbg:: Vertex &end = *edge.getFinish();
-    os << "\"" << edge.getStart()->getShortId() << "\" -> \"" << end.getShortId() <<
-       "\" [label=\"" << "ACGT"[edge.getSeq()[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")\"";
+    dbg:: Vertex &end = edge.getFinish();
+    os << "\"" << edge.getStart().getShortId() << "\" -> \"" << end.getShortId() <<
+       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;
@@ -155,8 +155,8 @@ inline void printDot(std::ostream &os, const dbg::Component &component, const st
     os << "digraph {\nnodesep = 0.5;\n";
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> extended;
     for(dbg::Edge &edge : component.edgesUnique()) {
-        extended.emplace(edge.getFinish()->hash());
-        extended.emplace(edge.getStart()->hash());
+        extended.emplace(edge.getFinish().hash());
+        extended.emplace(edge.getStart().hash());
     }
     for(hashing::htype vid : extended) {
         for(dbg::Vertex * vit : component.graph().getVertices(vid)) {

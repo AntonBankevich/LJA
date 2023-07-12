@@ -40,24 +40,26 @@ class Sequence {
 
     class ManagedNuclBuffer final : public llvm::ThreadSafeRefCountedBase<ManagedNuclBuffer> {
     public:
-        explicit ManagedNuclBuffer(size_t nucls) : _data(new ST[Sequence::DataSize(nucls)]) {
+        explicit ManagedNuclBuffer(size_t nucls) : _data(new ST[Sequence::DataSize(nucls)]), _size(nucls) {
         }
 
-        ManagedNuclBuffer(size_t nucls, ST *buf) : _data(new ST[Sequence::DataSize(nucls)]) {
+        ManagedNuclBuffer(size_t nucls, ST *buf) : _data(new ST[Sequence::DataSize(nucls)]), _size(nucls) {
             std::uninitialized_copy(buf, buf + Sequence::DataSize(nucls), data());
         }
 
     private:
         ST *_data;
+        size_t _size;
     public:
         const ST *data() const { return _data; }
 
         ST *data() { return _data; }
 
+        size_t size() const {return _size;}
+
         ~ManagedNuclBuffer() {
             delete[] _data;
         }
-
     };
 
     size_t from_;
@@ -131,6 +133,13 @@ class Sequence {
     Sequence(const Sequence &seq, size_t from, size_t size, bool rtl)
             : from_(from), size_(size), rtl_(rtl), data_(seq.data_) {}
 
+    Sequence maxFreeExtension() const {
+        if(rtl_)
+            return {*this, 0, from_ + size(), rtl_};
+        else
+            return {*this, from_, data_->size() - from_, rtl_};
+
+    }
 public:
     /**
      * Sequence initialization (arbitrary size string)
@@ -394,10 +403,17 @@ Sequence Sequence::operator+(const Sequence &s) const {
             )
         )
     {
-        return Sequence(*this, std::min(from_, s.from_), size_ + s.size_, rtl_);
-    } else {
-        return Sequence(str() + s.str());
+        return {*this, std::min(from_, s.from_), size_ + s.size_, rtl_};
     }
+    if(size() + s.size_ > 100) {
+        if (this->maxFreeExtension().Subseq(size()).startsWith(s)) {
+            return this->maxFreeExtension().Subseq(0, size() + s.size_);
+        }
+        if ((!s).maxFreeExtension().Subseq(s.size_).startsWith(!*this)) {
+            return !((!s).maxFreeExtension().Subseq(0, size_ + s.size_));
+        }
+    }
+    return Sequence(str() + s.str());
 }
 
 std::string Sequence::str() const {

@@ -19,8 +19,8 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     for(StringContig sc : io::SeqReader(paths_lib)) {
         Contig contig = sc.makeContig();
         if(contig.size() > 100000) {
-            paths.emplace_back(contig.getSeq().Subseq(0, 50000), contig.getId() + "_start");
-            paths.emplace_back(contig.getSeq().Subseq(contig.size() - 50000), contig.getId() + "_end");
+            paths.emplace_back(contig.getSeq().Subseq(0, 50000), contig.getInnerId() + "_start");
+            paths.emplace_back(contig.getSeq().Subseq(contig.size() - 50000), contig.getInnerId() + "_end");
         } else {
             paths.emplace_back(std::move(contig));
         }
@@ -31,10 +31,10 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     }
     storage.Fill(threads);
     for(Contig &contig : paths) {
-        ensure_dir_existance(dir / "paths" / contig.getId());
+        ensure_dir_existance(dir / "paths" / contig.getInnerId());
         dbg::Component comp = small ? dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 500) :
                               dbg::Component::longEdgeNeighbourhood(dbg, contig, 20000);
         std::function<std::string(dbg::Edge &)> labeler = readStorage.labeler() + storage.labeler();
-        printDot(dir / "paths" / contig.getId() / (stage_name + ".dot"), comp, labeler);
+        printDot(dir / "paths" / contig.getInnerId() / (stage_name + ".dot"), comp, labeler);
     }
 }

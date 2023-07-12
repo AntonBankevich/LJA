@@ -19,21 +19,25 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
     {
         dbg::Vertex &sv = bulgePath.getVertex(left + 1);
         const VertexRecord &vrec = reads.getRecord(sv.rc());
-        path1 = vrec.getFullUniqueExtension(bulgePath[left].first->rc().getSeq().Subseq(0, 1), 2,
+        path1 = vrec.getFullUniqueExtension(bulgePath[left].first->rc().truncSeq().Subseq(0, 1), 2,
                                             1).RC().getAlignment();
-        path2 = vrec.getFullUniqueExtension(bulgePath[left].second->rc().getSeq().Subseq(0, 1), 2,
+        path2 = vrec.getFullUniqueExtension(bulgePath[left].second->rc().truncSeq().Subseq(0, 1), 2,
                                             1).RC().getAlignment();
     }
     Sequence s;
     for(size_t i = left + 1; i < bulgePath.size(); i++) {
         if(!bulgePath.isBulge(i))
-            s = s + bulgePath[i].first->getSeq().Subseq(0, 1);
+            s = s + bulgePath[i].first->truncSeq().Subseq(0, 1);
         else {
-            Sequence s11 = path1.back().contig().getSeq().Subseq(0, 1) + s + bulgePath[i].first->getSeq().Subseq(0, 1);
-            Sequence s12 = path1.back().contig().getSeq().Subseq(0, 1) + s + bulgePath[i].second->getSeq().Subseq(0, 1);
-            Sequence s21 = path2.back().contig().getSeq().Subseq(0, 1) + s + bulgePath[i].first->getSeq().Subseq(0, 1);
-            Sequence s22 = path2.back().contig().getSeq().Subseq(0, 1) + s + bulgePath[i].second->getSeq().Subseq(0, 1);
-            const VertexRecord &vrec = reads.getRecord(*path1.back().contig().getStart());
+            Sequence s11 =
+                    path1.back().contig().truncSeq().Subseq(0, 1) + s + bulgePath[i].first->truncSeq().Subseq(0, 1);
+            Sequence s12 =
+                    path1.back().contig().truncSeq().Subseq(0, 1) + s + bulgePath[i].second->truncSeq().Subseq(0, 1);
+            Sequence s21 =
+                    path2.back().contig().truncSeq().Subseq(0, 1) + s + bulgePath[i].first->truncSeq().Subseq(0, 1);
+            Sequence s22 =
+                    path2.back().contig().truncSeq().Subseq(0, 1) + s + bulgePath[i].second->truncSeq().Subseq(0, 1);
+            const VertexRecord &vrec = reads.getRecord(path1.back().contig().getStart());
             size_t n11 = vrec.countStartsWith(s11);
             size_t n12 = vrec.countStartsWith(s12);
             size_t n21 = vrec.countStartsWith(s21);
@@ -60,12 +64,12 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
         }
     }
     {
-        dbg::Vertex &sv = *path1.back().contig().getStart();
-        VERIFY(sv == *path2.back().contig().getStart());
+        dbg::Vertex &sv = path1.back().contig().getStart();
+        VERIFY(sv == path2.back().contig().getStart());
         const VertexRecord &vrec = reads.getRecord(sv);
-        path1 += vrec.getFullUniqueExtension(path1.back().contig().getSeq().Subseq(0, 1), 2,
+        path1 += vrec.getFullUniqueExtension(path1.back().contig().truncSeq().Subseq(0, 1), 2,
                                              1).getAlignment().subalignment(1);
-        path2 += vrec.getFullUniqueExtension(path2.back().contig().getSeq().Subseq(0, 1), 2,
+        path2 += vrec.getFullUniqueExtension(path2.back().contig().truncSeq().Subseq(0, 1), 2,
                                              1).getAlignment().subalignment(1);
         res.emplace_back(std::move(path1));
         res.emplace_back(std::move(path2));

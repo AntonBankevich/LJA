@@ -9,7 +9,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
     size_t dicompress = StringContig::max_dimer_size / 2;
     io::SeqReader reader(corrected_reads);
     multigraph::MultiGraph vertex_graph = multigraph::MultiGraphHelper::LoadGFA(gfa_file, true);
-    multigraph::MultiGraph edge_graph = multigraph::MultiGraphHelper::TransformToVertexGraph(vertex_graph);
+    multigraph::MultiGraph edge_graph = multigraph::MultiGraphHelper::TransformToEdgeGraph(vertex_graph);
     std::vector<Contig> contigs = multigraph::MultiGraphHelper::extractContigs(edge_graph, false);
     auto res = PrintAlignments(logger, threads, contigs, reader.begin(), reader.end(), min_alignment, dir);
     std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
@@ -19,7 +19,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
     os_cut.open(dir / "assembly.fasta");
     for(Contig &contig : assembly) {
         if(contig.size() > 1500)
-            os_cut << ">" << contig.getId() << "\n" << contig.getSeq() << "\n";
+            os_cut << ">" << contig.getInnerId() << "\n" << contig.getSeq() << "\n";
     }
     os_cut.close();
     return {{"assembly", dir / "assembly.fasta"}, {"graph", dir / "mdbg.gfa"}};

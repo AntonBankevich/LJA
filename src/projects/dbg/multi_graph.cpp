@@ -113,14 +113,14 @@ namespace multigraph {
         os << "Number of tips: " << tips << "\n";
     }
 
-    MultiGraph MultiGraphHelper::TransformToVertexGraph(const MultiGraph &mg, size_t tip_size) {
+    MultiGraph MultiGraphHelper::TransformToEdgeGraph(const MultiGraph &mg, size_t tip_size) {
         MultiGraph dbg;
         std::unordered_map<ConstEdgeId, VertexId> emap;
         for(const Vertex &v : mg.vertices()) {
             if(v.outDeg() == 0 || emap.find(v.begin()->getId()) != emap.end()) {
                 continue;
             }
-            Vertex &newv = dbg.addVertex(v.getSeq().Subseq(v.getSeq().size() - v[0].overlap()));
+            Vertex &newv = dbg.addVertex(v.getSeq().Subseq(v.size() - v[0].overlap()));
             for(const Edge &edge : v) {
                 const Vertex &right = edge.end();
                 for(const Edge &edge1 : right.rc()) {
@@ -135,12 +135,12 @@ namespace multigraph {
             VertexId start;
             VertexId end;
             if(v.inDeg() == 0) {
-                start = dbg.addVertex(v.getSeq().Subseq(0, std::min(tip_size, v.getSeq().size() - 1))).getId();
+                start = dbg.addVertex(v.getSeq().Subseq(0, std::min(tip_size, v.size() - 1))).getId();
             } else {
                 start = emap[v.rc().begin()->getId()]->rc().getId();
             }
             if(v.outDeg() == 0) {
-                end = dbg.addVertex(v.getSeq().Subseq(v.getSeq().size() - std::min(tip_size, v.getSeq().size() - 1))).getId();
+                end = dbg.addVertex(v.getSeq().Subseq(v.size() - std::min(tip_size, v.size() - 1))).getId();
             } else {
                 end = emap[v.begin()->getId()];
             }
@@ -234,11 +234,9 @@ namespace multigraph {
                                        std::forward_as_tuple(from, to, std::move(seq), id, label)).first->second.getId();
         res->start().addOutgoing(*res);
         EdgeId rc = res;
-        if(seq != !seq) {
-            std::pair<int, Edge> pair = {std::piecewise_construct, std::forward_as_tuple(-id),
-                                         std::forward_as_tuple(to.rc(), from.rc(), !seq, -id, res->getReverseLabel())};
+        if(res->getSeq() != !res->getSeq()) {
             rc = edges_map.emplace(std::piecewise_construct, std::forward_as_tuple(-id),
-                                   std::forward_as_tuple(to.rc(), from.rc(), !seq, -id, res->getReverseLabel())).first->second.getId();
+                                   std::forward_as_tuple(to.rc(), from.rc(), !res->getSeq(), -id, res->getReverseLabel())).first->second.getId();
             rc->start().addOutgoing(*rc);
         }
         res->setRC(*rc);
@@ -433,7 +431,7 @@ namespace multigraph {
         std::ofstream os;
         os.open(f);
         for(const Contig &contig : extractContigs(mg, cut_overlaps)) {
-            os << ">" << contig.getId() << "\n" << contig.getSeq() << "\n";
+            os << ">" << contig.getInnerId() << "\n" << contig.getSeq() << "\n";
         }
         os.close();
     }
@@ -594,7 +592,7 @@ namespace multigraph {
         std::ifstream is;
         is.open(gfa_file);
         std::unordered_map<std::string, VertexId> vmap;
-        for( std::string line; getline(is, line); ) {
+        for(std::string line; getline(is, line); ) {
             std::vector<std::string> tokens = ::split(line);
             if(tokens[0] == "S") {
                 std::string name = tokens[1];

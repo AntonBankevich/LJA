@@ -39,7 +39,7 @@ std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::Extrac
     std::unordered_map<std::string, Contig> sequences;
     for(StringContig scontig : reader) {
         Contig contig = scontig.makeContig();
-        sequences[contig.getId()] = contig;
+        sequences[contig.getInnerId()] = contig;
     }
     std::unordered_map<std::string, std::vector<GraphContig>> read_paths = ExtractBestPaths(batch_gaf, sequences);
     return read_paths;
@@ -52,7 +52,7 @@ std::experimental::filesystem::path ReadsAlignerGA::SaveBatch(const std::unorder
     std::string name = "batch_" + std::to_string(batch_num) + ".fasta";
     os_cut.open(output_dir / name);
     for (auto const &[key, contig]: sequences) {
-        os_cut << ">" << contig.getId() << "\n" << contig.getSeq() << "\n";
+        os_cut << ">" << contig.getInnerId() << "\n" << contig.getSeq() << "\n";
     }
     os_cut.close();
     return output_dir / name;

@@ -203,7 +203,7 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
     auto path2edge_list = [&edgeid2ind](const dbg::Path &dbg_path) {
       PathEdgeList edge_list;
       for (const dbg::Edge *p_edge : dbg_path) {
-          RREdgeIndexType edge_i = edgeid2ind.at(p_edge->getId());
+          RREdgeIndexType edge_i = edgeid2ind.at(p_edge->getInnerId());
           edge_list.emplace_back(edge_i);
       }
       return edge_list;
@@ -242,7 +242,7 @@ RRPaths PathsBuilder::FromDBGStorages(dbg::SparseDBG &dbg,
     for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;
         // TODO use it - dbg.edges.begin()
-        edgeid2ind[edge.getId()] = i;
+        edgeid2ind[edge.getInnerId()] = i;
         ++i;
     }
     return PathsBuilder::FromStorages(storages, edgeid2ind);

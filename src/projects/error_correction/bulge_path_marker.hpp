@@ -10,10 +10,10 @@ private:
     size_t unique_threshold;
 
     bool checkBulgeForward(const std::pair<dbg::Edge *, dbg::Edge *> &bulge) {
-        const VertexRecord &vr1 = reads.getRecord(*bulge.first->getStart());
-        const VertexRecord &vr2 = reads.getRecord(*bulge.first->getFinish());
-        Sequence s1 = vr1.getFullUniqueExtension(bulge.first->getSeq().Subseq(0, 1), 1, 0, 3).cpath();
-        Sequence s2 = vr1.getFullUniqueExtension(bulge.second->getSeq().Subseq(0, 1), 1, 0, 3).cpath();
+        const VertexRecord &vr1 = reads.getRecord(bulge.first->getStart());
+        const VertexRecord &vr2 = reads.getRecord(bulge.first->getFinish());
+        Sequence s1 = vr1.getFullUniqueExtension(bulge.first->truncSeq().Subseq(0, 1), 1, 0, 3).cpath();
+        Sequence s2 = vr1.getFullUniqueExtension(bulge.second->truncSeq().Subseq(0, 1), 1, 0, 3).cpath();
         Sequence s = vr2.getFullUniqueExtension(Sequence(), 1, 0, 2).cpath();
         return s1.size() > s.size() + 1 && s2.size() > s.size() + 1;
     }
@@ -61,7 +61,7 @@ public:
         size_t found = 0;
         for(size_t cnt = 0; cnt < 2; cnt++) {
             for(dbg::Edge &edge : component.edges()) {
-                if(component.contains(*edge.getStart()) || used.find(&edge) != used.end())
+                if(component.contains(edge.getStart()) || used.find(&edge) != used.end())
                     continue;
                 std::unordered_map<dbg::Vertex *, std::pair<size_t, dbg::Edge *>> prev;
                 std::vector<dbg::Vertex *> order = component.topSort();
@@ -70,7 +70,7 @@ public:
                     dbg::Edge *p = nullptr;
                     for(dbg::Edge &edge : vit->rc()) {
                         size_t score = 0;
-                        if(!component.contains(*edge.getFinish())) {
+                        if(!component.contains(edge.getFinish())) {
                             VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
                             if(used.find(&edge) == used.end())
                                 score = 1000000;
@@ -85,7 +85,7 @@ public:
                                 score = edge.size() * 2;
                             }
                         }
-                        score += prev[&edge.getFinish()->rc()].first;
+                        score += prev[&edge.getFinish().rc()].first;
                         if(score > best_score) {
                             best_score = score;
                             p = &edge.rc();
@@ -100,8 +100,8 @@ public:
                 }
                 dbg::Edge *best = nullptr;
                 for(dbg::Edge &edge : component.edges()) {
-                    if(!component.contains(*edge.getFinish()) && used.find(&edge) == used.end()) {
-                        if(best == nullptr || prev[edge.getStart()].first > prev[best->getStart()].first) {
+                    if(!component.contains(edge.getFinish()) && used.find(&edge) == used.end()) {
+                        if(best == nullptr || prev[&edge.getStart()].first > prev[&best->getStart()].first) {
                             best = &edge;
                         }
                     }
@@ -143,7 +143,7 @@ public:
         setUniqueMarkers(dbg);
         for(dbg::Component &component : split(dbg)) {
             for(dbg::Edge &edge : component.edges()) {
-                if(!component.contains(*edge.getFinish())) {
+                if(!component.contains(edge.getFinish())) {
                     VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
                 }
             }

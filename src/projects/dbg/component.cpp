@@ -4,7 +4,7 @@ std::vector<dbg::Vertex *> dbg::Component::borderVertices() const {
     std::vector<dbg::Vertex *> res;
     for (Vertex &vert : vertices()) {
         for(Edge &edge : vert) {
-            if(!contains(*edge.getFinish())) {
+            if(!contains(edge.getFinish())) {
                 res.emplace_back(&vert);
             }
         }
@@ -16,7 +16,7 @@ size_t dbg::Component::countBorderEdges() const {
     size_t res = 0;
     for (Vertex &vert : vertices()) {
         for(Edge &edge : vert) {
-            if(!contains(*edge.getFinish()))
+            if(!contains(edge.getFinish()))
                 res++;
         }
     }
@@ -48,7 +48,7 @@ size_t dbg::Component::isAcyclic() const {
                     continue;
                 bool ok = true;
                 for(Edge &edge : vert.rc()) {
-                    Vertex &prev = edge.getFinish()->rc();
+                    Vertex &prev = edge.getFinish().rc();
                     if(contains(prev) && visited.find(&prev) == visited.end())
                         ok = false;
                 }
@@ -56,8 +56,8 @@ size_t dbg::Component::isAcyclic() const {
                     continue;
                 visited.emplace(&vert);
                 for(Edge &edge : vert) {
-                    if(contains(*edge.getFinish()))
-                        queue.emplace_back(edge.getFinish());
+                    if(contains(edge.getFinish()))
+                        queue.emplace_back(&edge.getFinish());
                 }
             }
         }
@@ -83,12 +83,12 @@ size_t dbg::Component::realCC() const {
                     continue;
                 visited.emplace(&vert);
                 for(Edge &edge : vert) {
-                    if(contains(*edge.getFinish()))
-                        queue.emplace_back(edge.getFinish());
+                    if(contains(edge.getFinish()))
+                        queue.emplace_back(&edge.getFinish());
                 }
                 for(Edge &edge : vert.rc()) {
-                    if(contains(*edge.getFinish()))
-                        queue.emplace_back(&edge.getFinish()->rc());
+                    if(contains(edge.getFinish()))
+                        queue.emplace_back(&edge.getFinish().rc());
                 }
             }
         }
@@ -120,7 +120,7 @@ IterableStorage<ApplyingIterator<dbg::Component::iterator, dbg::Edge, 16>> dbg::
         size_t cur = 0;
         for(Vertex * vertex : graph().getVertices(hash)) {
             for (Edge &edge : *vertex) {
-                bool isInner = contains(*edge.getFinish());
+                bool isInner = contains(edge.getFinish());
                 if(inner && !isInner)
                     continue;
                 if(!isInner || edge <= edge.rc()) {
@@ -156,10 +156,10 @@ bool dbg::Component::covers(const dbg::Vertex &vert) const {
     if(contains(vert))
         return true;
     for(Edge &edge :vert)
-        if(!contains(*edge.getFinish()))
+        if(!contains(edge.getFinish()))
             return false;
     for(Edge &edge :vert.rc())
-        if(!contains(*edge.getFinish()))
+        if(!contains(edge.getFinish()))
             return false;
     return true;
 }
@@ -178,15 +178,15 @@ dbg::Component dbg::Component::neighbourhood(dbg::SparseDBG &graph, Contig &cont
 //        TODO Every edge must have a full sequence stored as a composite sequence
     for (PerfectAlignment<Contig, Edge> &al : als1) {
         if(al.seg_to.left < radius)
-            queue.emplace(0, al.seg_to.contig().getStart()->hash());
+            queue.emplace(0, al.seg_to.contig().getStart().hash());
         VERIFY(al.seg_to.right <= al.seg_to.contig().size());
         if(al.seg_to.contig().size() < radius + al.seg_to.right)
-            queue.emplace(0, al.seg_to.contig().getFinish()->hash());
+            queue.emplace(0, al.seg_to.contig().getFinish().hash());
     }
     if(queue.empty()) {
         for (PerfectAlignment<Contig, Edge> &al : als1) {
-            queue.emplace(0, al.seg_to.contig().getStart()->hash());
-            queue.emplace(0, al.seg_to.contig().getFinish()->hash());
+            queue.emplace(0, al.seg_to.contig().getStart().hash());
+            queue.emplace(0, al.seg_to.contig().getFinish().hash());
         }
     }
     while (!queue.empty()) {
@@ -197,7 +197,7 @@ dbg::Component dbg::Component::neighbourhood(dbg::SparseDBG &graph, Contig &cont
         v.insert(val.second);
         for(Vertex *vit : graph.getVertices(val.second))
             for (Edge &edge : *vit) {
-                queue.emplace(val.first + edge.size(), edge.getFinish()->hash());
+                queue.emplace(val.first + edge.size(), edge.getFinish().hash());
             }
     }
     return Component(graph, v.begin(), v.end());
@@ -211,8 +211,8 @@ dbg::Component dbg::Component::longEdgeNeighbourhood(dbg::SparseDBG &graph, Cont
     Contig rc_contig = contig.RC();
 //        TODO Every edge must have a full sequence stored as a composite sequence
     for (PerfectAlignment<Contig, Edge> &al : als1) {
-        queue.emplace(0, al.seg_to.contig().getStart()->hash());
-        queue.emplace(0, al.seg_to.contig().getFinish()->hash());
+        queue.emplace(0, al.seg_to.contig().getStart().hash());
+        queue.emplace(0, al.seg_to.contig().getFinish().hash());
     }
     while (!queue.empty()) {
         std::pair<size_t, hashing::htype> val = queue.top();
@@ -223,7 +223,7 @@ dbg::Component dbg::Component::longEdgeNeighbourhood(dbg::SparseDBG &graph, Cont
         for(Vertex *vit : graph.getVertices(val.second))
             for (Edge &edge : *vit) {
                 if (edge.size() < long_edge_threshold)
-                    queue.emplace(val.first + edge.size(), edge.getFinish()->hash());
+                    queue.emplace(val.first + edge.size(), edge.getFinish().hash());
             }
     }
     return Component(graph, v.begin(), v.end());
@@ -249,8 +249,8 @@ std::vector<dbg::Component> dbg::ConditionSplitter::split(const dbg::Component &
             component.emplace_back(val);
             for(Vertex *vert : dbg.getVertices(val)) {
                 for (Edge &edge : *vert) {
-                    if (!splitEdge(edge) && comp.contains(*edge.getFinish())) {
-                        queue.emplace_back(edge.getFinish()->hash());
+                    if (!splitEdge(edge) && comp.contains(edge.getFinish())) {
+                        queue.emplace_back(edge.getFinish().hash());
                     }
                 }
             }
@@ -270,7 +270,7 @@ std::vector<dbg::Vertex *> dbg::Component::topSort() const {
     for(Vertex &v : vertices()) {
         bool ok = true;
         for(Edge &edge : v.rc()) {
-            if(contains(*edge.getFinish())) {
+            if(contains(edge.getFinish())) {
                 ok = false;
                 break;
             }
@@ -288,7 +288,7 @@ std::vector<dbg::Vertex *> dbg::Component::topSort() const {
         }
         bool ok = true;
         for(Edge &e : *cur) {
-            if(contains(*e.getFinish()) && visited.find(e.getFinish()) == visited.end())
+            if(contains(e.getFinish()) && visited.find(&e.getFinish()) == visited.end())
                 ok = false;
         }
         if(ok) {
@@ -297,8 +297,8 @@ std::vector<dbg::Vertex *> dbg::Component::topSort() const {
             res.emplace_back(&cur->rc());
         } else {
             for(Edge &e : *cur) {
-                if(contains(*e.getFinish()) && visited.find(e.getFinish()) == visited.end())
-                    stack.emplace_back(e.getFinish());
+                if(contains(e.getFinish()) && visited.find(&e.getFinish()) == visited.end())
+                    stack.emplace_back(&e.getFinish());
             }
         }
     }

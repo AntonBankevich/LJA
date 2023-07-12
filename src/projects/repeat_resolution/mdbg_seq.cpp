@@ -18,7 +18,7 @@ EdgeSegment::EdgeSegment(const dbg::Edge *edge, const uint64_t start,
 
 bool EdgeSegment::RightFull() const {
     VERIFY(edge!=nullptr);
-    size_t k = edge->getStart()->getSeq().size();
+    size_t k = edge->getStart().getSeq().size();
     return end==GetStK() + edge->size();
 }
 

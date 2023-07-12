@@ -183,10 +183,12 @@ std::string AlgorithmParameters::checkMissingValues(const AlgorithmParameterValu
     return result.str();
 }
 
-AlgorithmParameters AlgorithmParameters::AddParameters(const AlgorithmParameters &other, const std::string &name,
-                                                       const std::string &prefix) const {
-    AlgorithmParameters res = *this;
-    res.help_message = res.help_message + "\nParameters of " + name + ":\n" + other.help_message;
+void AlgorithmParameters::AddParameters(const AlgorithmParameters &other, const std::string &name,
+                                                       const std::string &prefix) {
+    if(!name.empty())
+        help_message = help_message + "\nParameters of " + name + ":\n" + other.help_message;
+    else
+        help_message = help_message + "\n" + other.help_message;
 
     std::unordered_set<std::string> all_params;
     std::unordered_set<std::string> all_libs;
@@ -196,17 +198,16 @@ AlgorithmParameters AlgorithmParameters::AddParameters(const AlgorithmParameters
     message << help_message;
     for(auto &pvalue : other.values) {
         std::string pname = prefix + pvalue.first;
-        VERIFY_MSG(res.values.find(pname) == res.values.end(), "Duplicate parameter " + pname);
-        VERIFY_MSG(res.checks.find(pname) == res.checks.end(), "Duplicate parameter " + pname);
-        res.values[pname] = pvalue.second;
+        VERIFY_MSG(values.find(pname) == values.end(), "Duplicate parameter " + pname);
+        VERIFY_MSG(checks.find(pname) == checks.end(), "Duplicate parameter " + pname);
+        values[pname] = pvalue.second;
     }
     for(auto &pvalue : other.checks) {
         std::string pname = prefix + pvalue.first;
-        VERIFY_MSG(res.values.find(pname) == res.values.end(), "Duplicate parameter " + pname);
-        VERIFY_MSG(res.checks.find(pname) == res.checks.end(), "Duplicate parameter " + pname);
-        res.checks[pname] = pvalue.second;
+        VERIFY_MSG(values.find(pname) == values.end(), "Duplicate parameter " + pname);
+        VERIFY_MSG(checks.find(pname) == checks.end(), "Duplicate parameter " + pname);
+        checks[pname] = pvalue.second;
     }
-    return std::move(res);
 }
 
 void AlgorithmParameterValues::addValue(const std::string &name, const std::string &val, bool strict) {

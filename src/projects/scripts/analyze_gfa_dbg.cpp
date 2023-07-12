@@ -5,7 +5,7 @@ using namespace multigraph;
 int main(int argc, char **argv) {
     MultiGraph mg = MultiGraphHelper::LoadGFA(argv[1], false);
     size_t k = std::stoull(argv[2]);
-    mg = MultiGraphHelper::TransformToVertexGraph(mg, k);
+    mg = MultiGraphHelper::TransformToEdgeGraph(mg, k);
     std::cout << "dbg " << mg.size() << " " << mg.edgeNumber() << std::endl;
     for(Vertex & v: mg.vertices()) {
         if(v.inDeg() == 1 && v.outDeg() == 1 && v[0] != v.rc()[0].rc()) {

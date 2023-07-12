@@ -339,8 +339,8 @@ struct AssemblyInfo {
 
         for (const auto& contig: assembly) {
 //TODO switch to Contig()
-            contigs.emplace(contig.getId(), ContigInfo(contig.getSeq().str(), contig.getId()));
-            logger.debug() << contig.getId() << std::endl;
+            contigs.emplace(contig.getInnerId(), ContigInfo(contig.getSeq().str(), contig.getInnerId()));
+            logger.debug() << contig.getInnerId() << std::endl;
         }
         compression_length= dicompress;
     }

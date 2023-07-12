@@ -84,7 +84,7 @@ std::vector<const dbg::Edge *> CoveredPath(const dbg::Edge &start, double min_co
     std::vector<const dbg::Edge *> res = {&start};
     size_t len = start.size();
     while(len < max_len) {
-        std::vector<const dbg::Edge *> out = GetOutgoing(*res.back()->getFinish(), min_cov);
+        std::vector<const dbg::Edge *> out = GetOutgoing(res.back()->getFinish(), min_cov);
         if(out.size() == 1) {
             res.emplace_back(out[0]);
             len += out[0]->size();
@@ -102,8 +102,8 @@ const dbg::Edge *SeekCovered(const dbg::Vertex &start, double min_cov) {
                 return &edge;
         }
         for(const dbg::Edge &edge : *tmp) {
-            if (edge.getFinish()->outDeg() > 0) {
-                tmp = edge.getFinish();
+            if (edge.getFinish().outDeg() > 0) {
+                tmp = &edge.getFinish();
                 break;
             }
         }

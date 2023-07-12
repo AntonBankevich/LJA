@@ -22,7 +22,7 @@ struct EdgeSegment {
     EdgeSegment(const EdgeSegment &) = default;
     EdgeSegment(EdgeSegment &&) = default;
 
-    [[nodiscard]] uint64_t GetStK() const { return edge->getStart()->getSeq().size(); }
+    [[nodiscard]] uint64_t GetStK() const { return edge->getStart().getSeq().size(); }
     [[nodiscard]] bool Empty() const { return start==end; }
     [[nodiscard]] bool LeftFull() const { return start==0; }
     [[nodiscard]] bool RightFull() const;

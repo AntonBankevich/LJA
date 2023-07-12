@@ -51,8 +51,15 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     ParallelRecordCollector<hashing::htype> junctions(threads);
     std::function<void(size_t, const Sequence &)> junk_task = [&filter, &hasher, &junctions](size_t pos, const Sequence & seq) {
         KWH kmer(hasher, seq, 0);
-        size_t cnt = 0;
+        junctions.emplace_back(kmer.hash());
+        if(!kmer.hasNext())
+            return;
+        kmer = kmer.next();
         while (true) {
+            if (!kmer.hasNext()) {
+                junctions.emplace_back(kmer.hash());
+                break;
+            }
             size_t cnt1 = 0;
             size_t cnt2 = 0;
             for (unsigned char c = 0; c < 4u; c++) {
@@ -60,19 +67,12 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
                 cnt2 += filter.contains(kmer.extendLeft(c));
             }
             if (cnt1 != 1 || cnt2 != 1) {
-                cnt += 1;
                 junctions.emplace_back(kmer.hash());
             }
             VERIFY(cnt1 <= 4 && cnt2 <= 4);
-            if (!kmer.hasNext())
-                break;
             kmer = kmer.next();
         }
-        if (cnt == 0) {
-            junctions.emplace_back(KWH(hasher, seq, 0).hash());
-        }
     };
-
     processRecords(split_disjointigs.begin(), split_disjointigs.end(), logger, threads, junk_task);
     std::vector<hashing::htype> res = junctions.collect();
     __gnu_parallel::sort(res.begin(), res.end());
@@ -87,34 +87,11 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype
     SparseDBG dbg(vertices.begin(), vertices.end(), hasher);
     logger.trace() << "Vertices created." << std::endl;
     std::function<void(size_t, Sequence &)> edge_filling_task = [&dbg](size_t pos, Sequence & seq) {
-        dbg.processRead(seq);
+        dbg.processFullEdgeSequence(seq);
     };
     processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, edge_filling_task);
 
-    logger.trace() << "Filled dbg edges. Adding hanging vertices " << std::endl;
-    ParallelRecordCollector<std::pair<Vertex*, Edge *>> tips(threads);
-
-    std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
-            [&tips](size_t pos, std::pair<const hashing::htype, Vertex> & pair) {
-                Vertex &rec = pair.second;
-                for (Edge &edge : rec) {
-                    if(edge.getFinish() == nullptr) {
-                        tips.emplace_back(&rec, &edge);
-                    }
-                }
-                for (Edge &edge : rec.rc()) {
-                    if(edge.getFinish() == nullptr) {
-                        tips.emplace_back(&rec.rc(), &edge);
-                    }
-                }
-            };
-    processObjects(dbg.begin(), dbg.end(), logger, threads, task);
-    for(std::pair<Vertex*, Edge *> edge : tips) {
-        Vertex & vertex = dbg.bindTip(*edge.first, *edge.second);
-    }
-    logger.trace() << "Added " << tips.size() << " hanging vertices" << std::endl;
-
-    logger.info() << "Merging unbranching paths" << std::endl;
+    logger.trace() << "Filled dbg edges. Merging unbranching paths." << std::endl;
     mergeAll(logger, dbg, threads);
     logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
     logger.trace() << "Statistics for de Bruijn graph:" << std::endl;

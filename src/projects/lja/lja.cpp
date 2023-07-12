@@ -188,8 +188,7 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
 int main(int argc, char **argv) {
     std::vector<std::string> command_line = oneline::initialize<std::string, char*>(argv, argv + argc);
     ComplexStage lja = ConstructLJApipeline(command_line);
-    AlgorithmParameters parameters = AlgorithmParameters::Basic().AddParameters(lja.getParameters(), "lja", "");
-    CLParser parser(parameters, {"o=output-dir", "t=threads"},
+    CLParser parser(lja.getStandaloneParameters(), {"o=output-dir", "t=threads"},
                     {"diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid", "diploid=MDBG.diploid"});
     LoggedProgram lja_program("lja", std::move(lja), std::move(parser),
                               "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads.",

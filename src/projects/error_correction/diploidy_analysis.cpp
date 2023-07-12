@@ -2,13 +2,13 @@
 
 BulgePath::BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_) : path(path_), start_(nullptr) {
     VERIFY(path.size() > 0);
-    start_ = path.front().first->getStart();
+    start_ = &path.front().first->getStart();
 }
 
 dbg::Vertex &BulgePath::finish() const {
     if(path.empty())
         return *start_;
-    return *path.back().first->getFinish();
+    return path.back().first->getFinish();
 }
 
 dbg::Vertex &BulgePath::start() const {
@@ -19,7 +19,7 @@ dbg::Vertex &BulgePath::getVertex(size_t ind) const {
     VERIFY(ind <= size());
     if(ind == size())
         return finish();
-    return *path[ind].first->getStart();
+    return path[ind].first->getStart();
 }
 
 void BulgePath::extend(double threshold) {
@@ -60,7 +60,7 @@ BulgePath BulgePath::operator+(const BulgePath &other) const {
 dbg::Vertex &BulgePath::vertexAt(size_t ind) {
     if(ind == 0)
         return *start_;
-    return *path[ind - 1].first->getFinish();
+    return path[ind - 1].first->getFinish();
 }
 
 size_t BulgePath::length() const {
@@ -94,10 +94,10 @@ std::string BulgePath::str() const {
     ss << start().getShortId();
     for(const auto &p : path) {
         if(p.first == p.second) {
-            ss << "-" << p.first->size() << "ACGT"[p.first->getSeq()[0]] << "-" << p.first->getFinish()->getShortId();
+            ss << "-" << p.first->size() << "ACGT"[p.first->truncSeq()[0]] << "-" << p.first->getFinish().getShortId();
         } else {
-            ss << "-(" << p.first->size() << "ACGT"[p.first->getSeq()[0]] << "," <<
-               p.second->size() << "ACGT"[p.second->getSeq()[0]] << ")-" << p.first->getFinish()->getShortId();
+            ss << "-(" << p.first->size() << "ACGT"[p.first->truncSeq()[0]] << "," <<
+               p.second->size() << "ACGT"[p.second->truncSeq()[0]] << ")-" << p.first->getFinish().getShortId();
         }
     }
     return ss.str();
@@ -177,7 +177,7 @@ BulgePathFinder::BulgePathFinder(dbg::SparseDBG &dbg, double threshold) : dbg(db
         }
     }
     for(dbg::Edge &edge : dbg.edges()) {
-        if(visited.find(edge.getFinish()) == visited.end() && visited.find((edge.getStart())) == visited.end())
+        if(visited.find(&edge.getFinish()) == visited.end() && visited.find(&edge.getStart()) == visited.end())
             paths.emplace_back(edge);
     }
 }
@@ -188,7 +188,7 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
         if(bp.size() == 1) {
             dbg::Edge &edge = *bp[0].first;
             if(edge.size() > min_len || (
-                                                (edge.getStart()->inDeg() == 0 || edge.getFinish()->outDeg() == 0) &&
+                                                (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0) &&
                     edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
                 res.emplace_back(&edge);
             }

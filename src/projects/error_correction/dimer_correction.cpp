@@ -3,7 +3,7 @@ using namespace dbg;
 
 std::string DimerCorrector::correctRead(GraphAlignment &path) {
     size_t corrected = 0;
-    size_t k = path.start().getSeq().size();
+    size_t k = path.start().size();
     Sequence remaining_seq = path.truncSeq();
     std::vector<std::string> message;
     for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {

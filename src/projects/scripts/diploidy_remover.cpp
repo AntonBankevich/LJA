@@ -360,7 +360,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path dir = argv[2];
     ensure_dir_existance(dir);
     std::cout << "dbg " << mg.size() << " " << mg.edgeNumber() << std::endl;
-    mg = MultiGraphHelper::TransformToVertexGraph(mg, 501);
+    mg = MultiGraphHelper::TransformToEdgeGraph(mg, 501);
     std::cout << "initial " << mg.size() << " " << mg.edgeNumber() << std::endl;
     CollapseSimpleBulges(mg);
     ChooseShortcuts(mg);

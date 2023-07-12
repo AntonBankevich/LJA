@@ -43,6 +43,13 @@ public:
         VERIFY(0 <= left and left <= right and right <= contig_ptr->size())
     }
 
+    Segment() : contig_ptr(nullptr), left(left), right(right) {
+    }
+
+    bool valid() const {
+        return contig_ptr == nullptr;
+    }
+
     T &contig() const {
         return *contig_ptr;
     }
@@ -51,8 +58,17 @@ public:
         return right - left;
     }
 
-    Sequence seq() const {
-        return contig_ptr->getSeq().Subseq(left, right);
+    Sequence truncSeq() const {
+        return contig_ptr->truncSeq().Subseq(left, right);
+    }
+
+    Sequence fullSeq() const {
+        size_t k = contig_ptr->getTruncSize();
+        if(left >= k) {
+            return contig_ptr->truncSeq().Subseq(left - k, right);
+        } else {
+            return contig_ptr->getSeq().Subseq(left, right + k);
+        }
     }
 
     size_t dist(const Segment<T> &other) const {
@@ -147,6 +163,8 @@ class Position{
     T *contig_ptr;
     size_t pos;
 public:
+    Position() : contig_ptr(nullptr), pos(0){}
+
     Position(T &contig, size_t pos) : contig_ptr(&contig), pos(pos){
         VERIFY(0 <= pos && pos <= contig_ptr->size())
     }
@@ -189,14 +207,24 @@ public:
     }
 };
 
+namespace std {
+    template<class T>
+    struct hash<Position<T>>{
+    size_t operator()(const Position<T> &value) const noexcept {
+        typedef typename T::id_type id_type;
+        return std::hash<id_type>()(value.contig().getInnerId()) + 7 * value.getPos();
+    }
+};
+}
+
 template <class T>
 inline std::ostream& operator<<(std::ostream& os, const Segment<T>& seg) {
-    return os << seg.contig().getId() << seg.coordinaresStr();
+    return os << seg.contig().getInnerId() << seg.coordinaresStr();
 }
 
 template <class T>
 inline std::ostream& operator<<(std::ostream& os, const Position<T>& seg) {
-    return os << seg.contig().getId() << "[" << seg.getPos() << "]";
+    return os << seg.contig().getInnerId() << "[" << seg.getPos() << "]";
 }
 
 template<class T, typename I>
@@ -207,16 +235,22 @@ private:
 public:
     typedef I id_type;
 
-    NamedSequence(Sequence _seq, I _id) : seq(std::move(_seq)), id(std::move(_id)){
+    NamedSequence(Sequence _seq, I _id) : seq(std::move(_seq)), id(std::move(_id)) {
     }
 
-    const I &getId() const {
+    const I &getInnerId() const {
         return id;
     }
 
     const Sequence &getSeq() const {
         return seq;
     }
+
+    const Sequence &truncSeq() const {
+        return seq;
+    }
+
+    size_t getTruncSize() const {return 0;}
 
     Segment<T> asSegment() const {
         return Segment<T>(*this, 0u, size());
@@ -226,7 +260,7 @@ public:
         return Segment<T>(*(static_cast<const T*>(this)), left, right);
     }
 
-    Segment<T> suffix(size_t pos) const {
+    Segment<T> suffix(int pos) const {
         if (pos < 0)
             pos = size() + pos;
         if (pos < 0)
@@ -250,7 +284,7 @@ public:
 //    }
 
     bool operator==(const NamedSequence &other) const {
-        return getId() == other.getId();
+        return getInnerId() == other.getInnerId();
     }
 
     char operator[](size_t ind) const {
@@ -281,21 +315,21 @@ public:
     }
 
     Contig RC() const {
-        if(getId()[0] == '-')
-            return {!getSeq(), getId().substr(1, getId().size() - 1)};
+        if(getInnerId()[0] == '-')
+            return {!getSeq(), getInnerId().substr(1, getInnerId().size() - 1)};
         else
-            return {!getSeq(), "-" + getId()};
+            return {!getSeq(), "-" + getInnerId()};
     }
 
     bool operator<(const Contig &other) {
-        return getId() < other.getId();
+        return getInnerId() < other.getInnerId();
     }
 //    Contig(const string &_seq, const string &_id, Contig *_rc): NamedSequence(Sequence(_seq), _id, _rc) {
 //    }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Contig& contig) {
-    os << contig.getId();
+    os << contig.getInnerId();
     return os;
 }
 

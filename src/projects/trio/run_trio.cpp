@@ -4,7 +4,7 @@
 
 int main(int argc, char **argv) {
     TrioSimplificationPhase phase;
-    AlgorithmParameters params = AlgorithmParameters::Basic().AddParameters(phase.getParameters(), "trio", "");
+    AlgorithmParameters params = phase.getStandaloneParameters();
     CLParser parser(params, {"o=output-dir", "t=threads"});
     LoggedProgram trio("Trio", std::move(phase), std::move(parser), "Starting trio data-based graph simplification", "Finished trio data-based graph simplification");
     trio.run(oneline::initialize<std::string, char*>(argv, argv + argc));

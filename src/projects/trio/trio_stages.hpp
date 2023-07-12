@@ -72,7 +72,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
                                                   const io::Library & reads,   const std::experimental::filesystem::path &dir, const size_t saved_bridge_cutoff) {
     multigraph::MultiGraph mmg = multigraph::MultiGraphHelper::LoadGFA(diplo_graph, true);
 //TODO:: it would be cool not to create twice
-    multigraph::MultiGraph mg = multigraph::MultiGraphHelper::TransformToVertexGraph(mmg);
+    multigraph::MultiGraph mg = multigraph::MultiGraphHelper::TransformToEdgeGraph(mmg);
     std::string out_name = "haplotype_";
     out_name += other_haplo(trio::Haplotype(haplotype));
     std::experimental::filesystem::path out_dir = dir / out_name;

@@ -68,6 +68,8 @@ namespace multigraph {
 
         bool operator==(const Vertex &other) const;
         bool operator!=(const Vertex &other) const {return !(*this == other);}
+        bool operator<(const Vertex &other) const {return this->id < other.id;}
+        bool operator>(const Vertex &other) const {return this->id < other.id;}
     };
 
     struct Edge {
@@ -83,21 +85,30 @@ namespace multigraph {
         Edge *_rc = nullptr;
         void setRC(Edge &other) {_rc = &other;}
     public:
-        explicit Edge(Vertex &start, Vertex &end, Sequence seq, int id = 0, std::string label = "") :
-                    seq(std::move(seq)), id(id), label(std::move(label)),
+        typedef int id_type;
+        explicit Edge(Vertex &start, Vertex &end, Sequence _seq, int id = 0, std::string label = "") :
+                    seq(std::move(_seq)), id(id), label(std::move(label)),
                     _start(&start), _end(&end) {
             sz = seq.size();
             canonical = seq <= !seq;
         }
-        Edge(const Vertex &) = delete;
+        Edge(const Edge &) = delete;
         Edge(Edge && e) noexcept : seq(std::move(e.seq)), id(e.id), sz(e.sz), canonical(e.canonical), label(std::move(e.label)) {
             VERIFY(e._start == nullptr && e._end == nullptr && e._rc == nullptr);
         }
         Edge() {VERIFY(false);}
 
         Sequence getSeq() const;
+        Sequence truncSeq() const {
+            if(seq.empty()) {
+                return end().getSeq().Subseq(start().size() + end().size() - sz);
+            } else {
+                return seq.Subseq(start().size());
+            }
+        }
         EdgeId getId() {return {id, this};}
         ConstEdgeId getId() const {return {id, this};}
+        int getInnerId() const {return id;}
         const std::string &getLabel() const {return label;}
         size_t size() const {return sz;}
         Vertex &start() {return *_start;}
@@ -118,6 +129,8 @@ namespace multigraph {
 //        We use convention that only edges of the same graph are going to be compared
         bool operator==(const Edge &other) const;
         bool operator!=(const Edge &other) const {return !(*this ==other);}
+        bool operator<(const Edge &other) const {return this->id < other.id;}
+        bool operator>(const Edge &other) const {return this->id < other.id;}
     };
     typedef std::unordered_map<std::string, std::vector<std::string>> deleted_edges_map;
     
@@ -165,7 +178,7 @@ namespace multigraph {
 
 
         static MultiGraph LoadGFA(const std::experimental::filesystem::path &gfa_file, bool int_ids);
-        static MultiGraph TransformToVertexGraph(const MultiGraph &mg, size_t tip_size = 4001);
+        static MultiGraph TransformToEdgeGraph(const MultiGraph &mg, size_t tip_size = 4001);
         static MultiGraph Delete(const MultiGraph &mg, const std::unordered_set<ConstEdgeId> &to_delete, const std::unordered_set<ConstVertexId> &to_delete_vertices = {});
         static MultiGraph MergeAllPaths(const MultiGraph &mg, bool verbose);
 
