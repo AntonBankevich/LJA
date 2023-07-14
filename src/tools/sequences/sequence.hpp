@@ -131,7 +131,11 @@ class Sequence {
 
     //Low level constructor. Handle with care.
     Sequence(const Sequence &seq, size_t from, size_t size, bool rtl)
-            : from_(from), size_(size), rtl_(rtl), data_(seq.data_) {}
+            : from_(from), size_(size), rtl_(rtl), data_(seq.data_) {
+        VERIFY(from + size <= data_->size());
+        VERIFY(from <= data_->size());
+        VERIFY(size <= data_->size());
+    }
 
     Sequence maxFreeExtension() const {
         if(rtl_)
@@ -280,7 +284,7 @@ public:
 
     inline Sequence Subseq(size_t from) const; // up to size_ by default
 
-    inline Sequence operator+(const Sequence &s) const;
+    Sequence operator+(const Sequence &s) const;
 
     inline Sequence operator*(size_t mult) const;
 
@@ -392,29 +396,6 @@ Sequence Sequence::Suffix(size_t count) const {
 }
 
 
-/**
- * @todo optimize sequence copy
- */
-Sequence Sequence::operator+(const Sequence &s) const {
-    if (data_ == s.data_ && rtl_ == s.rtl_ &&
-            (
-                (!rtl_ && this->from_ + size_ == s.from_ ) ||
-                (rtl_ && this->from_ == s.from_ + s.size_)
-            )
-        )
-    {
-        return {*this, std::min(from_, s.from_), size_ + s.size_, rtl_};
-    }
-    if(size() + s.size_ > 100) {
-        if (this->maxFreeExtension().Subseq(size()).startsWith(s)) {
-            return this->maxFreeExtension().Subseq(0, size() + s.size_);
-        }
-        if ((!s).maxFreeExtension().Subseq(s.size_).startsWith(!*this)) {
-            return !((!s).maxFreeExtension().Subseq(0, size_ + s.size_));
-        }
-    }
-    return Sequence(str() + s.str());
-}
 
 std::string Sequence::str() const {
     VERIFY(size_ < 1000000000000ull);

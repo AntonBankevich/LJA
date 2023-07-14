@@ -115,8 +115,8 @@ bool BulgePath::isBad(size_t bad_bulge_size) const {
     return true;
 }
 
-dbg::Path BulgePath::randomPath() const {
-    dbg::Path res(start());
+dbg::GraphPath BulgePath::randomPath() const {
+    dbg::GraphPath res(start());
     for(const std::pair<dbg::Edge *, dbg::Edge *> &pair: path) {
         res += *pair.first;
     }
@@ -206,10 +206,10 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
     return {res.begin(), res.end()};
 }
 
-std::pair<dbg::Path, dbg::Path>
+std::pair<dbg::GraphPath, dbg::GraphPath>
 BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath &path) const {
-    dbg::Path p1(path.start());
-    dbg::Path p2(path.start());
+    dbg::GraphPath p1(path.start());
+    dbg::GraphPath p2(path.start());
     Sequence seq;
     size_t last = 0;
     Sequence s1;
@@ -233,8 +233,8 @@ BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath
                     p2 += *path[i].first;
                 }
             }
-            s1 = p1.back().firstNucl();
-            s2 = p2.back().firstNucl();
+            s1 = p1.backEdge().firstNucl();
+            s2 = p2.backEdge().firstNucl();
             last = i;
             seq = Sequence();
         } else {
@@ -246,7 +246,7 @@ BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath
     return {std::move(p1), std::move(p2)};
 }
 
-std::string BulgePathCorrector::correctRead(dbg::GraphAlignment &path) {
+std::string BulgePathCorrector::correctRead(dbg::GraphPath &path) {
     std::vector<Case> cases;
     std::vector<std::string> messages;
     for(size_t i = 0; i < path.size(); i++) {
@@ -270,7 +270,7 @@ std::string BulgePathCorrector::correctRead(dbg::GraphAlignment &path) {
     }
     if(cases.empty())
         return "";
-    dbg::GraphAlignment res;
+    dbg::GraphPath res;
     for(Case & bp : cases) {
         for(size_t i = res.size(); i < bp.read_from; i++)
             res += path[i];
@@ -291,10 +291,10 @@ std::string BulgePathCorrector::correctRead(dbg::GraphAlignment &path) {
     for(size_t i = res.size(); i < path.size(); i++)
         res += path[i];
     if(res.front() != path.front() && res.front().size() > path.front().size()) {
-        res.front() = res.front().shrinkLeft(res.front().size() - path.front().size());
+        res.front() = res.front().shrinkLeftBy(res.front().size() - path.front().size());
     }
     if(res.back() != path.back() && res.back().size() > path.back().size()) {
-        res.back() = res.back().shrinkRight(res.back().size() - path.back().size());
+        res.back() = res.back().shrinkRightBy(res.back().size() - path.back().size());
     }
     path = std::move(res);
     return join("_", messages);

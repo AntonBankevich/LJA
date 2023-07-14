@@ -41,21 +41,21 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     for (auto &val: dbg) {
         dbg::Vertex &tmp = val.second;
         if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-            dbg::Path path = dbg::Path::WalkForward(tmp.front());
+            dbg::GraphPath path = dbg::GraphPath::WalkForward(tmp.front());
             if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
-                for (dbg::Edge *edge : path) {
-                    isolatedSize += edge->size();
+                for (dbg::Edge &edge : path.edges()) {
+                    isolatedSize += edge.size();
                 }
                 isolatedSize += dbg.hasher().getK();
             }
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-            dbg::Path path = dbg::Path::WalkForward(tmp.rc().front());
+            dbg::GraphPath path = dbg::GraphPath::WalkForward(tmp.rc().front());
             if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
-                for (dbg::Edge *edge : path) {
-                    isolatedSize += edge->size();
+                for (dbg::Edge &edge : path.edges()) {
+                    isolatedSize += edge.size();
                 }
                 isolatedSize += dbg.hasher().getK();
             }

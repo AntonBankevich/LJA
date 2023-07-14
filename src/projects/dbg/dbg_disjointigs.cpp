@@ -3,16 +3,16 @@
 
 using namespace hashing;
 using namespace dbg;
-Sequence buildDisjointig(Path &path) {
+Sequence buildDisjointig(GraphPath &path) {
     Sequence disjointig = path.Seq();
     const Vertex &last = path.finish().rc();
-    const Edge &lastEdge = path.back().rc();
+    const Edge &lastEdge = path.backEdge().rc();
     size_t k = path.start().size();
-    if(path[0].intCov() + lastEdge.intCov() + k >= disjointig.size())
+    if(path.frontEdge().intCov() + lastEdge.intCov() + k >= disjointig.size())
         return Sequence{};
-    disjointig = disjointig.Subseq(path[0].intCov(), disjointig.size() - lastEdge.intCov());
+    disjointig = disjointig.Subseq(path.frontEdge().intCov(), disjointig.size() - lastEdge.intCov());
     if (path.start().inDeg() > 1 && path.start().outDeg() == 1) {
-        VERIFY(path[0].intCov() == 0);
+        VERIFY(path.frontEdge().intCov() == 0);
         const Edge& extra = *path.start().rc().begin();
         disjointig = !(extra.truncSeq().Subseq(0, extra.intCov())) + disjointig;
     }
@@ -27,7 +27,7 @@ Sequence buildDisjointig(Path &path) {
 void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
     for(Edge & edge : rec) {
         VERIFY(!rec.getSeq().empty());
-        Path path = Path::WalkForward(edge);
+        GraphPath path = GraphPath::WalkForward(edge);
         if(rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
             Sequence disjointig = buildDisjointig(path);
             if (!disjointig.empty()) {
@@ -98,14 +98,14 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
                 if(vertex.isJunction() || vertex.marked())
                     return;
                 Edge &edge = *vertex.begin();
-                Path path = Path::WalkForward(edge);
+                GraphPath path = GraphPath::WalkForward(edge);
                 if(path.finish() != vertex) {
                     std::cout << path.start().getInnerId() << " " << path.finish().getInnerId() << " " << path.size() <<
-                    " " << path.finish().isJunction()<< " "  << "ACGT"[path.back().rc().truncSeq()[0]] << std::endl;
+                              " " << path.finish().isJunction() << " " << "ACGT"[path.backEdge().rc().truncSeq()[0]] << std::endl;
                 }
                 VERIFY(path.finish() == vertex);
-                for(size_t i = 0; i + 1 < path.size(); i++) {
-                    if(path[i].getFinish() < vertex || path[i].getFinish() < vertex.rc()) {
+                for(size_t i = 1; i < path.size(); i++) {
+                    if(path.getVertex(i) < vertex || path.getVertex(i) < vertex.rc()) {
                         return;
                     }
                 }

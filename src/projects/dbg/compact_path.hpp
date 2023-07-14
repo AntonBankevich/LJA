@@ -16,68 +16,46 @@ namespace dbg {
         CompactPath() : _start(nullptr), _first_skip(0), _last_skip(0) {
         }
 
-        CompactPath(Vertex &start, const Sequence &edges, size_t first_skip = 0, size_t last_skip = 0) :
-                _start(&start), _edges(edges), _first_skip(first_skip), _last_skip(last_skip) {
+        CompactPath(Vertex &start, Sequence edges, size_t first_skip = 0, size_t last_skip = 0) :
+                _start(&start), _edges(std::move(edges)), _first_skip(first_skip), _last_skip(last_skip) {
         }
 
-        explicit CompactPath(const Path &path, size_t first_skip = 0, size_t last_skip = 0) :
-                _start(&path.getVertex(0)), _first_skip(first_skip), _last_skip(last_skip) {
-            std::vector<char> edges;
-            for (const auto &edge: path) {
-                edges.push_back(edge->truncSeq()[0]);
-            }
-            _edges = Sequence(edges);
-        }
-
-        explicit CompactPath(const GraphAlignment &path) :
+        explicit CompactPath(const GraphPath &path) :
                 _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
             std::vector<char> edges;
-            for (const auto &seg: path) {
-                edges.push_back(seg.contig().truncSeq()[0]);
+            for (Edge &edge: path.edges()) {
+                edges.push_back(edge.truncSeq()[0]);
             }
             _edges = Sequence(edges);
         }
 
-        explicit CompactPath(const GraphAlignment &path, size_t left, size_t right) :
-                _start(&path.getVertex(left)), _first_skip(path[left].left), _last_skip(path[right - 1].RC().left) {
+        static CompactPath Subpath(const GraphPath &path, size_t left, size_t right) {
             std::vector<char> edges;
             for (size_t i = left; i < right; i++) {
                 edges.push_back(path[i].contig().truncSeq()[0]);
             }
-            _edges = Sequence(edges);
+            return {path.getVertex(left), Sequence(edges), path[left].left, path[right - 1].RC().left};
         }
 
         bool valid() const {
+            VERIFY(_start != nullptr || size() == 0);
             return _start != nullptr;
         }
 
-        GraphAlignment getAlignment() const {
+        GraphPath getAlignment() const {
             if (!valid())
                 return {};
-            std::vector<Segment<Edge>> path;
+            GraphPath res;
             Vertex *cur = _start;
             for (size_t i = 0; i < _edges.size(); i++) {
                 VERIFY(cur->hasOutgoing(_edges[i]));
                 Edge &edge = cur->getOutgoing(_edges[i]);
-                path.emplace_back(edge, 0, edge.size());
+                res += edge;
                 cur = &edge.getFinish();
             }
-            if (_first_skip > 0)
-                path.front().left += _first_skip;
-            if (_last_skip > 0)
-                path.back().right -= _last_skip;
-            return {*_start, std::move(path)};
-        }
-
-        Path getPath() const {
-            std::vector<Edge *> path;
-            Vertex *cur = _start;
-            for(size_t i = 0; i < _edges.size(); i++) {
-                Edge &edge = cur->getOutgoing(_edges[i]);
-                path.emplace_back(&edge);
-                cur = &edge.getFinish();
-            }
-            return {*_start, std::move(path)};
+            res.cutFront(_first_skip);
+            res.cutBack(_last_skip);
+            return std::move(res);
         }
 
         CompactPath RC() const {

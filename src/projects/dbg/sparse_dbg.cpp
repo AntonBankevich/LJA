@@ -88,13 +88,14 @@ std::string Edge::str() const {
     return ss.str();
 }
 
-Sequence Edge::kmerSeq(size_t pos) const {
-    VERIFY(pos <= truncSeq().size());
-    size_t k = start->getSeq().size();
-    if (pos >= k)
-        return truncSeq().Subseq(pos - k, pos);
-    else {
-        return getStart().getSeq().Subseq(pos) + truncSeq().Subseq(0, pos);
+Sequence Edge::fullSubseq(size_t from, size_t to) const {
+    VERIFY(start->size() > 0);
+    VERIFY(from <= start->size() + size());
+    VERIFY(to <= start->size() + size());
+    if (from >= start->size()) {
+        return truncSeq().Subseq(from - start->size(), to);
+    } else {
+        return getStart().getSeq().Subseq(from) + truncSeq().Subseq(0, to);
     }
 }
 
@@ -766,7 +767,7 @@ void SparseDBG::processFullEdgeSequence(const Sequence &full_seq) {
     }
 }
 
-IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Vertex, 2>> SparseDBG::vertices(bool unique) {
+IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Vertex, 2>> SparseDBG::vertices(bool unique) & {
     std::function<std::array<Vertex*, 2>(std::pair<const hashing::htype, Vertex> &)> apply =
             [unique](std::pair<const hashing::htype, Vertex> &it) -> std::array<Vertex*, 2> {
                 if(unique)
@@ -779,11 +780,11 @@ IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Vertex, 2>> Sp
     return {begin, end};
 }
 
-IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Vertex, 2>> SparseDBG::verticesUnique() {
+IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Vertex, 2>> SparseDBG::verticesUnique() &{
     return vertices(true);
 }
 
-IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Edge, 8>> SparseDBG::edges(bool unique) {
+IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Edge, 8>> SparseDBG::edges(bool unique) & {
     std::function<std::array<Edge*, 8>(const std::pair<const hashing::htype, Vertex> &)> apply = [unique](const std::pair<const hashing::htype, Vertex> &it) {
         std::array<Edge*, 8> res = {};
         size_t cur = 0;
@@ -806,7 +807,7 @@ IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Edge, 8>> Spar
     return {begin, end};
 }
 
-IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Edge, 8>> SparseDBG::edgesUnique() {
+IterableStorage<ApplyingIterator<SparseDBG::vertex_iterator_type, Edge, 8>> SparseDBG::edgesUnique() &{
     return edges(true);
 }
 

@@ -21,13 +21,12 @@ std::unordered_map<dbg::Vertex *, size_t> findReachable(dbg::Vertex &start, doub
     return std::move(res);
 }
 
-std::vector<dbg::GraphAlignment>
-FindPlausibleBulgeAlternatives(const dbg::GraphAlignment &path, size_t max_diff, double min_cov) {
-    size_t k = path.start().size();
+std::vector<dbg::GraphPath>
+FindPlausibleBulgeAlternatives(const dbg::GraphPath &path, size_t max_diff, double min_cov) {
     size_t max_len = path.len() + max_diff;
     std::unordered_map<dbg::Vertex *, size_t> reachable = findReachable(path.finish().rc(), min_cov, max_len);
-    std::vector<dbg::GraphAlignment> res;
-    dbg::GraphAlignment alternative(path.start());
+    std::vector<dbg::GraphPath> res;
+    dbg::GraphPath alternative(path.start());
     size_t iter_cnt = 0;
     size_t len = 0;
     bool forward = true;
@@ -47,7 +46,7 @@ FindPlausibleBulgeAlternatives(const dbg::GraphAlignment &path, size_t max_diff,
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) && reachable.find(&edge.getFinish().rc()) != reachable.end() &&
                    reachable[&edge.getFinish().rc()] + edge.size() + len <= max_len) {
                     len += edge.size();
-                    alternative.push_back(Segment<dbg::Edge>(edge, 0, edge.size()));
+                    alternative+=Segment<dbg::Edge>(edge, 0, edge.size());
                     forward = true;
                     break;
                 }
@@ -65,7 +64,7 @@ FindPlausibleBulgeAlternatives(const dbg::GraphAlignment &path, size_t max_diff,
                    reachable[&edge.getFinish().rc()] + edge.size() + len <= max_len) {
                     if(found) {
                         len += edge.size();
-                        alternative.push_back(Segment<dbg::Edge>(edge, 0, edge.size()));
+                        alternative+=Segment<dbg::Edge>(edge, 0, edge.size());
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {
@@ -78,8 +77,8 @@ FindPlausibleBulgeAlternatives(const dbg::GraphAlignment &path, size_t max_diff,
     return std::move(res);
 }
 
-dbg::GraphAlignment FindReliableExtension(dbg::Vertex &start, size_t len, double min_cov) {
-    dbg::GraphAlignment res(start);
+dbg::GraphPath FindReliableExtension(dbg::Vertex &start, size_t len, double min_cov) {
+    dbg::GraphPath res(start);
     size_t clen = 0;
     while(clen < len) {
         dbg::Edge *next = nullptr;
@@ -99,12 +98,13 @@ dbg::GraphAlignment FindReliableExtension(dbg::Vertex &start, size_t len, double
     return std::move(res);
 }
 
-std::vector<dbg::GraphAlignment>
-FindPlausibleTipAlternatives(const dbg::GraphAlignment &path, size_t max_diff, double min_cov) {
+std::vector<dbg::GraphPath>
+FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double min_cov) {
     size_t k = path.start().size();
     size_t max_len = path.len() + max_diff;
-    std::vector<dbg::GraphAlignment> res;
-    dbg::GraphAlignment alternative(path.start());
+    std::vector<dbg::GraphPath> res;
+    VERIFY(path.leftSkip() == 0);
+    dbg::GraphPath alternative(path.start());
     size_t iter_cnt = 0;
     size_t len = 0;
     size_t tip_len = path.len();
@@ -124,7 +124,7 @@ FindPlausibleTipAlternatives(const dbg::GraphAlignment &path, size_t max_diff, d
                 for (dbg::Edge &edge : alternative.finish()) {
                     if (edge.getCoverage() >= min_cov || edge.is_reliable) {
                         len += edge.size();
-                        alternative.push_back(Segment<dbg::Edge>(edge, 0, edge.size()));
+                        alternative += Segment<dbg::Edge>(edge, 0, edge.size());
                         forward = true;
                         break;
                     }
@@ -141,7 +141,7 @@ FindPlausibleTipAlternatives(const dbg::GraphAlignment &path, size_t max_diff, d
                 if(edge.getCoverage() >= min_cov || edge.is_reliable) {
                     if(found) {
                         len += edge.size();
-                        alternative.push_back(Segment<dbg::Edge>(edge, 0, edge.size()));
+                        alternative += Segment<dbg::Edge>(edge, 0, edge.size());
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {
@@ -154,8 +154,8 @@ FindPlausibleTipAlternatives(const dbg::GraphAlignment &path, size_t max_diff, d
     return std::move(res);
 }
 
-dbg::GraphAlignment FindLongestCoveredForwardExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
-    dbg::GraphAlignment res(start);
+dbg::GraphPath FindLongestCoveredForwardExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
+    dbg::GraphPath res(start);
     while(true) {
         dbg::Edge *next = nullptr;
         for(dbg::Edge &edge : res.finish()) {
@@ -184,8 +184,8 @@ dbg::GraphAlignment FindLongestCoveredForwardExtension(dbg::Edge &start, double 
     }
 }
 
-dbg::GraphAlignment FindLongestCoveredExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
-    dbg::GraphAlignment res = FindLongestCoveredForwardExtension(start, min_rel_cov, max_err_cov);
+dbg::GraphPath FindLongestCoveredExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
+    dbg::GraphPath res = FindLongestCoveredForwardExtension(start, min_rel_cov, max_err_cov);
     if(res.start() == res.finish())
         return std::move(res);
     return FindLongestCoveredForwardExtension(start.rc(), min_rel_cov, max_err_cov).subalignment(1).RC() + res;

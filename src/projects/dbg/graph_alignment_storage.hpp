@@ -14,7 +14,7 @@ public:
     AlignedRead(AlignedRead &&other) = default;
     AlignedRead &operator=(AlignedRead &&other) = default;
     explicit AlignedRead(std::string readId) : id(std::move(readId)), corrected(false) {}
-    AlignedRead(std::string readId, dbg::GraphAlignment &_path) : id(std::move(readId)), path(_path), corrected(false) {}
+    AlignedRead(std::string readId, dbg::GraphPath &_path) : id(std::move(readId)), path(_path), corrected(false) {}
     AlignedRead(std::string readId, dbg::CompactPath _path) : id(std::move(readId)), path(std::move(_path)), corrected(false) {}
 
     bool operator<(const AlignedRead& other) const {return id < other.id;}
@@ -70,8 +70,8 @@ public:
     size_t countStartsWith(const Sequence &seq) const;
 
     bool isDisconnected(const dbg::Edge &edge) const;
-    std::vector<dbg::GraphAlignment> getBulgeAlternatives(const dbg::Vertex &end, double threshold) const;
-    std::vector<dbg::GraphAlignment> getTipAlternatives(size_t len, double threshold) const;
+    std::vector<dbg::GraphPath> getBulgeAlternatives(const dbg::Vertex &end, double threshold) const;
+    std::vector<dbg::GraphPath> getTipAlternatives(size_t len, double threshold) const;
     unsigned char getUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov) const;
     dbg::CompactPath getFullUniqueExtension(const Sequence &start, size_t min_good_cov, size_t max_bad_cov, size_t max_size = size_t(-1)) const;
 };
@@ -111,7 +111,7 @@ public:
 
     void flush();
     void logRead(AlignedRead &alignedRead);
-    void logRerouting(AlignedRead &alignedRead, const dbg::GraphAlignment &initial, const dbg::GraphAlignment &corrected, const std::string &message);
+    void logRerouting(AlignedRead &alignedRead, const dbg::GraphPath &initial, const dbg::GraphPath &corrected, const std::string &message);
     void logInvalidate(AlignedRead &alignedRead, const std::string &message) {
         CountingSS &ss = logs[omp_get_thread_num()];
         ss << alignedRead.id << " invalidated " << message << ")\n";
@@ -169,8 +169,8 @@ public:
     void removeSubpath(const dbg::CompactPath &cpath);
     void addRead(AlignedRead &&read);
     void delayedInvalidateRead(AlignedRead &read, const std::string &message);
-    void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &initial, const dbg::GraphAlignment &corrected, const std::string &message);
-    void reroute(AlignedRead &alignedRead, const dbg::GraphAlignment &corrected, const std::string &message);
+    void reroute(AlignedRead &alignedRead, const dbg::GraphPath &initial, const dbg::GraphPath &corrected, const std::string &message);
+    void reroute(AlignedRead &alignedRead, const dbg::GraphPath &corrected, const std::string &message);
     bool apply(AlignedRead &alignedRead);
 
     void delayedInvalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message);
@@ -219,9 +219,9 @@ void RecordStorage::fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_si
             tmpReads.emplace_back(pos, contig.getInnerId(), dbg::CompactPath());
             return;
         }
-        dbg::GraphAlignment path = dbg::GraphAligner(dbg).align(contig.getSeq());
+        dbg::GraphPath path = dbg::GraphAligner(dbg).align(contig.getSeq());
         dbg::CompactPath cpath(path);
-        dbg::GraphAlignment rcPath = path.RC();
+        dbg::GraphPath rcPath = path.RC();
         dbg::CompactPath crcPath(rcPath);
         addSubpath(cpath);
         addSubpath(crcPath);

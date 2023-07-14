@@ -11,9 +11,9 @@ namespace dbg {
         std::function<void(size_t, ContigType &)> task = [&sdbg, &lens, min_read_size](size_t pos, ContigType &contig) {
             Sequence seq = std::move(contig.makeSequence());
             if (seq.size() >= min_read_size) {
-                GraphAlignment path = GraphAligner(sdbg).align(seq);
+                GraphPath path = GraphAligner(sdbg).align(seq);
                 lens.add(path.size());
-                for (Segment<Edge> &seg: path) {
+                for (Segment<Edge> seg: path) {
                     seg.contig().incCov(seg.size());
                     seg.contig().rc().incCov(seg.size());
                 }
@@ -162,15 +162,15 @@ namespace dbg {
         logger.info() << "Tip finding finished" << std::endl;
     }
 
-    void MergeMarkAndDetachPath(const Path &path) {
+    void MergeMarkAndDetachPath(GraphPath path) {
         if(path.size() == 1)
             return;
         VertexLocker locker({&path.start(), &path.finish().rc()});
         Sequence newSeq(path.Seq());
-        bool self_rc = path.front() == path.back().rc();
+        bool self_rc = path.frontEdge() == path.backEdge().rc();
         size_t cov = 0;
-        for (Edge *edge : path) {
-            cov += edge->intCov();
+        for (Edge &edge : path.edges()) {
+            cov += edge.intCov();
         }
         for(size_t i = 1; i < path.size(); i++) {
             path.getVertex(i).mark();
@@ -180,13 +180,13 @@ namespace dbg {
         new_edge.incCov(cov - new_edge.intCov());
         new_edge.rc().incCov(cov - new_edge.rc().intCov());
         if(!self_rc) {
-            path.finish().rc().innerRemoveEdge(path.back().rc());
+            path.finish().rc().innerRemoveEdge(path.backEdge().rc());
         }
-        path.start().innerRemoveEdge(path.front());
+        path.start().innerRemoveEdge(path.frontEdge());
     }
 
     void mergeLoop(Vertex &start) {
-        Path path = Path::WalkForward(start.front());
+        GraphPath path = GraphPath::WalkForward(start.front());
         VERIFY(path.start() == path.finish())
         for(size_t i = 1; i < path.size(); i++) {
             if(path.getVertex(i) == start.rc()) {
@@ -205,15 +205,15 @@ namespace dbg {
                     if (!start.isJunction())
                         return;
                     start.lock();
-                    std::vector<Path> to_merge;
+                    std::vector<GraphPath> to_merge;
                     for (Edge &edge: start) {
-                        Path path = Path::WalkForward(edge);
+                        GraphPath path = GraphPath::WalkForward(edge);
                         if (path.size() > 1 && (path.finish().rc() > start || (path.finish().rc() == start && path.Seq() <= !path.Seq()))) {
                             to_merge.emplace_back(std::move(path));
                         }
                     }
                     start.unlock();
-                    for(Path &path : to_merge) {
+                    for(GraphPath &path : to_merge) {
                         MergeMarkAndDetachPath(path);
                     }
                 };
@@ -230,11 +230,11 @@ namespace dbg {
                     if (start.isJunction() || start.marked()) {
                         return;
                     }
-                    Path path = Path::WalkForward(start.front());
+                    GraphPath path = GraphPath::WalkForward(start.front());
                     VERIFY(path.finish() == start);
                     bool ismin = true;
-                    for (const Edge *e: path) {
-                        if (e->getFinish() < start) {
+                    for (const Edge &e: path.edges()) {
+                        if (e.getFinish() < start) {
                             ismin = false;
                             break;
                         }
@@ -300,15 +300,15 @@ namespace dbg {
             Contig read = contig.makeContig();
             if (read.size() < w + hasher.getK() - 1)
                 return;
-            Path path = GraphAligner(dbg).align(read.getSeq()).path();
+            GraphPath path = GraphAligner(dbg).align(read.getSeq());
             std::stringstream ss;
             ss << read.getInnerId() << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
-            for (size_t i = 0; i < path.size(); i++) {
-                ss << acgt[path[i].truncSeq()[0]];
+            for (Edge &edge : path.edges()) {
+                ss << acgt[edge.truncSeq()[0]];
             }
             alignment_results.emplace_back(ss.str());
             Contig rc_read = read.RC();
-            Path rc_path = GraphAligner(dbg).align(rc_read.getSeq()).path();
+            GraphPath rc_path = GraphAligner(dbg).align(rc_read.getSeq());
             std::stringstream rc_ss;
             rc_ss << rc_read.getInnerId() << " " << rc_path.start().hash() << int(rc_path.start().isCanonical()) << " ";
             for (size_t i = 0; i < rc_path.size(); i++) {

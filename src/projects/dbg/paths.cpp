@@ -1,34 +1,26 @@
 #include "paths.hpp"
 using namespace dbg;
-Path Path::WalkForward(dbg::Edge &start) {
-    Path res(start.getStart());
-    res += start;
+GraphPath GraphPath::WalkForward(dbg::Edge &start) {
+    GraphPath res(start);
     Vertex *next = &start.getFinish();
     VERIFY(next != nullptr);
     while(*next != start.getStart() && !next->isJunction()) {
         VERIFY(next != nullptr);
         res += next->front();
-        next = &next->front().getFinish();
+        next = &res.finish();
     }
     return std::move(res);
 }
 
-dbg::Path dbg::Path::subPath(size_t from, size_t to) {
+dbg::GraphPath dbg::GraphPath::subPath(size_t from, size_t to) {
     if (from == to)
-        return Path(getVertex(from));
+        return GraphPath(getVertex(from));
     else
-        return Path(getVertex(from), std::vector<Edge *>(path.begin() + from, path.begin() + to));
+        return {getVertex(from), std::vector<Edge *>(path.begin() + from, path.begin() + to),
+                from == 0 ? leftSkip() : 0, to == size() - 1 ? rightSkip() : 0};
 }
 
-dbg::Path dbg::Path::RC() {
-    std::vector<Edge *> rcPath;
-    for (size_t i = path.size(); i > 0; i--) {
-        rcPath.emplace_back(&path[i - 1]->rc());
-    }
-    return Path(back().getFinish().rc(), rcPath);
-}
-
-dbg::Vertex &dbg::Path::getVertex(size_t i) {
+dbg::Vertex &dbg::GraphPath::getVertex(size_t i) {
     VERIFY(i <= path.size());
     if (i == 0)
         return *start_;
@@ -36,7 +28,7 @@ dbg::Vertex &dbg::Path::getVertex(size_t i) {
         return path[i - 1]->getFinish();
 }
 
-dbg::Vertex &dbg::Path::getVertex(size_t i) const {
+dbg::Vertex &dbg::GraphPath::getVertex(size_t i) const {
     VERIFY(i <= path.size());
     if (i == 0)
         return *start_;
@@ -44,7 +36,7 @@ dbg::Vertex &dbg::Path::getVertex(size_t i) const {
         return path[i - 1]->getFinish();
 }
 
-size_t dbg::Path::find(dbg::Edge &edge, size_t pos) const {
+size_t dbg::GraphPath::find(dbg::Edge &edge, size_t pos) const {
     while(pos < size() && edge != *path[pos])
         pos++;
     if(pos == size())
@@ -52,7 +44,7 @@ size_t dbg::Path::find(dbg::Edge &edge, size_t pos) const {
     return pos;
 }
 
-size_t dbg::Path::find(dbg::Vertex &v, size_t pos) const {
+size_t dbg::GraphPath::find(dbg::Vertex &v, size_t pos) const {
     while(pos <= size() && v != getVertex(pos))
         pos++;
     if(pos > size())
@@ -60,113 +52,133 @@ size_t dbg::Path::find(dbg::Vertex &v, size_t pos) const {
     return pos;
 }
 
-double dbg::Path::minCoverage() const {
-    double res = 100000;
+double dbg::GraphPath::minCoverage() const {
+    double res = 100000000;
     for (const Edge *edge : path) {
         res = std::min(edge->getCoverage(), res);
     }
     return res;
 }
 
-Sequence dbg::Path::Seq() const {
-    SequenceBuilder sb;
-    sb.append(start().getSeq());
-    for (const Edge *e : path) {
-        sb.append(e->truncSeq());
-    }
-    return sb.BuildSequence();
-}
-
-Sequence dbg::Path::truncSeq() const {
-    SequenceBuilder sb;
-    for (const Edge *e : path) {
-        sb.append(e->truncSeq());
-    }
-    return sb.BuildSequence();
-}
-
-size_t dbg::Path::len() const {
+size_t dbg::GraphPath::len() const {
     size_t res = 0;
     for (Edge *edge : path)
         res += edge->size();
-    return res;
+    return res - cut_left - cut_right;
 }
 
-dbg::Path dbg::Path::operator+(const dbg::Path &other) const {
-    VERIFY(finish() == *other.start_);
-    std::vector<Edge *> edges = path;
-    edges.insert(edges.end(), other.path.begin(), other.path.end());
-    return {start(), std::move(edges)};
-}
-
-void dbg::Path::operator+=(dbg::Edge &edge) {
-    path.emplace_back(&edge);
-}
-
-IterableStorage<Path::vertex_iterator> Path::vertices() {
+IterableStorage<GraphPath::vertex_iterator> GraphPath::vertices() const & {
     std::function<Vertex &(size_t)> transformer = [this](size_t ind)->Vertex &{return getVertex(ind);};
-    vertex_iterator vbegin (CountingIterator<size_t>(0), CountingIterator<size_t>(size() + 1), transformer);
-    vertex_iterator vend(CountingIterator<size_t>(size() + 1), CountingIterator<size_t>(size() + 1), transformer);
+    CountingIterator<size_t> end_it = CountingIterator<size_t>(size() + 1);
+    vertex_iterator vbegin (CountingIterator<size_t>(0), end_it, transformer);
+    vertex_iterator vend(end_it, end_it, transformer);
     return {vbegin, vend};
 }
 
-IterableStorage<Path::const_vertex_iterator> Path::vertices() const {
-    std::function<const Vertex &(size_t)> transformer = [this](size_t ind)->const Vertex &{return getVertex(ind);};
-    const_vertex_iterator vbegin (CountingIterator<size_t>(0), CountingIterator<size_t>(size() + 1), transformer);
-    const_vertex_iterator vend(CountingIterator<size_t>(size() + 1), CountingIterator<size_t>(size() + 1), transformer);
-    return {vbegin, vend};
+//IterableStorage<GraphPath::const_vertex_iterator> GraphPath::vertices() const {
+//    std::function<const Vertex &(size_t)> transformer = [this](size_t ind)->const Vertex &{return getVertex(ind);};
+//    const_vertex_iterator vbegin (CountingIterator<size_t>(0), CountingIterator<size_t>(size() + 1), transformer);
+//    const_vertex_iterator vend(CountingIterator<size_t>(size() + 1), CountingIterator<size_t>(size() + 1), transformer);
+//    return {vbegin, vend};
+//}
+
+IterableStorage<GraphPath::edge_iterator> GraphPath::edges() const &{
+    std::function<Edge &(size_t)> transformer = [this](size_t ind)->Edge &{return *path[ind];};
+    CountingIterator<size_t> end_it = CountingIterator<size_t>(size());
+    edge_iterator ebegin (CountingIterator<size_t>(0), end_it, transformer);
+    edge_iterator eend(end_it, end_it, transformer);
+    return {ebegin, eend};
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::RC() const {
+//IterableStorage<GraphPath::const_edge_iterator> GraphPath::edges() const {
+//    std::function<const Edge &(size_t)> transformer = [this](size_t ind)->const Edge &{return *path[ind];};
+//    const_edge_iterator ebegin (CountingIterator<size_t>(0), CountingIterator<size_t>(size()), transformer);
+//    const_edge_iterator eend(CountingIterator<size_t>(size() + 1), CountingIterator<size_t>(size()), transformer);
+//    return {ebegin, eend};
+//}
+
+//IterableStorage<GraphPath::const_segment_iterator> GraphPath::segments() const {
+//    std::function<Segment<const Edge> (size_t)> transformer = [this](size_t ind)->Segment<const Edge> {
+//        Segment<const Edge> res(*path[ind]);
+//        if(ind == 0)
+//            res = res.shrinkLeftBy(cut_left);
+//        if(ind + 1 == size()) {
+//            res = res.shrinkRightBy(cut_right);
+//        }
+//        return res;
+//    };
+//    const_segment_iterator sbegin (CountingIterator<size_t>(0), CountingIterator<size_t>(size() + 1), transformer);
+//    const_segment_iterator send(CountingIterator<size_t>(size() + 1), CountingIterator<size_t>(size() + 1), transformer);
+//    return {sbegin, send};
+//}
+//
+dbg::GraphPath dbg::GraphPath::RC() const {
     if(!valid())
         return {};
-    GraphAlignment res(finish().rc());
-    for (size_t i = 0; i < als.size(); i++) {
-        res += als[als.size() - 1 - i].RC();
+    std::vector<Edge *> res;
+    for(auto it  = path.rbegin(); it != path.rend(); ++it) {
+        Edge *e = *it;
+        res.emplace_back(&e->rc());
     }
-    return res;
+    return {finish().rc(), res, rightSkip(), leftSkip()};
 }
 
-void dbg::GraphAlignment::invalidate() {
+void dbg::GraphPath::invalidate() {
     start_ = nullptr;
-    als.clear();
+    path.clear();
+    cut_left = 0;
+    cut_right = 0;
 }
 
-bool dbg::GraphAlignment::valid() const {
+bool dbg::GraphPath::valid() const {
+    VERIFY(start_ != nullptr || size() == 0);
     return start_ != nullptr;
 }
 
-void dbg::GraphAlignment::cutBack(size_t l) {
+void dbg::GraphPath::cutBack(size_t l) {
     VERIFY(l <= len());
-    while (size() > 0 && als.back().size() <= l) {
-        l -= als.back().size();
+    while(l >= back().size()) {
+        l -= back().size();
         pop_back();
+        cut_right = 0;
     }
     VERIFY(size() > 0);
-    if (l > 0) {
-        VERIFY(als.back().right > l);
-        als.back().right -= l;
+    cut_right += l;
+}
+
+void dbg::GraphPath::cutFront(size_t l) {
+    VERIFY(l <= len());
+    size_t cut = 0;
+    while(cut < size() && l >= operator[](cut).size()) {
+        l -= operator[](cut).size();
+        cut++;
+        cut_left = 0;
+    }
+    path.erase(path.begin(), path.begin() + cut);
+    cut_left += l;
+}
+
+dbg::GraphPath dbg::GraphPath::subalignment(size_t left, size_t right) const {
+    if (left == right)
+        return {getVertex(left)};
+    else {
+        size_t left_skip = left == 0 ? leftSkip() : 0;
+        size_t right_skip = right == size() ? rightSkip() : 0;
+        return {getVertex(left), {path.begin() + left, path.begin() + right}, left_skip, right_skip};
     }
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::subalignment(size_t left, size_t right) const {
-    if (left == right)
-        return GraphAlignment(getVertex(left));
-    else
-        return {getVertex(left), {als.begin() + left, als.begin() + right}};
-}
-
-dbg::GraphAlignment &dbg::GraphAlignment::addStep() {
-    als.back().right += 1;
+dbg::GraphPath &dbg::GraphPath::addStep() {
+    cut_right -= 1;
     return *this;
 }
 
-dbg::GraphAlignment &dbg::GraphAlignment::addStep(dbg::Edge &edge) {
-    als.emplace_back(edge, 0, 1);
+dbg::GraphPath &dbg::GraphPath::addStep(dbg::Edge &edge) {
+    *this += Segment<Edge>(edge, 0, 1);
     return *this;
 }
 
-dbg::GraphAlignment &dbg::GraphAlignment::extend(const Sequence &seq) {
+dbg::GraphPath &dbg::GraphPath::extend(const Sequence &seq) {
     VERIFY(valid());
     for (size_t cpos = 0; cpos < seq.size(); cpos++) {
         unsigned char c = seq[cpos];
@@ -180,7 +192,7 @@ dbg::GraphAlignment &dbg::GraphAlignment::extend(const Sequence &seq) {
                 return *this;
             }
         } else {
-            if (als.back().contig().truncSeq()[als.back().right] == c) {
+            if (back().contig().truncSeq()[back().right] == c) {
                 addStep();
             } else {
                 invalidate();
@@ -191,48 +203,48 @@ dbg::GraphAlignment &dbg::GraphAlignment::extend(const Sequence &seq) {
     return *this;
 }
 
-bool dbg::GraphAlignment::endClosed() const {
-    return start_ != nullptr && (als.size() == 0 || als.back().right == als.back().contig().size());
+bool dbg::GraphPath::endClosed() const {
+    return valid() && rightSkip() == 0;
 }
 
-bool dbg::GraphAlignment::startClosed() const {
-    return start_ != nullptr && (als.size() == 0 || als.front().left == 0);
+bool dbg::GraphPath::startClosed() const {
+    return valid() && leftSkip() == 0;
 }
 
-unsigned char dbg::GraphAlignment::lastNucl() const {
-    VERIFY(als.back().size() > 0);
-    return als.back().contig().truncSeq()[als.back().right - 1];
+unsigned char dbg::GraphPath::lastNucl() const {
+    Segment<Edge> seg = back();
+    return seg.truncSeq()[seg.right - 1];
 }
 
-size_t dbg::GraphAlignment::leftSkip() const {
-    return als.size() == 0 ? 0 : als.front().left;
+size_t dbg::GraphPath::leftSkip() const {
+    return cut_left;
 }
 
-size_t dbg::GraphAlignment::rightSkip() const {
-    return als.size() == 0 ? 0 : als.back().contig().size() - als.back().right;
+size_t dbg::GraphPath::rightSkip() const {
+    return cut_right;
 }
 
-std::vector<dbg::GraphAlignment> dbg::GraphAlignment::allSteps() {
-    if (als.size() != 0 && als.back().right < als.back().contig().size()) {
-        GraphAlignment copy = *this;
+std::vector<dbg::GraphPath> dbg::GraphPath::allSteps() {
+    if (size() != 0 && cut_right > 0) {
+        GraphPath copy = *this;
         return {std::move(copy.addStep())};
     }
-    std::vector<GraphAlignment> res;
-    Vertex &end = als.size() == 0 ? *start_ : back().contig().getFinish();
+    std::vector<GraphPath> res;
+    Vertex &end = finish();
     for (Edge &edge : end) {
-        GraphAlignment copy = *this;
+        GraphPath copy = *this;
         res.emplace_back(std::move(copy.addStep(edge)));
     }
     return res;
 }
 
-std::vector<dbg::GraphAlignment> dbg::GraphAlignment::allExtensions(size_t len) {
-    std::vector<GraphAlignment> res = {*this};
+std::vector<dbg::GraphPath> dbg::GraphPath::allExtensions(size_t len) {
+    std::vector<GraphPath> res = {*this};
     size_t left = 0;
     size_t right = 1;
     for (size_t l = 0; l < len; l++) {
         for (size_t i = left; i < right; i++) {
-            std::vector<GraphAlignment> tmp = res[i].allSteps();
+            std::vector<GraphPath> tmp = res[i].allSteps();
             res.insert(res.end(), tmp.begin(), tmp.end());
         }
         left = right;
@@ -241,10 +253,10 @@ std::vector<dbg::GraphAlignment> dbg::GraphAlignment::allExtensions(size_t len) 
     return std::move(res);
 }
 
-Sequence dbg::GraphAlignment::map(std::unordered_map<const Edge *, Sequence> &edge_map) {
+Sequence dbg::GraphPath::map(std::unordered_map<const Edge *, Sequence> &edge_map) {
     SequenceBuilder sb;
     bool start = true;
-    for (Segment<Edge> &seg : als) {
+    for (Segment<Edge> seg : *this) {
         auto it = edge_map.find(&seg.contig());
         if (it == edge_map.end()) {
             if (start) {
@@ -279,149 +291,106 @@ Sequence dbg::GraphAlignment::map(std::unordered_map<const Edge *, Sequence> &ed
     return sb.BuildSequence();
 }
 
-Sequence dbg::GraphAlignment::Seq() const {
-    if (als.size() == 0) {
+Sequence dbg::GraphPath::Seq() const {
+    if (size() == 0)
         return {};
-    }
     SequenceBuilder sb;
-    size_t k = start_->getSeq().size();
-    if (als[0].left >= k)
-        sb.append(als[0].contig().truncSeq().Subseq(als[0].left - k, als[0].right));
-    else {
-        sb.append(start_->getSeq().Subseq(als[0].left, k));
-        sb.append(als[0].contig().truncSeq().Subseq(0, als[0].right));
-    }
-    for (size_t i = 1; i < als.size(); i++) {
-        sb.append(als[i].truncSeq());
+    sb.append(front().fullSeq());
+    for(size_t i = 1; i < size(); i++) {
+        sb.append(operator[](i).truncSeq());
     }
     return sb.BuildSequence();
 }
 
-Sequence dbg::GraphAlignment::truncSeq() const {
+Sequence dbg::GraphPath::truncSeq() const {
     SequenceBuilder sb;
-    for (size_t i = 0; i < als.size(); i++) {
-        sb.append(als[i].truncSeq());
+    for (Segment<Edge> seg : *this) {
+        sb.append(seg.truncSeq());
     }
     return sb.BuildSequence();
 }
 
-Sequence dbg::GraphAlignment::truncSeq(size_t start_position, size_t size) const {
+Sequence dbg::GraphPath::truncSubseq(size_t start_position, size_t sz) const {
     SequenceBuilder sb;
-    size_t sz = 0;
-    for (size_t i = start_position; i < als.size(); i++) {
+    for (size_t i = start_position; i < this->size(); i++) {
 //            std::cout << i << " " << sz << " " << size << std::endl;
 //            std::cout << als[i].contig().size() << " " << als[i].left << " " << als[i].right << " " << als[i].size() << std::endl;
-        if (sz + als[i].size() >= size) {
-            sb.append(als[i].truncSeq().Subseq(0, size - sz));
+        Segment<Edge> seg = (*this)[i];
+        if (seg.size() >= sz) {
+            sb.append(seg.shrinkRightToLen(sz).truncSeq());
+            sz = 0;
             break;
         } else {
-            sb.append(als[i].truncSeq());
-            sz += als[i].size();
+            sb.append(seg.truncSeq());
+            sz -= seg.size();
         }
     }
     return sb.BuildSequence();
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::reroute(size_t left, size_t right, const dbg::GraphAlignment &rerouting) const {
+dbg::GraphPath dbg::GraphPath::reroute(size_t left, size_t right, const dbg::GraphPath &rerouting) const {
     VERIFY(getVertex(left) == rerouting.start());
     VERIFY(getVertex(right) == rerouting.finish());
     return subalignment(0, left) + rerouting + subalignment(right, size());
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::reroute(size_t left, size_t right, const dbg::Path &rerouting) const {
-    VERIFY(getVertex(left) == rerouting.start());
-    VERIFY(getVertex(right) == rerouting.finish());
-    return subalignment(0, left) + rerouting + subalignment(right, size());
-}
-
-void dbg::GraphAlignment::operator+=(const dbg::Path &other) {
+void dbg::GraphPath::operator+=(const dbg::GraphPath &other) {
     if(other.size() == 0)
         return;
     if(!valid()) {
-        start_ = &other.start();
-    }
-    VERIFY(finish() == other.getVertex(0));
-    for (Edge *edge : other) {
-        operator+=(Segment<Edge>(*edge, 0, edge->size()));
-    }
-}
-
-void dbg::GraphAlignment::operator+=(const dbg::GraphAlignment &other) {
-    if(other.size() == 0)
+        *this = other;
         return;
-    if(!valid()) {
-        start_ = &other.start();
     }
     VERIFY(finish() == other.getVertex(0));
-    for (const Segment<Edge> &al : other) {
+    for (Segment<Edge> al : other) {
         operator+=(al);
     }
 }
 
-void dbg::GraphAlignment::operator+=(const Segment<Edge> &other) {
+void dbg::GraphPath::operator+=(const Segment<Edge> &other) {
     if(!valid()) {
-        start_ = &other.contig().getStart();
+        *this = {other};
+        return;
     }
-    if (!als.empty() && als.back().right < als.back().contig().size()) {
-        als.back() = als.back() + other;
+    if(cut_right == 0) {
+        VERIFY(other.left == 0 && finish() == other.contig().getStart());
+        path.emplace_back(&other.contig());
+        cut_right = other.contig().size() - other.right;
     } else {
-        VERIFY(als.empty() || other.left == 0);
-        VERIFY(finish() == other.contig().getStart());
-        als.push_back(other);
+        VERIFY(cut_right == other.contig().size() - other.left && other.contig() == backEdge());
     }
+    cut_right = other.contig().size() - other.right;
 }
 
-void dbg::GraphAlignment::operator+=(Edge &other) {
-    dbg::GraphAlignment::operator+=(Segment<Edge>(other, 0, other.size()));
+void dbg::GraphPath::operator+=(Edge &other) {
+    dbg::GraphPath::operator+=(Segment<Edge>(other, 0, other.size()));
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::operator+(const dbg::GraphAlignment &other) const {
-    GraphAlignment res = *this;
+dbg::GraphPath dbg::GraphPath::operator+(const dbg::GraphPath &other) const {
+    GraphPath res = *this;
     res += other;
     return std::move(res);
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::operator+(const dbg::Path &other) const {
-    GraphAlignment res = *this;
+dbg::GraphPath dbg::GraphPath::operator+(const Segment<Edge> &other) const {
+    GraphPath res = *this;
     res += other;
     return std::move(res);
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::operator+(const Segment<Edge> &other) const {
-    GraphAlignment res = *this;
+dbg::GraphPath dbg::GraphPath::operator+(Edge &other) const {
+    GraphPath res = *this;
     res += other;
     return std::move(res);
 }
 
-dbg::GraphAlignment dbg::GraphAlignment::operator+(Edge &other) const {
-    GraphAlignment res = *this;
-    res += other;
-    return std::move(res);
-}
-
-double dbg::GraphAlignment::minCoverage() const {
-    double res = 100000;
-    for (const Segment<Edge> &seg : als) {
-        res = std::min(seg.contig().getCoverage(), res);
-    }
-    return res;
-}
-
-dbg::Path dbg::GraphAlignment::path() {
-    std::vector<Edge *> res;
-    for (auto &seg : als) {
-        res.push_back(&seg.contig());
-    }
-    return {*start_, res};
-}
-
-std::string dbg::GraphAlignment::str(bool show_coverage) const {
+std::string dbg::GraphPath::str(bool show_coverage) const {
     if(!valid())
         return "";
     std::stringstream ss;
     ss << leftSkip() << " " << start().getInnerId();
-    for(const Segment<Edge> &seg : als) {
-        ss << " " << seg.size() << "ACGT"[seg.contig().truncSeq()[0]];
+    for(const Segment<Edge> &seg : *this) {
+        ss << " " << seg.size() << "/" <<seg.contig().size() << "ACGT"[seg.contig().truncSeq()[0]] ;
         if(show_coverage) {
             ss << "(" << seg.contig().getCoverage() << ")";
         }
@@ -431,38 +400,38 @@ std::string dbg::GraphAlignment::str(bool show_coverage) const {
     return ss.str();
 }
 
-size_t dbg::GraphAlignment::len() const {
-    size_t res = 0;
-    for (auto &seg : als) {
-        res += seg.size();
-    }
-    return res;
+Segment<Edge> GraphPath::back() const {
+    return {*path.back(), (size() == 1 ? leftSkip() : 0), path.back()->size() - rightSkip()};
 }
 
-size_t dbg::GraphAlignment::find(dbg::Edge &edge, size_t pos) const {
-    while(pos < size() && edge != als[pos].contig())
-        pos++;
-    if(pos == size())
-        return -1;
-    return pos;
+Segment<Edge> GraphPath::front() const {
+    return {*path.front(), leftSkip(), size() == 1 ? path.front()->size() - rightSkip() : path.front()->size()};
 }
 
-size_t dbg::GraphAlignment::find(dbg::Vertex &v, size_t pos) const {
-    while(pos <= size() && v != getVertex(pos))
-        pos++;
-    if(pos > size())
-        return -1;
-    return pos;
+Segment<Edge> GraphPath::operator[](size_t i) const {
+    return {*path[i], i == 0 ? leftSkip() : 0, i == size() - 1 ? path.back()->size() - rightSkip() : path[i]->size()};
 }
 
-GraphAlignment::GraphAlignment(const Path &_path) : start_(&_path.front().getStart()) {
-    operator+=(_path);
+GraphPath::segment_iterator GraphPath::begin() const {
+    std::function<Segment<Edge> (size_t)> transformer = [this](size_t ind)->Segment<Edge> {
+        return operator[](ind);
+    };
+    CountingIterator<size_t> end_it(size());
+    return {CountingIterator<size_t>(0), end_it, transformer};
 }
 
-dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to) {
+GraphPath::segment_iterator GraphPath::end() const {
+    std::function<Segment<Edge> (size_t)> transformer = [this](size_t ind)->Segment<Edge> {
+        return operator[](ind);
+    };
+    CountingIterator<size_t> end_it(size());
+    return {end_it, end_it, transformer};
+}
+
+dbg::GraphPath dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to) {
     size_t k = dbg.hasher().getK();
     size_t cur = k;
-    GraphAlignment res;
+    GraphPath res;
     while(cur < seq.size()) {
         size_t len = std::min(seq.size() - cur, edge_to->size() - pos_to);
         res += Segment<Edge>(*edge_to, pos_to, pos_to + len);
@@ -475,10 +444,10 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, dbg::Edge *edg
     return res;
 }
 
-dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::string &name) const {
+dbg::GraphPath dbg::GraphAligner::align(const Sequence &seq, const std::string &name) const {
     std::vector<hashing::KWH> kmers = dbg.extractVertexPositions(seq, 1);
     size_t k = dbg.hasher().getK();
-    GraphAlignment res;
+    GraphPath res;
     if (kmers.size() == 0) {
         hashing::KWH kwh(dbg.hasher(), seq, 0);
         while (true) {
@@ -487,7 +456,7 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::str
                 VERIFY(kwh.pos < pos.pos);
                 VERIFY(pos.pos + seq.size() - kwh.pos <= pos.edge->size() + k);
                 Segment<Edge> seg(*pos.edge, pos.pos - kwh.pos, pos.pos + seq.size() - kwh.pos - k);
-                return {pos.edge->getStart(), std::vector<Segment<Edge>>({seg})};
+                return {seg};
             }
             if (!kwh.hasNext()) {
 #pragma omp critical
@@ -536,8 +505,8 @@ dbg::GraphAlignment dbg::GraphAligner::align(const Sequence &seq, const std::str
     return std::move(res);
 }
 
-dbg::GraphAlignment dbg::GraphAligner::align(const dbg::EdgePosition &pos, const Sequence &seq) const {
-    GraphAlignment res(pos.edge->getStart(), {{*pos.edge, pos.pos, pos.pos}});
+dbg::GraphPath dbg::GraphAligner::align(const dbg::EdgePosition &pos, const Sequence &seq) const {
+    GraphPath res(Segment<Edge>(*pos.edge, pos.pos, pos.pos));
     Edge *cedge = pos.edge;
     size_t epos = pos.pos;
     for (size_t cpos = 0; cpos < seq.size(); cpos++) {
@@ -563,10 +532,8 @@ dbg::GraphAlignment dbg::GraphAligner::align(const dbg::EdgePosition &pos, const
     return std::move(res);
 }
 
-std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>>
-dbg::GraphAligner::oldEdgeAlign(dbg::Edge
-                                &contig) const {
-    Sequence seq = contig.getStart().getSeq() + contig.truncSeq();
+std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> dbg::GraphAligner::oldEdgeAlign(dbg::Edge &contig) const {
+    Sequence seq = contig.getSeq();
     std::vector<PerfectAlignment<Edge, Edge>> res;
     hashing::KWH kwh(dbg.hasher(), seq, 0);
     size_t k = dbg.hasher().getK();

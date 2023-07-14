@@ -37,7 +37,7 @@ inline void FillSubdatasets(std::vector<Subdataset> &result, const std::vector<R
         for(AlignedRead &read : *recordStorage) {
             if(!read.valid())
                 continue;
-            dbg::GraphAlignment al = read.path.getAlignment();
+            dbg::GraphPath al = read.path.getAlignment();
             std::vector<size_t> cids;
             for(size_t i = 1; i < al.size(); i++) {
                 if(cmap.find(&al.getVertex(i)) != cmap.end())

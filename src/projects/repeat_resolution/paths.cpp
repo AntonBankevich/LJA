@@ -200,10 +200,10 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
                            const std::unordered_map<std::string,
                                                     size_t> &edgeid2ind) {
     std::vector<RRPath> paths;
-    auto path2edge_list = [&edgeid2ind](const dbg::Path &dbg_path) {
+    auto path2edge_list = [&edgeid2ind](const dbg::GraphPath &dbg_path) {
       PathEdgeList edge_list;
-      for (const dbg::Edge *p_edge : dbg_path) {
-          RREdgeIndexType edge_i = edgeid2ind.at(p_edge->getInnerId());
+      for (const dbg::Edge &p_edge : dbg_path.edges()) {
+          RREdgeIndexType edge_i = edgeid2ind.at(p_edge.getInnerId());
           edge_list.emplace_back(edge_i);
       }
       return edge_list;
@@ -223,7 +223,7 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
 //            if (rec.countStartsWith(aligned_read.path.cpath()) >= 2) {
 //                continue;
 //            }
-            dbg::Path path = aligned_read.path.getPath();
+            dbg::GraphPath path = aligned_read.path.getAlignment();
             if (path.size()==0) {
                 continue;
             }

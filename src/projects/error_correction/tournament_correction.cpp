@@ -28,13 +28,13 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
     return winner;
 }
 
-std::vector<GraphAlignment>
-FilterAlternatives(const GraphAlignment &initial, const std::vector<GraphAlignment> &als,
+std::vector<GraphPath>
+FilterAlternatives(const GraphPath &initial, const std::vector<GraphPath> &als,
                    size_t max_diff, double threshold) {
     size_t len = initial.len();
-    std::vector<GraphAlignment> res;
+    std::vector<GraphPath> res;
     size_t k = initial.getVertex(0).size();
-    for(const GraphAlignment &al : als) {
+    for(const GraphPath &al : als) {
         CompactPath cpath(al);
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
@@ -55,16 +55,16 @@ FilterAlternatives(const GraphAlignment &initial, const std::vector<GraphAlignme
     return res;
 }
 
-GraphAlignment chooseBulgeCandidate(const GraphAlignment &bulge, const RecordStorage &reads_storage,
-                                    double threshold, std::vector<GraphAlignment> &read_alternatives, string &message) {
+GraphPath chooseBulgeCandidate(const GraphPath &bulge, const RecordStorage &reads_storage,
+                               double threshold, std::vector<GraphPath> &read_alternatives, string &message) {
     size_t size = bulge.len();
-    std::vector<GraphAlignment> read_alternatives_filtered = FilterAlternatives(bulge, read_alternatives,
-                                                                                std::max<size_t>(100, bulge.len() * 3 / 100), threshold);
+    std::vector<GraphPath> read_alternatives_filtered = FilterAlternatives(bulge, read_alternatives,
+                                                                           std::max<size_t>(100, bulge.len() * 3 / 100), threshold);
     size_t alt_size = read_alternatives_filtered.size();
     if(read_alternatives_filtered.size() > 1) {
         Sequence old = bulge.truncSeq();
         std::vector<Sequence> candidates;
-        for(GraphAlignment &cand : read_alternatives_filtered) {
+        for(GraphPath &cand : read_alternatives_filtered) {
             candidates.push_back(cand.truncSeq());
         }
         size_t winner = tournament(old, candidates);
@@ -84,26 +84,26 @@ GraphAlignment chooseBulgeCandidate(const GraphAlignment &bulge, const RecordSto
     }
 }
 
-std::pair<GraphAlignment, size_t> BestAlignmentPrefix(const GraphAlignment &al, const Sequence &seq) {
+std::pair<GraphPath, size_t> BestAlignmentPrefix(const GraphPath &al, const Sequence &seq) {
     Sequence candSeq = al.truncSeq();
     std::pair<size_t, size_t> bp = bestPrefix(seq, candSeq);
     size_t len = bp.first;
     Sequence prefix = candSeq.Subseq(0, len);
-    GraphAlignment res(al.start());
+    GraphPath res(al.start());
     res.extend(prefix);
     return {res, bp.second};
 }
 
-GraphAlignment processTip(const GraphAlignment &tip,
-                          const std::vector<GraphAlignment> &alternatives,
-                          double threshold, string &message) {
+GraphPath processTip(const GraphPath &tip,
+                     const std::vector<GraphPath> &alternatives,
+                     double threshold, string &message) {
     size_t size = tip.len();
-    std::vector<GraphAlignment> read_alternatives_filtered =
+    std::vector<GraphPath> read_alternatives_filtered =
             FilterAlternatives(tip, alternatives, size_t(-1) / 2, threshold);
-    std::vector<GraphAlignment> trunc_alignments;
+    std::vector<GraphPath> trunc_alignments;
     Sequence old = tip.truncSeq();
-    for(const GraphAlignment &al : read_alternatives_filtered) {
-        std::pair<GraphAlignment, size_t> tres = BestAlignmentPrefix(al, old);
+    for(const GraphPath &al : read_alternatives_filtered) {
+        std::pair<GraphPath, size_t> tres = BestAlignmentPrefix(al, old);
         if (tres.second < 10 + (al.len() / 50))
             trunc_alignments.emplace_back(std::move(tres.first));
     }
@@ -111,7 +111,7 @@ GraphAlignment processTip(const GraphAlignment &tip,
     if(trunc_alignments.size() > 1) {
         message = "m";
         std::vector<Sequence> candidates;
-        for(GraphAlignment &cand : trunc_alignments) {
+        for(GraphPath &cand : trunc_alignments) {
             Sequence candSeq = cand.truncSeq();
             candidates.push_back(candSeq);
         }
@@ -147,17 +147,17 @@ void TournamentPathCorrector::initialize(logging::Logger &logger, size_t threads
     max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(sdbg.hasher().getK() * 2, 1000));
 }
 
-std::string TournamentPathCorrector::correctRead(GraphAlignment &path) {
-    GraphAlignment corrected_path(path.start());
+std::string TournamentPathCorrector::correctRead(GraphPath &path) {
+    GraphPath corrected_path;
     std::vector<std::string> messages;
     bool corrected = false;
     for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-        VERIFY_OMP(corrected_path.finish() == path.getVertex(path_pos), "End");
+        VERIFY_OMP(corrected_path.size() == 0 || corrected_path.finish() == path.getVertex(path_pos), "End");
         Edge &edge = path[path_pos].contig();
         if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
             (edge.getStart().inDeg() > 0 && edge.getFinish().outDeg() > 0 && (edge.getCoverage() > threshold || edge.size() > 10000)) ) {
 //              Tips need to pass reliable threshold to avoid being corrected.
-            corrected_path.push_back(path[path_pos]);
+            corrected_path += path[path_pos];
             continue;
         }
         size_t step_back = 0;
@@ -177,51 +177,51 @@ std::string TournamentPathCorrector::correctRead(GraphAlignment &path) {
         }
         Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
         Vertex &end = path.getVertex(path_pos + 1 + step_front);
-        GraphAlignment badPath =
+        GraphPath badPath =
                 corrected_path.subalignment(corrected_path.size() - step_back, corrected_path.size())
                 + path.subalignment(path_pos, path_pos + 1 + step_front);
         corrected_path.pop_back(step_back);
         if(corrected_path.size() == 0 && step_front == path.size() - path_pos - 1) {
             for(const Segment<Edge> &seg : badPath) {
-                corrected_path.push_back(seg);
+                corrected_path += seg;
             }
         } else if(corrected_path.size() == 0) {
-            GraphAlignment tip = badPath.RC();
-            std::vector<GraphAlignment> alternatives;
+            GraphPath tip = badPath.RC();
+            std::vector<GraphPath> alternatives;
             if(tip.len() < max_size)
                 alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
             if (alternatives.empty())
                 alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
             std::string new_message = "";
-            GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
+            GraphPath substitution = processTip(tip, alternatives, threshold, new_message);
             if(!new_message.empty()) {
                     messages.emplace_back("it" + new_message);
                 messages.emplace_back(itos(tip.len(), 0));
                 messages.emplace_back(itos(substitution.len(), 0));
             }
             VERIFY_OMP(substitution.start() == tip.start(), "samestart");
-            GraphAlignment rcSubstitution = substitution.RC();
+            GraphPath rcSubstitution = substitution.RC();
             corrected_path = std::move(rcSubstitution);
             VERIFY_OMP(corrected_path.finish() == badPath.finish(), "End1");
         } else if(step_front == path.size() - path_pos - 1) {
-            GraphAlignment tip = badPath;
-            std::vector<GraphAlignment> alternatives;
+            GraphPath tip = badPath;
+            std::vector<GraphPath> alternatives;
             if(tip.len() < max_size)
                 alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
             if (alternatives.empty())
                 alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
             std::string new_message = "";
-            GraphAlignment substitution = processTip(tip, alternatives, threshold, new_message);
+            GraphPath substitution = processTip(tip, alternatives, threshold, new_message);
             if(!new_message.empty()) {
                 messages.emplace_back("ot" + new_message);
                 messages.emplace_back(itos(tip.len()), 0);
                 messages.emplace_back(itos(substitution.len()), 0);
             }
-            for (const Segment<Edge> &seg : substitution) {
-                corrected_path.push_back(seg);
+            for (const Segment<Edge> seg : substitution) {
+                corrected_path += seg;
             }
         } else {
-            std::vector<GraphAlignment> read_alternatives;
+            std::vector<GraphPath> read_alternatives;
             std::string new_message = "br";
             if(size < max_size)
                 read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
@@ -230,14 +230,14 @@ std::string TournamentPathCorrector::correctRead(GraphAlignment &path) {
                 read_alternatives = FindPlausibleBulgeAlternatives(badPath,
                                                                    std::max<size_t>(size * 3 / 100, 100), 3);
             }
-            GraphAlignment substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
+            GraphPath substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
             if(!new_message.empty()) {
                 messages.emplace_back(new_message);
                 messages.emplace_back(itos(badPath.len(), 0));
                 messages.emplace_back(itos(substitution.len(), 0));
             }
-            for (const Segment<Edge> &seg : substitution) {
-                corrected_path.push_back(seg);
+            for (const Segment<Edge> seg : substitution) {
+                corrected_path += seg;
             }
         }
         path_pos = path_pos + step_front;
@@ -263,7 +263,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
         if(!alignedRead.valid())
             continue;
         CompactPath &initial_cpath = alignedRead.path;
-        GraphAlignment path = initial_cpath.getAlignment();
+        GraphPath path = initial_cpath.getAlignment();
         bool corrected = false;
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
             Edge &edge = path[path_pos].contig();
@@ -303,10 +303,10 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
                 }
             }
             corrected = true;
-            path[path_pos] = {alt, 0, alt.size()};
+            path=path.reroute(path_pos, path_pos + 1, GraphPath(alt));
         }
         if(corrected) {
-            GraphAlignment path0 = initial_cpath.getAlignment();
+            GraphPath path0 = initial_cpath.getAlignment();
             reads_storage.reroute(alignedRead, path0, path, "simple bulge corrected");
         }
         results.emplace_back(ss.str());
@@ -321,7 +321,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
     return collapsable;
 }
 
-std::string PrimitiveBulgeCorrector::correctRead(GraphAlignment &path) {
+std::string PrimitiveBulgeCorrector::correctRead(GraphPath &path) {
     std::stringstream ss;
     size_t corrected = 0;
     for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
@@ -347,7 +347,7 @@ std::string PrimitiveBulgeCorrector::correctRead(GraphAlignment &path) {
             continue;
         }
         corrected++;
-        path[path_pos] = {alt, 0, alt.size()};
+        path.reroute(path_pos, path_pos + 1, GraphPath(alt));
     }
     if(corrected > 0) {
         return itos(corrected);

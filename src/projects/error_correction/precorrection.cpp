@@ -4,8 +4,8 @@
 #include "correction_utils.hpp"
 #include "dbg/sparse_dbg.hpp"
 
-dbg::GraphAlignment FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, size_t max_size, dbg::Vertex *finish = nullptr) {
-    dbg::GraphAlignment res(start);
+dbg::GraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, size_t max_size, dbg::Vertex *finish = nullptr) {
+    dbg::GraphPath res(start);
     size_t sz = 0;
     while(sz < max_size) {
         dbg::Edge *next = nullptr;
@@ -33,19 +33,19 @@ dbg::GraphAlignment FindOnlyPathForward(dbg::Vertex &start, double reliable_cove
     return std::move(res);
 }
 
-dbg::GraphAlignment PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
-    dbg::GraphAlignment res = FindOnlyPathForward(seg.contig().getStart(), reliable_coverage, seg.size());
+dbg::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
+    dbg::GraphPath res = FindOnlyPathForward(seg.contig().getStart(), reliable_coverage, seg.size());
     if(res.len() >= seg.size()) {
         res.cutBack(res.len() - seg.size());
         return std::move(res);
     } else {
-        return dbg::GraphAlignment({seg});
+        return {seg};
     }
 }
 
-dbg::GraphAlignment PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
-    dbg::GraphAlignment res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.size() + 20,
-                                                  &bulge.getFinish());
+dbg::GraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
+    dbg::GraphPath res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.size() + 20,
+                                             &bulge.getFinish());
     if(res.finish() == bulge.getFinish() && res.endClosed() && res.len() + 20 > bulge.size()) {
         return std::move(res);
     } else {
@@ -53,20 +53,20 @@ dbg::GraphAlignment PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) 
         if(res.start() == bulge.getStart() && res.startClosed() && res.len() + 20 > bulge.size())
             return std::move(res);
         else {
-            std::vector<dbg::GraphAlignment> candidates = FindPlausibleBulgeAlternatives(dbg::GraphAlignment() + bulge, 10, reliable_coverage);
+            std::vector<dbg::GraphPath> candidates = FindPlausibleBulgeAlternatives(dbg::GraphPath(bulge), 10, reliable_coverage);
             if(candidates.size() == 1 && candidates[0].len() + 20 > bulge.size() && candidates[0].len() < bulge.size() + 20) {
                 return std::move(candidates[0]);
             }
-            return dbg::GraphAlignment() + bulge;
+            return {bulge};
         }
     }
 }
 
 
-std::string Precorrector::correctRead(dbg::GraphAlignment &path) {
+std::string Precorrector::correctRead(dbg::GraphPath &path) {
     if(path.size() == 1)
         return "";
-    dbg::GraphAlignment corrected_path;
+    dbg::GraphPath corrected_path;
     size_t ncor = 0;
     std::vector<std::string> message;
     for(size_t i = 0; i < path.size(); i++) {
@@ -76,7 +76,7 @@ std::string Precorrector::correctRead(dbg::GraphAlignment &path) {
             corrected_path += path[i];
             continue;
         }
-        dbg::GraphAlignment correction;
+        dbg::GraphPath correction;
         std::string m = "";
         if(i == 0) {
             correction = PrecorrectTip(path[i].RC(), reliable_threshold).RC();

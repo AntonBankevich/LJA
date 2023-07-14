@@ -61,7 +61,7 @@ size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
     for(dbg::Edge &edge : dbg.edgesUnique()) {
         if(edge.getCoverage() < min_rel_cov)
             continue;
-        dbg::GraphAlignment al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
+        dbg::GraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
         if(al.len() < min_length)
             continue;
         for(Segment<dbg::Edge> seg : al) {
@@ -219,7 +219,7 @@ size_t ConnectionReliableFiller::Fill(dbg::SparseDBG &dbg) {
                 continue;
             res.emplace(&next->getFinish(), std::make_pair(dist, next));
             if (checkBorder(next->getFinish().rc()) != nullptr) {
-                dbg::GraphAlignment al(next->getFinish().rc());
+                dbg::GraphPath al(next->getFinish().rc());
                 while(next != last) {
                     al += next->rc();
                     new_reliable.emplace_back(next);

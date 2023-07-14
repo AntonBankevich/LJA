@@ -35,11 +35,12 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
-    std::vector<Segment<Edge>> path;
+    std::vector<GraphPath> paths;
     std::ofstream os;
     os.open(path_dump);
     size_t cur = 0;
     std::unordered_map<Edge *, size_t> mult;
+    size_t num = 0;
     for(StringContig & contig : ref) {
         Sequence seq = contig.makeSequence();
         os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
@@ -55,7 +56,8 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
             cur += seg.size();
         }
         logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
-        path.insert(path.end(), tmp.begin(), tmp.end());
+        num += tmp.size();
+        paths.emplace_back(std::move(tmp));
     }
     os.close();
     std::ofstream mos;
@@ -64,7 +66,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
         mos << edge.oldId() << " " << mult[&edge] << "\n";
     }
     mos.close();
-    logger.info() << "Reference path consists of " << path.size() << " edges" << std::endl;
+    logger.info() << "Reference path consists of " << num << " edges" << std::endl;
     size_t max_cov = 50;
     std::vector<size_t> cov(max_cov + 1);
     std::vector<size_t> cov_len(max_cov + 1);
@@ -73,10 +75,9 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     std::vector<size_t> cov_good(max_cov + 1);
     std::vector<size_t> cov_good_len(max_cov + 1);
     std::unordered_map<Edge const *, size_t> eset;
-    for(size_t i = 0; i < path.size(); i++) {
-        const Edge &edge = path[i].contig();
-        eset[&edge] += 1;
-    }
+    for(GraphPath &path: paths)
+        for(Edge &edge : path.edges())
+            eset[&edge] += 1;
     std::ofstream os_mult;
     os_mult.open(cov_dump);
     for(auto & it : eset) {
@@ -353,7 +354,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.getK() + w - 1)
                 return;
-            GraphAlignment al = GraphAligner(dbg).align(contig.getSeq());
+            GraphPath al = GraphAligner(dbg).align(contig.getSeq());
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].contains(al.getVertex(i))) {
@@ -457,7 +458,7 @@ int main(int argc, char **argv) {
             Contig read = contig.makeContig();
             if(read.size() < w + hasher.getK() - 1)
                 return;
-            GraphAlignment gal = GraphAligner(dbg).align(read.getSeq());
+            GraphPath gal = GraphAligner(dbg).align(read.getSeq());
             if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
                 gal = gal.subalignment(1, gal.size());
             }

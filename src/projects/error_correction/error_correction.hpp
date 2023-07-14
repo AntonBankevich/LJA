@@ -10,7 +10,7 @@ public:
     AbstractCorrectionAlgorithm(const std::string &name) : name(name) {};
     std::string getName() const {return name;}
     virtual void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {};
-    virtual std::string correctRead(dbg::GraphAlignment &) = 0;
+    virtual std::string correctRead(dbg::GraphPath &) = 0;
 };
 
 class ErrorCorrectionEngine {
@@ -32,7 +32,7 @@ public:
             if (!alignedRead.valid())
                 continue;
             dbg::CompactPath &initial_cpath = alignedRead.path;
-            dbg::GraphAlignment corrected = initial_cpath.getAlignment();
+            dbg::GraphPath corrected = initial_cpath.getAlignment();
             std::string message = algorithm.correctRead(corrected);
             if(!message.empty()) {
                 reads_storage.reroute(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message);

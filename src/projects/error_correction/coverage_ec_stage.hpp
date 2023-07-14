@@ -60,7 +60,7 @@ CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
     if(diploid)
         ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
-    std::vector<GraphAlignment> pseudo_reads = PartialRR(dbg, readStorage);
+    std::vector<GraphPath> pseudo_reads = PartialRR(dbg, readStorage);
     printGraphAlignments(dir / "pseudo_reads.fasta", pseudo_reads);
     RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
     coverageStats(logger, dbg);

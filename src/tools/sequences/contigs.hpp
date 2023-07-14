@@ -43,6 +43,10 @@ public:
         VERIFY(0 <= left and left <= right and right <= contig_ptr->size())
     }
 
+    Segment(T &contig) : contig_ptr(&contig), left(0), right(contig.size()) {
+        VERIFY(0 <= left and left <= right and right <= contig_ptr->size())
+    }
+
     Segment() : contig_ptr(nullptr), left(left), right(right) {
     }
 
@@ -122,12 +126,22 @@ public:
         return contig() != other.contig() || left != other.left || right != other.right;
     }
 
-    Segment<T> shrinkRight(size_t len) const {
+    Segment<T> shrinkRightBy(size_t len) const {
+        VERIFY(len <= size());
         return {*contig_ptr, left, right - len};
     }
 
-    Segment<T> shrinkLeft(size_t len) const {
+    Segment<T> shrinkLeftBy(size_t len) const {
+        VERIFY(len <= size());
         return {*contig_ptr, left + len, right};
+    }
+
+    Segment<T> shrinkRightToLen(size_t len) const {
+        return {*contig_ptr, left, left + len};
+    }
+
+    Segment<T> shrinkLeftToLen(size_t len) const {
+        return {*contig_ptr, right - len, right};
     }
 
     Segment<T> extendBy(size_t len) const {

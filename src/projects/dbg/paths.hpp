@@ -2,186 +2,114 @@
 
 #include "sparse_dbg.hpp"
 namespace dbg {
-    class Path {
+    class GraphPath {
     private:
         Vertex *start_;
         std::vector<Edge *> path;
+        size_t cut_left = 0;
+        size_t cut_right = 0;
     public:
         typedef typename std::vector<Edge *>::iterator iterator;
         typedef typename std::vector<Edge *>::const_iterator const_iterator;
         typedef TransformingIterator<CountingIterator<size_t>, Vertex> vertex_iterator;
-        typedef TransformingIterator<CountingIterator<size_t>, const Vertex> const_vertex_iterator;
+        typedef TransformingIterator<CountingIterator<size_t>, Edge> edge_iterator;
+        typedef TransformingGenerator<CountingIterator<size_t>, Segment<Edge>> segment_iterator;
 
-        Path(Vertex &_start, std::vector<Edge *> _path) : start_(&_start), path(std::move(_path)) {}
-        explicit Path(Vertex &_start) : start_(&_start) {}
-        explicit Path(Edge &edge) : start_(&edge.getStart()), path({&edge}) {}
-        static Path WalkForward(Edge &start);
+        GraphPath(Vertex &_start, std::vector<Edge *> _path, size_t left_skip, size_t rightSkip) :
+                    start_(&_start), path(std::move(_path)), cut_left(left_skip), cut_right(rightSkip) {}
+        GraphPath(Vertex &_start) : start_(&_start) {} // NOLINT(google-explicit-constructor)
+        GraphPath(Edge &edge) : start_(&edge.getStart()), path({&edge}) {} // NOLINT(google-explicit-constructor)
+        GraphPath(const Segment<Edge> &segment) : start_(&segment.contig().getStart()), // NOLINT(google-explicit-constructor)
+                          path({&segment.contig()}), cut_left(segment.left), cut_right(segment.contig().size() - segment.right) {}
+        GraphPath() : start_(nullptr) {}
+        template<class Iterator>
+        explicit GraphPath(Iterator begin, Iterator end) : cut_left(0), cut_right(0) {
+            while(begin != end) {
+                *this += *begin;
+                ++begin;
+            }
+            if(size() > 0) {
+                start_ = &frontEdge().getStart();
+            }
+        }
 
-        Edge &operator[](size_t i) {return *path[i];}
-        Edge &operator[](size_t i) const {return *path[i];}
+        static GraphPath WalkForward(Edge &start);
+
         Vertex &getVertex(size_t i);
         Vertex &getVertex(size_t i) const;
         Vertex &start() const {return *start_;}
         Vertex &finish() const {return path.empty() ? start() : path.back()->getFinish();}
         size_t find(Edge &edge, size_t pos = 0) const;
         size_t find(Vertex &v, size_t pos = 0) const;
-        Edge &back() const {return *path.back();}
-        Edge &front() const {return *path.front();}
+        Edge &backEdge() const {return *path.back();}
+        Edge &frontEdge() const {return *path.front();}
         size_t size() const {return path.size();}
 
-        iterator begin() {return path.begin();}
-        iterator end() {return path.end();}
-        IterableStorage<vertex_iterator> vertices();
-        IterableStorage<const_vertex_iterator> vertices() const;
+//        TODO: Find a way to iterate over temporary path objects
+        IterableStorage<vertex_iterator> vertices() const &;
+        IterableStorage<vertex_iterator> vertices() && = delete;
+        IterableStorage<edge_iterator> edges() const &;
+        IterableStorage<edge_iterator> edges() && = delete;
 
-        const_iterator begin() const {return path.begin();}
-        const_iterator end() const {return path.end();}
+        segment_iterator begin() const;
+        segment_iterator  end() const;
 
-        Path subPath(size_t from, size_t to);
-        Path RC();
+        GraphPath subPath(size_t from, size_t to);
+        GraphPath RC() const;
         double minCoverage() const;
         Sequence Seq() const;
         Sequence truncSeq() const;
         size_t len() const;
-        Path operator+(const Path &other) const;
-        void operator+=(Edge &edge);
-    };
 
-
-    class GraphAlignment {
-    private:
-        Vertex *start_;
-        std::vector<Segment<Edge>> als;
-    public:
-//    TODO change interface
-        template<class Iterator>
-        explicit GraphAlignment(Iterator begin, Iterator end) {
-            while(begin != end) {
-                als.emplace_back(*begin);
-                ++begin;
-            }
-            if(!als.empty())
-                start_ = &als.front().contig().getStart();
-        }
-        explicit GraphAlignment(std::vector<Segment<Edge>> _path) : start_(&_path.front().contig().getStart()), als(std::move(_path)) {}
-        explicit GraphAlignment(const Path &_path);
-        GraphAlignment(Vertex &_start, std::vector<Segment<Edge>> _path) : start_(&_start), als(std::move(_path)) {}
-        explicit GraphAlignment(Vertex &_start) : start_(&_start) {}
-        explicit GraphAlignment(Edge &start) : start_(&start.getStart()), als({{start, 0, start.size()}}) {}
-        GraphAlignment() : start_(nullptr) {}
-
-        Vertex &start() const {return *start_;}
-        Vertex &finish() const {return als.empty() ? *start_ : als.back().contig().getFinish();}
-        Segment<Edge> &back() {return als.back();}
-        Segment<Edge> &front() {return als.front();}
-        const Segment<Edge> &back() const {return als.back();}
-        const Segment<Edge> &front() const {return als.front();}
-        const Segment<Edge> &operator[](size_t i) const {return als[i];}
-        Segment<Edge> &operator[](size_t i) {return als[i];}
-        Vertex &getVertex(size_t i) const {return i == 0 ? *start_ : als[i - 1].contig().getFinish();}
-        Vertex &getVertex(size_t i)  {return i == 0 ? *start_ : als[i - 1].contig().getFinish();}
-        size_t find(Edge &edge, size_t pos = 0) const;
-        size_t find(Vertex &v, size_t pos = 0) const;
-        typename std::vector<Segment<Edge>>::iterator begin() {return als.begin();}
-        typename std::vector<Segment<Edge>>::iterator end() {return als.end();}
-        typename std::vector<Segment<Edge>>::const_iterator begin() const {return als.begin();}
-        typename std::vector<Segment<Edge>>::const_iterator end() const {return als.end();}
-        Path path();
-        size_t size() const {return als.size();}
+        Segment<Edge> back() const;
+        Segment<Edge> front() const;
+        Segment<Edge> operator[](size_t i) const;
         std::string str(bool show_coverage = false) const;
-        size_t len() const;
 
-        GraphAlignment RC() const;
         bool valid() const;
         void invalidate();
-        GraphAlignment subalignment(size_t from, size_t to) const;
-        GraphAlignment subalignment(size_t from) const {return subalignment(from, size());}
-        GraphAlignment reroute(size_t left, size_t right, const GraphAlignment &rerouting) const;
-        GraphAlignment reroute(size_t left, size_t right, const Path &rerouting) const;
-        void operator+=(const Path &other);
-        void operator+=(const GraphAlignment &other);
+        GraphPath subalignment(size_t from, size_t to) const;
+        GraphPath subalignment(size_t from) const {return subalignment(from, size());}
+        GraphPath reroute(size_t left, size_t right, const GraphPath &rerouting) const;
+        void operator+=(const GraphPath &other);
         void operator+=(const Segment<Edge> &other);
         void operator+=(Edge &other);
-        GraphAlignment operator+(const GraphAlignment &other) const;
-        GraphAlignment operator+(const Path &other) const;
-        GraphAlignment operator+(const Segment<Edge> &other) const;
-        GraphAlignment operator+(Edge &other) const;
+        GraphPath operator+(const GraphPath &other) const;
+        GraphPath operator+(const Segment<Edge> &other) const;
+        GraphPath operator+(Edge &other) const;
         //TODO deprecate
         Sequence map(std::unordered_map<const Edge *, Sequence> &edge_map);
 
-        void push_back(const Segment<Edge> &seg) {als.push_back(seg);}
-        void pop_back() {als.pop_back();}
-        void pop_back(size_t len) {als.erase(als.end() - len, als.end());}
+        void pop_back() {
+            path.pop_back();
+            cut_right = 0;
+        }
+        void pop_back(size_t len) {
+            path.erase(path.end() - len, path.end());
+            cut_right = 0;
+        }
         void cutBack(size_t l);
-        GraphAlignment &addStep();
-        GraphAlignment &addStep(Edge &edge);
-        std::vector<GraphAlignment> allSteps();
-        std::vector<GraphAlignment> allExtensions(size_t len);
-        GraphAlignment &extend(const Sequence &seq);
+        void cutFront(size_t l);
+        GraphPath &addStep();
+        GraphPath &addStep(Edge &edge);
+        std::vector<GraphPath> allSteps();
+        std::vector<GraphPath> allExtensions(size_t len);
+        GraphPath &extend(const Sequence &seq);
 
         unsigned char lastNucl() const;
         size_t leftSkip() const;
         size_t rightSkip() const;
         bool endClosed() const;
         bool startClosed() const;
-        double minCoverage() const;
 
-        Sequence Seq() const;
-        Sequence truncSeq() const;
-        Sequence truncSeq(size_t start_position, size_t size = 10000000) const;
+        Sequence truncSubseq(size_t start_position, size_t size = 10000000) const;
 
-        bool operator==(const GraphAlignment &other) const {return start_ == other.start_ && als == other.als;}
-        bool operator!=(const GraphAlignment &other) const {return !operator==(other);}
+        bool operator==(const GraphPath &other) const {
+            return start_ == other.start_ && cut_left == other.cut_left && cut_right == other.cut_right && path == other.path;
+        }
+        bool operator!=(const GraphPath &other) const {return !operator==(other);}
     };
 
-    class AlignmentPosition {
-    private:
-        GraphAlignment *alignment;
-        size_t ind;
-        size_t seg_pos;
-        size_t al_pos;
-    public:
-        AlignmentPosition(size_t _al_pos = 0) : ind(0), seg_pos(0), al_pos(0){
-            moveForward(_al_pos);
-        }
-
-        void moveForward(size_t len) {
-            while(len > 0) {
-                size_t move = std::min(len, alignment->operator[](ind).size() - seg_pos);
-                seg_pos += move;
-                al_pos += move;
-                len -= move;
-                if(seg_pos == alignment->operator[](ind).size() && ind < alignment->size()) {
-                    seg_pos = 0;
-                    ind++;
-                    VERIFY(len == 0);
-                }
-            }
-        }
-
-        EdgePosition getEdgePosition() const {
-            Segment<Edge> &segment = alignment->operator[](ind);
-            return {segment.contig(), segment.left + seg_pos};
-        }
-
-        bool isVertex() const {
-            Segment<Edge> &segment = alignment->operator[](ind);
-            return segment.left + seg_pos == 0 || segment.left + seg_pos == segment.contig().size();
-        }
-
-        dbg::Vertex &getVertex() const {
-            Segment<Edge> &segment = alignment->operator[](ind);
-            if(segment.left + seg_pos == 0)
-                return segment.contig().getStart();
-            if(segment.left + seg_pos == segment.contig().size())
-                return segment.contig().getFinish();
-            VERIFY(false);
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "UnreachableCode"
-            return segment.contig().getStart();
-#pragma clang diagnostic pop
-        }
-    };
 
     template<class U, class V>
     class PerfectAlignment {
@@ -213,9 +141,9 @@ namespace dbg {
             VERIFY(dbg.alignmentReady());
         }
 
-        GraphAlignment align(const EdgePosition &pos, const Sequence &seq) const;
-        GraphAlignment align(const Sequence &seq, Edge *edge_to, size_t pos_to);
-        GraphAlignment align(const Sequence &seq, const std::string &name = "") const;
+        GraphPath align(const EdgePosition &pos, const Sequence &seq) const;
+        GraphPath align(const Sequence &seq, Edge *edge_to, size_t pos_to);
+        GraphPath align(const Sequence &seq, const std::string &name = "") const;
         std::vector<PerfectAlignment<Contig, Edge>> carefulAlign(Contig &contig) const;
         std::vector<PerfectAlignment<Edge, Edge>> oldEdgeAlign(Edge &contig) const;
         std::vector<PerfectAlignment<Contig, Edge>> sparseAlign(Contig &contig) const;

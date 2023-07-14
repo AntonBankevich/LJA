@@ -67,6 +67,10 @@ public:
     CountingIterator(I pos) : pos(pos){
     }
 
+    size_t operator*() const {
+        return pos;
+    }
+
     CountingIterator& operator++() {
         pos++;
         return *this;
@@ -193,7 +197,8 @@ public:
     }
 
     reference operator*() const {
-        return transform(*iterator);
+        old_value_type v = *iterator;
+        return transform(v);
     }
 
     pointer operator->() const {
@@ -243,7 +248,8 @@ public:
     }
 
     TransformingGenerator& operator++() {
-        return ++iterator;
+        ++iterator;
+        return *this;
     }
 
     TransformingGenerator operator++(int) const {

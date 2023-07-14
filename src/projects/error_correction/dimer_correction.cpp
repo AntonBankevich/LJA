@@ -1,7 +1,7 @@
 #include "dimer_correction.hpp"
 using namespace dbg;
 
-std::string DimerCorrector::correctRead(GraphAlignment &path) {
+std::string DimerCorrector::correctRead(GraphPath &path) {
     size_t corrected = 0;
     size_t k = path.start().size();
     Sequence remaining_seq = path.truncSeq();
@@ -18,11 +18,11 @@ std::string DimerCorrector::correctRead(GraphAlignment &path) {
         if (at_cnt1 < 4) //Tandem repeat should be at least 4 nucleotides long
             continue;
         Sequence unit = seq.Subseq(k - 2);
-        GraphAlignment atPrefix(path.getVertex(path_pos));
+        GraphPath atPrefix(path.getVertex(path_pos));
         atPrefix.extend(unit);
         if (!atPrefix.valid())
             continue;
-        Sequence extension = path.truncSeq(path_pos, k + max_at);
+        Sequence extension = path.truncSubseq(path_pos, k + max_at);
         size_t at_cnt2 = 0;
         while (at_cnt2 < extension.size() && extension[at_cnt2] == unit[at_cnt2 % 2])
             at_cnt2 += 1;
@@ -31,7 +31,7 @@ std::string DimerCorrector::correctRead(GraphAlignment &path) {
         if (at_cnt2 % 2 != 0 || extension.size() < at_cnt2 + k - at_cnt1)
             continue;
         extension = extension.Subseq(0, at_cnt2 + k - at_cnt1);
-        GraphAlignment bulgeSide(path.getVertex(path_pos));
+        GraphPath bulgeSide(path.getVertex(path_pos));
         bulgeSide.extend(extension);
         VERIFY_MSG(bulgeSide.valid(), "Extension along an existing path failed");
         if (!bulgeSide.endClosed())
@@ -39,7 +39,7 @@ std::string DimerCorrector::correctRead(GraphAlignment &path) {
         Sequence end_seq = extension.Subseq(at_cnt2);
         std::vector<CompactPath> candidates = {CompactPath(bulgeSide)};
         if (at_cnt2 > 0) {
-            GraphAlignment candidate(path.getVertex(path_pos));
+            GraphPath candidate(path.getVertex(path_pos));
             candidate.extend(end_seq);
             if (!candidate.valid())
                 continue;
@@ -50,7 +50,7 @@ std::string DimerCorrector::correctRead(GraphAlignment &path) {
             max_variation = std::min(max_variation, at_cnt1 / 2);
             size_t len = 2;
             while (len <= max_variation && atPrefix.valid()) {
-                GraphAlignment candidate = atPrefix;
+                GraphPath candidate = atPrefix;
                 candidate.extend(end_seq);
                 if (candidate.valid()) {
                     VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 2");
@@ -78,8 +78,8 @@ std::string DimerCorrector::correctRead(GraphAlignment &path) {
         }
         if (best == 0)
             continue;
-        message.emplace_back(itos(at_cnt1) + "_" + itos(at_cnt2) + "_" + itos(candidates[best].getPath().len()));
-        path = path.reroute(path_pos, path_pos + candidates[0].size(), candidates[best].getPath());
+        message.emplace_back(itos(at_cnt1) + "_" + itos(at_cnt2) + "_" + itos(candidates[best].getAlignment().len()));
+        path = path.reroute(path_pos, path_pos + candidates[0].size(), candidates[best].getAlignment());
         corrected++;
     }
     return join("_", message);

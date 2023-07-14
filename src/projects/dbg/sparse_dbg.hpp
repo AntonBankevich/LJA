@@ -102,7 +102,9 @@ namespace dbg {
 
         Sequence firstNucl() const;
 
-        Sequence kmerSeq(size_t pos) const;
+        Sequence kmerSeq(size_t pos) const {return fullSubseq(pos, pos);}
+
+        Sequence fullSubseq(size_t from, size_t to) const;
 
         Sequence suffix(size_t pos) const;
 
@@ -372,10 +374,14 @@ namespace dbg {
         std::vector<hashing::KWH> extractVertexPositions(const Sequence &seq, size_t max = size_t(-1)) const;
         void printFastaOld(const std::experimental::filesystem::path &out);
 
-        IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> vertices(bool unique = false);
-        IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> verticesUnique();
-        IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edges(bool unique = false);
-        IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edgesUnique();
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> vertices(bool unique = false) &;
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> vertices(bool unique = false) && = delete;
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> verticesUnique() &;
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Vertex, 2>> verticesUnique() && = delete;
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edges(bool unique = false) &;
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edges(bool unique = false) && = delete;
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edgesUnique() &;
+        IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edgesUnique() && = delete;
         typename vertex_map_type::iterator begin() {return v.begin();}
         typename vertex_map_type::iterator end() {return v.end();}
         typename vertex_map_type::const_iterator begin() const {return v.begin();}

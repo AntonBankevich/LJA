@@ -109,15 +109,15 @@ public:
                 if(best == nullptr)
                     break;
                 found++;
-                dbg::Path res(best->rc());
+                dbg::GraphPath res(best->rc());
                 while(component.contains(res.finish())) {
                     res += prev[&res.finish().rc()].second->rc();
                 }
                 VERIFY(!component.contains(res.finish()));
-                VERIFY(used.find(&res.back()) == used.end());
-                for(dbg::Edge * edge : res) {
-                    used.emplace(edge);
-                    used.emplace(&edge->rc());
+                VERIFY(used.find(&res.backEdge()) == used.end());
+                for(dbg::Edge &edge : res.edges()) {
+                    used.emplace(&edge);
+                    used.emplace(&edge.rc());
                 }
             }
         }
@@ -125,9 +125,9 @@ public:
             return 0;
         for(dbg::Edge &edge : component.edgesInner()) {
             if(edge.getMarker() == dbg::EdgeMarker::common)
-                if(used.find(&edge) == used.end())
+                if(used.find(&edge) == used.end()) {
                     edge.mark(dbg::EdgeMarker::incorrect);
-                else {
+                } else {
                     if(!edge.is_reliable) {
                         edge.is_reliable = true;
                         new_rel++;

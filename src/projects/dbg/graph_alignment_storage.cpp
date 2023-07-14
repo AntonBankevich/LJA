@@ -92,11 +92,11 @@ size_t VertexRecord::countStartsWith(const Sequence &seq) const {
     return cnt;
 }
 
-std::vector<GraphAlignment> VertexRecord::getBulgeAlternatives(const Vertex &end, double threshold) const {
+std::vector<GraphPath> VertexRecord::getBulgeAlternatives(const Vertex &end, double threshold) const {
 //        lock();
     std::vector<std::pair<Sequence, size_t>> candidates;
     for(const auto & extension : paths) {
-        Path unpacked = CompactPath(v, extension.first).getPath();
+        GraphPath unpacked = CompactPath(v, extension.first).getAlignment();
         for(size_t i = 1; i <= unpacked.size(); i++) {
             if(end == unpacked.getVertex(i)){
                 candidates.emplace_back(extension.first.Subseq(0, i), extension.second);
@@ -107,7 +107,7 @@ std::vector<GraphAlignment> VertexRecord::getBulgeAlternatives(const Vertex &end
     if(candidates.empty())
         return {};
     std::sort(candidates.begin(), candidates.end());
-    std::vector<GraphAlignment> res;
+    std::vector<GraphPath> res;
     size_t cnt = 0;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i > 0 && candidates[i-1].first != candidates[i].first) {
@@ -157,12 +157,12 @@ unsigned char VertexRecord::getUniqueExtension(const Sequence &start, size_t min
     return (unsigned char)(res);
 }
 
-std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double threshold) const {
+std::vector<GraphPath> VertexRecord::getTipAlternatives(size_t len, double threshold) const {
     len += std::max<size_t>(30, len / 20);
 //        lock();
     std::vector<std::pair<Sequence, size_t>> candidates;
     for(const auto & extension : paths) {
-        GraphAlignment unpacked = CompactPath(v, extension.first).getAlignment();
+        GraphPath unpacked = CompactPath(v, extension.first).getAlignment();
         if(unpacked.len() >= len) {
             unpacked.cutBack(unpacked.len() - len);
             candidates.emplace_back(CompactPath(unpacked).cpath(), extension.second);
@@ -172,12 +172,12 @@ std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double 
     if(candidates.empty())
         return {};
     std::sort(candidates.begin(), candidates.end());
-    std::vector<GraphAlignment> res;
+    std::vector<GraphPath> res;
     size_t cnt = 0;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i > 0 && candidates[i - 1].first != candidates[i].first) {
             if(cnt > threshold) {
-                GraphAlignment cp = CompactPath(v, candidates[i - 1].first).getAlignment();
+                GraphPath cp = CompactPath(v, candidates[i - 1].first).getAlignment();
                 cp.cutBack(cp.len() - len);
                 res.emplace_back(cp);
             }
@@ -186,7 +186,7 @@ std::vector<GraphAlignment> VertexRecord::getTipAlternatives(size_t len, double 
         cnt += candidates[i].second;
     }
     if(cnt > threshold) {
-        GraphAlignment cp = CompactPath(v, candidates.back().first).getAlignment();
+        GraphPath cp = CompactPath(v, candidates.back().first).getAlignment();
         cp.cutBack(cp.len() - len);
         res.emplace_back(cp);
     }
@@ -247,7 +247,7 @@ void ReadLogger::logRead(AlignedRead &alignedRead) {
     }
 }
 
-void ReadLogger::logRerouting(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected,
+void ReadLogger::logRerouting(AlignedRead &alignedRead, const GraphPath &initial, const GraphPath &corrected,
                               const string &message) {
     CountingSS &ss = logs[omp_get_thread_num()];
     size_t left = 0;
@@ -278,12 +278,9 @@ void ReadLogger::logRerouting(AlignedRead &alignedRead, const GraphAlignment &in
 
 void RecordStorage::processPath(const CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
                                 const std::function<void(Segment<Edge>)> &edge_task) const {
-    GraphAlignment al = cpath.getAlignment();
-    for(size_t i = 0; i < al.size(); i++) {
-        Edge &edge = al[i].contig();
-        size_t seg_left = i == 0 ? cpath.leftSkip() : 0;
-        size_t seg_right = i == cpath.size() - 1 ? edge.size() - cpath.rightSkip() : edge.size();
-        edge_task(Segment<Edge>(edge, seg_left, seg_right));
+    GraphPath al = cpath.getAlignment();
+    for(Segment<Edge> seg : al) {
+        edge_task(seg);
     }
     size_t j = 1;
     size_t clen = al[0].contig().size();
@@ -359,7 +356,7 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         AlignedRead &alignedRead = reads[i];
         if(!alignedRead.valid())
             continue;
-        GraphAlignment al = alignedRead.path.getAlignment();
+        GraphPath al = alignedRead.path.getAlignment();
         size_t l = 0;
         size_t r = al.size();
         while(l < al.size() && is_bad(al[l].contig())) {
@@ -381,7 +378,7 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
             delayedInvalidateRead(alignedRead, message);
             cnt += 1;
         } else if(r - l != al.size()) {
-            GraphAlignment sub = al.subalignment(l, r);
+            GraphPath sub = al.subalignment(l, r);
             if(sub.len() < 1000)
                 delayedInvalidateRead(alignedRead, message);
             else {
@@ -450,7 +447,7 @@ bool RecordStorage::apply(AlignedRead &alignedRead) {
     return true;
 }
 
-void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &initial, const GraphAlignment &corrected,
+void RecordStorage::reroute(AlignedRead &alignedRead, const GraphPath &initial, const GraphPath &corrected,
                             const string &message) {
     if (log_changes)
         readLogger->logRerouting(alignedRead, initial, corrected, message);
@@ -461,7 +458,7 @@ void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &init
     }
 }
 
-void RecordStorage::reroute(AlignedRead &alignedRead, const GraphAlignment &corrected, const string &message) {
+void RecordStorage::reroute(AlignedRead &alignedRead, const GraphPath &corrected, const string &message) {
     reroute(alignedRead, alignedRead.path.getAlignment(), corrected, message);
 }
 

@@ -71,13 +71,13 @@ void UniqueClassificator::markPseudoHets() const {
         Edge &incorrect = start.front().getCoverage() <= start.back().getCoverage() ? start.front() : start.back();
         incorrect.is_reliable = false;
         incorrect.rc().is_reliable = false;
-        GraphAlignment cor_ext = reads_storage.getRecord(start).
+        GraphPath cor_ext = reads_storage.getRecord(start).
                 getFullUniqueExtension(correct.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
-        GraphAlignment incor_ext = reads_storage.getRecord(start).
+        GraphPath incor_ext = reads_storage.getRecord(start).
                 getFullUniqueExtension(incorrect.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
-        for(Segment<Edge> &seg : incor_ext) {
+        for(Segment<Edge> seg : incor_ext) {
             bool found= false;
-            for(Segment<Edge> &seg1 : cor_ext) {
+            for(Segment<Edge> seg1 : cor_ext) {
                 if(seg.contig() == seg1.contig()) {
                     found = true;
                     break;
@@ -112,7 +112,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         for (Edge &edge : dbg.edges()) {
             if(this->isUnique(edge))
                 continue;
-            GraphAlignment al = FindLongestCoveredExtension(edge, 3, 1);
+            GraphPath al = FindLongestCoveredExtension(edge, 3, 1);
             if(al.len() > unique_len) {
                 for(Segment<Edge> seg : al) {
                     updateBounds(seg.contig(), 1, 1);
@@ -132,20 +132,19 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         }
         const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
         CompactPath unique_extension = rec.getFullUniqueExtension(edge.truncSeq().Subseq(0, 1), 1, 0);
-        GraphAlignment al = unique_extension.getAlignment();
-        Path path = al.path();
+        GraphPath path = unique_extension.getAlignment();
         size_t len = 0;
         for(size_t i = 1; i < path.size(); i++) {
-            if(isUnique(path[i])) {
+            if(isUnique(path[i].contig())) {
                 path = path.subPath(0, i + 1);
                 break;
             }
             len += path[i].size();
         }
-        if(!isUnique(path.back()) ||len > 3000 || rec.countStartsWith(CompactPath(path).cpath()) < 4)
+        if(!isUnique(path.backEdge()) ||len > 3000 || rec.countStartsWith(CompactPath(path).cpath()) < 4)
             continue;
         CompactPath back_unique = reads_storage.getRecord(path.finish().rc()).getFullUniqueExtension(
-                path.back().rc().truncSeq().Subseq(0, 1), 1, 0);
+                path.backEdge().rc().truncSeq().Subseq(0, 1), 1, 0);
         if(back_unique.size() >= path.size()) {
             extra_unique.emplace_back(&edge);
             cnt++;
@@ -556,7 +555,7 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
         size_t vote2 = floor(back_edge.getCoverage() / med_cov + 0.5);
         if(vote1 * dev * 2 > med_cov || vote1 != vote2 + 1)
             continue;
-        GraphAlignment longest = reads_storage.getRecord(in.getStart()).
+        GraphPath longest = reads_storage.getRecord(in.getStart()).
                 getFullUniqueExtension(in.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
         size_t pos = longest.find(out);
         if(pos != size_t(-1)) {
@@ -574,7 +573,7 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
                            << back_edge.getInnerId() << " with size " << forward_edge.size() + back_edge.size()
                         << " and multiplicity " << vote2 << std::endl;
         }
-        GraphAlignment alignment;
+        GraphPath alignment;
         alignment += Segment<Edge>(in, in.size() - std::min<size_t>(in.size(), 1000), in.size());
         alignment += forward_edge;
         for(size_t i = 0; i < vote2; i++) {

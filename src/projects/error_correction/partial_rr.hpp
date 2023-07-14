@@ -4,18 +4,18 @@
 #include "dbg/graph_alignment_storage.hpp"
 #include "diploidy_analysis.hpp"
 
-std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, const RecordStorage &reads) {
+std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath &bulgePath, const RecordStorage &reads) {
     VERIFY(bulgePath.size() > 0);
     if(bulgePath.size() == 1)
-        return {dbg::GraphAlignment() + *bulgePath[0].first};
-    std::vector<dbg::GraphAlignment> res;
+        return {dbg::GraphPath() + *bulgePath[0].first};
+    std::vector<dbg::GraphPath> res;
     size_t left = 0;
     while(left < bulgePath.size() && bulgePath[left].first == bulgePath[left].second)
         left++;
     if(left == bulgePath.size()) {
-        return {dbg::GraphAlignment(bulgePath.randomPath())};
+        return {dbg::GraphPath(bulgePath.randomPath())};
     }
-    dbg::GraphAlignment path1, path2;
+    dbg::GraphPath path1, path2;
     {
         dbg::Vertex &sv = bulgePath.getVertex(left + 1);
         const VertexRecord &vrec = reads.getRecord(sv.rc());
@@ -42,7 +42,7 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
             size_t n12 = vrec.countStartsWith(s12);
             size_t n21 = vrec.countStartsWith(s21);
             size_t n22 = vrec.countStartsWith(s22);
-            dbg::GraphAlignment repeat = dbg::CompactPath(path1.finish(), s).getAlignment();
+            dbg::GraphPath repeat = dbg::CompactPath(path1.finish(), s).getAlignment();
             s = {};
             path1 += repeat;
             path2 += repeat;
@@ -77,11 +77,11 @@ std::vector<dbg::GraphAlignment> ResolveBulgePath(const BulgePath &bulgePath, co
     return std::move(res);
 }
 
-std::vector<dbg::GraphAlignment> PartialRR(dbg::SparseDBG &dbg, const RecordStorage &reads) {
+std::vector<dbg::GraphPath> PartialRR(dbg::SparseDBG &dbg, const RecordStorage &reads) {
     BulgePathFinder bulges(dbg, 1);
-    std::vector<dbg::GraphAlignment> res;
+    std::vector<dbg::GraphPath> res;
     for(BulgePath &bulgePath : bulges.paths) {
-        std::vector<dbg::GraphAlignment> resolved = ResolveBulgePath(bulgePath, reads);
+        std::vector<dbg::GraphPath> resolved = ResolveBulgePath(bulgePath, reads);
         res.insert(res.end(), resolved.begin(), resolved.end());
     }
     return std::move(res);

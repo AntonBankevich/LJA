@@ -65,8 +65,8 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
     }
 }
 
-inline Path ReliablePath(Vertex &v, size_t max_size = 1000000000) {
-    Path path(v);
+inline GraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
+    GraphPath path(v);
     size_t len = 0;
     while(len < max_size) {
         Edge *next = nullptr;
@@ -89,7 +89,7 @@ inline Path ReliablePath(Vertex &v, size_t max_size = 1000000000) {
 
 
 
-inline GraphAlignment CorrectSuffix(const GraphAlignment &al) {
+inline GraphPath CorrectSuffix(const GraphPath &al) {
     size_t first_unreliable = al.size();
     size_t bad_end_size = 0;
     while(first_unreliable > 0 && !al[first_unreliable - 1].contig().is_reliable) {
@@ -100,16 +100,16 @@ inline GraphAlignment CorrectSuffix(const GraphAlignment &al) {
         return al;
     }
     size_t max_len = bad_end_size  * 11/10 + 100;
-    Path alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
+    GraphPath alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
     if(alternative.finish().outDeg() != 0 && alternative.len() + 2000 < bad_end_size) {
         return al;
     }
-    Sequence tip = al.truncSeq(first_unreliable);
+    Sequence tip = al.truncSubseq(first_unreliable);
     Sequence alt = alternative.truncSeq();
     Sequence projection = alt;
     if(alt.size() > tip.size())
         projection = alt.Subseq(0, bestPrefix(tip, alt).first);
-    GraphAlignment res = al.subalignment(0, first_unreliable);
+    GraphPath res = al.subalignment(0, first_unreliable);
     res.extend(projection);
     return res;
 }
@@ -125,9 +125,9 @@ void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
             AlignedRead &read = storageIt->operator[](i);
             if (!read.valid())
                 continue;
-            GraphAlignment al = read.path.getAlignment();
-            GraphAlignment al1 = CorrectSuffix(al);
-            GraphAlignment al2 = CorrectSuffix(al1.RC()).RC();
+            GraphPath al = read.path.getAlignment();
+            GraphPath al1 = CorrectSuffix(al);
+            GraphPath al2 = CorrectSuffix(al1.RC()).RC();
             if (al != al2) {
                 cnt += 1;
                 storageIt->reroute(read, al, al2, "Tip corrected");

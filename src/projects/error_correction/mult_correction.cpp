@@ -1,10 +1,10 @@
 #include "mult_correction.hpp"
 using namespace dbg;
 void printAl(logging::Logger &logger, std::unordered_map<const dbg::Edge *, CompactPath> &unique_extensions,
-             const dbg::GraphAlignment &al) {
-    for(auto &piece : al) {
-        logger << piece.contig().str() << " ";
-        if(unique_extensions.find(&piece.contig()) != unique_extensions.end()) {
+             const dbg::GraphPath &al) {
+    for(Edge &piece : al.edges()) {
+        logger << piece.str() << " ";
+        if(unique_extensions.find(&piece) != unique_extensions.end()) {
             logger << "+ ";
         }
     }
@@ -72,9 +72,9 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const Rec
         CompactPath path = rec.getFullUniqueExtension(seq, 1, 0);
         if(path.size() == 1)
             continue;
-        GraphAlignment al = path.getAlignment();
+        GraphPath al = path.getAlignment();
         for(size_t i = 1; i < al.size(); i++) {
-            Segment<Edge> &seg = al[i];
+            Segment<Edge> seg = al[i];
             if(classificator.isUnique(seg.contig())) {
                 al = al.subalignment(0, i + 1);
                 break;
@@ -88,8 +88,8 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const Rec
     }
 }
 
-Path greedyExtension(const VertexRecord &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
-    Path path(edge.getStart());
+GraphPath greedyExtension(const VertexRecord &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
+    GraphPath path(edge.getStart());
     path += edge;
     Sequence seq = CompactPath(path).cpath();
     while(true) {
@@ -128,8 +128,8 @@ inline CompactPath findBulgeExtension(const VertexRecord &rec, Edge &edge, const
         if(!greedy.cpath().startsWith(cp1.cpath()))
             return greedy;
     }
-    Path p1 = cp1.getPath();
-    Path p2 = cp2.getPath();
+    GraphPath p1 = cp1.getAlignment();
+    GraphPath p2 = cp2.getAlignment();
     size_t b1 = 0;
     size_t b2 = 0;
     Sequence choice;
@@ -158,12 +158,12 @@ inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const 
         if(unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
-        Path path = greedyExtension(rec, classificator, edge);
-        VERIFY(edge == path[0]);
-        path = findBulgeExtension(rec, edge, CompactPath(path)).getPath();
-        VERIFY(edge == path[0]);
+        GraphPath path = greedyExtension(rec, classificator, edge);
+        VERIFY(edge == path.frontEdge());
+        path = findBulgeExtension(rec, edge, CompactPath(path)).getAlignment();
+        VERIFY(edge == path.frontEdge());
         for(size_t i = 1; i < path.size(); i++) {
-            if(classificator.isUnique(path[i])) {
+            if(classificator.isUnique(path.frontEdge())) {
                 path = path.subPath(0, i + 1);
                 break;
             }
@@ -171,11 +171,11 @@ inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const 
         if(path.size() == 1) {
             continue;
         }
-        VERIFY(edge == path[0]);
-        unique_extensions.emplace(&edge, CompactPath(path.subPath(1, path.size())));
-        Edge &last_rc_edge = path.back().rc();
+        VERIFY(edge == path.frontEdge());
+        unique_extensions.emplace(&edge, CompactPath::Subpath(path,1, path.size()));
+        Edge &last_rc_edge = path.backEdge().rc();
         if(classificator.isUnique(last_rc_edge) && unique_extensions.find(&last_rc_edge) == unique_extensions.end()) {
-            unique_extensions.emplace(&last_rc_edge, CompactPath(path.RC().subPath(1, path.size())));
+            unique_extensions.emplace(&last_rc_edge, CompactPath::Subpath(path.RC(), 1, path.size()));
         }
     }
 }
@@ -207,22 +207,22 @@ inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(l
     return std::move(unique_extensions);
 }
 
-GraphAlignment correctRead(std::unordered_map<const Edge *, CompactPath> &unique_extensions,
-                           const GraphAlignment &initial_al) {
+GraphPath correctRead(std::unordered_map<const Edge *, CompactPath> &unique_extensions,
+                      const GraphPath &initial_al) {
     CompactPath initialCompactPath(initial_al);
-    GraphAlignment al = initial_al;
+    GraphPath al = initial_al;
     bool bad;
     bool corrected = false;
     for(size_t i = 0; i + 1 < al.size(); i++) {
         if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
             continue;
         CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
-        if(compactPath.cpath().nonContradicts(CompactPath(al.subalignment(i + 1, al.size())).cpath()))
+        if(compactPath.cpath().nonContradicts(CompactPath::Subpath(al, i + 1, al.size()).cpath()))
             continue;
         corrected = true;
-        GraphAlignment new_al = al.subalignment(0, i + 1);
+        GraphPath new_al = al.subalignment(0, i + 1);
         size_t corrected_len = al.subalignment(i + 1, al.size()).len();
-        GraphAlignment replacement = compactPath.getAlignment();
+        GraphPath replacement = compactPath.getAlignment();
         while(replacement.len() < corrected_len &&
               unique_extensions.find(&replacement.back().contig()) != unique_extensions.end()) {
             replacement += unique_extensions[&replacement.back().contig()].getAlignment();
@@ -239,9 +239,9 @@ GraphAlignment correctRead(std::unordered_map<const Edge *, CompactPath> &unique
             }
             bad = true;
         } else {
-            for (Segment<Edge> &rep_seg : replacement) {
+            for (const Segment<Edge> rep_seg : replacement) {
                 if (corrected_len <= rep_seg.size()) {
-                    new_al += rep_seg.shrinkRight(rep_seg.size() - corrected_len);
+                    new_al += rep_seg.shrinkRightBy(rep_seg.size() - corrected_len);
                     corrected_len = 0;
                     break;
                 } else {
@@ -267,10 +267,10 @@ void correctReads(logging::Logger &logger, size_t threads, RecordStorage &reads_
         AlignedRead &alignedRead = reads_storage[i];
         if(!alignedRead.valid())
             continue;
-        const GraphAlignment al = alignedRead.path.getAlignment();
+        const GraphPath al = alignedRead.path.getAlignment();
         if(al.size() > 1) {
-            GraphAlignment corrected1 = correctRead(unique_extensions, al);
-            GraphAlignment corrected2 = correctRead(unique_extensions, corrected1.RC()).RC();
+            GraphPath corrected1 = correctRead(unique_extensions, al);
+            GraphPath corrected2 = correctRead(unique_extensions, corrected1.RC()).RC();
             if(al != corrected2) {
                 reads_storage.reroute(alignedRead, al, corrected2, "mult correction");
             }
@@ -322,12 +322,11 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
         }
         const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
         CompactPath unique_extension = rec.getFullUniqueExtension(edge.truncSeq().Subseq(0, 1), 1, 0);
-        GraphAlignment al = unique_extension.getAlignment();
-        Path path = al.path();
+        GraphPath path = unique_extension.getAlignment();
         size_t len = 0;
         for(size_t i = 1; i < path.size(); i++) {
-            if(classificator.isUnique(path[i])) {
-                if(len < 3000 && rec.countStartsWith(CompactPath(path.subPath(0, i + 1)).cpath()) >= 4) {
+            if(classificator.isUnique(path[i].contig())) {
+                if(len < 3000 && rec.countStartsWith(CompactPath::Subpath(path,0, i + 1).cpath()) >= 4) {
                     if(i == 1 && edge.getStart().inDeg() == 2 && edge.getFinish().outDeg() == 2 &&
                             edge.getStart().outDeg() == 1 && edge.getFinish().inDeg() == 1) {
                         if(classificator.isUnique(edge.getStart().rc().front()) && classificator.isUnique(edge.getStart().rc().back()) &&
