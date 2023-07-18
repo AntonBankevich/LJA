@@ -18,7 +18,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
     std::ofstream os_cut;
     os_cut.open(dir / "assembly.fasta");
     for(Contig &contig : assembly) {
-        if(contig.size() > 1500)
+        if(contig.truncSize() > 1500)
             os_cut << ">" << contig.getInnerId() << "\n" << contig.getSeq() << "\n";
     }
     os_cut.close();

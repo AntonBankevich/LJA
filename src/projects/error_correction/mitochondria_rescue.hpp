@@ -26,7 +26,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
         bool ok = true;
         std::vector<double> covs;
         for(dbg::Edge &edge : component.edgesUnique()) {
-            if(edge.size() > unique_length) {
+            if(edge.truncSize() > unique_length) {
                 ok = false;
                 break;
             }
@@ -43,7 +43,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
                         if(edge.getCoverage() <= covs[i]) {
                             bad_edges.emplace(&edge);
                         } else {
-                            sz += edge.size();
+                            sz += edge.truncSize();
                         }
                     }
                     logger.trace() << "Rescued component of size " << (sz / 2) << std::endl;

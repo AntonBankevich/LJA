@@ -10,7 +10,7 @@
 #include <common/simple_computation.hpp>
 #include <common/logging.hpp>
 
-Sequence buildDisjointig(dbg::GraphPath &path);
+Sequence buildDisjointig(DBGGraphPath &path);
 void processVertex(dbg::Vertex &rec, ParallelRecordCollector<Sequence> &res);
 void prepareVertex(dbg::Vertex &vertex);
 void extractLinearDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger & logger, size_t threads);

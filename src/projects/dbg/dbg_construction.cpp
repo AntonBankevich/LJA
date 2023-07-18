@@ -168,7 +168,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
         writeHashs(os, vertices);
         os.close();
     } else {
-        logger.info() << "Loading vertex hashs from file " << vertices_file << std::endl;
+        logger.info() << "Loading getVertex hashs from file " << vertices_file << std::endl;
         std::ifstream is;
         is.open(vertices_file);
         vertices = readHashs(is);

@@ -3,7 +3,7 @@
 
 using namespace hashing;
 using namespace dbg;
-Sequence buildDisjointig(GraphPath &path) {
+Sequence buildDisjointig(DBGGraphPath &path) {
     Sequence disjointig = path.Seq();
     const Vertex &last = path.finish().rc();
     const Edge &lastEdge = path.backEdge().rc();
@@ -27,7 +27,7 @@ Sequence buildDisjointig(GraphPath &path) {
 void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
     for(Edge & edge : rec) {
         VERIFY(!rec.getSeq().empty());
-        GraphPath path = GraphPath::WalkForward(edge);
+        DBGGraphPath path(edge);
         if(rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
             Sequence disjointig = buildDisjointig(path);
             if (!disjointig.empty()) {
@@ -98,7 +98,7 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
                 if(vertex.isJunction() || vertex.marked())
                     return;
                 Edge &edge = *vertex.begin();
-                GraphPath path = GraphPath::WalkForward(edge);
+                DBGGraphPath path(edge);
                 if(path.finish() != vertex) {
                     std::cout << path.start().getInnerId() << " " << path.finish().getInnerId() << " " << path.size() <<
                               " " << path.finish().isJunction() << " " << "ACGT"[path.backEdge().rc().truncSeq()[0]] << std::endl;

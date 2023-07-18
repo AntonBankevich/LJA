@@ -109,7 +109,7 @@ namespace multigraph {
             }
         }
         os << "Vertices: " << vertices_map.size() << "\nEdges: " << edges_map.size() << "\n";
-        os << "Total edge length: " << total_length << "\nTotal clean edge length: " << total_clean_length << "\n";
+        os << "Total getEdge length: " << total_length << "\nTotal clean getEdge length: " << total_clean_length << "\n";
         os << "Number of tips: " << tips << "\n";
     }
 
@@ -122,7 +122,7 @@ namespace multigraph {
             }
             Vertex &newv = dbg.addVertex(v.getSeq().Subseq(v.size() - v[0].overlap()));
             for(const Edge &edge : v) {
-                const Vertex &right = edge.end();
+                const Vertex &right = edge.getFinish();
                 for(const Edge &edge1 : right.rc()) {
                     emap[edge1.getId()] = newv.rc().getId();
                     emap[edge1.rc().getId()] = newv.getId();
@@ -165,9 +165,9 @@ namespace multigraph {
         for(const Edge &edge : initial.edges()) {
             if(!edge.isCanonical() || to_delete.find(edge.getId()) != to_delete.end())
                 continue;
-            if(to_delete_vertices.find(edge.start().getId()) == to_delete_vertices.end() ||
-               to_delete_vertices.find(edge.end().getId()) == to_delete_vertices.end())
-                res.addEdge(*vmap[edge.start().getId()], *vmap[edge.end().getId()], edge.getSeq(), edge.getId().innerId(), edge.getLabel());
+            if(to_delete_vertices.find(edge.getStart().getId()) == to_delete_vertices.end() ||
+               to_delete_vertices.find(edge.getFinish().getId()) == to_delete_vertices.end())
+                res.addEdge(*vmap[edge.getStart().getId()], *vmap[edge.getFinish().getId()], edge.getSeq(), edge.getId().innerId(), edge.getLabel());
         }
         return std::move(res);
     }
@@ -177,7 +177,7 @@ namespace multigraph {
         std::unordered_set<ConstVertexId> vset;
         for(const Edge &edge: edges()) {
             eset.emplace(edge.getId());
-            VERIFY(edge.rc().start() == edge.end().rc());
+            VERIFY(edge.rc().getStart() == edge.getFinish().rc());
             VERIFY(edge.rc().rc() == edge);
         }
         for(const Edge &edge: edges()) {
@@ -188,7 +188,7 @@ namespace multigraph {
             VERIFY(v.rc().rc() == v);
             for(const Edge &edge : v) {
                 VERIFY(eset.find(edge.getId()) != eset.end());
-                VERIFY(edge.start() == v);
+                VERIFY(edge.getStart() == v);
             }
         }
         for(const Vertex &v : vertices()) {
@@ -232,12 +232,12 @@ namespace multigraph {
 
         EdgeId res = edges_map.emplace(std::piecewise_construct, std::forward_as_tuple(id),
                                        std::forward_as_tuple(from, to, std::move(seq), id, label)).first->second.getId();
-        res->start().addOutgoing(*res);
+        res->getStart().addOutgoing(*res);
         EdgeId rc = res;
         if(res->getSeq() != !res->getSeq()) {
             rc = edges_map.emplace(std::piecewise_construct, std::forward_as_tuple(-id),
                                    std::forward_as_tuple(to.rc(), from.rc(), !res->getSeq(), -id, res->getReverseLabel())).first->second.getId();
-            rc->start().addOutgoing(*rc);
+            rc->getStart().addOutgoing(*rc);
         }
         res->setRC(*rc);
         rc->setRC(*res);
@@ -245,9 +245,9 @@ namespace multigraph {
     }
 
     void MultiGraph::internalRemoveEdge(Edge &edge) {
-        edge.start().removeOutgoing(edge);
+        edge.getStart().removeOutgoing(edge);
         if(edge != edge.rc()) {
-            edge.rc().start().removeOutgoing(edge.rc());
+            edge.rc().getStart().removeOutgoing(edge.rc());
             edges_map.erase(edge.rc().getId().innerId());
         }
         edges_map.erase(edge.getId().innerId());
@@ -278,22 +278,22 @@ namespace multigraph {
         VERIFY(edge1.size() >= v.size());
         VERIFY(edge2.size() >= v.size());
         Sequence new_seq = edge1.getSeq() + edge2.getSeq().Subseq(v.size());
-        VertexId new_start = edge1.start().getId();
-        VertexId new_end = edge2.end().getId();
+        VertexId new_start = edge1.getStart().getId();
+        VertexId new_end = edge2.getFinish().getId();
         std::string new_label = ((edge1.isCanonical()?edge1.getLabel(): edge1.getReverseLabel() + "_" +
                                                                         (edge2.isCanonical()?edge2.getLabel(): edge2.getReverseLabel())));
         std::vector<std::string> path = {edge1.getLabel(), edge2.getLabel()};
 
         if(edge1 == edge1.rc()) {
             new_seq = edge2.rc().getSeq().Prefix(edge2.size() - v.size()) + new_seq;
-            new_start = edge2.rc().start().getId();
-            new_end = edge2.end().getId();
+            new_start = edge2.rc().getStart().getId();
+            new_end = edge2.getFinish().getId();
             new_label = edge2.rc().getLabel() + "_" + edge1.getLabel() + "_" + edge2.getLabel();
             path = {edge2.rc().getLabel(), edge1.getLabel(), edge2.getLabel()};
         } else if(edge2 == edge2.rc()) {
             new_seq = new_seq + edge1.rc().getSeq().Subseq(v.size());
-            new_start = edge1.start().getId();
-            new_end = edge1.rc().end().getId();
+            new_start = edge1.getStart().getId();
+            new_end = edge1.rc().getFinish().getId();
             new_label = edge1.getLabel() + "_" + edge2.getLabel() + "_" + edge1.rc().getLabel();
             path = {edge1.getLabel(), edge2.getLabel(), edge1.rc().getLabel()};
         }
@@ -309,20 +309,20 @@ namespace multigraph {
 
     std::vector<EdgeId> MultiGraphHelper::uniquePathForward(Edge &edge) {
         std::vector<EdgeId> res = {edge.getId()};
-        VertexId cur = edge.end().getId();
-        while(cur != edge.start().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
+        VertexId cur = edge.getFinish().getId();
+        while(cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
             res.emplace_back(cur->begin()->getId());
-            cur = res.back()->end().getId();
+            cur = res.back()->getFinish().getId();
         }
         return std::move(res);
     }
 
     std::vector<ConstEdgeId> MultiGraphHelper::uniquePathForward(const Edge &edge) {
         std::vector<ConstEdgeId> res = {edge.getId()};
-        ConstVertexId cur = edge.end().getId();
-        while(cur != edge.start().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
+        ConstVertexId cur = edge.getFinish().getId();
+        while(cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
             res.emplace_back(cur->begin()->getId());
-            cur = res.back()->end().getId();
+            cur = res.back()->getFinish().getId();
         }
         return std::move(res);
     }
@@ -359,8 +359,8 @@ namespace multigraph {
                 paths_to_add.pop_back();
             VERIFY(!paths_to_add.empty());
             for(std::vector<ConstEdgeId> &path : paths_to_add) {
-                ConstVertexId old_start = path.front()->start().getId();
-                ConstVertexId old_end = path.back()->end().getId();
+                ConstVertexId old_start = path.front()->getStart().getId();
+                ConstVertexId old_end = path.back()->getFinish().getId();
                 VertexId &new_start = old_to_new[old_start];
                 if(!new_start.valid()) {
                     new_start = res.addVertex(old_start->getSeq()).getId();
@@ -374,11 +374,11 @@ namespace multigraph {
                 SequenceBuilder sb;
                 sb.append(path.front()->getSeq());
                 for(size_t i = 1; i < path.size(); i++) {
-                    sb.append(path[i]->getSeq().Subseq(path[i]->start().size()));
+                    sb.append(path[i]->getSeq().Subseq(path[i]->getStart().size()));
                 }
                 Edge &new_edge = res.addEdge(*new_start, *new_end, sb.BuildSequence());
                 if(verbose) {
-                    std::cout << "New edge " << new_edge.getId() << " consists of old edges: ";
+                    std::cout << "New getEdge " << new_edge.getId() << " consists of old edges: ";
                     for(auto e : path) {
                         std::cout << e->getId() << " ";
                     }
@@ -411,8 +411,8 @@ namespace multigraph {
         size_t cnt = 1;
         for(const Edge &edge: mg.edges()) {
             if(edge.isCanonical()) {
-                size_t cut_left = edge.start().size() * cut[edge.start().getId()];
-                size_t cut_right = edge.end().size() * (1 - cut[edge.end().getId()]);
+                size_t cut_left = edge.getStart().size() * cut[edge.getStart().getId()];
+                size_t cut_right = edge.getFinish().size() * (1 - cut[edge.getFinish().getId()]);
                 if(!cut_overlaps) {
                     cut_left = 0;
                     cut_right = 0;
@@ -446,7 +446,7 @@ namespace multigraph {
         }
         std::unordered_map<EdgeId, std::string> eids;
         for (const Edge &edge : mg.edges()) {
-            os << "\"" << edge.start().getId() << "\" -> \"" << edge.end().getId() <<
+            os << "\"" << edge.getStart().getId() << "\" -> \"" << edge.getFinish().getId() <<
                "\" [label=\"" << edge.getId() << "(" << edge.size() << ")\" color = \"black\"]\n" ;
 
         }
@@ -517,12 +517,12 @@ namespace multigraph {
         for(ConstVertexId v : component)
             for (const Edge &edge : *v) {
                 if (edge.isCanonical()) {
-                    VERIFY(edge.size() < edge.start().size() + edge.end().size());
+                    VERIFY(edge.size() < edge.getStart().size() + edge.getFinish().size());
                     bool incsign = v->isCanonical();
-                    bool outsign = edge.end().isCanonical();
-                    os  << "L\t" << vids[v] << "\t" << (incsign ? "+" : "-") << "\t"
-                        << vids[edge.end().getId()] << "\t" << (outsign ? "+" : "-") << "\t"
-                        << (v->size() + edge.end().size() - edge.size()) << "M" << "\n";
+                    bool outsign = edge.getFinish().isCanonical();
+                    os << "L\t" << vids[v] << "\t" << (incsign ? "+" : "-") << "\t"
+                       << vids[edge.getFinish().getId()] << "\t" << (outsign ? "+" : "-") << "\t"
+                       << (v->size() + edge.getFinish().size() - edge.size()) << "M" << "\n";
                 }
             }
         os.close();
@@ -553,9 +553,9 @@ namespace multigraph {
                 res.back().emplace_back(v);
                 res.back().emplace_back(v->rc().getId());
                 for(const Edge &e : *v)
-                    stack.emplace_back(e.end().getId());
+                    stack.emplace_back(e.getFinish().getId());
                 for(const Edge &e : v->rc())
-                    stack.emplace_back(e.end().getId());
+                    stack.emplace_back(e.getFinish().getId());
             }
         }
         return std::move(res);
@@ -654,11 +654,11 @@ namespace multigraph {
     bool Edge::isSimpleBridge() {
         if (isTip())
             return false;
-        for (Edge &alt_e: start()) {
+        for (Edge &alt_e: getStart()) {
             if (alt_e != *this and !alt_e.isTip())
                 return false;
         }
-        for (Edge &alt_e: rc().start()) {
+        for (Edge &alt_e: rc().getStart()) {
             if (alt_e != rc() and !alt_e.isTip())
                 return false;
         }

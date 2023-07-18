@@ -82,12 +82,12 @@ std::vector<const dbg::Edge *> GetOutgoing(const dbg::Vertex &start, double min_
 
 std::vector<const dbg::Edge *> CoveredPath(const dbg::Edge &start, double min_cov, size_t max_len) {
     std::vector<const dbg::Edge *> res = {&start};
-    size_t len = start.size();
+    size_t len = start.truncSize();
     while(len < max_len) {
         std::vector<const dbg::Edge *> out = GetOutgoing(res.back()->getFinish(), min_cov);
         if(out.size() == 1) {
             res.emplace_back(out[0]);
-            len += out[0]->size();
+            len += out[0]->truncSize();
         }
     }
     return std::move(res);

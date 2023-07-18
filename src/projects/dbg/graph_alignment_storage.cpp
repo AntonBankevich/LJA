@@ -92,11 +92,11 @@ size_t VertexRecord::countStartsWith(const Sequence &seq) const {
     return cnt;
 }
 
-std::vector<GraphPath> VertexRecord::getBulgeAlternatives(const Vertex &end, double threshold) const {
+std::vector<DBGGraphPath> VertexRecord::getBulgeAlternatives(const Vertex &end, double threshold) const {
 //        lock();
     std::vector<std::pair<Sequence, size_t>> candidates;
     for(const auto & extension : paths) {
-        GraphPath unpacked = CompactPath(v, extension.first).getAlignment();
+        DBGGraphPath unpacked = CompactPath(v, extension.first).getAlignment();
         for(size_t i = 1; i <= unpacked.size(); i++) {
             if(end == unpacked.getVertex(i)){
                 candidates.emplace_back(extension.first.Subseq(0, i), extension.second);
@@ -107,7 +107,7 @@ std::vector<GraphPath> VertexRecord::getBulgeAlternatives(const Vertex &end, dou
     if(candidates.empty())
         return {};
     std::sort(candidates.begin(), candidates.end());
-    std::vector<GraphPath> res;
+    std::vector<DBGGraphPath> res;
     size_t cnt = 0;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i > 0 && candidates[i-1].first != candidates[i].first) {
@@ -157,12 +157,12 @@ unsigned char VertexRecord::getUniqueExtension(const Sequence &start, size_t min
     return (unsigned char)(res);
 }
 
-std::vector<GraphPath> VertexRecord::getTipAlternatives(size_t len, double threshold) const {
+std::vector<DBGGraphPath> VertexRecord::getTipAlternatives(size_t len, double threshold) const {
     len += std::max<size_t>(30, len / 20);
 //        lock();
     std::vector<std::pair<Sequence, size_t>> candidates;
     for(const auto & extension : paths) {
-        GraphPath unpacked = CompactPath(v, extension.first).getAlignment();
+        DBGGraphPath unpacked = CompactPath(v, extension.first).getAlignment();
         if(unpacked.len() >= len) {
             unpacked.cutBack(unpacked.len() - len);
             candidates.emplace_back(CompactPath(unpacked).cpath(), extension.second);
@@ -172,12 +172,12 @@ std::vector<GraphPath> VertexRecord::getTipAlternatives(size_t len, double thres
     if(candidates.empty())
         return {};
     std::sort(candidates.begin(), candidates.end());
-    std::vector<GraphPath> res;
+    std::vector<DBGGraphPath> res;
     size_t cnt = 0;
     for(size_t i = 0; i < candidates.size(); i++) {
         if(i > 0 && candidates[i - 1].first != candidates[i].first) {
             if(cnt > threshold) {
-                GraphPath cp = CompactPath(v, candidates[i - 1].first).getAlignment();
+                DBGGraphPath cp = CompactPath(v, candidates[i - 1].first).getAlignment();
                 cp.cutBack(cp.len() - len);
                 res.emplace_back(cp);
             }
@@ -186,7 +186,7 @@ std::vector<GraphPath> VertexRecord::getTipAlternatives(size_t len, double thres
         cnt += candidates[i].second;
     }
     if(cnt > threshold) {
-        GraphPath cp = CompactPath(v, candidates.back().first).getAlignment();
+        DBGGraphPath cp = CompactPath(v, candidates.back().first).getAlignment();
         cp.cutBack(cp.len() - len);
         res.emplace_back(cp);
     }
@@ -247,7 +247,7 @@ void ReadLogger::logRead(AlignedRead &alignedRead) {
     }
 }
 
-void ReadLogger::logRerouting(AlignedRead &alignedRead, const GraphPath &initial, const GraphPath &corrected,
+void ReadLogger::logRerouting(AlignedRead &alignedRead, const DBGGraphPath &initial, const DBGGraphPath &corrected,
                               const string &message) {
     CountingSS &ss = logs[omp_get_thread_num()];
     size_t left = 0;
@@ -267,8 +267,8 @@ void ReadLogger::logRerouting(AlignedRead &alignedRead, const GraphPath &initial
         right++;
     }
     ss << alignedRead.id << " " << message  << " " << left << "(" << left_len << ") " << right << "(" << right_len << ")\n";
-    ss << alignedRead.id << "  initial  " << initial.subalignment(left, initial.size() - right).str(true) << "\n";
-    ss << alignedRead.id << " corrected " << corrected.subalignment(left, corrected.size() - right).str(true) << "\n";
+    ss << alignedRead.id << "  initial  " << initial.subPath(left, initial.size() - right).str(true) << "\n";
+    ss << alignedRead.id << " corrected " << corrected.subPath(left, corrected.size() - right).str(true) << "\n";
 //        ss << alignedRead.id << " rc  initial  " << initial.RC().str(true) << "\n";
 //        ss << alignedRead.id << " rc corrected " << corrected.RC().str(true) << "\n";
     if(ss.size() > 100000) {
@@ -278,16 +278,16 @@ void ReadLogger::logRerouting(AlignedRead &alignedRead, const GraphPath &initial
 
 void RecordStorage::processPath(const CompactPath &cpath, const std::function<void(Vertex &, const Sequence &)> &task,
                                 const std::function<void(Segment<Edge>)> &edge_task) const {
-    GraphPath al = cpath.getAlignment();
+    DBGGraphPath al = cpath.getAlignment();
     for(Segment<Edge> seg : al) {
         edge_task(seg);
     }
     size_t j = 1;
-    size_t clen = al[0].contig().size();
+    size_t clen = al[0].contig().truncSize();
     for (size_t i = 1; i <= al.size(); i++) {
-        clen -= al[i - 1].contig().size();
+        clen -= al[i - 1].contig().truncSize();
         while (j < al.size() && clen < max_len) {
-            clen += al[j].contig().size();
+            clen += al[j].contig().truncSize();
             j++;
         }
         if (clen >= min_len)
@@ -356,7 +356,7 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
         AlignedRead &alignedRead = reads[i];
         if(!alignedRead.valid())
             continue;
-        GraphPath al = alignedRead.path.getAlignment();
+        DBGGraphPath al = alignedRead.path.getAlignment();
         size_t l = 0;
         size_t r = al.size();
         while(l < al.size() && is_bad(al[l].contig())) {
@@ -378,12 +378,13 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
             delayedInvalidateRead(alignedRead, message);
             cnt += 1;
         } else if(r - l != al.size()) {
-            GraphPath sub = al.subalignment(l, r);
+            DBGGraphPath sub = al.subPath(l, r);
             if(sub.len() < 1000)
                 delayedInvalidateRead(alignedRead, message);
             else {
-                std::string extra_message = message + "_EndsClipped_" + itos(al.subalignment(0, l).len()) + "_" + itos(al.subalignment(r, al.size()).len());
-                reroute(alignedRead, al, al.subalignment(l, r), extra_message);
+                std::string extra_message = message + "_EndsClipped_" + itos(al.subPath(0, l).len()) + "_" + itos(
+                        al.subPath(r, al.size()).len());
+                reroute(alignedRead, al, al.subPath(l, r), extra_message);
             }
             cnt += 1;
         }
@@ -447,7 +448,7 @@ bool RecordStorage::apply(AlignedRead &alignedRead) {
     return true;
 }
 
-void RecordStorage::reroute(AlignedRead &alignedRead, const GraphPath &initial, const GraphPath &corrected,
+void RecordStorage::reroute(AlignedRead &alignedRead, const DBGGraphPath &initial, const DBGGraphPath &corrected,
                             const string &message) {
     if (log_changes)
         readLogger->logRerouting(alignedRead, initial, corrected, message);
@@ -458,7 +459,7 @@ void RecordStorage::reroute(AlignedRead &alignedRead, const GraphPath &initial, 
     }
 }
 
-void RecordStorage::reroute(AlignedRead &alignedRead, const GraphPath &corrected, const string &message) {
+void RecordStorage::reroute(AlignedRead &alignedRead, const DBGGraphPath &corrected, const string &message) {
     reroute(alignedRead, alignedRead.path.getAlignment(), corrected, message);
 }
 

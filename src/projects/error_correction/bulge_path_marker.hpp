@@ -78,11 +78,11 @@ public:
                                 score = 0;
                         } else {
                             if(used.find(&edge) == used.end())
-                                score = edge.intCov() - std::min(edge.intCov(), edge.size());
+                                score = edge.intCov() - std::min(edge.intCov(), edge.truncSize());
                             else if(edge.getCoverage() < 8) {
                                 score = 0;
                             } else {
-                                score = edge.size() * 2;
+                                score = edge.truncSize() * 2;
                             }
                         }
                         score += prev[&edge.getFinish().rc()].first;
@@ -109,7 +109,7 @@ public:
                 if(best == nullptr)
                     break;
                 found++;
-                dbg::GraphPath res(best->rc());
+                DBGGraphPath res(best->rc());
                 while(component.contains(res.finish())) {
                     res += prev[&res.finish().rc()].second->rc();
                 }

@@ -66,7 +66,7 @@ dbg::Vertex &BulgePath::vertexAt(size_t ind) {
 size_t BulgePath::length() const {
     size_t res = 0;
     for(auto & p : path) {
-        res += std::max(p.first->size(), p.second->size());
+        res += std::max(p.first->truncSize(), p.second->truncSize());
     }
     return res;
 }
@@ -75,7 +75,7 @@ size_t BulgePath::bulgeLength() const {
     size_t res = 0;
     for(auto & p : path) {
         if(p.first != p.second)
-            res += std::max(p.first->size(), p.second->size());
+            res += std::max(p.first->truncSize(), p.second->truncSize());
     }
     return res;
 }
@@ -84,7 +84,7 @@ size_t BulgePath::conservativeLength() const {
     size_t res = 0;
     for(auto & p : path) {
         if(p.first == p.second)
-            res += std::max(p.first->size(), p.second->size());
+            res += std::max(p.first->truncSize(), p.second->truncSize());
     }
     return res;
 }
@@ -94,10 +94,10 @@ std::string BulgePath::str() const {
     ss << start().getShortId();
     for(const auto &p : path) {
         if(p.first == p.second) {
-            ss << "-" << p.first->size() << "ACGT"[p.first->truncSeq()[0]] << "-" << p.first->getFinish().getShortId();
+            ss << "-" << p.first->truncSize() << "ACGT"[p.first->truncSeq()[0]] << "-" << p.first->getFinish().getShortId();
         } else {
-            ss << "-(" << p.first->size() << "ACGT"[p.first->truncSeq()[0]] << "," <<
-               p.second->size() << "ACGT"[p.second->truncSeq()[0]] << ")-" << p.first->getFinish().getShortId();
+            ss << "-(" << p.first->truncSize() << "ACGT"[p.first->truncSeq()[0]] << "," <<
+               p.second->truncSize() << "ACGT"[p.second->truncSeq()[0]] << ")-" << p.first->getFinish().getShortId();
         }
     }
     return ss.str();
@@ -108,15 +108,15 @@ bool BulgePath::isBad(size_t bad_bulge_size) const {
         return false;
     for(const auto &p : path) {
         if(p.first != p.second)
-            if(p.first->size() > bad_bulge_size || p.second->size() > bad_bulge_size) {
+            if(p.first->truncSize() > bad_bulge_size || p.second->truncSize() > bad_bulge_size) {
                 return false;
             }
     }
     return true;
 }
 
-dbg::GraphPath BulgePath::randomPath() const {
-    dbg::GraphPath res(start());
+DBGGraphPath BulgePath::randomPath() const {
+    DBGGraphPath res(start());
     for(const std::pair<dbg::Edge *, dbg::Edge *> &pair: path) {
         res += *pair.first;
     }
@@ -132,7 +132,10 @@ bool BulgePathFinder::checkVertexForward(const dbg::Vertex &v) {
     if(cnt > 1 && cnt != v.outDeg())
         return false;
     return cnt == 1 ||
-           (v.outDeg() == 2 && v.front().getFinish() == v.back().getFinish() && v.front().size() < v.back().size() * 1.3 && v.back().size() < v.front().size() * 1.3);
+           (v.outDeg() == 2 && v.front().getFinish() == v.back().getFinish() && v.front().truncSize() <
+                                                                                        v.back().truncSize() * 1.3 &&
+                   v.back().truncSize() <
+                                                                                                                                    v.front().truncSize() * 1.3);
 }
 
 bool BulgePathFinder::isInner(const dbg::Vertex &v) {
@@ -187,9 +190,9 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
     for(const BulgePath &bp : paths) {
         if(bp.size() == 1) {
             dbg::Edge &edge = *bp[0].first;
-            if(edge.size() > min_len || (
-                                                (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0) &&
-                    edge.size() > min_len / 3 && edge.getCoverage() > 4)) {
+            if(edge.truncSize() > min_len || (
+                    (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0) &&
+                            edge.truncSize() > min_len / 3 && edge.getCoverage() > 4)) {
                 res.emplace_back(&edge);
             }
         } else {
@@ -206,10 +209,10 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
     return {res.begin(), res.end()};
 }
 
-std::pair<dbg::GraphPath, dbg::GraphPath>
+std::pair<DBGGraphPath, DBGGraphPath>
 BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath &path) const {
-    dbg::GraphPath p1(path.start());
-    dbg::GraphPath p2(path.start());
+    DBGGraphPath p1(path.start());
+    DBGGraphPath p2(path.start());
     Sequence seq;
     size_t last = 0;
     Sequence s1;
@@ -246,7 +249,7 @@ BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath
     return {std::move(p1), std::move(p2)};
 }
 
-std::string BulgePathCorrector::correctRead(dbg::GraphPath &path) {
+std::string BulgePathCorrector::correctRead(DBGGraphPath &path) {
     std::vector<Case> cases;
     std::vector<std::string> messages;
     for(size_t i = 0; i < path.size(); i++) {
@@ -270,7 +273,7 @@ std::string BulgePathCorrector::correctRead(dbg::GraphPath &path) {
     }
     if(cases.empty())
         return "";
-    dbg::GraphPath res;
+    DBGGraphPath res;
     for(Case & bp : cases) {
         for(size_t i = res.size(); i < bp.read_from; i++)
             res += path[i];

@@ -20,7 +20,7 @@ std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
     }();
 
     std::vector<SuccinctEdgeInfo> edge_info;
-    for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
+    for (auto it = dbg.edges().begin(); it!= dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;
         const RRVertexType start_ind = vert2ind.at(edge.getStart().getInnerId());
         const RRVertexType end_ind = vert2ind.at(edge.getFinish().getInnerId());
@@ -108,7 +108,7 @@ void MultiplexDBG::AssertValidity() const {
                     GetEdgeSequence(find(vertex), it, false, false)
                         .ToSequence();
                 VERIFY_MSG(seq_edge.find(!seq)!=seq_edge.end(),
-                           "no rev comp for edge " + itos(edge_prop.Index()));
+                           "no rev comp for getEdge " + itos(edge_prop.Index()));
                 VERIFY_MSG(is_unique_edge.at(edge_prop.Index())
                                ==is_unique_edge.at(seq_edge.at(!seq)),
                            "edge_prop " + itos(edge_prop.Index()) + ", unique: "
@@ -173,13 +173,13 @@ void MultiplexDBG::FreezeUnpairedVertices() {
         } else if (in_edges.size() >= 2 and out_edges.size() >= 2) {
             auto[ac_s2e, ac_e2s] = GetEdgepairsVertex(vertex);
             for (const RREdgeIndexType &edge : in_edges) {
-                if (ac_s2e.find(edge)==ac_s2e.end()) {
+                if (ac_s2e.find(edge)== ac_s2e.end()) {
                     FreezeVertex(vertex);
                     break;
                 }
             }
             for (const RREdgeIndexType &edge : out_edges) {
-                if (ac_e2s.find(edge)==ac_e2s.end()) {
+                if (ac_e2s.find(edge)== ac_e2s.end()) {
                     FreezeVertex(vertex);
                     break;
                 }
@@ -243,7 +243,7 @@ void MultiplexDBG::MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
                               NeighborsIterator e2_it) {
     const RRVertexType &s2 = e1_it->first;
     VERIFY_MSG(not node_prop(s2).IsFrozen(),
-               "Cannot merge edges via a frozen vertex");
+               "Cannot merge edges via a frozen getVertex");
     RREdgeProperty &e1_prop = e1_it->second.prop();
     RREdgeProperty &e2_prop = e2_it->second.prop();
     const RREdgeIndexType e2_index = e2_prop.Index();
@@ -260,7 +260,7 @@ RREdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
                                                 const RRVertexType &vright,
                                                 NeighborsIterator eright_it) {
     const RRVertexType &vleft = eleft_it->first;
-    VERIFY_MSG(vleft!=vright, "Can only add edge b/w disconnected edges");
+    VERIFY_MSG(vleft!=vright, "Can only add getEdge b/w disconnected edges");
     const RRVertexProperty &vleft_prop = node_prop(vleft);
     const RRVertexProperty &vright_prop = node_prop(vright);
 
@@ -297,11 +297,11 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
             edge_info.end_ind,
             // Anton's edge does not contain prefix
             RRVertexProperty(MDBGSeq(edge,
-                                     edge->size(),
-                                     edge->size() + start_k),
+                                     edge->truncSize(),
+                                     edge->truncSize() + start_k),
                              false));
 
-        int64_t infix_size = ((int64_t) edge->size()) - start_k;
+        int64_t infix_size = ((int64_t) edge->truncSize()) - start_k;
         VERIFY(infix_size > 0 or -infix_size < start_k);
         MDBGSeq edge_seq;
         if (infix_size > 0) {
@@ -598,12 +598,12 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
                         EdgeNeighborMap &ac_s2e, EdgeNeighborMap &ac_e2s) {
           std::vector<RREdgeIndexType> unpaired_in, unpaired_out;
           for (const RREdgeIndexType &index : out_edges) {
-              if (ac_e2s.find(index)==ac_e2s.end()) {
+              if (ac_e2s.find(index)== ac_e2s.end()) {
                   unpaired_out.push_back(index);
               }
           }
           for (const RREdgeIndexType &index : in_edges) {
-              if (ac_s2e.find(index)==ac_s2e.end()) {
+              if (ac_s2e.find(index)== ac_s2e.end()) {
                   unpaired_in.push_back(index);
               }
           }
@@ -626,8 +626,8 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
               (all_in_unique or all_out_unique)) {
               const RRVertexType unp_in = unpaired_in.front();
               const RRVertexType unp_out = unpaired_out.front();
-              VERIFY(ac_s2e.find(unp_in)==ac_s2e.end());
-              VERIFY(ac_e2s.find(unp_out)==ac_e2s.end());
+              VERIFY(ac_s2e.find(unp_in)== ac_s2e.end());
+              VERIFY(ac_e2s.find(unp_out)== ac_e2s.end());
               ac_s2e[unp_in] = {unp_out};
               ac_e2s[unp_out] = {unp_in};
           }
@@ -828,21 +828,21 @@ std::vector<Contig> MultiplexDBG::ExportContigsAndGFA(
           os.close();
         };
 
-    logger.trace() << "Getting edge sequences" << std::endl;
+    logger.trace() << "Getting getEdge sequences" << std::endl;
     const std::unordered_map<RREdgeIndexType, Sequence>
         edge_seqs = GetEdgeSeqs(threads);
     const std::experimental::filesystem::path edge_seqs_path =
         contigs_fn.parent_path()/"mdbg_edge_seqs.fasta";
-    logger.trace() << "Exporting edge sequences to " << edge_seqs_path
+    logger.trace() << "Exporting getEdge sequences to " << edge_seqs_path
                    << std::endl;
     export2fasta(edge_seqs, edge_seqs_path);
 
-    logger.trace() << "Getting vertex sequences" << std::endl;
+    logger.trace() << "Getting getVertex sequences" << std::endl;
     const std::unordered_map<RRVertexType, Sequence> vertex_seqs =
         GetVertexSeqs(edge_seqs);
     const std::experimental::filesystem::path vertex_seqs_path =
         contigs_fn.parent_path()/"mdbg_vertex_seqs.fasta";
-    logger.trace() << "Exporting vertex sequences to " << vertex_seqs_path
+    logger.trace() << "Exporting getVertex sequences to " << vertex_seqs_path
                    << std::endl;
     export2fasta(vertex_seqs, vertex_seqs_path);
 

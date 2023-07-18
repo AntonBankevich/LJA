@@ -1,4 +1,5 @@
 #include "graph_algorithms.hpp"
+#include "dbg_graph_aligner.hpp"
 
 using namespace hashing;
 namespace dbg {
@@ -6,12 +7,12 @@ namespace dbg {
     void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
                       const RollingHash &hasher, const size_t min_read_size) {
         typedef typename Iterator::value_type ContigType;
-        logger.info() << "Starting to fill edge coverages" << std::endl;
+        logger.info() << "Starting to fill getEdge coverages" << std::endl;
         ParallelRecordCollector<size_t> lens(threads);
         std::function<void(size_t, ContigType &)> task = [&sdbg, &lens, min_read_size](size_t pos, ContigType &contig) {
             Sequence seq = std::move(contig.makeSequence());
             if (seq.size() >= min_read_size) {
-                GraphPath path = GraphAligner(sdbg).align(seq);
+                DBGGraphPath path = GraphAligner(sdbg).align(seq);
                 lens.add(path.size());
                 for (Segment<Edge> seg: path) {
                     seg.contig().incCov(seg.size());
@@ -34,7 +35,7 @@ namespace dbg {
         SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
         logger.info() << "Vertex map constructed." << std::endl;
         io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
-        logger.info() << "Filling edge sequences." << std::endl;
+        logger.info() << "Filling getEdge sequences." << std::endl;
         FillSparseDBGEdges(sdbg, reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
         logger.info() << "Finished sparse de Bruijn graph construction." << std::endl;
         return std::move(sdbg);
@@ -114,7 +115,7 @@ namespace dbg {
             if(!tip)
                 continue;
             for(Edge &edge : v.rc()) {
-                edge.setTipSize(edge.size() + longest);
+                edge.setTipSize(edge.truncSize() + longest);
             }
         }
     }
@@ -162,7 +163,7 @@ namespace dbg {
         logger.info() << "Tip finding finished" << std::endl;
     }
 
-    void MergeMarkAndDetachPath(GraphPath path) {
+    void MergeMarkAndDetachPath(DBGGraphPath path) {
         if(path.size() == 1)
             return;
         VertexLocker locker({&path.start(), &path.finish().rc()});
@@ -186,7 +187,7 @@ namespace dbg {
     }
 
     void mergeLoop(Vertex &start) {
-        GraphPath path = GraphPath::WalkForward(start.front());
+        DBGGraphPath path(start.front());
         VERIFY(path.start() == path.finish())
         for(size_t i = 1; i < path.size(); i++) {
             if(path.getVertex(i) == start.rc()) {
@@ -205,15 +206,15 @@ namespace dbg {
                     if (!start.isJunction())
                         return;
                     start.lock();
-                    std::vector<GraphPath> to_merge;
+                    std::vector<DBGGraphPath> to_merge;
                     for (Edge &edge: start) {
-                        GraphPath path = GraphPath::WalkForward(edge);
+                        DBGGraphPath path(edge);
                         if (path.size() > 1 && (path.finish().rc() > start || (path.finish().rc() == start && path.Seq() <= !path.Seq()))) {
                             to_merge.emplace_back(std::move(path));
                         }
                     }
                     start.unlock();
-                    for(GraphPath &path : to_merge) {
+                    for(DBGGraphPath &path : to_merge) {
                         MergeMarkAndDetachPath(path);
                     }
                 };
@@ -230,7 +231,7 @@ namespace dbg {
                     if (start.isJunction() || start.marked()) {
                         return;
                     }
-                    GraphPath path = GraphPath::WalkForward(start.front());
+                    DBGGraphPath path(start.front());
                     VERIFY(path.finish() == start);
                     bool ismin = true;
                     for (const Edge &e: path.edges()) {
@@ -268,7 +269,7 @@ namespace dbg {
 
     void CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash &hasher, const size_t w,
                            const io::Library &lib, size_t threads, logging::Logger &logger, SparseDBG &dbg) {
-        logger.info() << "Calculating edge coverage." << std::endl;
+        logger.info() << "Calculating getEdge coverage." << std::endl;
         io::SeqReader reader(lib);
         fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.getK() - 1);
         std::ofstream os;
@@ -298,9 +299,9 @@ namespace dbg {
         std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, acgt](size_t pos,
                                                                                                         StringContig &contig) {
             Contig read = contig.makeContig();
-            if (read.size() < w + hasher.getK() - 1)
+            if (read.truncSize() < w + hasher.getK() - 1)
                 return;
-            GraphPath path = GraphAligner(dbg).align(read.getSeq());
+            DBGGraphPath path = GraphAligner(dbg).align(read.getSeq());
             std::stringstream ss;
             ss << read.getInnerId() << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
             for (Edge &edge : path.edges()) {
@@ -308,7 +309,7 @@ namespace dbg {
             }
             alignment_results.emplace_back(ss.str());
             Contig rc_read = read.RC();
-            GraphPath rc_path = GraphAligner(dbg).align(rc_read.getSeq());
+            DBGGraphPath rc_path = GraphAligner(dbg).align(rc_read.getSeq());
             std::stringstream rc_ss;
             rc_ss << rc_read.getInnerId() << " " << rc_path.start().hash() << int(rc_path.start().isCanonical()) << " ";
             for (size_t i = 0; i < rc_path.size(); i++) {

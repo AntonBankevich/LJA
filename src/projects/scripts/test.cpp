@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
     multigraph::MultiGraph mg;
     //multigraph::MultiGraph mg = mmg.DBG();
 
-    multigraph::Vertex &v = mg.addVertex(Sequence("AT"), 23, "vertex");
+    multigraph::Vertex &v = mg.addVertex(Sequence("AT"), 23, "getVertex");
     std::cerr <<v.getId() << " "<< mg.getVertexById(23) <<std::endl;
     auto &e1 = mg.addEdge(v, v, Sequence("ATATAT"), 239, "e1");
     auto &e2 = mg.addEdge(v, v, Sequence("ATCAT"), 240, "e2");
@@ -19,11 +19,11 @@ int main(int argc, char **argv) {
         std::cerr<<"EEEdge " <<edge.getId() <<std::endl;
     }
     multigraph::MultiGraphHelper::printEdgeGFA(mg, "bd.gfa");
-    multigraph::MultiGraphHelper::printVertexGFA(mg, "vertex.gfa");
+    multigraph::MultiGraphHelper::printVertexGFA(mg, "getVertex.gfa");
     std::cout<<mg.size() << " v/e " << mg.edgeNumber() <<std::endl;
     std::cout.flush();
     std::cout <<"in/out degs" << mg.getVertexById(23)->inDeg() << " " <<mg.getVertexById(23)->outDeg() <<std::endl;
-    std::cout << mg.getEdgeById(239)->start().getId() << " " << mg.getEdgeById(239)->end().getId() <<std::endl;
+    std::cout << mg.getEdgeById(239)->getStart().getId() << " " << mg.getEdgeById(239)->getFinish().getId() << std::endl;
     multigraph::MultiGraphHelper::printExtractedContigs(mg, "edges.fasta", false);
     mg.internalRemoveEdge(*mg.getEdgeById(239));
     multigraph::MultiGraphHelper::printEdgeGFA(mg, "ad.gfa");

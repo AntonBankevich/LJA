@@ -60,7 +60,7 @@ namespace dbg {
 
         Sequence getSeq() const;
         const Sequence &truncSeq() const { return seq; }
-        size_t getTruncSize() const;
+        size_t getStartSize() const;
         bool isCanonical() const {return *this <= rc();}
 
 
@@ -92,7 +92,7 @@ namespace dbg {
 
         size_t updateTipSize() const;
 
-        size_t size() const;
+        size_t truncSize() const;
 
         double getCoverage() const;
 
@@ -288,19 +288,21 @@ namespace dbg {
         Edge *edge;
         size_t pos;
 
-        EdgePosition(Edge &_edge, size_t _pos) : edge(&_edge), pos(_pos) {VERIFY(pos >= 0 && pos <= edge->size());}
+        EdgePosition(Edge &_edge, size_t _pos) : edge(&_edge), pos(_pos) {VERIFY(pos >= 0 && pos <= edge->truncSize());}
         EdgePosition() : edge(nullptr), pos(0) {}
 
         Sequence kmerSeq() const {return edge->kmerSeq(pos);}
         unsigned char lastNucl() const {return edge->truncSeq()[pos - 1];}
-        bool isBorder() const {return pos == 0 || pos == edge->size();}
+        bool isBorder() const {return pos == 0 || pos == edge->truncSize();}
 
         std::vector<EdgePosition> step() const;
-        EdgePosition RC() const {return {edge->rc(), edge->size() - pos};}
+        EdgePosition RC() const {return {edge->rc(), edge->truncSize() - pos};}
     };
 
     class SparseDBG {
     public:
+        typedef dbg::Vertex Vertex;
+        typedef dbg::Edge Edge;
         typedef std::unordered_map<hashing::htype , Vertex, hashing::alt_hasher<hashing::htype>> vertex_map_type;
         typedef std::unordered_map<hashing::htype, Vertex, hashing::alt_hasher<hashing::htype>>::iterator vertex_iterator_type;
         typedef std::unordered_map<hashing::htype, EdgePosition, hashing::alt_hasher<hashing::htype>> anchor_map_type;

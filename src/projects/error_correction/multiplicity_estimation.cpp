@@ -16,11 +16,11 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
     for(dbg::Vertex &v : component.vertices()) {
         for(dbg::Edge &edge : v) {
             if (!unique(edge)) {
-                size_t min_flow = (!edge.is_reliable || (edge.getCoverage() < rel_coverage && edge.size() < 20000)) ? 0 : 1;
+                size_t min_flow = (!edge.is_reliable || (edge.getCoverage() < rel_coverage && edge.truncSize() < 20000)) ? 0 : 1;
                 size_t max_flow = 1000000000;
-                if(edge.size() > 1000 && edge.getCoverage() < double_coverage)
+                if(edge.truncSize() > 1000 && edge.getCoverage() < double_coverage)
                     max_flow = 2;
-                if(edge.size() > 1000 && edge.getCoverage() < unique_coverage)
+                if(edge.truncSize() > 1000 && edge.getCoverage() < unique_coverage)
                     max_flow = 1;
                 int eid = addEdge(vertex_mapping[&v], vertex_mapping[&edge.getFinish()], min_flow, max_flow);
                 VERIFY(eid > 0);
@@ -71,9 +71,9 @@ void UniqueClassificator::markPseudoHets() const {
         Edge &incorrect = start.front().getCoverage() <= start.back().getCoverage() ? start.front() : start.back();
         incorrect.is_reliable = false;
         incorrect.rc().is_reliable = false;
-        GraphPath cor_ext = reads_storage.getRecord(start).
+        DBGGraphPath cor_ext = reads_storage.getRecord(start).
                 getFullUniqueExtension(correct.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
-        GraphPath incor_ext = reads_storage.getRecord(start).
+        DBGGraphPath incor_ext = reads_storage.getRecord(start).
                 getFullUniqueExtension(incorrect.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
         for(Segment<Edge> seg : incor_ext) {
             bool found= false;
@@ -112,12 +112,12 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         for (Edge &edge : dbg.edges()) {
             if(this->isUnique(edge))
                 continue;
-            GraphPath al = FindLongestCoveredExtension(edge, 3, 1);
+            DBGGraphPath al = FindLongestCoveredExtension(edge, 3, 1);
             if(al.len() > unique_len) {
                 for(Segment<Edge> seg : al) {
                     updateBounds(seg.contig(), 1, 1);
                 }
-            } else if(edge.getStart().inDeg() == 0 && edge.size() > unique_len / 3) {
+            } else if(edge.getStart().inDeg() == 0 && edge.truncSize() > unique_len / 3) {
                 updateBounds(edge, 1, 1);
                 cnt++;
             }
@@ -132,7 +132,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         }
         const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
         CompactPath unique_extension = rec.getFullUniqueExtension(edge.truncSeq().Subseq(0, 1), 1, 0);
-        GraphPath path = unique_extension.getAlignment();
+        DBGGraphPath path = unique_extension.getAlignment();
         size_t len = 0;
         for(size_t i = 1; i < path.size(); i++) {
             if(isUnique(path[i].contig())) {
@@ -148,7 +148,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         if(back_unique.size() >= path.size()) {
             extra_unique.emplace_back(&edge);
             cnt++;
-            logger.trace() << "Found extra unique edge " << edge.getInnerId() << " " << edge.size() << " " << edge.getCoverage() << std::endl;
+            logger.trace() << "Found extra unique getEdge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getCoverage() << std::endl;
         }
     }
     for(Edge *eit : extra_unique) {
@@ -199,7 +199,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         bool success = processSimpleRepeat(component);
         if(success) {
             cnt++;
-            logger.trace() << "Found erroneous edge" << std::endl;
+            logger.trace() << "Found erroneous getEdge" << std::endl;
         }
     }
     logger.info() << "Finished processing of repeats of multiplicity 2. Found " << cnt << " erroneous edges." << std::endl;
@@ -232,14 +232,14 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
             return false;
         bad_candidates = {&e221, &e222};
     } else {
-        size_t ind1 = start.front().size() > start.back().size() ? 0 : 1;
-        Edge &e11 = start.front().size() > start.back().size() ? start.front() : start.back();
-        Edge &e12 = start.front().size() > start.back().size() ? start.back() : start.front();
-        VERIFY(e11.size() >= e12.size());
-        size_t ind2 = end.rc().front().size() > end.rc().back().size() ? 1 : 0;
-        Edge &e31 = end.rc().front().size() > end.rc().back().size() ? end.rc().back().rc() : end.rc().front().rc();
-        Edge &e32 = end.rc().front().size() > end.rc().back().size() ? end.rc().front().rc() : end.rc().back().rc();
-        VERIFY(e31.size() <= e32.size());
+        size_t ind1 = start.front().truncSize() > start.back().truncSize() ? 0 : 1;
+        Edge &e11 = start.front().truncSize() > start.back().truncSize() ? start.front() : start.back();
+        Edge &e12 = start.front().truncSize() > start.back().truncSize() ? start.back() : start.front();
+        VERIFY(e11.truncSize() >= e12.truncSize());
+        size_t ind2 = end.rc().front().truncSize() > end.rc().back().truncSize() ? 1 : 0;
+        Edge &e31 = end.rc().front().truncSize() > end.rc().back().truncSize() ? end.rc().back().rc() : end.rc().front().rc();
+        Edge &e32 = end.rc().front().truncSize() > end.rc().back().truncSize() ? end.rc().front().rc() : end.rc().back().rc();
+        VERIFY(e31.truncSize() <= e32.truncSize());
         if(e12.getFinish().outDeg() != 2 || e31.getStart().inDeg() != 2 || e11.getFinish() != e31.getStart() ||
                 e12.getFinish() != e32.getStart())
             return false;
@@ -302,7 +302,7 @@ size_t UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
         logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
     }
     if(!res && rel_coverage == 0) {
-        logger.trace() << "Attempting to adjust reliable edge threshold from " << rel_coverage << " to " <<
+        logger.trace() << "Attempting to adjust reliable getEdge threshold from " << rel_coverage << " to " <<
                            adjusted_rel_coverage << std::endl;
         rel_coverage = adjusted_rel_coverage;
         MappedNetwork net3(subcomponent, is_unique, rel_coverage, threshold);
@@ -368,7 +368,7 @@ std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordS
                          record.countStartsWith(Sequence(s + "C")) +
                          record.countStartsWith(Sequence(s + "G")) +
                          record.countStartsWith(Sequence(s + "T"));
-            if(edge.size() < 20000) {
+            if(edge.truncSize() < 20000) {
                 min_cov = std::min<double>(min_cov, std::min<double>(cnt, edge.getCoverage()));
                 max_cov = std::max<double>(max_cov, std::min<double>(cnt, edge.getCoverage()));
             } else {
@@ -522,7 +522,7 @@ std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
     if(end.inDeg() != 1 || end.outDeg() != 2)
         return {nullptr, nullptr};
     Edge &back_edge = (end.front().getFinish() == start) ? end.front() : end.back();
-    if(forward_edge.size() > 30000 || back_edge.size() > 50000)
+    if(forward_edge.truncSize() > 30000 || back_edge.truncSize() > 50000)
         return {nullptr, nullptr};
     if(back_edge.getStart() != end || back_edge.getFinish() != start)
         return {nullptr, nullptr};
@@ -555,14 +555,14 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
         size_t vote2 = floor(back_edge.getCoverage() / med_cov + 0.5);
         if(vote1 * dev * 2 > med_cov || vote1 != vote2 + 1)
             continue;
-        GraphPath longest = reads_storage.getRecord(in.getStart()).
+        DBGGraphPath longest = reads_storage.getRecord(in.getStart()).
                 getFullUniqueExtension(in.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
         size_t pos = longest.find(out);
         if(pos != size_t(-1)) {
             VERIFY(pos % 2 == 0 && pos >= 2);
             if(pos / 2 != vote1) {
                 logger.trace() << "Coverage contradicts bridging read. Skipping loop " << forward_edge.getInnerId() << " "
-                               << back_edge.getInnerId() << " with size " << forward_edge.size() + back_edge.size()
+                               << back_edge.getInnerId() << " with size " << forward_edge.truncSize() + back_edge.truncSize()
                         << " and multiplicity " << vote2 << " vs "  << pos / 2 - 1 << std::endl;
             }
             continue;
@@ -570,20 +570,20 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
         Sequence bad = (back_edge.truncSeq().Subseq(0, 1) + forward_edge.truncSeq().Subseq(0, 1)) * (vote2 + 1);
         if(reads_storage.getRecord(end).countStartsWith(bad) > 0) {
             logger.trace() << "Coverage contradicts circling read. Skipping loop " << forward_edge.getInnerId() << " "
-                           << back_edge.getInnerId() << " with size " << forward_edge.size() + back_edge.size()
+                           << back_edge.getInnerId() << " with size " << forward_edge.truncSize() + back_edge.truncSize()
                         << " and multiplicity " << vote2 << std::endl;
         }
-        GraphPath alignment;
-        alignment += Segment<Edge>(in, in.size() - std::min<size_t>(in.size(), 1000), in.size());
+        DBGGraphPath alignment;
+        alignment += Segment<Edge>(in, in.truncSize() - std::min<size_t>(in.truncSize(), 1000), in.truncSize());
         alignment += forward_edge;
         for(size_t i = 0; i < vote2; i++) {
             alignment += back_edge;
             alignment += forward_edge;
         }
-        alignment += Segment<Edge>(out, 0, std::min<size_t>(out.size(), 1000));
+        alignment += Segment<Edge>(out, 0, std::min<size_t>(out.truncSize(), 1000));
         res.addRead(AlignedRead(back_edge.getInnerId() + "_" + itos(vote2), alignment));
         logger.trace() << "Resolved loop " << forward_edge.getInnerId() << " " << back_edge.getInnerId() <<
-                       " with size " << forward_edge.size() + back_edge.size() << " and multiplicity " << vote2 << std::endl;
+                       " with size " << forward_edge.truncSize() + back_edge.truncSize() << " and multiplicity " << vote2 << std::endl;
     }
     return std::move(res);
 }

@@ -21,7 +21,7 @@ namespace dbg {
                 masked_cnt++;
             }
             out << end.hash() << int(end.isCanonical());
-            out << "_" << edge.size() << "_" << edge.getCoverage() << "\n";
+            out << "_" << edge.truncSize() << "_" << edge.getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
         }
@@ -33,7 +33,7 @@ namespace dbg {
             Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
             Vertex &end = edge.getFinish();
             out << ">" << cnt << "_" << edge.getStart().hash() << int(edge.getStart().isCanonical()) <<
-                "_" << end.hash() << int(end.isCanonical()) << "_" << edge.size()
+                "_" << end.hash() << int(end.isCanonical()) << "_" << edge.truncSize()
                         << "_" << edge.getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
@@ -54,7 +54,7 @@ namespace dbg {
         size_t k = component.graph().hasher().getK();
         for (Edge &edge : component.edges()) {
             Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
-            if(edge.size() > cut) {
+            if(edge.truncSize() > cut) {
                 if(!component.contains(edge.getStart())) {
                     edge_seq = cheatingCutStart(edge_seq, edge.truncSeq()[0], cut, k);
                 } else if(!component.contains(edge.getFinish())) {
@@ -121,13 +121,13 @@ namespace dbg {
         out.close();
     }
 
-    inline void printGraphAlignments(std::ostream &out, const std::vector<GraphPath> &als) {
+    inline void printGraphAlignments(std::ostream &out, const std::vector<DBGGraphPath> &als) {
         for(size_t i = 0; i < als.size(); i++) {
             out << ">" << i <<"\n" << als[i].Seq() << "\n";
         }
     }
 
-    inline void printGraphAlignments(const std::experimental::filesystem::path &f, const std::vector<GraphPath> &als) {
+    inline void printGraphAlignments(const std::experimental::filesystem::path &f, const std::vector<DBGGraphPath> &als) {
         std::ofstream out;
         out.open(f);
         printGraphAlignments(out, als);

@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <utility>
 #include "component.hpp"
+#include "dbg_graph_aligner.hpp"
 
 class GraphAlignmentStorage {
 private:
@@ -130,7 +131,7 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
                const std::string &color = "black") {
     dbg:: Vertex &end = edge.getFinish();
     os << "\"" << edge.getStart().getShortId() << "\" -> \"" << end.getShortId() <<
-       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.size() << "(" << edge.getCoverage() << ")\"";
+       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;

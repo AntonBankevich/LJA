@@ -13,10 +13,10 @@ inline void simpleStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         for(dbg::Edge &edge : v) {
             if(edge == edge.rc()) {
                 e_cnt += 2;
-                elen += 2 * edge.size();
+                elen += 2 * edge.truncSize();
             } else {
                 e_cnt++;
-                elen += edge.size();
+                elen += edge.truncSize();
             }
         }
         for(const Sequence &seq : v.getHanging()) {
@@ -25,7 +25,7 @@ inline void simpleStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
         }
     }
     logger << "Unique edges: " << e_cnt / 2 << std::endl;
-    logger << "Unique edge total length: " << elen / 2 << std::endl;
+    logger << "Unique getEdge total length: " << elen / 2 << std::endl;
 }
 
 inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
@@ -41,21 +41,21 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     for (auto &val: dbg) {
         dbg::Vertex &tmp = val.second;
         if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-            dbg::GraphPath path = dbg::GraphPath::WalkForward(tmp.front());
+            DBGGraphPath path(tmp.front());
             if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge &edge : path.edges()) {
-                    isolatedSize += edge.size();
+                    isolatedSize += edge.truncSize();
                 }
                 isolatedSize += dbg.hasher().getK();
             }
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-            dbg::GraphPath path = dbg::GraphPath::WalkForward(tmp.rc().front());
+            DBGGraphPath path(tmp.rc().front());
             if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge &edge : path.edges()) {
-                    isolatedSize += edge.size();
+                    isolatedSize += edge.truncSize();
                 }
                 isolatedSize += dbg.hasher().getK();
             }
@@ -72,7 +72,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
             n01 += 1;
             dbg::Edge tip_edge = tmp.outDeg() == 1 ? tmp.front() : tmp.rc().front();
             if (tip_edge.getFinish().outDeg() > 1) {
-                ltips += tip_edge.size();
+                ltips += tip_edge.truncSize();
                 ntips += 1;
             }
 
@@ -113,7 +113,7 @@ inline void coverageStats(logging::Logger &logger, dbg::SparseDBG &dbg, size_t m
     logger.trace() << "Kmer coverage statistics:\n";
     std::vector<size_t> hist(max_cov + 1);
     for(dbg::Edge &edge : dbg.edgesUnique()) {
-        hist[std::min<size_t>(edge.getCoverage(), max_cov)] += edge.size();
+        hist[std::min<size_t>(edge.getCoverage(), max_cov)] += edge.truncSize();
     }
     for(size_t i = 0; i < hist.size(); i++) {
         logger << i << " " << hist[i] << std::endl;

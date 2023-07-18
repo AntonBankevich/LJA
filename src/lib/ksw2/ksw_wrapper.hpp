@@ -9,6 +9,10 @@ struct cigar_pair {
     cigar_pair(char type, size_t len):type(type), length(len) {}
 };
 
+inline std::vector<cigar_pair> RcCigar(const std::vector<cigar_pair> &cigar) {
+    return {cigar.rbegin(), cigar.rend()};
+}
+
 inline size_t MaxAlignmentShift(std::vector<cigar_pair> &cigars) {
     int shift = 0;
     int min_shift = 0;

@@ -12,6 +12,7 @@
 #include <dbg/component.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
+#include "dbg_graph_aligner.hpp"
 
 int main(int argc, char **argv) {
     AlgorithmParameters parameters({"vertices=none", "unique=none", "dbg=", "output-dir=",
@@ -52,13 +53,13 @@ int main(int argc, char **argv) {
                          DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
                          dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
     dbg.fillAnchors(w, logger, threads);
-    logger.info() << "Constructing edge id mapping" << std::endl;
+    logger.info() << "Constructing getEdge id mapping" << std::endl;
     std::unordered_map<dbg::Edge*, std::string> edge_mapping;
     dbg::GraphAligner aligner(dbg);
     io::SeqReader graphReader(dbg_file);
     for(StringContig s : graphReader) {
         Contig rseq = s.makeContig();
-        dbg::GraphPath al = aligner.align(rseq.getSeq());
+        DBGGraphPath al = aligner.align(rseq.getSeq());
         VERIFY(al.size() == 1);
         edge_mapping[&al.front().contig()] = s.id;
         edge_mapping[&al.front().contig().rc()] = "-" + s.id;

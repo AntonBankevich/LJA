@@ -1,4 +1,5 @@
 #pragma once
+#include "dbg_graph_aligner.hpp"
 #include "paths.hpp"
 #include "sparse_dbg.hpp"
 namespace dbg {

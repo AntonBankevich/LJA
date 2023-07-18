@@ -34,8 +34,8 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
         if(visited.find(ep) != visited.end())
             continue;
         visited.insert(ep);
-        if(ep.getPos() <= ep.contig().start().size()) {
-            Vertex &start = ep.contig().start();
+        if(ep.getPos() <= ep.contig().getStart().size()) {
+            Vertex &start = ep.contig().getStart();
             for(Edge &rcedge2: start.rc()) {
                 Edge &edge2 = rcedge2.rc();
                 EdgePosition other(edge2, edge2.size() - start.size() + ep.getPos());
@@ -54,8 +54,8 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
                 }
             }
         }
-        if(ep.getPos() >= ep.contig().size() - ep.contig().end().size()) {
-            Vertex &end = ep.contig().end();
+        if(ep.getPos() >= ep.contig().size() - ep.contig().getFinish().size()) {
+            Vertex &end = ep.contig().getFinish();
             for(Edge &edge2 : end) {
                 EdgePosition other(edge2, ep.getPos() - ep.contig().size() + end.size());
                 if(visited.find(other) == visited.end()) {

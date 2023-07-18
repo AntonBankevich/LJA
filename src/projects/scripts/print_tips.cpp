@@ -56,7 +56,8 @@ int main(int argc, char **argv) {
     os.open(dir / "tips.fasta");
     for(dbg::Edge &edge : dbg.edges()) {
         if(edge.getStart().inDeg() == 0) {
-            os << ">" << edge.getShortId() << "\n" << edge.getStart().getSeq() << edge.truncSeq().Subseq(0, std::min(edge.size(), radius)) << "\n";
+            os << ">" << edge.getShortId() << "\n" << edge.getStart().getSeq() << edge.truncSeq().Subseq(0, std::min(
+                    edge.truncSize(), radius)) << "\n";
         }
     }
     os.close();

@@ -1,13 +1,13 @@
 #include "dimer_correction.hpp"
 using namespace dbg;
 
-std::string DimerCorrector::correctRead(GraphPath &path) {
+std::string DimerCorrector::correctRead(DBGGraphPath &path) {
     size_t corrected = 0;
     size_t k = path.start().size();
     Sequence remaining_seq = path.truncSeq();
     std::vector<std::string> message;
     for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-        if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().size())
+        if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().truncSize())
             continue;
         Sequence seq = path.getVertex(path_pos).getSeq();
         size_t at_cnt1 = 2;
@@ -18,7 +18,7 @@ std::string DimerCorrector::correctRead(GraphPath &path) {
         if (at_cnt1 < 4) //Tandem repeat should be at least 4 nucleotides long
             continue;
         Sequence unit = seq.Subseq(k - 2);
-        GraphPath atPrefix(path.getVertex(path_pos));
+        DBGGraphPath atPrefix(path.getVertex(path_pos));
         atPrefix.extend(unit);
         if (!atPrefix.valid())
             continue;
@@ -31,7 +31,7 @@ std::string DimerCorrector::correctRead(GraphPath &path) {
         if (at_cnt2 % 2 != 0 || extension.size() < at_cnt2 + k - at_cnt1)
             continue;
         extension = extension.Subseq(0, at_cnt2 + k - at_cnt1);
-        GraphPath bulgeSide(path.getVertex(path_pos));
+        DBGGraphPath bulgeSide(path.getVertex(path_pos));
         bulgeSide.extend(extension);
         VERIFY_MSG(bulgeSide.valid(), "Extension along an existing path failed");
         if (!bulgeSide.endClosed())
@@ -39,7 +39,7 @@ std::string DimerCorrector::correctRead(GraphPath &path) {
         Sequence end_seq = extension.Subseq(at_cnt2);
         std::vector<CompactPath> candidates = {CompactPath(bulgeSide)};
         if (at_cnt2 > 0) {
-            GraphPath candidate(path.getVertex(path_pos));
+            DBGGraphPath candidate(path.getVertex(path_pos));
             candidate.extend(end_seq);
             if (!candidate.valid())
                 continue;
@@ -50,7 +50,7 @@ std::string DimerCorrector::correctRead(GraphPath &path) {
             max_variation = std::min(max_variation, at_cnt1 / 2);
             size_t len = 2;
             while (len <= max_variation && atPrefix.valid()) {
-                GraphPath candidate = atPrefix;
+                DBGGraphPath candidate = atPrefix;
                 candidate.extend(end_seq);
                 if (candidate.valid()) {
                     VERIFY_OMP(candidate.endClosed(), "Candidate alignment end is not closed in case 2");

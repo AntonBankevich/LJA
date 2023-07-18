@@ -61,7 +61,7 @@ size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
     for(dbg::Edge &edge : dbg.edgesUnique()) {
         if(edge.getCoverage() < min_rel_cov)
             continue;
-        dbg::GraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
+        DBGGraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
         if(al.len() < min_length)
             continue;
         for(Segment<dbg::Edge> seg : al) {
@@ -110,7 +110,7 @@ std::vector<dbg::Edge *> BridgeReliableFiller::bridges(dbg::Edge &start) {
         open_close[&next] = {open_close.size(), size_t(-1)};
         stack.emplace_back(&next, size_t(-1)); //Put a marker into stack that indicates that processing of next is closed
         for(dbg::Edge &edge : next.getFinish()) {
-            stack.emplace_back(&edge, dist + next.size());
+            stack.emplace_back(&edge, dist + next.truncSize());
         }
     }
     std::vector<dbg::Edge *> result;
@@ -219,7 +219,7 @@ size_t ConnectionReliableFiller::Fill(dbg::SparseDBG &dbg) {
                 continue;
             res.emplace(&next->getFinish(), std::make_pair(dist, next));
             if (checkBorder(next->getFinish().rc()) != nullptr) {
-                dbg::GraphPath al(next->getFinish().rc());
+                DBGGraphPath al(next->getFinish().rc());
                 while(next != last) {
                     al += next->rc();
                     new_reliable.emplace_back(next);
@@ -231,7 +231,7 @@ size_t ConnectionReliableFiller::Fill(dbg::SparseDBG &dbg) {
                 break;
             } else {
                 for(dbg::Edge &edge : next->getFinish()) {
-                    double score = edge.size() / std::max<double>(std::min(edge.getCoverage(), threshold), 1);
+                    double score = edge.truncSize() / std::max<double>(std::min(edge.getCoverage(), threshold), 1);
                     queue.emplace(dist + score, &edge);
                 }
             }

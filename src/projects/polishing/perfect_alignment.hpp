@@ -55,7 +55,7 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
     hashing::RollingHash hasher(k);
     std::unordered_map<hashing::htype, std::vector<std::pair<Contig *, size_t>>, hashing::alt_hasher<hashing::htype>> position_map;
     for(Contig &contig : contigs) {
-        for(size_t pos = 1; pos + k <= contig.size(); pos += w) {
+        for(size_t pos = 1; pos + k <= contig.truncSize(); pos += w) {
             hashing::htype h = hasher.hash(contig.getSeq(), pos);
             position_map[h].emplace_back(&contig, pos);
         }
@@ -80,15 +80,15 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
         res.erase(std::unique(res.begin(), res.end()), res.end());
         for(std::pair<Contig *, int> &al : res) {
             size_t clen = 0;
-            for(int rpos = 0; rpos <= read.size(); rpos++) {
-                if(rpos < read.size() && rpos + al.second >= 0 && rpos + al.second < al.first->size() &&
+            for(int rpos = 0; rpos <= read.truncSize(); rpos++) {
+                if(rpos < read.truncSize() && rpos + al.second >= 0 && rpos + al.second < al.first->truncSize() &&
                    read.getSeq()[rpos] == al.first->getSeq()[rpos + al.second]) {
                     clen++;
                 } else {
                     if(clen > K) {
                         RawSeg seg_from(read.getInnerId(), rpos - clen, rpos);
                         Segment<Contig> seg_to(*al.first, rpos + al.second - clen, rpos + al.second);
-                        result.emplace_back(read.size(), num, seg_from, seg_to);
+                        result.emplace_back(read.truncSize(), num, seg_from, seg_to);
                     }
                     clen = 0;
                 }
@@ -123,7 +123,7 @@ std::pair<std::experimental::filesystem::path, std::experimental::filesystem::pa
     for(auto &rec : final) {
         size_t len = rec.contig_len;
         if((rec.seg_from.left != 0 && rec.seg_to.left != 0) ||
-           (rec.seg_from.right != len && rec.seg_to.right != rec.seg_to.contig().size())) {
+           (rec.seg_from.right != len && rec.seg_to.right != rec.seg_to.contig().truncSize())) {
             os_bad << rec.seg_from.getId() << " " << rec.seg_from.left << " " << rec.seg_from.right << " "
                    << rec.seg_to.contig().getInnerId() << " " << rec.seg_to.left << " " << rec.seg_to.right
                    << "\n";

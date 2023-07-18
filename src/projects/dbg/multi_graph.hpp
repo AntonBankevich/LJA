@@ -49,6 +49,7 @@ namespace multigraph {
         size_t size() const {return seq.size();};
 
         VertexId getId() {return {id, this};}
+        int getInnerId() const {return id;}
         ConstVertexId getId() const {return {id, this};}
         const Sequence &getSeq() const {return seq;}
         const std::string &getLabel() const {return label;}
@@ -101,20 +102,24 @@ namespace multigraph {
         Sequence getSeq() const;
         Sequence truncSeq() const {
             if(seq.empty()) {
-                return end().getSeq().Subseq(start().size() + end().size() - sz);
+                return getFinish().getSeq().Subseq(getStart().size() + getFinish().size() - sz);
             } else {
-                return seq.Subseq(start().size());
+                return seq.Subseq(getStart().size());
             }
         }
+        size_t truncSize() const {return sz - getStart().size();}
+        size_t getStartSize() const {return getStart().size();}
         EdgeId getId() {return {id, this};}
         ConstEdgeId getId() const {return {id, this};}
         int getInnerId() const {return id;}
         const std::string &getLabel() const {return label;}
         size_t size() const {return sz;}
-        Vertex &start() {return *_start;}
-        Vertex &end() {return *_end;}
-        const Vertex &start() const {return *_start;}
-        const Vertex &end() const {return *_end;}
+        Vertex &getStart() {return *_start;}
+        Vertex &getFinish() {return *_end;}
+        const Vertex &getStart() const {return *_start;}
+        const Vertex &getFinish() const {return *_end;}
+//        TODO: create reasonable coverage for multiplex graph
+        double getCoverage() const {return 0;}
         Edge &rc() {return *_rc;}
         const Edge &rc() const {return *_rc;}
 
@@ -135,6 +140,9 @@ namespace multigraph {
     typedef std::unordered_map<std::string, std::vector<std::string>> deleted_edges_map;
     
     class MultiGraph {
+    public:
+        typedef multigraph::Vertex Vertex;
+        typedef multigraph::Edge Edge;
     private:
         int maxVId = 0;
         int maxEId = 0;

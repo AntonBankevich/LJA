@@ -20,7 +20,7 @@ namespace dbg {
                 _start(&start), _edges(std::move(edges)), _first_skip(first_skip), _last_skip(last_skip) {
         }
 
-        explicit CompactPath(const GraphPath &path) :
+        explicit CompactPath(const DBGGraphPath &path) :
                 _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
             std::vector<char> edges;
             for (Edge &edge: path.edges()) {
@@ -29,7 +29,7 @@ namespace dbg {
             _edges = Sequence(edges);
         }
 
-        static CompactPath Subpath(const GraphPath &path, size_t left, size_t right) {
+        static CompactPath Subpath(const DBGGraphPath &path, size_t left, size_t right) {
             std::vector<char> edges;
             for (size_t i = left; i < right; i++) {
                 edges.push_back(path[i].contig().truncSeq()[0]);
@@ -42,10 +42,10 @@ namespace dbg {
             return _start != nullptr;
         }
 
-        GraphPath getAlignment() const {
+        DBGGraphPath getAlignment() const {
             if (!valid())
                 return {};
-            GraphPath res;
+            DBGGraphPath res;
             Vertex *cur = _start;
             for (size_t i = 0; i < _edges.size(); i++) {
                 VERIFY(cur->hasOutgoing(_edges[i]));

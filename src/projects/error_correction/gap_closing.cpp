@@ -18,7 +18,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
     size_t k = dbg.hasher().getK();
     std::vector<dbg::Edge *> tips;
     for (dbg::Edge &edge : dbg.edges()) {
-        if (edge.size() > min_overlap && edge.getCoverage() > 2 && edge.getFinish().outDeg() == 0 &&
+        if (edge.truncSize() > min_overlap && edge.getCoverage() > 2 && edge.getFinish().outDeg() == 0 &&
                 edge.getFinish().inDeg() == 1)
             tips.emplace_back(&edge);
     }
@@ -28,8 +28,8 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
     logger.trace() << "Collecting k-mers from tips" << std::endl;
 #pragma omp parallel for default(none) shared(tips, candidates, dbg, smallHasher)
     for (size_t i = 0; i < tips.size(); i++) {
-        size_t max_len = std::min(tips[i]->size(), max_overlap);
-        hashing::KWH kwh(smallHasher, tips[i]->truncSeq(), tips[i]->size() - max_len);
+        size_t max_len = std::min(tips[i]->truncSize(), max_overlap);
+        hashing::KWH kwh(smallHasher, tips[i]->truncSeq(), tips[i]->truncSize() - max_len);
         while (true) {
             candidates.emplace_back(kwh.hash(), i);
             if (!kwh.hasNext())
@@ -95,9 +95,9 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
                 continue;
             size_t left_match = 0;
             size_t right_match = 0;
-            while(left_match < tips[rec.from]->size() && new_seq[k + left_match] == tips[rec.from]->truncSeq()[left_match])
+            while(left_match < tips[rec.from]->truncSize() && new_seq[k + left_match] == tips[rec.from]->truncSeq()[left_match])
                 left_match++;
-            while(right_match < tips[rec.to]->size() && (!new_seq)[k + right_match] == tips[rec.to]->truncSeq()[right_match])
+            while(right_match < tips[rec.to]->truncSize() && (!new_seq)[k + right_match] == tips[rec.to]->truncSeq()[right_match])
                 right_match++;
             dbg::EdgePosition p1(*tips[rec.from], left_match);
             dbg::EdgePosition p2(*tips[rec.to], right_match);

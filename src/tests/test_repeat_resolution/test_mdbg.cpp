@@ -31,7 +31,7 @@ GetEdgeInfo(std::map<RRVertexType, dbg::Vertex> &vertexes,
     }
 
     std::vector<SuccinctEdgeInfo> edge_info;
-    for (auto it = raw_edge_info.begin(); it!=raw_edge_info.end(); ++it) {
+    for (auto it = raw_edge_info.begin(); it!= raw_edge_info.getFinish(); ++it) {
         edge_info.push_back({std::get<0>(*it), std::get<1>(*it),
                              &(edges[it - raw_edge_info.begin()]), unique});
     }
@@ -80,13 +80,13 @@ bool CompareEdges(const MultiplexDBG &graph, const RawEdgeInfo &edge_info) {
 
             std::tuple<RRVertexType, RRVertexType, std::string> edge{
                 vertex, nbr_it->first, seq.ToSequence().str()};
-            if (std::find(edge_info.begin(), edge_info.end(), edge)==
-                edge_info.end()) {
+            if (std::find(edge_info.begin(), edge_info.getFinish(), edge) ==
+                edge_info.getFinish()) {
                 std::cout << std::get<0>(edge) << " " << std::get<1>(edge)
                           << " "
                           << std::get<2>(edge) << "\n";
                 std::cout
-                    << "Found an edge that is not present among true edges";
+                    << "Found an getEdge that is not present among true edges";
                 return false;
             }
             ++cnt;

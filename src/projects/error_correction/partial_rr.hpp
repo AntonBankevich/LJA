@@ -4,18 +4,18 @@
 #include "dbg/graph_alignment_storage.hpp"
 #include "diploidy_analysis.hpp"
 
-std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath &bulgePath, const RecordStorage &reads) {
+std::vector<DBGGraphPath> ResolveBulgePath(const BulgePath &bulgePath, const RecordStorage &reads) {
     VERIFY(bulgePath.size() > 0);
     if(bulgePath.size() == 1)
-        return {dbg::GraphPath() + *bulgePath[0].first};
-    std::vector<dbg::GraphPath> res;
+        return {DBGGraphPath() + *bulgePath[0].first};
+    std::vector<DBGGraphPath> res;
     size_t left = 0;
     while(left < bulgePath.size() && bulgePath[left].first == bulgePath[left].second)
         left++;
     if(left == bulgePath.size()) {
-        return {dbg::GraphPath(bulgePath.randomPath())};
+        return {DBGGraphPath(bulgePath.randomPath())};
     }
-    dbg::GraphPath path1, path2;
+    DBGGraphPath path1, path2;
     {
         dbg::Vertex &sv = bulgePath.getVertex(left + 1);
         const VertexRecord &vrec = reads.getRecord(sv.rc());
@@ -42,7 +42,7 @@ std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath &bulgePath, const R
             size_t n12 = vrec.countStartsWith(s12);
             size_t n21 = vrec.countStartsWith(s21);
             size_t n22 = vrec.countStartsWith(s22);
-            dbg::GraphPath repeat = dbg::CompactPath(path1.finish(), s).getAlignment();
+            DBGGraphPath repeat = dbg::CompactPath(path1.finish(), s).getAlignment();
             s = {};
             path1 += repeat;
             path2 += repeat;
@@ -68,20 +68,20 @@ std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath &bulgePath, const R
         VERIFY(sv == path2.back().contig().getStart());
         const VertexRecord &vrec = reads.getRecord(sv);
         path1 += vrec.getFullUniqueExtension(path1.back().contig().truncSeq().Subseq(0, 1), 2,
-                                             1).getAlignment().subalignment(1);
+                                             1).getAlignment().subPath(1);
         path2 += vrec.getFullUniqueExtension(path2.back().contig().truncSeq().Subseq(0, 1), 2,
-                                             1).getAlignment().subalignment(1);
+                                             1).getAlignment().subPath(1);
         res.emplace_back(std::move(path1));
         res.emplace_back(std::move(path2));
     }
     return std::move(res);
 }
 
-std::vector<dbg::GraphPath> PartialRR(dbg::SparseDBG &dbg, const RecordStorage &reads) {
+std::vector<DBGGraphPath> PartialRR(dbg::SparseDBG &dbg, const RecordStorage &reads) {
     BulgePathFinder bulges(dbg, 1);
-    std::vector<dbg::GraphPath> res;
+    std::vector<DBGGraphPath> res;
     for(BulgePath &bulgePath : bulges.paths) {
-        std::vector<dbg::GraphPath> resolved = ResolveBulgePath(bulgePath, reads);
+        std::vector<DBGGraphPath> resolved = ResolveBulgePath(bulgePath, reads);
         res.insert(res.end(), resolved.begin(), resolved.end());
     }
     return std::move(res);

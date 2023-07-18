@@ -24,7 +24,7 @@ namespace oneline {
 
     template<class V, class C>
     C filter(const C&container, const std::function<bool(const V&)> &f) {
-        return std::move(filter<V, typename C::const_iterator>(container.begin(), container.end(), f));
+        return std::move(filter<V, typename C::const_iterator>(container.begin(), container.getFinish(), f));
     }
 
     template<class V, class I>

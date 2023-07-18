@@ -13,13 +13,14 @@ EdgeSegment::EdgeSegment(const dbg::Edge *edge, const uint64_t start,
     : edge{edge}, start{start}, end{end} {
     VERIFY(start <= end);
     VERIFY(edge!=nullptr);
-    VERIFY_MSG(end <= edge->size() + GetStK(), itos(start) + " " + itos(end) + " " + itos(GetStK()) + " " + itos(edge->size()));
+    VERIFY_MSG(end <= edge->truncSize() + GetStK(), itos(start) + " " + itos(end) + " " + itos(GetStK()) + " " + itos(
+            edge->truncSize()));
 }
 
 bool EdgeSegment::RightFull() const {
     VERIFY(edge!=nullptr);
     size_t k = edge->getStart().getSeq().size();
-    return end==GetStK() + edge->size();
+    return end==GetStK() + edge->truncSize();
 }
 
 void EdgeSegment::TrimLeft(const uint64_t size) {
@@ -39,7 +40,7 @@ uint64_t EdgeSegment::Size() const {
 
 size_t EdgeSegment::EdgeSize() const {
     VERIFY(edge!=nullptr);
-    return edge->size() + GetStK();
+    return edge->truncSize() + GetStK();
 }
 
 void EdgeSegment::ExtendRight(const EdgeSegment &segment) {
@@ -51,8 +52,8 @@ void EdgeSegment::ExtendRight(const EdgeSegment &segment) {
 
 EdgeSegment EdgeSegment::RC() const {
     VERIFY(edge!=nullptr);
-    return EdgeSegment(&edge->rc(), edge->size() + GetStK() - end,
-                       edge->size() + GetStK() - start);
+    return EdgeSegment(&edge->rc(), edge->truncSize() + GetStK() - end,
+                       edge->truncSize() + GetStK() - start);
 }
 
 Sequence EdgeSegment::ToSequence() const {

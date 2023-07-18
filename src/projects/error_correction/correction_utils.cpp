@@ -11,7 +11,7 @@ std::unordered_map<dbg::Vertex *, size_t> findReachable(dbg::Vertex &start, doub
         if(res.find(next.second) == res.end()) {
             res[next.second] = next.first;
             for(dbg::Edge &edge : *next.second) {
-                size_t new_len = next.first + edge.size();
+                size_t new_len = next.first + edge.truncSize();
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) && new_len <= max_dist) {
                     queue.emplace(new_len, &edge.getFinish());
                 }
@@ -21,12 +21,12 @@ std::unordered_map<dbg::Vertex *, size_t> findReachable(dbg::Vertex &start, doub
     return std::move(res);
 }
 
-std::vector<dbg::GraphPath>
-FindPlausibleBulgeAlternatives(const dbg::GraphPath &path, size_t max_diff, double min_cov) {
+std::vector<DBGGraphPath>
+FindPlausibleBulgeAlternatives(const DBGGraphPath &path, size_t max_diff, double min_cov) {
     size_t max_len = path.len() + max_diff;
     std::unordered_map<dbg::Vertex *, size_t> reachable = findReachable(path.finish().rc(), min_cov, max_len);
-    std::vector<dbg::GraphPath> res;
-    dbg::GraphPath alternative(path.start());
+    std::vector<DBGGraphPath> res;
+    DBGGraphPath alternative(path.start());
     size_t iter_cnt = 0;
     size_t len = 0;
     bool forward = true;
@@ -44,9 +44,9 @@ FindPlausibleBulgeAlternatives(const dbg::GraphPath &path, size_t max_diff, doub
             forward = false;
             for(dbg::Edge &edge : alternative.finish()) {
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) && reachable.find(&edge.getFinish().rc()) != reachable.end() &&
-                   reachable[&edge.getFinish().rc()] + edge.size() + len <= max_len) {
-                    len += edge.size();
-                    alternative+=Segment<dbg::Edge>(edge, 0, edge.size());
+                   reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
+                    len += edge.truncSize();
+                    alternative+=Segment<dbg::Edge>(edge, 0, edge.truncSize());
                     forward = true;
                     break;
                 }
@@ -56,15 +56,15 @@ FindPlausibleBulgeAlternatives(const dbg::GraphPath &path, size_t max_diff, doub
                 break;
             dbg::Edge &old_edge = alternative.back().contig();
             alternative.pop_back();
-            len -= old_edge.size();
+            len -= old_edge.truncSize();
             bool found = false;
             for(dbg::Edge &edge : alternative.finish()) {
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) &&
                    reachable.find(&edge.getFinish().rc()) != reachable.end() &&
-                   reachable[&edge.getFinish().rc()] + edge.size() + len <= max_len) {
+                   reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
                     if(found) {
-                        len += edge.size();
-                        alternative+=Segment<dbg::Edge>(edge, 0, edge.size());
+                        len += edge.truncSize();
+                        alternative+=Segment<dbg::Edge>(edge, 0, edge.truncSize());
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {
@@ -77,8 +77,8 @@ FindPlausibleBulgeAlternatives(const dbg::GraphPath &path, size_t max_diff, doub
     return std::move(res);
 }
 
-dbg::GraphPath FindReliableExtension(dbg::Vertex &start, size_t len, double min_cov) {
-    dbg::GraphPath res(start);
+DBGGraphPath FindReliableExtension(dbg::Vertex &start, size_t len, double min_cov) {
+    DBGGraphPath res(start);
     size_t clen = 0;
     while(clen < len) {
         dbg::Edge *next = nullptr;
@@ -93,18 +93,18 @@ dbg::GraphPath FindReliableExtension(dbg::Vertex &start, size_t len, double min_
         if(next == nullptr)
             return {};
         res += *next;
-        clen += next->size();
+        clen += next->truncSize();
     }
     return std::move(res);
 }
 
-std::vector<dbg::GraphPath>
-FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double min_cov) {
+std::vector<DBGGraphPath>
+FindPlausibleTipAlternatives(const DBGGraphPath &path, size_t max_diff, double min_cov) {
     size_t k = path.start().size();
     size_t max_len = path.len() + max_diff;
-    std::vector<dbg::GraphPath> res;
+    std::vector<DBGGraphPath> res;
     VERIFY(path.leftSkip() == 0);
-    dbg::GraphPath alternative(path.start());
+    DBGGraphPath alternative(path.start());
     size_t iter_cnt = 0;
     size_t len = 0;
     size_t tip_len = path.len();
@@ -123,8 +123,8 @@ FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double
             } else {
                 for (dbg::Edge &edge : alternative.finish()) {
                     if (edge.getCoverage() >= min_cov || edge.is_reliable) {
-                        len += edge.size();
-                        alternative += Segment<dbg::Edge>(edge, 0, edge.size());
+                        len += edge.truncSize();
+                        alternative += Segment<dbg::Edge>(edge, 0, edge.truncSize());
                         forward = true;
                         break;
                     }
@@ -135,13 +135,13 @@ FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double
                 break;
             dbg::Edge &old_edge = alternative.back().contig();
             alternative.pop_back();
-            len -= old_edge.size();
+            len -= old_edge.truncSize();
             bool found = false;
             for(dbg::Edge &edge : alternative.finish()) {
                 if(edge.getCoverage() >= min_cov || edge.is_reliable) {
                     if(found) {
-                        len += edge.size();
-                        alternative += Segment<dbg::Edge>(edge, 0, edge.size());
+                        len += edge.truncSize();
+                        alternative += Segment<dbg::Edge>(edge, 0, edge.truncSize());
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {
@@ -154,8 +154,8 @@ FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double
     return std::move(res);
 }
 
-dbg::GraphPath FindLongestCoveredForwardExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
-    dbg::GraphPath res(start);
+DBGGraphPath FindLongestCoveredForwardExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
+    DBGGraphPath res(start);
     while(true) {
         dbg::Edge *next = nullptr;
         for(dbg::Edge &edge : res.finish()) {
@@ -184,9 +184,9 @@ dbg::GraphPath FindLongestCoveredForwardExtension(dbg::Edge &start, double min_r
     }
 }
 
-dbg::GraphPath FindLongestCoveredExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
-    dbg::GraphPath res = FindLongestCoveredForwardExtension(start, min_rel_cov, max_err_cov);
+DBGGraphPath FindLongestCoveredExtension(dbg::Edge &start, double min_rel_cov, double max_err_cov) {
+    DBGGraphPath res = FindLongestCoveredForwardExtension(start, min_rel_cov, max_err_cov);
     if(res.start() == res.finish())
         return std::move(res);
-    return FindLongestCoveredForwardExtension(start.rc(), min_rel_cov, max_err_cov).subalignment(1).RC() + res;
+    return FindLongestCoveredForwardExtension(start.rc(), min_rel_cov, max_err_cov).subPath(1).RC() + res;
 }

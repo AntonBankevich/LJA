@@ -8,16 +8,16 @@ using namespace multigraph;
 void addGoodVertex(Vertex &v, std::unordered_set<VertexId> &good, std::vector<EdgeId> &candidates) {
     if(good.find(v.getId()) != good.end())
         return;
-    std::cout << "Good vertex " << v.getId() << std::endl;
+    std::cout << "Good getVertex " << v.getId() << std::endl;
     good.insert(v.getId());
     good.insert(v.rc().getId());
     for(Edge &e : v) {
-        if(good.find(e.end().getId()) == good.end())
+        if(good.find(e.getFinish().getId()) == good.end())
             candidates.emplace_back(e.getId());
     }
     if(v != v.rc())
         for(Edge &e : v.rc()) {
-            if(good.find(e.end().getId()) == good.end())
+            if(good.find(e.getFinish().getId()) == good.end())
                 candidates.emplace_back(e.getId());
         }
 }
@@ -26,10 +26,10 @@ std::vector<EdgeId> component(Edge &initial) {
     std::unordered_set<VertexId> visited;
     std::unordered_set<EdgeId> res;
     std::vector<VertexId> queue;
-    queue.emplace_back(initial.start().getId());
-    queue.emplace_back(initial.end().rc().getId());
-    visited.insert(initial.start().rc().getId());
-    visited.insert(initial.end().getId());
+    queue.emplace_back(initial.getStart().getId());
+    queue.emplace_back(initial.getFinish().rc().getId());
+    visited.insert(initial.getStart().rc().getId());
+    visited.insert(initial.getFinish().getId());
     while(!queue.empty()) {
         Vertex &v = *queue.back();
         queue.pop_back();
@@ -37,14 +37,14 @@ std::vector<EdgeId> component(Edge &initial) {
             continue;
         visited.insert(v.getId());
         for(Edge &e: v) {
-            if(visited.find(e.end().getId()) == visited.end())
-                queue.emplace_back(e.end().getId());
-            if(visited.find(e.end().rc().getId()) == visited.end())
-                queue.emplace_back(e.end().rc().getId());
+            if(visited.find(e.getFinish().getId()) == visited.end())
+                queue.emplace_back(e.getFinish().getId());
+            if(visited.find(e.getFinish().rc().getId()) == visited.end())
+                queue.emplace_back(e.getFinish().rc().getId());
         }
     }
     for(VertexId v: visited) {
-        if(v != initial.start().rc().getId() && v != initial.end().getId())
+        if(v != initial.getStart().rc().getId() && v != initial.getFinish().getId())
             for(Edge &e: *v) {
                 if(e != initial && e != initial.rc()) {
                     if (e.getSeq() <= e.rc().getSeq())
@@ -67,21 +67,21 @@ void CollapseSimpleBulges(MultiGraph &mg) {
         if(v.outDeg() > 0 && v.outDeg() <= 2) {
             bool ok = true;
             for(Edge &e : v) {
-                if(e.end() != v[0].end()) {
+                if(e.getFinish() != v[0].getFinish()) {
                     ok = false;
                     break;
                 }
             }
-            if(ok && v.outDeg() == v[0].end().inDeg())
-                paths.link(v.getId(), v[0].end().getId());
+            if(ok && v.outDeg() == v[0].getFinish().inDeg())
+                paths.link(v.getId(), v[0].getFinish().getId());
         }
     }
     std::unordered_map<VertexId, std::vector<VertexId>> split = paths.nontrivialSubsets();
     for(auto &it : split) {
         size_t len = 0;
         for(VertexId v : it.second) {
-            if(v->outDeg() > 0 && paths.get(v->begin()->end().getId()) == it.first) {
-                len += 2 * std::min(v->front().size(), v->back().size()) - v->front().end().size() - v->size();
+            if(v->outDeg() > 0 && paths.get(v->begin()->getFinish().getId()) == it.first) {
+                len += 2 * std::min(v->front().size(), v->back().size()) - v->front().getFinish().size() - v->size();
             }
         }
         len /= 2;
@@ -96,28 +96,28 @@ void CollapseSimpleBulges(MultiGraph &mg) {
         candidates.pop_back();
         if(to_remove.find(e) !=to_remove.end())
             continue;
-        if(e->start().outDeg() == 1 && e->end().inDeg() == 1) {
-            addGoodVertex(e->end(), good, candidates);
+        if(e->getStart().outDeg() == 1 && e->getFinish().inDeg() == 1) {
+            addGoodVertex(e->getFinish(), good, candidates);
             continue;
         }
-        if(e->start().outDeg() > 2 || e->end().inDeg() > 2) {
+        if(e->getStart().outDeg() > 2 || e->getFinish().inDeg() > 2) {
             continue;
         }
-        std::cout << "Checking edge " << e->getId() << std::endl;
+        std::cout << "Checking getEdge " << e->getId() << std::endl;
         std::vector<EdgeId> comp = component(*e);
         size_t size = 0;
         for(EdgeId e1: comp) {
-            size+= 2 * e1->size() - e1->start().size() - e1->end().size();
+            size+= 2 * e1->size() - e1->getStart().size() - e1->getFinish().size();
         }
-        size_t elen = 2*e->size() - e->start().size() - e->end().size();
+        size_t elen = 2*e->size() - e->getStart().size() - e->getFinish().size();
         std::cout << elen << " " << comp.size() << " " << size << std::endl;
-        if((comp.size() == 1 && e->start().outDeg()==2 && e->end().inDeg()==2 && size <= elen) || size< elen * 1.5+100000) {
+        if((comp.size() == 1 && e->getStart().outDeg() == 2 && e->getFinish().inDeg() == 2 && size <= elen) || size < elen * 1.5 + 100000) {
             for(EdgeId e1 : comp) {
-                std::cout << "Deleting edges " << e1->getId() << " and " << e1->rc().getId() << " based on analysis of edge " << e->getId() << std::endl;
+                std::cout << "Deleting edges " << e1->getId() << " and " << e1->rc().getId() << " based on analysis of getEdge " << e->getId() << std::endl;
                 to_remove.emplace(e1->getId());
                 to_remove.emplace(e1->rc().getId());
             }
-            addGoodVertex(e->end(), good, candidates);
+            addGoodVertex(e->getFinish(), good, candidates);
         }
     }
     mg = MultiGraphHelper::Delete(mg, {to_remove.begin(), to_remove.end()});
@@ -130,7 +130,7 @@ void ChooseShortcuts(MultiGraph &mg) {
     DisjointSet<VertexId> small_components;
     for(Edge &edge : mg.edges()) {
         if(edge.size() < 1000000)
-            small_components.link(edge.start().getId(), edge.end().getId());
+            small_components.link(edge.getStart().getId(), edge.getFinish().getId());
     }
     std::unordered_set<VertexId> all_vert;
     for(Vertex &vertex : mg.vertices()) {
@@ -139,7 +139,7 @@ void ChooseShortcuts(MultiGraph &mg) {
     auto cmap = small_components.subsets(all_vert);
     std::unordered_set<EdgeId> to_remove;
     for(auto & it:cmap) {
-        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.end());
+        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.getFinish());
         if(cvert.size() > 6)
             continue;
         bool good = true;
@@ -148,7 +148,7 @@ void ChooseShortcuts(MultiGraph &mg) {
         std::unordered_set<EdgeId> edges;
         for(VertexId v : cvert) {
             for(Edge &e: *v) {
-                if(cvert.find(e.end().getId()) == cvert.end()) {
+                if(cvert.find(e.getFinish().getId()) == cvert.end()) {
                     if(end.valid()) {
                         good = false;
                     }
@@ -158,7 +158,7 @@ void ChooseShortcuts(MultiGraph &mg) {
                 }
             }
             for(Edge &e: v->rc()) {
-                if(cvert.find(e.end().rc().getId()) == cvert.end()) {
+                if(cvert.find(e.getFinish().rc().getId()) == cvert.end()) {
                     if(start.valid()) {
                         good = false;
                     }
@@ -177,13 +177,13 @@ void ChooseShortcuts(MultiGraph &mg) {
         std::cout << std::endl;
         EdgeId shortcut;
         for(EdgeId e : edges) {
-            if(e->start().getId() == start && e->end().getId() == end && (!shortcut.valid() || shortcut->size() < e->size())) {
+            if(e->getStart().getId() == start && e->getFinish().getId() == end && (!shortcut.valid() || shortcut->size() < e->size())) {
                 shortcut = e;
             }
         }
         size_t size = 0;
         for(EdgeId e : edges) {
-            size += e->size() * 2 - e->start().size() - e->end().size();
+            size += e->size() * 2 - e->getStart().size() - e->getFinish().size();
         }
         if(size <= 1000000 && (to_remove.find(shortcut) == to_remove.end()) && (shortcut.valid() || start == end)) {
             if(shortcut.valid())
@@ -208,7 +208,7 @@ void PassAcyclic(MultiGraph &mg) {
     DisjointSet<VertexId> small_components;
     for(Edge &edge : mg.edges()) {
         if(edge.size() < 1000000)
-            small_components.link(edge.start().getId(), edge.end().getId());
+            small_components.link(edge.getStart().getId(), edge.getFinish().getId());
     }
     std::unordered_set<VertexId> all_vert;
     for(Vertex &vertex : mg.vertices()) {
@@ -217,7 +217,7 @@ void PassAcyclic(MultiGraph &mg) {
     auto cmap = small_components.subsets(all_vert);
     std::unordered_set<ConstEdgeId> to_remove;
     for(auto & it:cmap) {
-        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.end());
+        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.getFinish());
         if(cvert.size() > 6)
             continue;
         bool good = true;
@@ -226,7 +226,7 @@ void PassAcyclic(MultiGraph &mg) {
         std::unordered_set<EdgeId> edges;
         for(VertexId v : cvert) {
             for(Edge &e: *v) {
-                if(cvert.find(e.end().getId()) == cvert.end()) {
+                if(cvert.find(e.getFinish().getId()) == cvert.end()) {
                     if(end.valid()) {
                         good = false;
                     }
@@ -236,7 +236,7 @@ void PassAcyclic(MultiGraph &mg) {
                 }
             }
             for(Edge &e: v->rc()) {
-                if(cvert.find(e.end().rc().getId()) == cvert.end()) {
+                if(cvert.find(e.getFinish().rc().getId()) == cvert.end()) {
                     if(start.valid()) {
                         good = false;
                     }
@@ -255,7 +255,7 @@ void PassAcyclic(MultiGraph &mg) {
         std::cout << std::endl;
         size_t size = 0;
         for(EdgeId e : edges) {
-            size += e->size() * 2 - e->start().size() - e->end().size();
+            size += e->size() * 2 - e->getStart().size() - e->getFinish().size();
         }
         if(size > 1000000)
             continue;
@@ -263,13 +263,13 @@ void PassAcyclic(MultiGraph &mg) {
             if(to_remove.find(ConstEdgeId(e)) != to_remove.end())
                 continue;
             std::vector<EdgeId> path = {e};
-            while(path.size() < 10 && path.back()->end().outDeg() == 1 && path.back()->end().getId() != end) {
-                path.push_back(path.back()->end().front().getId());
+            while(path.size() < 10 && path.back()->getFinish().outDeg() == 1 && path.back()->getFinish().getId() != end) {
+                path.push_back(path.back()->getFinish().front().getId());
             }
-            while(path.size() < 10 && path.front()->start().inDeg() == 1 && path.front()->start().getId() != start) {
-                path.insert(path.begin(), path.front()->start().rc().front().rc().getId());
+            while(path.size() < 10 && path.front()->getStart().inDeg() == 1 && path.front()->getStart().getId() != start) {
+                path.insert(path.begin(), path.front()->getStart().rc().front().rc().getId());
             }
-            if(path.front()->start().getId() == start && path.back()->end().getId() == end) {
+            if(path.front()->getStart().getId() == start && path.back()->getFinish().getId() == end) {
                 std::cout << "Found path that must must be correct";
                 std::unordered_set<EdgeId> tmp(path.begin(), path.end());
                 for(EdgeId e1 : edges) {
@@ -306,8 +306,8 @@ void RemoveSmall(MultiGraph &mg) {
         size_t size = 0;
         for(EdgeId e : it.second) {
             size += e->size();
-            if(e->start().inDeg() != 0)
-                size -= e->start().size();
+            if(e->getStart().inDeg() != 0)
+                size -= e->getStart().size();
         }
         if(size < 1000000) {
             for(EdgeId e : it.second) {
@@ -342,7 +342,7 @@ void RemoveInversions(MultiGraph &mg) {
             if(to_remove.find(b1.getId()) != to_remove.end()|| to_remove.find(b2.getId()) != to_remove.end())
                 continue;
             Sequence seq = in1.getSeq() + b1.getSeq().Subseq(v.size()) + in2.rc().getSeq().Subseq(v.size());
-            mg.addEdge(in1.start(), in2.end().rc(), seq);
+            mg.addEdge(in1.getStart(), in2.getFinish().rc(), seq);
             to_remove.insert(in1.getId());
             to_remove.insert(in2.getId());
             to_remove.insert(b1.getId());

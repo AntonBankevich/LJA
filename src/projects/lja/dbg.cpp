@@ -21,6 +21,7 @@
 #include "common/logging.hpp"
 #include "../dbg/graph_printing.hpp"
 #include "subdataset_processing.hpp"
+#include "dbg_graph_aligner.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -35,7 +36,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
-    std::vector<GraphPath> paths;
+    std::vector<DBGGraphPath> paths;
     std::ofstream os;
     os.open(path_dump);
     size_t cur = 0;
@@ -75,7 +76,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     std::vector<size_t> cov_good(max_cov + 1);
     std::vector<size_t> cov_good_len(max_cov + 1);
     std::unordered_map<Edge const *, size_t> eset;
-    for(GraphPath &path: paths)
+    for(DBGGraphPath &path: paths)
         for(Edge &edge : path.edges())
             eset[&edge] += 1;
     std::ofstream os_mult;
@@ -88,15 +89,15 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
         Vertex &vert = pair.second;
         for (Edge &edge : vert) {
             size_t cov_val = std::min(max_cov, size_t(edge.getCoverage()));
-            if (eset.find(&edge) == eset.end() && eset.find(&edge.rc()) == eset.end()) {
+            if (eset.find(&edge) == eset.getFinish() && eset.find(&edge.rc()) == eset.getFinish()) {
                 cov_bad[cov_val] += 1;
-                cov_bad_len[cov_val] += edge.size();
+                cov_bad_len[cov_val] += edge.truncSize();
             } else {
                 cov_good[cov_val] += 1;
-                cov_good_len[cov_val] += edge.size();
+                cov_good_len[cov_val] += edge.truncSize();
             }
             cov[cov_val] += 1;
-            cov_len[cov_val] += edge.size();
+            cov_len[cov_val] += edge.truncSize();
         }
     }
     logger.info() << "All coverages" << std::endl;
@@ -108,7 +109,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
 }
 
 void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Logger &logger, SparseDBG &dbg) {
-    logger.info() << "Loading edge coverages." << std::endl;
+    logger.info() << "Loading getEdge coverages." << std::endl;
     std::ifstream is;
     is.open(fname);
     size_t n;
@@ -131,7 +132,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
         }
     }
     is.close();
-    logger.info() << "Finished loading edge coverages." << std::endl;
+    logger.info() << "Finished loading getEdge coverages." << std::endl;
 }
 
 std::string constructMessage() {
@@ -140,14 +141,14 @@ std::string constructMessage() {
     ss << "Usage: dbg [options] -o <output-dir> -k <int> --reads <reads_file> [--reads <reads_file2> ...]\n\n";
     ss << "Basic options:\n";
     ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
-    ss << "  -k <int>                                      Value of k (vertex size) to be used for de Bruijn graph construction. k should be odd (otherwise k + 1 is used instead).\n";
+    ss << "  -k <int>                                      Value of k (getVertex size) to be used for de Bruijn graph construction. k should be odd (otherwise k + 1 is used instead).\n";
     ss << "  --reads <file_name>                           Name of file that contains reads in fasta or fastq format. This option can be used any number of times in the same command line. In this case reads from all specified files will be used as an input.\n";
     ss << "  -h (or --help)                                Print this help message.\n";
     ss << "\nAdvanced options:\n";
     ss << "  -t <int> (or --threads <int>)                 Number of threads. The default value is 16.\n";
     ss << "  -w <int> (or --window <int>`)                 The window size to be used for sparse de Bruijn graph construction. The default value is 2000. Note that all reads of length less than k + w are ignored during graph construction.\n";
     ss << "  --compress                                    Compress all homolopymers in reads.\n";
-    ss << "  --coverage                                    Calculate edge coverage of edges in the constructed de Bruijn graph.\n";
+    ss << "  --coverage                                    Calculate getEdge coverage of edges in the constructed de Bruijn graph.\n";
     return ss.str();
 }
 
@@ -354,7 +355,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             if(contig.size() < hasher.getK() + w - 1)
                 return;
-            GraphPath al = GraphAligner(dbg).align(contig.getSeq());
+            DBGGraphPath al = GraphAligner(dbg).align(contig.getSeq());
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].contains(al.getVertex(i))) {
@@ -458,12 +459,12 @@ int main(int argc, char **argv) {
             Contig read = contig.makeContig();
             if(read.size() < w + hasher.getK() - 1)
                 return;
-            GraphPath gal = GraphAligner(dbg).align(read.getSeq());
+            DBGGraphPath gal = GraphAligner(dbg).align(read.getSeq());
             if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
-                gal = gal.subalignment(1, gal.size());
+                gal = gal.subPath(1, gal.size());
             }
             if (gal.size() > 0 && gal.back().contig().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
-                gal = gal.subalignment(0, gal.size() - 1);
+                gal = gal.subPath(0, gal.size() - 1);
             }
             for(Segment<Edge> seg : gal) {
                 if (seg.contig().getCoverage() < 2)

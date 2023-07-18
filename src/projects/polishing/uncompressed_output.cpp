@@ -210,8 +210,8 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
         cuts[e.getId()] = 0;
     }
     for(OverlapRecord &rec : cigars_collection) {
-        cuts[rec.left->rc().getId()] = cut[rec.left->rc().start().getId()] * rec.endSize();
-        cuts[rec.right] = cut[rec.right->start().getId()] * rec.startSize();
+        cuts[rec.left->rc().getId()] = cut[rec.left->rc().getStart().getId()] * rec.endSize();
+        cuts[rec.right] = cut[rec.right->getStart().getId()] * rec.startSize();
     }
     std::vector<Contig> res;
     for(Edge &edge : graph.edges()) {

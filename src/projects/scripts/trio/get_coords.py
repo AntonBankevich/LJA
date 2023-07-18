@@ -161,7 +161,7 @@ class Graph:
                         to_remove.add(work_v.outgoing[0])
                         k = work_v.k
                         if k >= len(start_e.seq):
-                            print(f'wrong edge length {work_v.incoming[0]}')
+                            print(f'wrong getEdge length {work_v.incoming[0]}')
                             return
                         new_seq = start_e.seq[:-k] + end_e.seq
                         new_label = start_e.label + end_e.label
@@ -184,8 +184,8 @@ class Graph:
             self.compress_vertex_if_needed(vid)
     
     def get_internal_length(self, eid):
-        edge = self.edges[eid]
-        res = len(edge.seq) - self.vertices[edge.start_vertex].k -self.vertices[edge.end_vertex].k
+        getEdge = self.edges[eid]
+        res = len(getEdge.seq) - self.vertices[getEdge.start_vertex].k -self.vertices[getEdge.end_vertex].k
         return res
 
     def print_to_fasta(self, outfile):
@@ -201,8 +201,8 @@ class Graph:
         arr = line.split('_')
         getStart = 0
         for eid in arr:
-            edge =  self.edges[int(eid) * 2]
-            next = getStart +  len(edge.seq) - self.vertices[edge.end_vertex].k
+            getEdge =  self.edges[int(eid) * 2]
+            next = getStart +  len(getEdge.seq) - self.vertices[getEdge.end_vertex].k
             print(f'{eid} : {getStart} {next}')
             getStart = next
 
@@ -577,7 +577,7 @@ def get_start_end_vertex(edge_component, segments, edges_to_id):
     max_l = 0
     max_e = ""
     for e in edge_component:
-        print(f'edge {e} length {segments[e].length}')
+        print(f'getEdge {e} length {segments[e].length}')
         if segments[e].length > max_l:
             max_l = segments[e].length
             max_e = e

@@ -14,7 +14,7 @@ size_t Edge::updateTipSize() const {
             other.finish->unlock();
         }
         if(new_val != size_t(-1))
-            new_val += size();
+            new_val += truncSize();
         finish->lock();
         extraInfo = new_val;
         finish->unlock();
@@ -35,13 +35,13 @@ void Edge::setTipSize(size_t val) const {
     extraInfo = val;
 }
 
-size_t Edge::size() const {
+size_t Edge::truncSize() const {
     return truncSeq().size();
 }
 
 double Edge::getCoverage() const {
-    VERIFY(size() != 0);
-    return double(cov) / size();
+    VERIFY(truncSize() != 0);
+    return double(cov) / truncSize();
 }
 
 size_t Edge::intCov() const {
@@ -90,8 +90,8 @@ std::string Edge::str() const {
 
 Sequence Edge::fullSubseq(size_t from, size_t to) const {
     VERIFY(start->size() > 0);
-    VERIFY(from <= start->size() + size());
-    VERIFY(to <= start->size() + size());
+    VERIFY(from <= start->size() + truncSize());
+    VERIFY(to <= start->size() + truncSize());
     if (from >= start->size()) {
         return truncSeq().Subseq(from - start->size(), to);
     } else {
@@ -131,7 +131,7 @@ Sequence Edge::getSeq() const {
     return start->getSeq() + seq;
 }
 
-size_t Edge::getTruncSize() const {return start->size();}
+size_t Edge::getStartSize() const {return start->size();}
 
 void Edge::DeleteEdge(Edge &edge) {
     VertexLocker locker({edge.start, edge.finish});
@@ -229,7 +229,7 @@ void Vertex::setSeq(Sequence _seq) {
 void Vertex::addSequence(const Sequence &new_seq) {
     lock();
     for (Edge &edge : outgoing_) {
-        if (new_seq.size() < edge.size() && edge.truncSeq().Subseq(new_seq.size()) == new_seq) {
+        if (new_seq.size() < edge.truncSize() && edge.truncSeq().Subseq(new_seq.size()) == new_seq) {
             unlock();
             return;
         }
@@ -267,7 +267,7 @@ Edge &Vertex::addEdgeLockFree(Vertex &end, const Sequence &full_sequence) {
     } else {
         res._rc = &res;
     }
-    VERIFY(res.size() == res.rc().size());
+    VERIFY(res.truncSize() == res.rc().truncSize());
     return res;
 }
 
@@ -276,7 +276,7 @@ Edge &Vertex::innerAddEdge(Vertex &end, const Sequence &full_sequence) {
     Edge &edge = outgoing_.back();
     _outDeg++;
     for(auto it = hanging.begin(); it != hanging.end(); ++it) {
-        if(it->size() <= edge.size() && edge.truncSeq().Subseq(0, it->size()) == *it) {
+        if(it->size() <= edge.truncSize() && edge.truncSeq().Subseq(0, it->size()) == *it) {
             hanging.erase(it);
             break;
         }
@@ -398,7 +398,7 @@ void Vertex::innerRemoveEdge(Edge &edge) {
 }
 
 void SparseDBG::checkSeqFilled(size_t threads, logging::Logger &logger) {
-    logger.trace() << "Checking vertex sequences" << std::endl;
+    logger.trace() << "Checking getVertex sequences" << std::endl;
     std::function<void(size_t, std::pair<const hashing::htype, Vertex> &)> task =
             [&logger](size_t pos, std::pair<const hashing::htype, Vertex> &pair) {
                 const Vertex &vert = pair.second;
@@ -407,11 +407,11 @@ void SparseDBG::checkSeqFilled(size_t threads, logging::Logger &logger) {
                     VERIFY(false);
                 }
                 if (!vert.isCanonical()) {
-                    logger.trace() << "Canonical vertex marked not canonical " << pair.first << std::endl;
+                    logger.trace() << "Canonical getVertex marked not canonical " << pair.first << std::endl;
                     VERIFY(false);
                 }
                 if (vert.rc().isCanonical()) {
-                    logger.trace() << "Noncanonical vertex marked canonical " << pair.first << std::endl;
+                    logger.trace() << "Noncanonical getVertex marked canonical " << pair.first << std::endl;
                     VERIFY(false);
                 }
             };
@@ -519,12 +519,13 @@ void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
                 hashing::KWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 0);
                 while (true) {
                     if(this->containsVertex(kwh.hash())) {
-                        VERIFY_OMP((kwh.pos == 0 && this->getVertex(kwh) == edge.getStart()) || (kwh.pos == edge.size() && this->getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
+                        VERIFY_OMP((kwh.pos == 0 && this->getVertex(kwh) == edge.getStart()) || (kwh.pos ==
+                                                                                                         edge.truncSize() && this->getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
                     }
                     if(this->isAnchor(kwh.hash())) {
                         EdgePosition ep = getAnchor(kwh);
                         VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.pos, "Anchor kmer index corruption " + itos(ep.pos) + " " +
-                                itos(ep.edge->size()));
+                                itos(ep.edge->truncSize()));
                     }
                     if(!kwh.hasNext())
                         break;
@@ -535,7 +536,7 @@ void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
     logger.trace() << "Index check success" << std::endl;
     size_t sz = 0;
     for(Edge &edge : edgesUnique()) {
-        sz += edge.size();
+        sz += edge.truncSize();
     }
     for(Vertex &vertex: vertices()) {
         std::vector<char> out;
@@ -553,7 +554,7 @@ void SparseDBG::checkDBGConsistency(size_t threads, logging::Logger &logger) {
     std::function<void(size_t, Edge &)> task1 =
             [this, &hashs](size_t pos, Edge &edge) {
                 hashing::KWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 1);
-                for(size_t i = 1; i < edge.size(); i++) {
+                for(size_t i = 1; i < edge.truncSize(); i++) {
                     hashs.emplace_back(kwh.hash());
                     kwh = kwh.next();
                 }
@@ -626,7 +627,7 @@ void SparseDBG::fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
     ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
     std::function<void(size_t, Edge &)> task = [&res, w, this](size_t pos, Edge &edge) {
         Vertex &vertex = edge.getStart();
-        if (edge.size() > w) {
+        if (edge.truncSize() > w) {
             Sequence seq = vertex.getSeq() + edge.truncSeq();
 //                    Does not run for the first and last kmers.
             for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
@@ -655,7 +656,7 @@ void SparseDBG::fillAnchors(size_t w, logging::Logger &logger, size_t threads,
     ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
     std::function<void(size_t, Edge &)> task = [&res, w, this, &to_add](size_t pos, Edge &edge) {
         Vertex &vertex = edge.getStart();
-        if (edge.size() > w || !to_add.empty()) {
+        if (edge.truncSize() > w || !to_add.empty()) {
             Sequence seq = vertex.getSeq() + edge.truncSeq();
 //                    Does not run for the first and last kmers.
             for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
@@ -852,7 +853,7 @@ void SparseDBG::resetMarkers() {
 //    }
 //}
 std::vector<EdgePosition> EdgePosition::step() const {
-    if (pos == edge->size()) {
+    if (pos == edge->truncSize()) {
         std::vector<EdgePosition> res;
         Vertex &v = edge->getFinish();
         for (Edge &next : v) {

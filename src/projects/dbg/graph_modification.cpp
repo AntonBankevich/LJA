@@ -1,9 +1,10 @@
 #include "graph_modification.hpp"
 #include "visualization.hpp"
+#include "dbg_graph_aligner.hpp"
 
 using namespace dbg;
-GraphPath realignRead(const GraphPath &al,
-                      const std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
+DBGGraphPath realignRead(const DBGGraphPath &al,
+                         const std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
     Edge &old_start_edge = al[0].contig();
     size_t old_start_pos = al[0].left;
     Edge *new_start_edge = nullptr;
@@ -21,14 +22,14 @@ GraphPath realignRead(const GraphPath &al,
         std::cout << al.str() << std::endl;
         std::cout << it->second << std::endl;
     }
-    VERIFY_OMP(new_start_edge != nullptr, "Could not find getStart edge for alignment");
+    VERIFY_OMP(new_start_edge != nullptr, "Could not find getStart getEdge for alignment");
     size_t cur = 0;
     size_t read_length = al.len();
     size_t position_in_read_path = 0;
     size_t position_in_read_sequence = 0;
-    GraphPath new_al;
+    DBGGraphPath new_al;
     while(cur < read_length) {
-        size_t len = std::min(read_length - cur, new_start_edge->size() - new_start_pos);
+        size_t len = std::min(read_length - cur, new_start_edge->truncSize() - new_start_pos);
         new_al += Segment<Edge>(*new_start_edge, new_start_pos, new_start_pos + len);
         cur += len;
         if(cur < read_length) {
@@ -130,7 +131,7 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
             if(!alignedRead.valid()) {
                 continue;
             }
-            GraphPath al = alignedRead.path.getAlignment();
+            DBGGraphPath al = alignedRead.path.getAlignment();
             new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
             new_storage.apply(new_storage[i]);
             alignedRead.delayedInvalidate();
@@ -146,7 +147,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                 size_t new_extension_size) {
     logger.info() << "Applying changes to the graph" << std::endl;
     omp_set_num_threads(threads);
-    logger.trace() << "Collecting covered edge segments" << std::endl;
+    logger.trace() << "Collecting covered getEdge segments" << std::endl;
     size_t k = dbg.hasher().getK();
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
@@ -165,7 +166,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                 len += seg.size();
                 if (seg.contig() < seg.contig().rc())
                     seg = seg.RC();
-                if(seg.size() < seg.contig().size()) {
+                if(seg.size() < seg.contig().truncSize()) {
                     segmentStorage.emplace_back(seg);
                     if(seg.contig() == seg.contig().rc())
                         segmentStorage.emplace_back(seg.RC());
@@ -182,8 +183,8 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     for(Edge &edge : dbg.edges()) {
         if(edge < edge.rc())
             continue;
-        if(edge.getMarker() == EdgeMarker::correct || (edge.getCoverage() > 2 && edge.size() > k * 2 + 5000)) {
-            segmentStorage.emplace_back(edge, 0, edge.size());
+        if(edge.getMarker() == EdgeMarker::correct || (edge.getCoverage() > 2 && edge.truncSize() > k * 2 + 5000)) {
+            segmentStorage.emplace_back(edge, 0, edge.truncSize());
         }
         edge.mark(EdgeMarker::common);
     }
@@ -197,13 +198,13 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     __gnu_parallel::sort(read_segments.begin(), read_segments.end());
     logger.trace() << "Sorting finished" << std::endl;
     std::vector<Segment<Edge>> covered_segments;
-    logger.trace() << "Merging covered edge segments" << std::endl;
+    logger.trace() << "Merging covered getEdge segments" << std::endl;
     for(Segment<Edge> &seg : read_segments) {
         if(!covered_segments.empty() && covered_segments.back().contig() == seg.contig() && covered_segments.back().right >= seg.left) {
             if(seg.right > covered_segments.back().right)
                 covered_segments.back() = covered_segments.back().unite(seg);
         } else {
-            if(seg.contig() != seg.contig().rc() || seg.left * 2 < seg.contig().size())
+            if(seg.contig() != seg.contig().rc() || seg.left * 2 < seg.contig().truncSize())
                 covered_segments.emplace_back(seg);
         }
     }
@@ -261,7 +262,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             if(!alignedRead.valid()) {
                 continue;
             }
-            GraphPath al = alignedRead.path.getAlignment();
+            DBGGraphPath al = alignedRead.path.getAlignment();
             new_storage.reroute(new_storage[i], realignRead(al, embedding), "Remapping");
             new_storage.apply(new_storage[i]);
             alignedRead.delayedInvalidate();
@@ -288,9 +289,9 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
 //    subgraph.checkDBGConsistency(threads, logger);
     GraphAligner aligner(subgraph);
     std::function<void(size_t, Edge &)> task = [&aligner](size_t num, Edge &edge) {
-        GraphPath al = aligner.align(edge.getStart().getSeq() + edge.truncSeq());
-        VERIFY(al.len() == edge.size());
-        edge.is_reliable = (al.size() == 1 && al[0].left == 0 && al[0].right == al[0].contig().size());
+        DBGGraphPath al = aligner.align(edge.getStart().getSeq() + edge.truncSeq());
+        VERIFY(al.len() == edge.truncSize());
+        edge.is_reliable = (al.size() == 1 && al[0].left == 0 && al[0].right == al[0].contig().truncSize());
         edge.rc().is_reliable = edge.is_reliable;
     };
     processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task);
@@ -309,7 +310,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
             if(!old_read.valid())
                 continue;
             AlignedRead &new_read = new_storage[i];
-            GraphPath al = old_read.path.getAlignment();
+            DBGGraphPath al = old_read.path.getAlignment();
             bool good = true;
             for(Segment<Edge> seg : al) {
                 if(!seg.contig().is_reliable) {
@@ -317,7 +318,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
                     break;
                 }
             }
-            GraphPath new_al;
+            DBGGraphPath new_al;
             if(good) {
                 Vertex &start = subgraph.getVertex(old_read.path.start());
                 new_al = CompactPath(start, old_read.path.cpath(), old_read.path.leftSkip(), old_read.path.rightSkip()).getAlignment();

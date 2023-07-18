@@ -3,7 +3,7 @@
 #include "error_correction.hpp"
 
 using namespace dbg;
-void ManyKCorrector::calculateReliable(const GraphPath &read_path, std::vector<size_t> &last_reliable,
+void ManyKCorrector::calculateReliable(const DBGGraphPath &read_path, std::vector<size_t> &last_reliable,
                                        std::vector<size_t> &next_reliable) const {
     for(size_t i = 0; i < read_path.size(); i++) {
         const Segment<Edge> &seg= read_path[i];
@@ -26,7 +26,7 @@ void ManyKCorrector::calculateReliable(const GraphPath &read_path, std::vector<s
     }
 }
 
-ManyKCorrector::ReadRecord ManyKCorrector::splitRead(GraphPath &read_path) const {
+ManyKCorrector::ReadRecord ManyKCorrector::splitRead(DBGGraphPath &read_path) const {
     std::vector<size_t> last_reliable;
     std::vector<size_t> next_reliable;
     calculateReliable(read_path, last_reliable, next_reliable);
@@ -45,7 +45,7 @@ ManyKCorrector::ReadRecord ManyKCorrector::splitRead(GraphPath &read_path) const
     return {std::move(read_path), std::move(positions)};
 }
 
-void ManyKCorrector::mergeLow(GraphPath &read_path, std::vector<size_t> &positions, size_t bad_length) const {
+void ManyKCorrector::mergeLow(DBGGraphPath &read_path, std::vector<size_t> &positions, size_t bad_length) const {
     size_t new_size = 2;
     for(size_t cur = 2; cur < positions.size(); cur+= 2) {
         size_t good_len = 0;
@@ -68,7 +68,7 @@ void ManyKCorrector::mergeLow(GraphPath &read_path, std::vector<size_t> &positio
 
 std::vector<size_t>
 ManyKCorrector::calculateLowRegions(const std::vector<size_t> &last_reliable, const std::vector<size_t> &next_reliable,
-                                    GraphPath &read_path) const {
+                                    DBGGraphPath &read_path) const {
     std::vector<size_t> positions;
     for(size_t i = 0; i < read_path.size(); i++) {
         const Segment<Edge> &seg = read_path[i];
@@ -89,18 +89,18 @@ ManyKCorrector::calculateLowRegions(const std::vector<size_t> &last_reliable, co
     return std::move(positions);
 }
 
-std::string ManyKCorrector::correctRead(GraphPath &read_path) {
+std::string ManyKCorrector::correctRead(DBGGraphPath &read_path) {
     ReadRecord rr = splitRead(read_path);
     std::string message = "";
     if(rr.isPerfect() || rr.isBad()) {
         return "";
     }
     std::vector<std::string> messages;
-    GraphPath corrected;
+    DBGGraphPath corrected;
     if(rr.hasIncomingTip()) {
         Tip tip = rr.getIncomingTip();
         std::string tip_message;
-        GraphPath tc = correctTip(tip, tip_message);
+        DBGGraphPath tc = correctTip(tip, tip_message);
         VERIFY(tc.start() == tip.tip.start());
         VERIFY(tc.front().left == 0);
         if(!tip_message.empty()) {
@@ -114,7 +114,7 @@ std::string ManyKCorrector::correctRead(GraphPath &read_path) {
     for(size_t i = 0; i < rr.bulgeNum(); i++) {
         Bulge bulge = rr.getBulge(i);
         std::string bulge_message;
-        GraphPath bc = correctBulge(bulge, bulge_message);
+        DBGGraphPath bc = correctBulge(bulge, bulge_message);
         if(!bulge_message.empty()) {
             messages.emplace_back(bulge_message + itos(K));
             messages.emplace_back(itos(bulge.bulge.len()));
@@ -127,7 +127,7 @@ std::string ManyKCorrector::correctRead(GraphPath &read_path) {
     if(rr.hasOutgoingTip()) {
         Tip tip = rr.getOutgoingTip();
         std::string tip_message;
-        GraphPath tc = correctTip(tip, tip_message);
+        DBGGraphPath tc = correctTip(tip, tip_message);
         VERIFY(tc.start() == tip.tip.start());
         VERIFY(tc.front().left == 0);
         if(!tip_message.empty()) {
@@ -149,22 +149,22 @@ std::string ManyKCorrector::correctRead(GraphPath &read_path) {
     return message;
 }
 
-GraphPath ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
-    const GraphPath &left = tip.left;
+DBGGraphPath ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
+    const DBGGraphPath &left = tip.left;
     size_t tlen = tip.tip.len();
-    GraphPath al = uniqueExtension(tip.left, tlen);
+    DBGGraphPath al = uniqueExtension(tip.left, tlen);
     size_t elen = al.len() - tip.left.len();
     if(elen > 0 && elen + 10 >= tlen) {
         if(elen > tlen) {
             al.cutBack(elen - tlen);
         }
-        return al.subalignment(tip.left.size(), al.size());
+        return al.subPath(tip.left.size(), al.size());
     } else {
         return tip.tip;
     }
 }
 
-GraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip) const {
+DBGGraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip) const {
     size_t tlen = tip.tip.len();
 //    std::vector<dbg::GraphAlignment> alternatives = FindPlausibleTipAlternatives(tip.tip, std::max<size_t>(tlen / 100, 20), 3);
 //    if(alternatives.size() == 1) {
@@ -173,7 +173,7 @@ GraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip)
 //        return alternatives[0];
 //    } else
 //        return tip.tip;
-    GraphPath alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 3);
+    DBGGraphPath alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 3);
     if(!alternative.valid())
         return tip.tip;
     if(alternative.len() > tip.tip.len()) {
@@ -182,8 +182,8 @@ GraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip)
     return std::move(alternative);
 }
 
-GraphPath ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
-    GraphPath correction = correctTipWithExtension(tip);
+DBGGraphPath ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
+    DBGGraphPath correction = correctTipWithExtension(tip);
     VERIFY(tip.tip.start() == correction.start());
     if(correction != tip.tip) {
         message = "te";
@@ -199,8 +199,8 @@ GraphPath ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string
     return tip.tip;
 }
 
-GraphPath ManyKCorrector::uniqueExtension(const GraphPath &base, size_t max_len) const {
-    GraphPath al = base;
+DBGGraphPath ManyKCorrector::uniqueExtension(const DBGGraphPath &base, size_t max_len) const {
+    DBGGraphPath al = base;
     size_t start = 0;
     size_t extra_len = 0;
     size_t cur_len = base.len();
@@ -222,8 +222,8 @@ GraphPath ManyKCorrector::uniqueExtension(const GraphPath &base, size_t max_len)
     return al;
 }
 
-GraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
-    GraphPath corrected;
+DBGGraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
+    DBGGraphPath corrected;
     if(bulge.bulge.len() + 100 < K) {
         corrected = correctBulgeByBridging(bulge);
         if(corrected != bulge.bulge) {
@@ -245,12 +245,12 @@ GraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, strin
     return bulge.bulge;
 }
 
-GraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bulge) const {
+DBGGraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bulge) const {
     VERIFY(bulge.bulge.len() < K);
-    std::vector<GraphPath> alternatives1 = reads.getRecord(bulge.bulge.start()).
+    std::vector<DBGGraphPath> alternatives1 = reads.getRecord(bulge.bulge.start()).
             getBulgeAlternatives(bulge.bulge.finish(), 4);
-    std::vector<GraphPath> alternatives;
-    for(GraphPath &al : alternatives1) {
+    std::vector<DBGGraphPath> alternatives;
+    for(DBGGraphPath &al : alternatives1) {
         if(al.len() + 100 < bulge.bulge.len() && bulge.bulge.len() < al.len() + 100)
             alternatives.emplace_back(std::move(al));
     }
@@ -262,16 +262,16 @@ GraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bu
     size_t right_supp = 0;
     size_t left_best = 0;
     size_t right_best = 0;
-    GraphPath rc_left = bulge.left.RC();
+    DBGGraphPath rc_left = bulge.left.RC();
     if(rc_left.len() > K - bulge.bulge.len())
         rc_left.cutBack(rc_left.len() - (K - bulge.bulge.len()));
     CompactPath crc_left(rc_left);
-    GraphPath right = bulge.right;
+    DBGGraphPath right = bulge.right;
     if(right.size() > K - bulge.bulge.len())
         right.cutBack(right.len() - (K - bulge.bulge.len()));
     CompactPath cright(right);
     for(size_t i = 0; i < alternatives.size(); i++) {
-        GraphPath &al = alternatives[i];
+        DBGGraphPath &al = alternatives[i];
         Sequence right_ext = CompactPath(al).cpath() + cright.cpath();
         if(reads.getRecord(bulge.bulge.start()).countStartsWith(right_ext) > 0) {
             right_supp++;
@@ -291,13 +291,13 @@ GraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bu
     }
 }
 
-GraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge &bulge) const {
+DBGGraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge &bulge) const {
     size_t blen = bulge.bulge.len();
-    GraphPath left_ext = uniqueExtension(bulge.left, blen + 100).subalignment(bulge.left.size());
-    GraphPath right_ext = uniqueExtension(bulge.right.RC(), blen + 100).subalignment(bulge.right.size()).RC();
+    DBGGraphPath left_ext = uniqueExtension(bulge.left, blen + 100).subPath(bulge.left.size());
+    DBGGraphPath right_ext = uniqueExtension(bulge.right.RC(), blen + 100).subPath(bulge.right.size()).RC();
     if(left_ext.len() + right_ext.len() < blen + std::min<size_t>(blen, 100) && std::max(left_ext.len(), right_ext.len()) + 100 > blen)
         return bulge.bulge;
-    GraphPath candidate;
+    DBGGraphPath candidate;
     for(int shift = -int(right_ext.size()) + 1; shift < int(left_ext.size()); shift++) {
         bool overlap = true;
         for(int i = 0; i < left_ext.size(); i++) {
@@ -308,8 +308,8 @@ GraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge &b
             }
         }
         if(overlap && left_ext.size() > 0 && right_ext.size() > 0) {
-            GraphPath over_al = left_ext.subalignment(0, std::max(0, shift)) +
-                                right_ext.subalignment(std::max(0, shift) - shift);
+            DBGGraphPath over_al = left_ext.subPath(0, std::max(0, shift)) +
+                    right_ext.subPath(std::max(0, shift) - shift);
             size_t over_len = over_al.len();
             if(over_len < blen + 100 && blen < over_len + 100){
                 if(candidate.valid())
@@ -324,9 +324,9 @@ GraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge &b
         return bulge.bulge;
 }
 
-GraphPath ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
+DBGGraphPath ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
     size_t blen = bulge.bulge.len();
-    std::vector<dbg::GraphPath> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, std::max<size_t>(blen / 100, 20), 3);
+    std::vector<DBGGraphPath> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, std::max<size_t>(blen / 100, 20), 3);
     if(blen > dbg.hasher().getK() && alternatives.empty()) {
         alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, blen / 10 + 32, 3);
         if(alternatives.empty()) {
@@ -352,23 +352,23 @@ void ManyKCorrector::initialize(logging::Logger &logger, size_t threads, SparseD
 }
 
 ManyKCorrector::Bulge ManyKCorrector::ReadRecord::getBulge(size_t num) {
-    return  {read.subalignment(switch_positions[num * 2], switch_positions[num * 2 + 1]),
-             read.subalignment(switch_positions[num * 2 + 2], switch_positions[num * 2 + 3]),
-             read.subalignment(switch_positions[num * 2 + 1], switch_positions[num * 2 + 2])};
+    return  {read.subPath(switch_positions[num * 2], switch_positions[num * 2 + 1]),
+             read.subPath(switch_positions[num * 2 + 2], switch_positions[num * 2 + 3]),
+             read.subPath(switch_positions[num * 2 + 1], switch_positions[num * 2 + 2])};
 }
 
 ManyKCorrector::Tip ManyKCorrector::ReadRecord::getOutgoingTip() {
-    return {read.subalignment(switch_positions[switch_positions.size() - 2], switch_positions.back()),
-            read.subalignment(switch_positions.back(), read.size())};
+    return {read.subPath(switch_positions[switch_positions.size() - 2], switch_positions.back()),
+            read.subPath(switch_positions.back(), read.size())};
 }
 
 ManyKCorrector::Tip ManyKCorrector::ReadRecord::getIncomingTip() {
-    return {read.subalignment(switch_positions[0], switch_positions[1]).RC(),
-            read.subalignment(0, switch_positions[0]).RC()};
+    return {read.subPath(switch_positions[0], switch_positions[1]).RC(),
+            read.subPath(0, switch_positions[0]).RC()};
 }
 
-GraphPath ManyKCorrector::ReadRecord::getBlock(size_t num) const {
-    return read.subalignment(switch_positions[num * 2], switch_positions[num * 2 + 1]);
+DBGGraphPath ManyKCorrector::ReadRecord::getBlock(size_t num) const {
+    return read.subPath(switch_positions[num * 2], switch_positions[num * 2 + 1]);
 }
 
 size_t ManyKCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage, double threshold,

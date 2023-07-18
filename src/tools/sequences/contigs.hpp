@@ -40,11 +40,11 @@ public:
     size_t left;
     size_t right;
     Segment(T &contig_, size_t left_, size_t right_) : left(left_), right(right_), contig_ptr(&contig_){
-        VERIFY(0 <= left and left <= right and right <= contig_ptr->size())
+        VERIFY(0 <= left and left <= right and right <= contig_ptr->truncSize())
     }
 
-    Segment(T &contig) : contig_ptr(&contig), left(0), right(contig.size()) {
-        VERIFY(0 <= left and left <= right and right <= contig_ptr->size())
+    Segment(T &contig) : contig_ptr(&contig), left(0), right(contig.truncSize()) {
+        VERIFY(0 <= left and left <= right and right <= contig_ptr->truncSize())
     }
 
     Segment() : contig_ptr(nullptr), left(left), right(right) {
@@ -67,7 +67,7 @@ public:
     }
 
     Sequence fullSeq() const {
-        size_t k = contig_ptr->getTruncSize();
+        size_t k = contig_ptr->getStartSize();
         if(left >= k) {
             return contig_ptr->truncSeq().Subseq(left - k, right);
         } else {
@@ -86,7 +86,7 @@ public:
     }
 
     Segment<T> RC() const {
-        return Segment(contig_ptr->rc(), contig_ptr->size() - right, contig_ptr->size() - left);
+        return Segment(contig_ptr->rc(), contig_ptr->truncSize() - right, contig_ptr->truncSize() - left);
     }
 
     bool inter(const Segment &other) const {
@@ -163,8 +163,8 @@ public:
     std::string coordinaresStr() const {
         std::stringstream ss;
         ss << "[" << left << ":";
-        if (right > contig().size() * 3 / 4)
-            ss << contig().size() << "-" << (contig().size() - right);
+        if (right > contig().truncSize() * 3 / 4)
+            ss << contig().truncSize() << "-" << (contig().truncSize() - right);
         else
             ss << right;
         ss << "]";
@@ -267,7 +267,7 @@ public:
     size_t getTruncSize() const {return 0;}
 
     Segment<T> asSegment() const {
-        return Segment<T>(*this, 0u, size());
+        return Segment<T>(*this, 0u, truncSize());
     }
 
     Segment<T> segment(size_t left, size_t right) const {
@@ -276,20 +276,20 @@ public:
 
     Segment<T> suffix(int pos) const {
         if (pos < 0)
-            pos = size() + pos;
+            pos = truncSize() + pos;
         if (pos < 0)
             pos = 0;
-        if (pos > size())
-            pos = size();
-        return Segment<T>(*this, pos, size());
+        if (pos > truncSize())
+            pos = truncSize();
+        return Segment<T>(*this, pos, truncSize());
     }
 
     Segment<T> prefix(size_t len) const {
-        len = min(len, size());
+        len = min(len, truncSize());
         return Segment<T>(*this, 0, len);
     }
 
-    size_t size() const {
+    size_t truncSize() const {
         return getSeq().size();
     }
 

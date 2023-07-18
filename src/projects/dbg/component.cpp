@@ -1,4 +1,5 @@
 #include "component.hpp"
+#include "dbg_graph_aligner.hpp"
 
 std::vector<dbg::Vertex *> dbg::Component::borderVertices() const {
     std::vector<dbg::Vertex *> res;
@@ -179,8 +180,8 @@ dbg::Component dbg::Component::neighbourhood(dbg::SparseDBG &graph, Contig &cont
     for (PerfectAlignment<Contig, Edge> &al : als1) {
         if(al.seg_to.left < radius)
             queue.emplace(0, al.seg_to.contig().getStart().hash());
-        VERIFY(al.seg_to.right <= al.seg_to.contig().size());
-        if(al.seg_to.contig().size() < radius + al.seg_to.right)
+        VERIFY(al.seg_to.right <= al.seg_to.contig().truncSize());
+        if(al.seg_to.contig().truncSize() < radius + al.seg_to.right)
             queue.emplace(0, al.seg_to.contig().getFinish().hash());
     }
     if(queue.empty()) {
@@ -197,7 +198,7 @@ dbg::Component dbg::Component::neighbourhood(dbg::SparseDBG &graph, Contig &cont
         v.insert(val.second);
         for(Vertex *vit : graph.getVertices(val.second))
             for (Edge &edge : *vit) {
-                queue.emplace(val.first + edge.size(), edge.getFinish().hash());
+                queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
             }
     }
     return Component(graph, v.begin(), v.end());
@@ -222,8 +223,8 @@ dbg::Component dbg::Component::longEdgeNeighbourhood(dbg::SparseDBG &graph, Cont
         v.insert(val.second);
         for(Vertex *vit : graph.getVertices(val.second))
             for (Edge &edge : *vit) {
-                if (edge.size() < long_edge_threshold)
-                    queue.emplace(val.first + edge.size(), edge.getFinish().hash());
+                if (edge.truncSize() < long_edge_threshold)
+                    queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
             }
     }
     return Component(graph, v.begin(), v.end());

@@ -37,7 +37,7 @@ void RRPaths::assert_validity() const {
 
 void RRPaths::Add(RREdgeIndexType left, RREdgeIndexType right,
                   RREdgeIndexType new_index) {
-    if (edgepair2pos.find({left, right})==edgepair2pos.end()) {
+    if (edgepair2pos.find({left, right})== edgepair2pos.end()) {
         return;
     }
     for (const IteratorInPath &iter_in_path : edgepair2pos.at({left, right})) {
@@ -56,7 +56,7 @@ void RRPaths::Add(RREdgeIndexType left, RREdgeIndexType right,
 }
 
 void RRPaths::Remove(RREdgeIndexType index) {
-    if (edge2pos.find(index)==edge2pos.end()) {
+    if (edge2pos.find(index)== edge2pos.end()) {
         return;
     }
     for (const IteratorInPath &iter_in_path : edge2pos.at(index)) {
@@ -87,7 +87,7 @@ void RRPaths::Remove(RREdgeIndexType index) {
             PairEdgeIndexType prev_mid{*prev, *iter};
             IteratorInPath prev_iter_in_path{p_path, prev};
             VERIFY(edgepair2pos.at(prev_mid).find(prev_iter_in_path)!=
-                edgepair2pos.at(prev_mid).end());
+                           edgepair2pos.at(prev_mid).end());
             edgepair2pos.at(prev_mid).erase(prev_iter_in_path);
             if (edgepair2pos.at(prev_mid).empty()) {
                 edgepair2pos.erase(prev_mid);
@@ -105,7 +105,7 @@ void RRPaths::Remove(RREdgeIndexType index) {
 
 void RRPaths::Merge(RREdgeIndexType left_index, RREdgeIndexType right_index) {
     // Taken from https://stackoverflow.com/a/3792615
-    if (edge2pos.find(right_index)==edge2pos.end()) {
+    if (edge2pos.find(right_index)== edge2pos.end()) {
         return;
     }
     IteratorInPathUSet &pos_right_index = edge2pos.at(right_index);
@@ -155,7 +155,7 @@ const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
 
 [[nodiscard]] bool RRPaths::ContainsPair(const RREdgeIndexType &lhs,
                                          const RREdgeIndexType &rhs) const {
-    return edgepair2pos.find(std::make_pair(lhs, rhs))!=edgepair2pos.end();
+    return edgepair2pos.find(std::make_pair(lhs, rhs))!= edgepair2pos.end();
 }
 
 [[nodiscard]] std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
@@ -200,7 +200,7 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
                            const std::unordered_map<std::string,
                                                     size_t> &edgeid2ind) {
     std::vector<RRPath> paths;
-    auto path2edge_list = [&edgeid2ind](const dbg::GraphPath &dbg_path) {
+    auto path2edge_list = [&edgeid2ind](const DBGGraphPath &dbg_path) {
       PathEdgeList edge_list;
       for (const dbg::Edge &p_edge : dbg_path.edges()) {
           RREdgeIndexType edge_i = edgeid2ind.at(p_edge.getInnerId());
@@ -223,7 +223,7 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
 //            if (rec.countStartsWith(aligned_read.path.cpath()) >= 2) {
 //                continue;
 //            }
-            dbg::GraphPath path = aligned_read.path.getAlignment();
+            DBGGraphPath path = aligned_read.path.getAlignment();
             if (path.size()==0) {
                 continue;
             }
@@ -239,7 +239,7 @@ RRPaths PathsBuilder::FromDBGStorages(dbg::SparseDBG &dbg,
                                       const std::vector<RecordStorage *> &storages) {
     std::unordered_map<std::string, size_t> edgeid2ind;
     size_t i = 0;
-    for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
+    for (auto it = dbg.edges().begin(); it!= dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;
         // TODO use it - dbg.edges.begin()
         edgeid2ind[edge.getInnerId()] = i;

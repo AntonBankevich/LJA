@@ -64,7 +64,7 @@ namespace dbg {
     class LengthSplitter : public ConditionSplitter {
     public:
         explicit LengthSplitter(size_t min_len) :
-                    ConditionSplitter([min_len](const Edge& edge){return edge.size() > min_len;}){
+                    ConditionSplitter([min_len](const Edge& edge){return edge.truncSize() > min_len;}){
         }
     };
 
@@ -88,11 +88,11 @@ namespace dbg {
             Vertex &vert = graph.getVertex(val.second);
             for (Edge &edge : vert) {
                 if (edge.getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.size(), edge.getFinish().hash());
+                    queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
             }
             for (Edge &edge : vert.rc()) {
                 if (edge.getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.size(), edge.getFinish().hash());
+                    queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
             }
         }
         return Component(graph, v.begin(), v.end());

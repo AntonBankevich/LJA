@@ -92,12 +92,12 @@ void HaplotypeRemover::cleanGraph() {
                     changed = true;
                     tips ++;
                 }
-            } else if (eid->start().outDeg() == 2) {
+            } else if (eid->getStart().outDeg() == 2) {
                 logger_.debug() << "is being deleted as bulge\n";
-                Edge & first_e = eid->start()[0];
-                Edge & second_e = eid->start()[1];
-                if (first_e.end() == second_e.end() && first_e != second_e.rc()
-                && first_e.size() < BULGE_MULTIPLICATIVE_CUTOFF * second_e.size() &&  second_e.size() < BULGE_MULTIPLICATIVE_CUTOFF * first_e.size()) {
+                Edge & first_e = eid->getStart()[0];
+                Edge & second_e = eid->getStart()[1];
+                if (first_e.getFinish() == second_e.getFinish() && first_e != second_e.rc()
+                    && first_e.size() < BULGE_MULTIPLICATIVE_CUTOFF * second_e.size() &&  second_e.size() < BULGE_MULTIPLICATIVE_CUTOFF * first_e.size()) {
                     logger_.debug() << "is deleted as bulge\n";
                     Haplotype decision = AssignBulge(haplotypes[first_e.getLabel()], haplotypes[second_e.getLabel()]);
                     if (decision == haplotype_)
@@ -122,7 +122,7 @@ std::unordered_map<std::string, std::string> HaplotypeRemover::getBulgeLabels() 
         if (v.outDeg() == 2) {
             multigraph::Edge &e1 = v[0];
             multigraph::Edge &e2 = v[1];
-            if (e1.end() == e2.end()) {
+            if (e1.getFinish() == e2.getFinish()) {
                 if (used.find(e1.getId()) == used.end() && used.find(e2.getId()) == used.end()) {
                     used.insert(e1.getId());
                     used.insert(e2.getId());
@@ -193,7 +193,7 @@ void HaplotypeRemover::removeHaplotype() {
                 if (haplotypes[label].haplotype == haplotype_) {
                     if (eid->isSimpleBridge() && eid->size() < saved_bridge_cutoff) {
                         bridges ++;
-                        logger_.info() << "Skipping edge " << eid << " as bridge\n";
+                        logger_.info() << "Skipping getEdge " << eid << " as bridge\n";
                         continue;
                     }
                     removed_len += eid->size();
@@ -203,10 +203,10 @@ void HaplotypeRemover::removeHaplotype() {
                     removed ++;
                     changed = true;
                 } else { 
-                    logger_.trace() << "skipping edge label" << label <<" "<< haplotypes[label].haplotype <<std::endl;
+                    logger_.trace() << "skipping getEdge label" << label <<" "<< haplotypes[label].haplotype <<std::endl;
                 }
             } else {
-                logger_.trace() << "skipping edge NOT FOUND label" << label <<std::endl;
+                logger_.trace() << "skipping getEdge NOT FOUND label" << label <<std::endl;
                 
             }
         }
