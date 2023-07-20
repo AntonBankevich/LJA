@@ -98,7 +98,7 @@ void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequenc
                 if(vertex.isJunction() || vertex.marked())
                     return;
                 Edge &edge = *vertex.begin();
-                DBGGraphPath path(edge);
+                DBGGraphPath path = DBGGraphPath::WalkForward(edge);
                 if(path.finish() != vertex) {
                     std::cout << path.start().getInnerId() << " " << path.finish().getInnerId() << " " << path.size() <<
                               " " << path.finish().isJunction() << " " << "ACGT"[path.backEdge().rc().truncSeq()[0]] << std::endl;

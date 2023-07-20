@@ -203,7 +203,7 @@ void LoadAllReads(const std::experimental::filesystem::path &fname, const std::v
 template<class I>
 void RecordStorage::fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_size, logging::Logger &logger, size_t threads) {
     if (track_cov) {
-        logger.info() << "Cleaning getEdge coverages" << std::endl;
+        logger.info() << "Cleaning edge coverages" << std::endl;
         for(dbg::Edge & edge: dbg.edges()) {
             edge.incCov(-edge.intCov());
         }

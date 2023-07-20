@@ -86,7 +86,7 @@ bool CompareEdges(const MultiplexDBG &graph, const RawEdgeInfo &edge_info) {
                           << " "
                           << std::get<2>(edge) << "\n";
                 std::cout
-                    << "Found an getEdge that is not present among true edges";
+                    << "Found an edge that is not present among true edges";
                 return false;
             }
             ++cnt;

@@ -22,7 +22,7 @@ DBGGraphPath realignRead(const DBGGraphPath &al,
         std::cout << al.str() << std::endl;
         std::cout << it->second << std::endl;
     }
-    VERIFY_OMP(new_start_edge != nullptr, "Could not find getStart getEdge for alignment");
+    VERIFY_OMP(new_start_edge != nullptr, "Could not find getStart edge for alignment");
     size_t cur = 0;
     size_t read_length = al.len();
     size_t position_in_read_path = 0;
@@ -147,7 +147,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                 size_t new_extension_size) {
     logger.info() << "Applying changes to the graph" << std::endl;
     omp_set_num_threads(threads);
-    logger.trace() << "Collecting covered getEdge segments" << std::endl;
+    logger.trace() << "Collecting covered edge segments" << std::endl;
     size_t k = dbg.hasher().getK();
     ParallelRecordCollector<Segment<dbg::Edge>> segmentStorage(threads);
     ParallelRecordCollector<size_t> lenStorage(threads);
@@ -198,7 +198,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     __gnu_parallel::sort(read_segments.begin(), read_segments.end());
     logger.trace() << "Sorting finished" << std::endl;
     std::vector<Segment<Edge>> covered_segments;
-    logger.trace() << "Merging covered getEdge segments" << std::endl;
+    logger.trace() << "Merging covered edge segments" << std::endl;
     for(Segment<Edge> &seg : read_segments) {
         if(!covered_segments.empty() && covered_segments.back().contig() == seg.contig() && covered_segments.back().right >= seg.left) {
             if(seg.right > covered_segments.back().right)

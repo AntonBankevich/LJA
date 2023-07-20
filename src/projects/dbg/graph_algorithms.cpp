@@ -7,7 +7,7 @@ namespace dbg {
     void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
                       const RollingHash &hasher, const size_t min_read_size) {
         typedef typename Iterator::value_type ContigType;
-        logger.info() << "Starting to fill getEdge coverages" << std::endl;
+        logger.info() << "Starting to fill edge coverages" << std::endl;
         ParallelRecordCollector<size_t> lens(threads);
         std::function<void(size_t, ContigType &)> task = [&sdbg, &lens, min_read_size](size_t pos, ContigType &contig) {
             Sequence seq = std::move(contig.makeSequence());
@@ -35,7 +35,7 @@ namespace dbg {
         SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
         logger.info() << "Vertex map constructed." << std::endl;
         io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
-        logger.info() << "Filling getEdge sequences." << std::endl;
+        logger.info() << "Filling edge sequences." << std::endl;
         FillSparseDBGEdges(sdbg, reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
         logger.info() << "Finished sparse de Bruijn graph construction." << std::endl;
         return std::move(sdbg);
@@ -269,7 +269,7 @@ namespace dbg {
 
     void CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash &hasher, const size_t w,
                            const io::Library &lib, size_t threads, logging::Logger &logger, SparseDBG &dbg) {
-        logger.info() << "Calculating getEdge coverage." << std::endl;
+        logger.info() << "Calculating edge coverage." << std::endl;
         io::SeqReader reader(lib);
         fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.getK() - 1);
         std::ofstream os;

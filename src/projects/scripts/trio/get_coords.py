@@ -161,7 +161,7 @@ class Graph:
                         to_remove.add(work_v.outgoing[0])
                         k = work_v.k
                         if k >= len(start_e.seq):
-                            print(f'wrong getEdge length {work_v.incoming[0]}')
+                            print(f'wrong edge length {work_v.incoming[0]}')
                             return
                         new_seq = start_e.seq[:-k] + end_e.seq
                         new_label = start_e.label + end_e.label
