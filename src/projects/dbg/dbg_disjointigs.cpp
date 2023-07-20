@@ -27,7 +27,7 @@ Sequence buildDisjointig(DBGGraphPath &path) {
 void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
     for(Edge & edge : rec) {
         VERIFY(!rec.getSeq().empty());
-        DBGGraphPath path(edge);
+        DBGGraphPath path = DBGGraphPath::WalkForward(edge);
         if(rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
             Sequence disjointig = buildDisjointig(path);
             if (!disjointig.empty()) {

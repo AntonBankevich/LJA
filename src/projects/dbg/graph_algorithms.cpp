@@ -186,7 +186,7 @@ namespace dbg {
     }
 
     void mergeLoop(Vertex &start) {
-        DBGGraphPath path(start.front());
+        DBGGraphPath path = DBGGraphPath::WalkForward(start.front());
         VERIFY(path.start() == path.finish())
         for(size_t i = 1; i < path.size(); i++) {
             if(path.getVertex(i) == start.rc()) {
@@ -207,7 +207,7 @@ namespace dbg {
                     start.lock();
                     std::vector<DBGGraphPath> to_merge;
                     for (Edge &edge: start) {
-                        DBGGraphPath path(edge);
+                        DBGGraphPath path = DBGGraphPath::WalkForward(edge);
                         if (path.size() > 1 && (path.finish().rc() > start || (path.finish().rc() == start && path.Seq() <= !path.Seq()))) {
                             to_merge.emplace_back(std::move(path));
                         }
@@ -229,7 +229,7 @@ namespace dbg {
                     if (start.isJunction() || start.marked()) {
                         return;
                     }
-                    DBGGraphPath path(start.front());
+                    DBGGraphPath path = DBGGraphPath::WalkForward(start.front());
                     VERIFY(path.finish() == start);
                     bool ismin = true;
                     for (const Vertex &v: path.vertices()) {

@@ -40,7 +40,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     std::vector<size_t> inout(25);
     for (auto &tmp: dbg.verticesUnique()) {
         if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-            DBGGraphPath path(tmp.front());
+            DBGGraphPath path = DBGGraphPath::WalkForward(tmp.front());
             if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge &edge : path.edges()) {
@@ -50,7 +50,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
             }
         }
         if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-            DBGGraphPath path(tmp.rc().front());
+            DBGGraphPath path = DBGGraphPath::WalkForward(tmp.rc().front());
             if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
                 isolated += 1;
                 for (dbg::Edge &edge : path.edges()) {
