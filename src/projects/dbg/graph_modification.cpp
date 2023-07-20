@@ -84,13 +84,13 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
     }
     subgraph.checkConsistency(threads, logger);
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
-    for(const auto & vit : subgraph){
-        if(vit.second.inDeg() == 1 && vit.second.outDeg() == 1) {
-            anchors.emplace(vit.first);
+    for(const auto & vit : subgraph.verticesUnique()){
+        if(vit.inDeg() == 1 && vit.outDeg() == 1) {
+            anchors.emplace(vit.hash());
         }
     }
-    for(const auto & vit : dbg){
-        VERIFY(subgraph.isAnchor(vit.first) || subgraph.containsVertex(vit.first))
+    for(const auto & vit : dbg.verticesUnique()){
+        VERIFY(subgraph.isAnchor(vit.hash()) || subgraph.containsVertex(vit.hash()));
     }
     mergeAll(logger, subgraph, threads);
     printStats(logger, subgraph);
@@ -219,8 +219,8 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             anchors.emplace(v.hash());
         }
     }
-    for(const auto & vit : dbg){
-        VERIFY(subgraph.isAnchor(vit.first) || subgraph.containsVertex(vit.first))
+    for(const auto & vit : dbg.verticesUnique()){
+        VERIFY(subgraph.isAnchor(vit.hash()) || subgraph.containsVertex(vit.hash()))
     }
     mergeAll(logger, subgraph, threads);
     printStats(logger, subgraph);

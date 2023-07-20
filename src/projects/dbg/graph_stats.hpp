@@ -38,8 +38,7 @@ inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
     size_t ntips = 0;
     size_t e = 0;
     std::vector<size_t> inout(25);
-    for (auto &val: dbg) {
-        dbg::Vertex &tmp = val.second;
+    for (auto &tmp: dbg.verticesUnique()) {
         if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
             DBGGraphPath path(tmp.front());
             if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {

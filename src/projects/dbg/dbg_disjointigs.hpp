@@ -13,7 +13,7 @@
 Sequence buildDisjointig(DBGGraphPath &path);
 void processVertex(dbg::Vertex &rec, ParallelRecordCollector<Sequence> &res);
 void prepareVertex(dbg::Vertex &vertex);
-void extractLinearDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger & logger, size_t threads);
+void extractLinearDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &vertex, logging::Logger & logger, size_t threads);
 void extractCircularDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger & logger, size_t threads);
 std::vector<Sequence> extractDisjointigs(logging::Logger & logger, dbg::SparseDBG &sdbg, size_t threads);
 std::vector<Sequence> constructDisjointigs(const hashing::RollingHash &hasher, size_t w, const io::Library &reads_file,

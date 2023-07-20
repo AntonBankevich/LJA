@@ -85,8 +85,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
         os_mult << it.second << " " << it.first->getCoverage() << " " << it.first->truncSize() << std::endl;
     }
     os_mult.close();
-    for(auto & pair : dbg) {
-        Vertex &vert = pair.second;
+    for(auto & vert : dbg.verticesUnique()) {
         for (Edge &edge : vert) {
             size_t cov_val = std::min(max_cov, size_t(edge.getCoverage()));
             if (eset.find(&edge) == eset.end() && eset.find(&edge.rc()) == eset.end()) {
@@ -497,8 +496,7 @@ int main(int argc, char **argv) {
         size_t threshold = std::stoull(params.getValue("cov-threshold"));
         std::vector<Sequence> edges;
         std::vector<hashing::htype> vertices_again;
-        for(auto & it : dbg) {
-            Vertex &vert = it.second;
+        for(auto & vert : dbg.verticesUnique()) {
             bool add = false;
             for(Edge & edge : vert) {
                 if (edge.getCoverage() >= threshold) {
@@ -517,8 +515,7 @@ int main(int argc, char **argv) {
         }
         SparseDBG simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
         FillSparseDBGEdges(simp_dbg, edges.begin(), edges.end(), logger, threads, 0);
-        for(auto & it : simp_dbg) {
-            Vertex &vert = it.second;
+        for(auto & vert : simp_dbg.verticesUnique()) {
             Vertex &other = dbg.getVertex(vert.hash());
             for(Edge & edge : vert) {
                 edge.incCov(other.getOutgoing(edge.truncSeq()[0]).intCov());

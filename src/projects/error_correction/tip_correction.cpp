@@ -14,8 +14,8 @@ void MakeUnreliable(Edge &e) {
 
 inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
     logger.info() << "Remarking reliable edges" << std::endl;
-    for(auto &vit : sdbg) {
-        for(Vertex * vp : {&vit.second, &vit.second.rc()}) {
+    for(auto &vit : sdbg.verticesUnique()) {
+        for(Vertex * vp : {&vit, &vit.rc()}) {
             Vertex &v = *vp;
             for(Edge &edge : v) {
                 edge.is_reliable = true;

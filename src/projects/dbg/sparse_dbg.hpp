@@ -384,10 +384,6 @@ namespace dbg {
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edges(bool unique = false) && = delete;
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edgesUnique() &;
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 8>> edgesUnique() && = delete;
-        typename vertex_map_type::iterator begin() {return v.begin();}
-        typename vertex_map_type::iterator end() {return v.end();}
-        typename vertex_map_type::const_iterator begin() const {return v.begin();}
-        typename vertex_map_type::const_iterator end() const {return v.end();}
     };
 
 }

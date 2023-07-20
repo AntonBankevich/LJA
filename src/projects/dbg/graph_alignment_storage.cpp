@@ -299,9 +299,8 @@ void RecordStorage::processPath(const CompactPath &cpath, const std::function<vo
 RecordStorage::RecordStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len, size_t threads,
                              ReadLogger &readLogger, bool _track_cov, bool log_changes, bool track_suffixes) :
         min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(&readLogger), log_changes(log_changes), track_suffixes(track_suffixes) {
-    for(auto &it : dbg) {
-        data.emplace(&it.second, VertexRecord(it.second));
-        data.emplace(&it.second.rc(), VertexRecord(it.second.rc()));
+    for(auto &it : dbg.vertices()) {
+        data.emplace(&it, VertexRecord(it));
     }
 }
 

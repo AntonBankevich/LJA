@@ -156,14 +156,14 @@ BulgePath BulgePathFinder::forwardPath(dbg::Vertex &start) {
 
 BulgePathFinder::BulgePathFinder(dbg::SparseDBG &dbg, double threshold) : dbg(dbg), threshold(threshold) {
     std::unordered_set<dbg::Vertex *> visited;
-    for(auto &it : dbg) {
-        if(visited.find(&it.second) != visited.end())
+    for(auto &vertex : dbg.verticesUnique()) {
+        if(visited.find(&vertex) != visited.end())
             continue;
-        if(isInner(it.second)) {
-            BulgePath new_path = forwardPath(it.second);
+        if(isInner(vertex)) {
+            BulgePath new_path = forwardPath(vertex);
             VERIFY(new_path.size() > 0);
             if(new_path.start() != new_path.finish()) {
-                BulgePath p2 = forwardPath(it.second.rc());
+                BulgePath p2 = forwardPath(vertex.rc());
                 BulgePath p3 = p2.RC();
                 new_path = p3 + new_path;
             }

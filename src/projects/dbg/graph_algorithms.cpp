@@ -128,8 +128,7 @@ namespace dbg {
         {
 #pragma omp single
             {
-                for (auto &it: sdbg) {
-                    Vertex &rec = it.second;
+                for (auto &rec: sdbg.verticesUnique()) {
                     VERIFY_OMP(!rec.getSeq().empty());
 #pragma omp task default(none) shared(sdbg, rec, logger, queue)
                     {
@@ -225,17 +224,16 @@ namespace dbg {
     void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
         logger.trace() << "Merging cyclic paths" << std::endl;
         ParallelRecordCollector<Vertex *> loops(threads);
-        std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
-                [&sdbg, &loops](size_t pos, std::pair<const htype, Vertex> &pair) {
-                    Vertex &start = pair.second;
+        std::function<void(size_t, Vertex &)> task =
+                [&loops](size_t pos, Vertex &start) {
                     if (start.isJunction() || start.marked()) {
                         return;
                     }
                     DBGGraphPath path(start.front());
                     VERIFY(path.finish() == start);
                     bool ismin = true;
-                    for (const Edge &e: path.edges()) {
-                        if (e.getFinish() < start) {
+                    for (const Vertex &v: path.vertices()) {
+                        if (v < start) {
                             ismin = false;
                             break;
                         }
@@ -245,7 +243,7 @@ namespace dbg {
                     }
                     start.unlock();
                 };
-        processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
+        processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, task);
         logger.trace() << "Found " << loops.size() << " perfect loops" << std::endl;
         std::function<void(size_t, Vertex *)> mergeTask = [](size_t, Vertex *vit){
             mergeLoop(*vit);
@@ -275,8 +273,7 @@ namespace dbg {
         std::ofstream os;
         os.open(dir / "coverages.save");
         os << dbg.size() << std::endl;
-        for (std::pair<const htype, Vertex> &pair: dbg) {
-            Vertex &v = pair.second;
+        for (Vertex &v: dbg.verticesUnique()) {
             os << v.hash() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
             for (const Edge &edge: v) {
                 os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;

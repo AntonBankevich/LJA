@@ -58,43 +58,40 @@ void prepareVertex(Vertex &vertex) {
 void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger &logger,
                               size_t threads) {
 //    TODO support sorted edge list at all times since we compare them during construction anyway
-    std::function<void(size_t, std::pair<const htype, Vertex> &)> prepare_task =
-            [&sdbg, &res](size_t pos, std::pair<const htype, Vertex> & pair) {
-                if(pair.second.isJunction()) {
-                    prepareVertex(pair.second);
-                    prepareVertex(pair.second.rc());
+    std::function<void(size_t, Vertex &)> prepare_task =
+            [](size_t pos, Vertex & vertex) {
+                if(vertex.isJunction()) {
+                    prepareVertex(vertex);
                 }
             };
-    processObjects(sdbg.begin(), sdbg.end(), logger, threads, prepare_task);
-    std::function<void(size_t, std::pair<const htype, Vertex> &)> task =
-            [&sdbg, &res](size_t pos, std::pair<const htype, Vertex> & pair) {
-                htype hash = pair.first;
-                Vertex &rec = pair.second;
-                if(rec.isJunction()) {
-                    processVertex(rec, res);
-                    processVertex(rec.rc(), res);
-                    if (rec.inDeg() != 1 && rec.outDeg() != 1 &&  (rec.inDeg() != 0 || rec.outDeg() != 0)) {
-                        Sequence disjointig  = rec.getSeq();
-                        if (rec.inDeg() > 0) {
-                            Edge &e1 = rec.rc().front();
+    processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, prepare_task);
+    std::function<void(size_t, Vertex &)> task =
+            [&res](size_t pos, Vertex & vertex) {
+                if(vertex.isJunction()) {
+                    processVertex(vertex, res);
+                    processVertex(vertex.rc(), res);
+                    if (vertex.inDeg() != 1 && vertex.outDeg() != 1 && (vertex.inDeg() != 0 || vertex.outDeg() != 0)) {
+                        Sequence disjointig  = vertex.getSeq();
+                        if (vertex.inDeg() > 0) {
+                            Edge &e1 = vertex.rc().front();
                             disjointig = !(e1.truncSeq().Subseq(0, e1.intCov())) + disjointig;
                         }
-                        if (rec.outDeg() > 0) {
-                            Edge &e2 = rec.front();
+                        if (vertex.outDeg() > 0) {
+                            Edge &e2 = vertex.front();
                             disjointig = disjointig + e2.truncSeq().Subseq(0, e2.intCov());
                         }
-                        if(res.size() > rec.size() || rec.inDeg() > 0 || rec.outDeg() > 0)
+                        if(res.size() > vertex.size() || vertex.inDeg() > 0 || vertex.outDeg() > 0)
                             res.add(disjointig.copy());
                     }
                 }
             };
-    processObjects(sdbg.begin(), sdbg.end(), logger, threads, task);
+    processObjects(sdbg.verticesUnique().begin(), sdbg.verticesUnique().end(), logger, threads, task);
 }
 
 void extractCircularDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger &logger,
                                 size_t threads) {
     std::function<void(size_t, Vertex &)> task =
-            [&sdbg, &res](size_t pos, Vertex & vertex) {
+            [&res](size_t pos, Vertex & vertex) {
                 if(vertex.isJunction() || vertex.marked())
                     return;
                 Edge &edge = *vertex.begin();

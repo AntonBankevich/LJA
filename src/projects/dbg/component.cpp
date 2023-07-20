@@ -166,8 +166,8 @@ bool dbg::Component::covers(const dbg::Vertex &vert) const {
 }
 
 dbg::Component::Component(dbg::SparseDBG &_graph) : _graph(&_graph) {
-    for (auto &vert : graph())
-        v.emplace(vert.second.hash());
+    for (auto &vert : graph().verticesUnique())
+        v.emplace(vert.hash());
 }
 
 dbg::Component dbg::Component::neighbourhood(dbg::SparseDBG &graph, Contig &contig, size_t radius) {
