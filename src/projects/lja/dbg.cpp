@@ -21,7 +21,7 @@
 #include "common/logging.hpp"
 #include "../dbg/graph_printing.hpp"
 #include "subdataset_processing.hpp"
-#include "dbg_graph_aligner.hpp"
+#include "dbg/dbg_graph_aligner.hpp"
 #include <iostream>
 #include <queue>
 #include <omp.h>
@@ -82,14 +82,14 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     std::ofstream os_mult;
     os_mult.open(cov_dump);
     for(auto & it : eset) {
-        os_mult << it.second << " " << it.first->getCoverage() << " " << it.first->size() << std::endl;
+        os_mult << it.second << " " << it.first->getCoverage() << " " << it.first->truncSize() << std::endl;
     }
     os_mult.close();
     for(auto & pair : dbg) {
         Vertex &vert = pair.second;
         for (Edge &edge : vert) {
             size_t cov_val = std::min(max_cov, size_t(edge.getCoverage()));
-            if (eset.find(&edge) == eset.getFinish() && eset.find(&edge.rc()) == eset.getFinish()) {
+            if (eset.find(&edge) == eset.end() && eset.find(&edge.rc()) == eset.end()) {
                 cov_bad[cov_val] += 1;
                 cov_bad_len[cov_val] += edge.truncSize();
             } else {
@@ -353,7 +353,7 @@ int main(int argc, char **argv) {
         std::function<void(size_t, StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](size_t pos, StringContig & scontig) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
-            if(contig.size() < hasher.getK() + w - 1)
+            if(contig.truncSize() < hasher.getK() + w - 1)
                 return;
             DBGGraphPath al = GraphAligner(dbg).align(contig.getSeq());
             for(size_t j = 0; j < comps.size(); j++) {
@@ -391,9 +391,9 @@ int main(int argc, char **argv) {
             storage.addContig(contig);
             for(auto & seg_rec : seg_recs) {
                 if(std::get<0>(seg_rec) == contig.getInnerId()) {
-                    segs.emplace_back(contig.getSeq().Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
+                    segs.emplace_back(contig.getSeq().Subseq(std::get<1>(seg_rec), std::min(contig.truncSize(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
                 } else if (std::get<0>(seg_rec) == "-" + contig.getInnerId()) {
-                    segs.emplace_back((!contig.getSeq()).Subseq(std::get<1>(seg_rec), std::min(contig.size(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
+                    segs.emplace_back((!contig.getSeq()).Subseq(std::get<1>(seg_rec), std::min(contig.truncSize(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
                 }
             }
         }
@@ -457,7 +457,7 @@ int main(int argc, char **argv) {
 
         std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &logger](size_t pos, StringContig & contig) {
             Contig read = contig.makeContig();
-            if(read.size() < w + hasher.getK() - 1)
+            if(read.truncSize() < w + hasher.getK() - 1)
                 return;
             DBGGraphPath gal = GraphAligner(dbg).align(read.getSeq());
             if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {

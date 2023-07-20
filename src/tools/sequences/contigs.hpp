@@ -145,11 +145,11 @@ public:
     }
 
     Segment<T> extendBy(size_t len) const {
-        return {*contig_ptr, left - std::min(left, len), std::min(contig_ptr->size(), right + len)};
+        return {*contig_ptr, left - std::min(left, len), std::min(contig_ptr->truncSize(), right + len)};
     }
 
     Segment<T> extendRight(size_t len) const {
-        return {*contig_ptr, left, std::min(contig_ptr->size(), right + len)};
+        return {*contig_ptr, left, std::min(contig_ptr->truncSize(), right + len)};
     }
 
     Segment<T> extendLeft(size_t len) const {
@@ -264,7 +264,7 @@ public:
         return seq;
     }
 
-    size_t getTruncSize() const {return 0;}
+    size_t getStartSize() const {return 0;}
 
     Segment<T> asSegment() const {
         return Segment<T>(*this, 0u, truncSize());

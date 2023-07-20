@@ -8,7 +8,7 @@
 #include <dbg/component.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
-#include "dbg_graph_aligner.hpp"
+#include "dbg/dbg_graph_aligner.hpp"
 
 int main(int argc, char **argv) {
     AlgorithmParameters params({"vertices=none", "unique=none", "dbg=none", "output-dir=",

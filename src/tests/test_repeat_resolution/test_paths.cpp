@@ -39,7 +39,7 @@ TEST(RRPathsTest, Basic) {
             {7, 1}, {8, 1}, {9, 1}, {10, 1}, {11, 1}, {12, 1},
             {13, 1}, {14, 1}, {15, 1}, {17, 1}, {18, 1}, {19, 1}};
         for (const auto &pair : ei2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
@@ -53,7 +53,7 @@ TEST(RRPathsTest, Basic) {
                           {{14, 15}, 1}, {{15, 2}, 1}, {{2, 17}, 1},
                           {{17, 18}, 1}};
         for (const auto &pair : eip2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
@@ -77,7 +77,7 @@ TEST(RRPathsTest, Basic) {
             {8, 1}, {9, 1}, {10, 1}, {11, 1}, {12, 1}, {13, 1},
             {14, 1}, {15, 1}, {17, 1}, {18, 1}, {19, 1}};
         for (const auto &pair : ei2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
@@ -89,7 +89,7 @@ TEST(RRPathsTest, Basic) {
                           {{12, 13}, 1}, {{13, 14}, 1}, {{14, 15}, 1},
                           {{15, 17}, 1}, {{17, 18}, 1}};
         for (const auto &pair : eip2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
@@ -112,7 +112,7 @@ TEST(RRPathsTest, Basic) {
             {8, 1}, {9, 1}, {10, 1}, {11, 1}, {12, 1}, {13, 1}, {14, 1},
             {15, 1}, {17, 1}, {18, 1}, {19, 1}, {20, 1}};
         for (const auto &pair : ei2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
@@ -124,7 +124,7 @@ TEST(RRPathsTest, Basic) {
                           {{11, 12}, 1}, {{12, 13}, 1}, {{13, 14}, 1},
                           {{14, 15}, 1}, {{15, 17}, 1}, {{17, 18}, 1}};
         for (const auto &pair : eip2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
@@ -148,7 +148,7 @@ TEST(RRPathsTest, Basic) {
             {8, 1}, {9, 1}, {10, 1}, {11, 1}, {12, 1}, {13, 1},
             {14, 1}, {15, 1}, {17, 1}, {18, 1}, {19, 1}, {20, 1}};
         for (const auto &pair : ei2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }
@@ -160,7 +160,7 @@ TEST(RRPathsTest, Basic) {
                           {{12, 13}, 1}, {{13, 14}, 1}, {{14, 15}, 1},
                           {{15, 17}, 1}, {{17, 18}, 1}};
         for (const auto &pair : eip2p) {
-            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.getFinish());
+            ASSERT_NE(index_cnt_ref.find(pair.first), index_cnt_ref.end());
             ASSERT_EQ(pair.second.size(), index_cnt_ref.at(pair.first));
         }
     }

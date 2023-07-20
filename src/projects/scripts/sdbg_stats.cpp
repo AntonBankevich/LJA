@@ -1,7 +1,6 @@
 #include <dbg/graph_algorithms.hpp>
 #include <dbg/minimizer_selection.hpp>
 #include "dbg/sparse_dbg.hpp"
-#include "dbg_graph_aligner.hpp"
 #include <sequences/contigs.hpp>
 #include <common/cl_parser.hpp>
 #include <common/logging.hpp>

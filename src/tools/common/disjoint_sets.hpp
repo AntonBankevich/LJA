@@ -11,7 +11,7 @@ private:
 public:
     T get(T obj) {
         auto it = parent.find(obj);
-        if(it == parent.getFinish() || obj == it->second) {
+        if(it == parent.end() || obj == it->second) {
             return obj;
         } else {
             parent[obj] = get(parent[obj]);
@@ -59,6 +59,6 @@ public:
         return parent.begin();
     }
     typename std::unordered_map<T, T>::iterator end() {
-        return parent.getFinish();
+        return parent.end();
     }
 };

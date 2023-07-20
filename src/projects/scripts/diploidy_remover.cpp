@@ -139,7 +139,7 @@ void ChooseShortcuts(MultiGraph &mg) {
     auto cmap = small_components.subsets(all_vert);
     std::unordered_set<EdgeId> to_remove;
     for(auto & it:cmap) {
-        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.getFinish());
+        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.end());
         if(cvert.size() > 6)
             continue;
         bool good = true;
@@ -217,7 +217,7 @@ void PassAcyclic(MultiGraph &mg) {
     auto cmap = small_components.subsets(all_vert);
     std::unordered_set<ConstEdgeId> to_remove;
     for(auto & it:cmap) {
-        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.getFinish());
+        std::unordered_set<VertexId> cvert(it.second.begin(), it.second.end());
         if(cvert.size() > 6)
             continue;
         bool good = true;

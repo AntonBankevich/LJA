@@ -34,8 +34,8 @@ int main(int argc, char **argv) {
     }
     for(size_t i = 0; i < names.size(); i++) {
         Contig &contig = contigs[names[i]];
-        std::cerr << names[i] << " " << from[i] << " " << to[i] << " " << contig.size() << std::endl;
-        to[i] = std::min(contig.size(), to[i]);
+        std::cerr << names[i] << " " << from[i] << " " << to[i] << " " << contig.truncSize() << std::endl;
+        to[i] = std::min(contig.truncSize(), to[i]);
         VERIFY(from[i] < to[i]);
         std::cout << ">" << names[i] + "_" + itos(from[i]) + "_" + itos(to[i]) << "\n" << contig.getSeq().Subseq(from[i], to[i]) << "\n";
     }

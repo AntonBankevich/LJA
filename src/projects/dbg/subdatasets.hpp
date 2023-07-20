@@ -41,13 +41,13 @@ inline void FillSubdatasets(std::vector<Subdataset> &result, const std::vector<R
             std::vector<size_t> cids;
             for(size_t i = 1; i < al.size(); i++) {
                 if(cmap.find(&al.getVertex(i)) != cmap.end())
-                    cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].getFinish());
+                    cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].end());
             }
             const std::vector<size_t> &other = cmap[&al.getVertex(0)];
             if(al.size() == 1) {
                 if(add_out_edges) {
                     for (size_t i = 0; i < 2; i++)
-                        cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].getFinish());
+                        cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].end());
                 } else {
                     size_t p2 = 0;
                     for(size_t c1 : other) {
