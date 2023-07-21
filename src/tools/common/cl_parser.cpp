@@ -73,7 +73,10 @@ CLParser::CLParser(const AlgorithmParameters& parameters, const std::vector<std:
     }
     for(const std::string& s : long_params) {
         size_t pos = s.find('=');
-        long_param_map[s.substr(0, pos)].emplace_back(s.substr(pos + 1, s.size() - pos - 1));
+        std::string short_name = s.substr(0, pos);
+        std::string long_name = s.substr(pos + 1, s.size() - pos - 1);
+        if(this->parameters.hasCheck(long_name) || this->parameters.hasValue(long_name))
+            long_param_map[short_name].emplace_back(long_name);
     }
 }
 

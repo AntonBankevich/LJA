@@ -34,7 +34,7 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
 
 class NoCorrectionStage : public Stage {
 public:
-    NoCorrectionStage() : Stage(AlgorithmParameters({"k-mer-size=", "window="}, {}, ""),
+    NoCorrectionStage() : Stage(AlgorithmParameters({"k-mer-size=", "window=", "load"}, {}, ""),
                                 {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "final_dbg", "final_aln"}) {
     }
 protected:
@@ -43,7 +43,7 @@ protected:
                       const AlgorithmParameterValues &parameterValues, const std::unordered_map<std::string, io::Library> &input) override {
         size_t k = std::stoi(parameterValues.getValue("k-mer-size"));
         size_t w = std::stoi(parameterValues.getValue("window"));
-        bool load = false;
+        bool load = parameterValues.getCheck("load");
         return std::move(NoCorrection(logger, threads, dir, input.find("reads")->second, input.find("pseudo_reads")->second,
                                       input.find("paths")->second, k, w, debug, load));
     }

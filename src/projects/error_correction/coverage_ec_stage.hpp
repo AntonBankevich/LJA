@@ -81,7 +81,7 @@ CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &d
 
 class CoverageCorrectionStage : public Stage {
 public:
-    CoverageCorrectionStage() : Stage(AlgorithmParameters({"k-mer-size=501", "window=2000", "coverage-threshold=3", "reliable-coverage=10", "diploid"},
+    CoverageCorrectionStage() : Stage(AlgorithmParameters({"k-mer-size=501", "window=2000", "coverage-threshold=3", "reliable-coverage=10", "diploid", "load"},
                 {}, ""), {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "pseudo_reads", "final_dbg"}) {
     }
 protected:
@@ -93,7 +93,8 @@ protected:
         double reliable_coverage = std::stod(parameterValues.getValue("reliable-coverage"));
         double threshold = std::stod(parameterValues.getValue("coverage-threshold"));
         bool diploid = parameterValues.getCheck("diploid");
+        bool load = parameterValues.getCheck("load");
         return CoverageEC(logger, dir, input.find("reads")->second, input.find("pseudo_reads")->second,
-                          input.find("paths")->second, threads, k, w, threshold, reliable_coverage, diploid, debug, false);
+                          input.find("paths")->second, threads, k, w, threshold, reliable_coverage, diploid, debug, load);
     }
 };

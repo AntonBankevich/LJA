@@ -187,6 +187,7 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
                 corrected_path += seg;
             }
         } else if(corrected_path.size() == 0) {
+            corrected_path.invalidate();
             DBGGraphPath tip = badPath.RC();
             std::vector<DBGGraphPath> alternatives;
             if(tip.len() < max_size)

@@ -90,7 +90,10 @@ public:
     }
     void pop_back(size_t len) {
         path.erase(path.end() - len, path.end());
-        cut_right = 0;
+        if(len > 0)
+            cut_right = 0;
+        if(size() == 0 && cut_left != 0)
+            invalidate();
     }
     GraphPath &cutBack(size_t l);
     GraphPath &cutFront(size_t l);

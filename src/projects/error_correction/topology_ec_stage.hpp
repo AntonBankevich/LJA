@@ -81,7 +81,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
 class TopologyCorrectionStage : public Stage {
 public:
     TopologyCorrectionStage() : Stage(AlgorithmParameters(
-            {"k-mer-size=5001", "window=500", "coverage-threshold=3", "reliable-coverage=10", "unique-threshold=40000", "diploid"},
+            {"k-mer-size=5001", "window=500", "coverage-threshold=3", "reliable-coverage=10", "unique-threshold=40000", "diploid", "load"},
             {}, ""), {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "pseudo_reads", "final_dbg", "final_aln"}) {
     }
 protected:
@@ -94,7 +94,8 @@ protected:
         double threshold = std::stod(parameterValues.getValue("coverage-threshold"));
         size_t unique_threshold = std::stoull(parameterValues.getValue("unique-threshold"));
         bool diploid = parameterValues.getCheck("diploid");
+        bool load = parameterValues.getCheck("load");
         return TopologyEC(logger, dir, input.find("reads")->second, input.find("pseudo_reads")->second, input.find("paths")->second,
-                          threads, k, w, threshold, reliable_coverage, unique_threshold, diploid, debug, false);
+                          threads, k, w, threshold, reliable_coverage, unique_threshold, diploid, debug, load);
     }
 };
