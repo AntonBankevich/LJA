@@ -77,12 +77,14 @@ std::vector<DBGGraphPath> ResolveBulgePath(const BulgePath &bulgePath, const Rec
     return std::move(res);
 }
 
-std::vector<DBGGraphPath> PartialRR(dbg::SparseDBG &dbg, const RecordStorage &reads) {
+std::vector<DBGGraphPath> PartialRR(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, const RecordStorage &reads) {
+    logger.info() << "Performing partial repeat resolution" << std::endl;
     BulgePathFinder bulges(dbg, 1);
     std::vector<DBGGraphPath> res;
     for(BulgePath &bulgePath : bulges.paths) {
         std::vector<DBGGraphPath> resolved = ResolveBulgePath(bulgePath, reads);
         res.insert(res.end(), resolved.begin(), resolved.end());
     }
+    logger.info() << "Finished partial repeat resolution. Generated " << res.size() << " pseudoreads" << std::endl;
     return std::move(res);
 }

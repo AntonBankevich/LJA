@@ -332,7 +332,7 @@ std::string PrimitiveBulgeCorrector::correctRead(DBGGraphPath &path) {
         }
         Vertex &start = path.getVertex(path_pos);
         Vertex &end = path.getVertex(path_pos + 1);
-        if(start.outDeg() != 2 || start.front().getStart() != start.back().getStart()) {
+        if(start.outDeg() != 2 || start.front().getFinish() != start.back().getFinish()) {
             continue;
         }
         Edge & alt = edge == start.front() ? start.back() : start.front();

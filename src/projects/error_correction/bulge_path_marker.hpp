@@ -139,7 +139,7 @@ public:
     }
 
     size_t Fill(dbg::SparseDBG &dbg) override {
-        size_t cnt;
+        size_t cnt = 0;
         setUniqueMarkers(dbg);
         for(dbg::Component &component : split(dbg)) {
             for(dbg::Edge &edge : component.edges()) {

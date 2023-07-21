@@ -235,14 +235,15 @@ bool GraphPath<Graph>::valid() const {
 template<class Graph>
 GraphPath<Graph> &GraphPath<Graph>::cutBack(size_t l) {
     VERIFY(l <= len());
-    while(l >= back().size()) {
+    while(!path.empty() && l > back().size()) {
         l -= back().size();
         pop_back();
-        cut_right = 0;
     }
-    VERIFY(size() > 0);
     cut_right += l;
-    return *this;
+    if(!path.empty() && back().size() == 0 && (size() > 1 || cut_left == 0)){
+       pop_back();
+    }
+   return *this;
 }
 
 template<class Graph>
@@ -254,8 +255,18 @@ GraphPath<Graph> &GraphPath<Graph>::cutFront(size_t l) {
         cut++;
         cut_left = 0;
     }
-    path.erase(path.begin(), path.begin() + cut);
-    cut_left += l;
+    if(cut == size()) {
+       if(cut_right == 0) {
+           *this = {finish()};
+       } else {
+           start_ = &getVertex(size());
+           path = {&backEdge()};
+           cut_left = backEdge().truncSize() - cut_right;
+       }
+    } else {
+        path.erase(path.begin(), path.begin() + cut);
+        cut_left += l;
+    }
     return *this;
 }
 
