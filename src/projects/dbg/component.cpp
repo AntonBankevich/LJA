@@ -126,7 +126,7 @@ IterableStorage<ApplyingIterator<dbg::Component::iterator, dbg::Edge, 16>> dbg::
                 if(!isInner || edge <= edge.rc()) {
                     res[cur] = &edge;
                     cur++;
-                    if(!unique) {
+                    if(!unique && edge != edge.rc()) {
                         res[cur] = &edge.rc();
                         cur++;
                     }
