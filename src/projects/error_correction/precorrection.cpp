@@ -35,8 +35,8 @@ DBGGraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, s
 
 DBGGraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
     DBGGraphPath res = FindOnlyPathForward(seg.contig().getStart(), reliable_coverage, seg.size());
-    if(res.len() >= seg.size()) {
-        res.cutBack(res.len() - seg.size());
+    if(res.truncLen() >= seg.size()) {
+        res.cutBack(res.truncLen() - seg.size());
         return std::move(res);
     } else {
         return {seg};
@@ -46,15 +46,15 @@ DBGGraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_covera
 DBGGraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
     DBGGraphPath res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.truncSize() + 20,
                                            &bulge.getFinish());
-    if(res.finish() == bulge.getFinish() && res.endClosed() && res.len() + 20 > bulge.truncSize()) {
+    if(res.finish() == bulge.getFinish() && res.endClosed() && res.truncLen() + 20 > bulge.truncSize()) {
         return std::move(res);
     } else {
         res = FindOnlyPathForward(bulge.getFinish().rc(), reliable_coverage, bulge.truncSize() + 20, &bulge.getStart().rc()).RC();
-        if(res.start() == bulge.getStart() && res.startClosed() && res.len() + 20 > bulge.truncSize())
+        if(res.start() == bulge.getStart() && res.startClosed() && res.truncLen() + 20 > bulge.truncSize())
             return std::move(res);
         else {
             std::vector<DBGGraphPath> candidates = FindPlausibleBulgeAlternatives(DBGGraphPath(bulge), 10, reliable_coverage);
-            if(candidates.size() == 1 && candidates[0].len() + 20 > bulge.truncSize() && candidates[0].len() <
+            if(candidates.size() == 1 && candidates[0].truncLen() + 20 > bulge.truncSize() && candidates[0].truncLen() <
                                                                                             bulge.truncSize() + 20) {
                 return std::move(candidates[0]);
             }

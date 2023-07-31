@@ -103,7 +103,7 @@ inline DBGGraphPath CorrectSuffix(const DBGGraphPath &al) {
     }
     size_t max_len = bad_end_size  * 11/10 + 100;
     DBGGraphPath alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
-    if(alternative.finish().outDeg() != 0 && alternative.len() + 2000 < bad_end_size) {
+    if(alternative.finish().outDeg() != 0 && alternative.truncLen() + 2000 < bad_end_size) {
         return al;
     }
     Sequence tip = al.truncSubseq(first_unreliable);

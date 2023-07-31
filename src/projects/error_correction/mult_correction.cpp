@@ -221,14 +221,14 @@ DBGGraphPath correctRead(std::unordered_map<const Edge *, CompactPath> &unique_e
             continue;
         corrected = true;
         DBGGraphPath new_al = al.subPath(0, i + 1);
-        size_t corrected_len = al.subPath(i + 1, al.size()).len();
+        size_t corrected_len = al.subPath(i + 1, al.size()).truncLen();
         DBGGraphPath replacement = compactPath.getAlignment();
-        while(replacement.len() < corrected_len &&
+        while(replacement.truncLen() < corrected_len &&
               unique_extensions.find(&replacement.back().contig()) != unique_extensions.end()) {
             replacement += unique_extensions[&replacement.back().contig()].getAlignment();
         }
-        if(replacement.len() < corrected_len) {
-            size_t deficite = corrected_len - replacement.len();
+        if(replacement.truncLen() < corrected_len) {
+            size_t deficite = corrected_len - replacement.truncLen();
 //            logger.info() << "Need to correct more than known " << read_id << "\n"
 //                          << CompactPath(al.subalignment(i + 1, al.size())) << "\n" << compactPath << std::endl;
             new_al += replacement;

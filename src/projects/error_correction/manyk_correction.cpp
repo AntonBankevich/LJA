@@ -105,8 +105,8 @@ std::string ManyKCorrector::correctRead(DBGGraphPath &read_path) {
         VERIFY(tc.front().left == 0);
         if(!tip_message.empty()) {
             messages.emplace_back("i" + tip_message + itos(K));
-            messages.emplace_back(itos(tip.tip.len()));
-            messages.emplace_back(itos(tc.len()));
+            messages.emplace_back(itos(tip.tip.truncLen()));
+            messages.emplace_back(itos(tc.truncLen()));
         }
         corrected += tc.RC();
     }
@@ -117,8 +117,8 @@ std::string ManyKCorrector::correctRead(DBGGraphPath &read_path) {
         DBGGraphPath bc = correctBulge(bulge, bulge_message);
         if(!bulge_message.empty()) {
             messages.emplace_back(bulge_message + itos(K));
-            messages.emplace_back(itos(bulge.bulge.len()));
-            messages.emplace_back(itos(bc.len()));
+            messages.emplace_back(itos(bulge.bulge.truncLen()));
+            messages.emplace_back(itos(bc.truncLen()));
         }
         VERIFY(!corrected.valid() || corrected.finish() == bc.start());
         corrected += bc;
@@ -132,8 +132,8 @@ std::string ManyKCorrector::correctRead(DBGGraphPath &read_path) {
         VERIFY(tc.front().left == 0);
         if(!tip_message.empty()) {
             messages.emplace_back("o" + tip_message + itos(K));
-            messages.emplace_back(itos(tip.tip.len()));
-            messages.emplace_back(itos(tc.len()));
+            messages.emplace_back(itos(tip.tip.truncLen()));
+            messages.emplace_back(itos(tc.truncLen()));
         }
         VERIFY(!corrected.valid() || corrected.finish() == tc.start());
         corrected += tc;
@@ -141,9 +141,9 @@ std::string ManyKCorrector::correctRead(DBGGraphPath &read_path) {
     if(messages.empty())
         return "";
     message = join("_", messages);
-    if(corrected.len() < 100) {
+    if(corrected.truncLen() < 100) {
 #pragma omp critical
-            std::cout << corrected.len() << " " << message << "\n " << read_path.str(true) << "\n " << corrected.str(true) << std::endl;
+            std::cout << corrected.truncLen() << " " << message << "\n " << read_path.str(true) << "\n " << corrected.str(true) << std::endl;
     }
     read_path = corrected;
     return message;
@@ -151,9 +151,9 @@ std::string ManyKCorrector::correctRead(DBGGraphPath &read_path) {
 
 DBGGraphPath ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
     const DBGGraphPath &left = tip.left;
-    size_t tlen = tip.tip.len();
+    size_t tlen = tip.tip.truncLen();
     DBGGraphPath al = uniqueExtension(tip.left, tlen);
-    size_t elen = al.len() - tip.left.len();
+    size_t elen = al.truncLen() - tip.left.truncLen();
     if(elen > 0 && elen + 10 >= tlen) {
         if(elen > tlen) {
             al.cutBack(elen - tlen);
@@ -165,7 +165,7 @@ DBGGraphPath ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &
 }
 
 DBGGraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip) const {
-    size_t tlen = tip.tip.len();
+    size_t tlen = tip.tip.truncLen();
 //    std::vector<dbg::GraphAlignment> alternatives = FindPlausibleTipAlternatives(tip.tip, std::max<size_t>(tlen / 100, 20), 3);
 //    if(alternatives.size() == 1) {
 //        if(alternatives[0].len() > tip.tip.len())
@@ -173,11 +173,11 @@ DBGGraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &t
 //        return alternatives[0];
 //    } else
 //        return tip.tip;
-    DBGGraphPath alternative = FindReliableExtension(tip.tip.start(), tip.tip.len(), 3);
+    DBGGraphPath alternative = FindReliableExtension(tip.tip.start(), tip.tip.truncLen(), 3);
     if(!alternative.valid())
         return tip.tip;
-    if(alternative.len() > tip.tip.len()) {
-        alternative.cutBack(alternative.len() - tip.tip.len());
+    if(alternative.truncLen() > tip.tip.truncLen()) {
+        alternative.cutBack(alternative.truncLen() - tip.tip.truncLen());
     }
     return std::move(alternative);
 }
@@ -203,7 +203,7 @@ DBGGraphPath ManyKCorrector::uniqueExtension(const DBGGraphPath &base, size_t ma
     DBGGraphPath al = base;
     size_t start = 0;
     size_t extra_len = 0;
-    size_t cur_len = base.len();
+    size_t cur_len = base.truncLen();
     while(extra_len < max_len){
         while(cur_len - al[start].size() >= K) {
             cur_len -= al[start].size();
@@ -224,7 +224,7 @@ DBGGraphPath ManyKCorrector::uniqueExtension(const DBGGraphPath &base, size_t ma
 
 DBGGraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
     DBGGraphPath corrected;
-    if(bulge.bulge.len() + 100 < K) {
+    if(bulge.bulge.truncLen() + 100 < K) {
         corrected = correctBulgeByBridging(bulge);
         if(corrected != bulge.bulge) {
             message = "bb";
@@ -246,12 +246,12 @@ DBGGraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, st
 }
 
 DBGGraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bulge) const {
-    VERIFY(bulge.bulge.len() < K);
+    VERIFY(bulge.bulge.truncLen() < K);
     std::vector<DBGGraphPath> alternatives1 = reads.getRecord(bulge.bulge.start()).
             getBulgeAlternatives(bulge.bulge.finish(), 4);
     std::vector<DBGGraphPath> alternatives;
     for(DBGGraphPath &al : alternatives1) {
-        if(al.len() + 100 < bulge.bulge.len() && bulge.bulge.len() < al.len() + 100)
+        if(al.truncLen() + 100 < bulge.bulge.truncLen() && bulge.bulge.truncLen() < al.truncLen() + 100)
             alternatives.emplace_back(std::move(al));
     }
     if(alternatives.empty())
@@ -263,12 +263,12 @@ DBGGraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge 
     size_t left_best = 0;
     size_t right_best = 0;
     DBGGraphPath rc_left = bulge.left.RC();
-    if(rc_left.len() > K - bulge.bulge.len())
-        rc_left.cutBack(rc_left.len() - (K - bulge.bulge.len()));
+    if(rc_left.truncLen() > K - bulge.bulge.truncLen())
+        rc_left.cutBack(rc_left.truncLen() - (K - bulge.bulge.truncLen()));
     CompactPath crc_left(rc_left);
     DBGGraphPath right = bulge.right;
-    if(right.size() > K - bulge.bulge.len())
-        right.cutBack(right.len() - (K - bulge.bulge.len()));
+    if(right.size() > K - bulge.bulge.truncLen())
+        right.cutBack(right.truncLen() - (K - bulge.bulge.truncLen()));
     CompactPath cright(right);
     for(size_t i = 0; i < alternatives.size(); i++) {
         DBGGraphPath &al = alternatives[i];
@@ -292,10 +292,11 @@ DBGGraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge 
 }
 
 DBGGraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge &bulge) const {
-    size_t blen = bulge.bulge.len();
+    size_t blen = bulge.bulge.truncLen();
     DBGGraphPath left_ext = uniqueExtension(bulge.left, blen + 100).subPath(bulge.left.size());
     DBGGraphPath right_ext = uniqueExtension(bulge.right.RC(), blen + 100).subPath(bulge.right.size()).RC();
-    if(left_ext.len() + right_ext.len() < blen + std::min<size_t>(blen, 100) && std::max(left_ext.len(), right_ext.len()) + 100 > blen)
+    if(left_ext.truncLen() + right_ext.truncLen() < blen + std::min<size_t>(blen, 100) && std::max(left_ext.truncLen(),
+                                                                                                   right_ext.truncLen()) + 100 > blen)
         return bulge.bulge;
     DBGGraphPath candidate;
     for(int shift = -int(right_ext.size()) + 1; shift < int(left_ext.size()); shift++) {
@@ -310,7 +311,7 @@ DBGGraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge
         if(overlap && left_ext.size() > 0 && right_ext.size() > 0) {
             DBGGraphPath over_al = left_ext.subPath(0, std::max(0, shift)) +
                     right_ext.subPath(std::max(0, shift) - shift);
-            size_t over_len = over_al.len();
+            size_t over_len = over_al.truncLen();
             if(over_len < blen + 100 && blen < over_len + 100){
                 if(candidate.valid())
                     return bulge.bulge;
@@ -325,7 +326,7 @@ DBGGraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge
 }
 
 DBGGraphPath ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
-    size_t blen = bulge.bulge.len();
+    size_t blen = bulge.bulge.truncLen();
     std::vector<DBGGraphPath> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, std::max<size_t>(blen / 100, 20), 3);
     if(blen > dbg.hasher().getK() && alternatives.empty()) {
         alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, blen / 10 + 32, 3);

@@ -113,13 +113,8 @@ namespace multigraph {
         Edge() : data(*this) {VERIFY(false);}
 
         Sequence getSeq() const;
-        Sequence truncSeq() const {
-            if(seq.empty()) {
-                return getFinish().getSeq().Subseq(getStart().size() + getFinish().size() - sz);
-            } else {
-                return seq.Subseq(getStart().size());
-            }
-        }
+        Sequence truncSeq() const;
+        Sequence fullSubseq(size_t from, size_t to) const {return seq.Subseq(from, to + getStartSize());}
         size_t truncSize() const {return sz - getStart().size();}
         size_t getStartSize() const {return getStart().size();}
         EdgeId getId() {return {id, this};}

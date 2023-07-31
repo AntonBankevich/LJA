@@ -370,7 +370,7 @@ messages, you can use:
     1.  a native array passed by reference (e.g. in `Foo(const int (&a)[5])`),
         and
     2.  an array passed as a pointer and a count (e.g. in `Bar(const T* buffer,
-        int len)` -- see [Multi-argument Matchers](#MultiArgMatchers)).
+        int truncLen)` -- see [Multi-argument Matchers](#MultiArgMatchers)).
 *   The array being matched may be multi-dimensional (i.e. its elements can be
     arrays).
 *   `m` in `Pointwise(m, ...)` should be a matcher for `::std::tuple<T, U>`

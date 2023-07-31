@@ -62,7 +62,7 @@ size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
         if(edge.getData().getCoverage() < min_rel_cov)
             continue;
         DBGGraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
-        if(al.len() < min_length)
+        if(al.truncLen() < min_length)
             continue;
         for(Segment<dbg::Edge> seg : al) {
             if(!seg.contig().getData().is_reliable) {

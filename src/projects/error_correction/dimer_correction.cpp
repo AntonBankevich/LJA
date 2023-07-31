@@ -78,7 +78,7 @@ std::string DimerCorrector::correctRead(DBGGraphPath &path) {
         }
         if (best == 0)
             continue;
-        message.emplace_back(itos(at_cnt1) + "_" + itos(at_cnt2) + "_" + itos(candidates[best].getAlignment().len()));
+        message.emplace_back(itos(at_cnt1) + "_" + itos(at_cnt2) + "_" + itos(candidates[best].getAlignment().truncLen()));
         path = path.reroute(path_pos, path_pos + candidates[0].size(), candidates[best].getAlignment());
         corrected++;
     }

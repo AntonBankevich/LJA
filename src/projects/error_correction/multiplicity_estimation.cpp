@@ -113,7 +113,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
             if(this->isUnique(edge))
                 continue;
             DBGGraphPath al = FindLongestCoveredExtension(edge, 3, 1);
-            if(al.len() > unique_len) {
+            if(al.truncLen() > unique_len) {
                 for(Segment<Edge> seg : al) {
                     updateBounds(seg.contig(), 1, 1);
                 }

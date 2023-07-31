@@ -686,4 +686,12 @@ namespace multigraph {
     double EdgeData::getCoverage() const {
         return double(cov) / edge->truncSize();
     }
+
+    inline Sequence Edge::truncSeq() const {
+        if(seq.empty()) {
+            return getFinish().getSeq().Subseq(getStart().size() + getFinish().size() - sz);
+        } else {
+            return seq.Subseq(getStart().size());
+        }
+    }
 }

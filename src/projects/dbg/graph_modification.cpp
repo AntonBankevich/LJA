@@ -24,7 +24,7 @@ DBGGraphPath realignRead(const DBGGraphPath &al,
     }
     VERIFY_OMP(new_start_edge != nullptr, "Could not find getStart edge for alignment");
     size_t cur = 0;
-    size_t read_length = al.len();
+    size_t read_length = al.truncLen();
     size_t position_in_read_path = 0;
     size_t position_in_read_sequence = 0;
     DBGGraphPath new_al;
@@ -62,7 +62,7 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
         for (size_t i = 0; i < storage.size(); i++) { // NOLINT(modernize-loop-convert)
             AlignedRead &rec = storage[i];
             if(rec.valid())
-                lenStorage.emplace_back(rec.path.getAlignment().len());
+                lenStorage.emplace_back(rec.path.getAlignment().truncLen());
         }
     }
     size_t min_len = 100000;
@@ -290,7 +290,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     GraphAligner aligner(subgraph);
     std::function<void(size_t, Edge &)> task = [&aligner](size_t num, Edge &edge) {
         DBGGraphPath al = aligner.align(edge.getStart().getSeq() + edge.truncSeq());
-        VERIFY(al.len() == edge.truncSize());
+        VERIFY(al.truncLen() == edge.truncSize());
         edge.getData().is_reliable = (al.size() == 1 && al[0].left == 0 && al[0].right == al[0].contig().truncSize());
         edge.rc().getData().is_reliable = edge.getData().is_reliable;
     };

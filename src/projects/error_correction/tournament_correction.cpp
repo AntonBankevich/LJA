@@ -31,7 +31,7 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
 std::vector<DBGGraphPath>
 FilterAlternatives(const DBGGraphPath &initial, const std::vector<DBGGraphPath> &als,
                    size_t max_diff, double threshold) {
-    size_t len = initial.len();
+    size_t len = initial.truncLen();
     std::vector<DBGGraphPath> res;
     size_t k = initial.getVertex(0).size();
     for(const DBGGraphPath &al : als) {
@@ -46,7 +46,7 @@ FilterAlternatives(const DBGGraphPath &initial, const std::vector<DBGGraphPath> 
         if(!ok) {
             continue;
         }
-        size_t al_len = al.len();
+        size_t al_len = al.truncLen();
         if(len > al_len + max_diff || al_len > len + max_diff) {
             continue;
         }
@@ -57,9 +57,10 @@ FilterAlternatives(const DBGGraphPath &initial, const std::vector<DBGGraphPath> 
 
 DBGGraphPath chooseBulgeCandidate(const DBGGraphPath &bulge, const RecordStorage &reads_storage,
                                   double threshold, std::vector<DBGGraphPath> &read_alternatives, string &message) {
-    size_t size = bulge.len();
+    size_t size = bulge.truncLen();
     std::vector<DBGGraphPath> read_alternatives_filtered = FilterAlternatives(bulge, read_alternatives,
-                                                                              std::max<size_t>(100, bulge.len() * 3 / 100), threshold);
+                                                                              std::max<size_t>(100,
+                                                                                               bulge.truncLen() * 3 / 100), threshold);
     size_t alt_size = read_alternatives_filtered.size();
     if(read_alternatives_filtered.size() > 1) {
         Sequence old = bulge.truncSeq();
@@ -97,14 +98,14 @@ std::pair<DBGGraphPath, size_t> BestAlignmentPrefix(const DBGGraphPath &al, cons
 DBGGraphPath processTip(const DBGGraphPath &tip,
                         const std::vector<DBGGraphPath> &alternatives,
                         double threshold, string &message) {
-    size_t size = tip.len();
+    size_t size = tip.truncLen();
     std::vector<DBGGraphPath> read_alternatives_filtered =
             FilterAlternatives(tip, alternatives, size_t(-1) / 2, threshold);
     std::vector<DBGGraphPath> trunc_alignments;
     Sequence old = tip.truncSeq();
     for(const DBGGraphPath &al : read_alternatives_filtered) {
         std::pair<DBGGraphPath, size_t> tres = BestAlignmentPrefix(al, old);
-        if (tres.second < 10 + (al.len() / 50))
+        if (tres.second < 10 + (al.truncLen() / 50))
             trunc_alignments.emplace_back(std::move(tres.first));
     }
     message = "s";
@@ -190,16 +191,16 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
             corrected_path.invalidate();
             DBGGraphPath tip = badPath.RC();
             std::vector<DBGGraphPath> alternatives;
-            if(tip.len() < max_size)
-                alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
+            if(tip.truncLen() < max_size)
+                alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.truncLen(), threshold);
             if (alternatives.empty())
                 alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
             std::string new_message = "";
             DBGGraphPath substitution = processTip(tip, alternatives, threshold, new_message);
             if(!new_message.empty()) {
                     messages.emplace_back("it" + new_message);
-                messages.emplace_back(itos(tip.len(), 0));
-                messages.emplace_back(itos(substitution.len(), 0));
+                messages.emplace_back(itos(tip.truncLen(), 0));
+                messages.emplace_back(itos(substitution.truncLen(), 0));
             }
             VERIFY_OMP(substitution.start() == tip.start(), "samestart");
             DBGGraphPath rcSubstitution = substitution.RC();
@@ -208,16 +209,16 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
         } else if(step_front == path.size() - path_pos - 1) {
             DBGGraphPath tip = badPath;
             std::vector<DBGGraphPath> alternatives;
-            if(tip.len() < max_size)
-                alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.len(), threshold);
+            if(tip.truncLen() < max_size)
+                alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.truncLen(), threshold);
             if (alternatives.empty())
                 alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
             std::string new_message = "";
             DBGGraphPath substitution = processTip(tip, alternatives, threshold, new_message);
             if(!new_message.empty()) {
                 messages.emplace_back("ot" + new_message);
-                messages.emplace_back(itos(tip.len()), 0);
-                messages.emplace_back(itos(substitution.len()), 0);
+                messages.emplace_back(itos(tip.truncLen()), 0);
+                messages.emplace_back(itos(substitution.truncLen()), 0);
             }
             for (const Segment<Edge> seg : substitution) {
                 corrected_path += seg;
@@ -235,8 +236,8 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
             DBGGraphPath substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
             if(!new_message.empty()) {
                 messages.emplace_back(new_message);
-                messages.emplace_back(itos(badPath.len(), 0));
-                messages.emplace_back(itos(substitution.len(), 0));
+                messages.emplace_back(itos(badPath.truncLen(), 0));
+                messages.emplace_back(itos(substitution.truncLen(), 0));
             }
             for (const Segment<Edge> seg : substitution) {
                 corrected_path += seg;

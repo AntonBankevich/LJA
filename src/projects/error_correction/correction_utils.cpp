@@ -23,7 +23,7 @@ std::unordered_map<dbg::Vertex *, size_t> findReachable(dbg::Vertex &start, doub
 
 std::vector<DBGGraphPath>
 FindPlausibleBulgeAlternatives(const DBGGraphPath &path, size_t max_diff, double min_cov) {
-    size_t max_len = path.len() + max_diff;
+    size_t max_len = path.truncLen() + max_diff;
     std::unordered_map<dbg::Vertex *, size_t> reachable = findReachable(path.finish().rc(), min_cov, max_len);
     std::vector<DBGGraphPath> res;
     DBGGraphPath alternative(path.start());
@@ -35,7 +35,7 @@ FindPlausibleBulgeAlternatives(const DBGGraphPath &path, size_t max_diff, double
         if(iter_cnt > 10000)
             return {path};
         if(forward) {
-            if(alternative.finish() == path.finish() && len + max_diff >= path.len()) {
+            if(alternative.finish() == path.finish() && len + max_diff >= path.truncLen()) {
                 res.emplace_back(alternative);
                 if(res.size() > 30) {
                     return {path};
@@ -101,13 +101,13 @@ DBGGraphPath FindReliableExtension(dbg::Vertex &start, size_t len, double min_co
 std::vector<DBGGraphPath>
 FindPlausibleTipAlternatives(const DBGGraphPath &path, size_t max_diff, double min_cov) {
     size_t k = path.start().size();
-    size_t max_len = path.len() + max_diff;
+    size_t max_len = path.truncLen() + max_diff;
     std::vector<DBGGraphPath> res;
     VERIFY(path.leftSkip() == 0);
     DBGGraphPath alternative(path.start());
     size_t iter_cnt = 0;
     size_t len = 0;
-    size_t tip_len = path.len();
+    size_t tip_len = path.truncLen();
     bool forward = true;
     while(true) {
         iter_cnt += 1;

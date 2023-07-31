@@ -269,7 +269,7 @@ struct ContigInfo {
  //            logger.info() << "consensus of " << complex_strings[start_pos].size() << ": " << consensus.length() <<std::endl << "At position " <<start_pos <<std::endl;
                 if (!check.empty()){
                     logger.debug() << "Problematic consensus starting on decompressed position " << total_count <<" " << check <<" of " <<complex_strings[i].size() - 1 << " sequences "<<std::endl;
-                    logger.debug() << "Position " << complex_regions[cur_complex_ind].first << " len " << complex_regions[cur_complex_ind].second <<std::endl;
+                    logger.debug() << "Position " << complex_regions[cur_complex_ind].first << " truncLen " << complex_regions[cur_complex_ind].second <<std::endl;
                     std::stringstream debug_l;
                     debug_l << "lengths: ";
                     for (size_t j = 0; j < complex_strings[i].size() - 1; j++) {

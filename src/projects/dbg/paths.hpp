@@ -63,7 +63,7 @@ public:
     double minCoverage() const;
     Sequence Seq() const;
     Sequence truncSeq() const;
-    size_t len() const;
+    size_t truncLen() const;
 
     Segment<Edge> back() const;
     Segment<Edge> front() const;
@@ -87,6 +87,9 @@ public:
     void pop_back() {
         path.pop_back();
         cut_right = 0;
+        if(path.empty() && cut_left > 0) {
+            invalidate();
+        }
     }
     void pop_back(size_t len) {
         path.erase(path.end() - len, path.end());
@@ -184,7 +187,7 @@ double GraphPath<Graph>::minCoverage() const {
 }
 
 template<class Graph>
-size_t GraphPath<Graph>::len() const {
+size_t GraphPath<Graph>::truncLen() const {
     size_t res = 0;
     for (Edge *edge : path)
         res += edge->truncSize();
@@ -237,9 +240,11 @@ bool GraphPath<Graph>::valid() const {
 
 template<class Graph>
 GraphPath<Graph> &GraphPath<Graph>::cutBack(size_t l) {
-    VERIFY(l <= len());
-    while(!path.empty() && l > back().size()) {
-        l -= back().size();
+    VERIFY(l <= truncLen());
+    if(path.empty())
+        return *this;
+    while(path.size() > 1 && l > backEdge().truncSize() - cut_right) {
+        l -= backEdge().truncSize() - cut_right;
         pop_back();
     }
     cut_right += l;
@@ -251,7 +256,7 @@ GraphPath<Graph> &GraphPath<Graph>::cutBack(size_t l) {
 
 template<class Graph>
 GraphPath<Graph> &GraphPath<Graph>::cutFront(size_t l) {
-    VERIFY(l <= len());
+    VERIFY(l <= truncLen());
     size_t cut = 0;
     while(cut < size() && l >= operator[](cut).size()) {
         l -= operator[](cut).size();
@@ -411,11 +416,18 @@ template<class Graph>
 Sequence GraphPath<Graph>::Seq() const {
     if (size() == 0)
         return {};
+    Edge & edge = frontEdge();
+    Sequence seq = edge.getSeq();
+    if(size() == 1) {
+        return seq.Subseq(leftSkip(), seq .size() - rightSkip());
+    }
+
     SequenceBuilder sb;
-    sb.append(front().fullSeq());
-    for(size_t i = 1; i < size(); i++) {
+    sb.append(seq.Subseq(leftSkip()));
+    for(size_t i = 1; i + 1 < size(); i++) {
         sb.append(operator[](i).truncSeq());
     }
+    sb.append(backEdge().truncSeq().Subseq(0, backEdge().truncSize() - rightSkip()));
     return sb.BuildSequence();
 }
 

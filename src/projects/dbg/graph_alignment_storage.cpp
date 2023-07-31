@@ -163,8 +163,8 @@ std::vector<DBGGraphPath> VertexRecord::getTipAlternatives(size_t len, double th
     std::vector<std::pair<Sequence, size_t>> candidates;
     for(const auto & extension : paths) {
         DBGGraphPath unpacked = CompactPath(v, extension.first).getAlignment();
-        if(unpacked.len() >= len) {
-            unpacked.cutBack(unpacked.len() - len);
+        if(unpacked.truncLen() >= len) {
+            unpacked.cutBack(unpacked.truncLen() - len);
             candidates.emplace_back(CompactPath(unpacked).cpath(), extension.second);
         }
     }
@@ -178,7 +178,7 @@ std::vector<DBGGraphPath> VertexRecord::getTipAlternatives(size_t len, double th
         if(i > 0 && candidates[i - 1].first != candidates[i].first) {
             if(cnt > threshold) {
                 DBGGraphPath cp = CompactPath(v, candidates[i - 1].first).getAlignment();
-                cp.cutBack(cp.len() - len);
+                cp.cutBack(cp.truncLen() - len);
                 res.emplace_back(cp);
             }
             cnt = 0;
@@ -187,7 +187,7 @@ std::vector<DBGGraphPath> VertexRecord::getTipAlternatives(size_t len, double th
     }
     if(cnt > threshold) {
         DBGGraphPath cp = CompactPath(v, candidates.back().first).getAlignment();
-        cp.cutBack(cp.len() - len);
+        cp.cutBack(cp.truncLen() - len);
         res.emplace_back(cp);
     }
     return std::move(res);
@@ -378,11 +378,11 @@ void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads
             cnt += 1;
         } else if(r - l != al.size()) {
             DBGGraphPath sub = al.subPath(l, r);
-            if(sub.len() < 1000)
+            if(sub.truncLen() < 1000)
                 delayedInvalidateRead(alignedRead, message);
             else {
-                std::string extra_message = message + "_EndsClipped_" + itos(al.subPath(0, l).len()) + "_" + itos(
-                        al.subPath(r, al.size()).len());
+                std::string extra_message = message + "_EndsClipped_" + itos(al.subPath(0, l).truncLen()) + "_" + itos(
+                        al.subPath(r, al.size()).truncLen());
                 reroute(alignedRead, al, al.subPath(l, r), extra_message);
             }
             cnt += 1;
@@ -451,7 +451,7 @@ void RecordStorage::reroute(AlignedRead &alignedRead, const DBGGraphPath &initia
                             const string &message) {
     if (log_changes)
         readLogger->logRerouting(alignedRead, initial, corrected, message);
-    if(corrected.len() < 500)
+    if(corrected.truncLen() < 500)
         delayedInvalidateRead(alignedRead, "Deleted_after_" + message);
     else {
         alignedRead.correct(CompactPath(corrected));
