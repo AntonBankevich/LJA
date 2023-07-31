@@ -73,6 +73,18 @@ namespace multigraph {
         bool operator>(const Vertex &other) const {return this->id < other.id;}
     };
 
+
+    class EdgeData {
+    private:
+        Edge *edge;
+        size_t cov = 0;
+    public:
+        explicit EdgeData(Edge &edge) : edge(&edge) {}
+        void incCov(int delta) {cov += delta;}
+        size_t intCov() const {return cov;}
+        double getCoverage() const;
+    };
+
     struct Edge {
         friend class MultiGraph;
     private:
@@ -84,20 +96,21 @@ namespace multigraph {
         Vertex *_start = nullptr;
         Vertex *_end = nullptr;
         Edge *_rc = nullptr;
+        mutable EdgeData data;
         void setRC(Edge &other) {_rc = &other;}
     public:
         typedef int id_type;
         explicit Edge(Vertex &start, Vertex &end, Sequence _seq, int id = 0, std::string label = "") :
                     seq(std::move(_seq)), id(id), label(std::move(label)),
-                    _start(&start), _end(&end) {
+                    _start(&start), _end(&end), data(*this) {
             sz = seq.size();
             canonical = seq <= !seq;
         }
         Edge(const Edge &) = delete;
-        Edge(Edge && e) noexcept : seq(std::move(e.seq)), id(e.id), sz(e.sz), canonical(e.canonical), label(std::move(e.label)) {
+        Edge(Edge && e) noexcept : seq(std::move(e.seq)), id(e.id), sz(e.sz), canonical(e.canonical), label(std::move(e.label)), data(*this) {
             VERIFY(e._start == nullptr && e._end == nullptr && e._rc == nullptr);
         }
-        Edge() {VERIFY(false);}
+        Edge() : data(*this) {VERIFY(false);}
 
         Sequence getSeq() const;
         Sequence truncSeq() const {
@@ -119,7 +132,7 @@ namespace multigraph {
         const Vertex &getStart() const {return *_start;}
         const Vertex &getFinish() const {return *_end;}
 //        TODO: create reasonable coverage for multiplex graph
-        double getCoverage() const {return 0;}
+        EdgeData &getData() const {return data;}
         Edge &rc() {return *_rc;}
         const Edge &rc() const {return *_rc;}
 

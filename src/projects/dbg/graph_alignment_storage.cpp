@@ -341,7 +341,7 @@ void RecordStorage::delayedInvalidateRead(AlignedRead &read, const std::string &
 
 void RecordStorage::delayedInvalidateBad(logging::Logger &logger, size_t threads, double threshold, const std::string &message) {
     const std::function<bool(const Edge &)> &is_bad = [threshold](const Edge &edge) {
-        return edge.getCoverage() < threshold;
+        return edge.getData().getCoverage() < threshold;
     };
     delayedInvalidateBad(logger, threads, is_bad, message);
 }
@@ -415,7 +415,7 @@ void RecordStorage::addSubpath(const CompactPath &cpath) {
     std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
     if(track_cov)
         edge_task = [](Segment<Edge> seg){
-            seg.contig().incCov(seg.size());
+            seg.contig().getData().incCov(seg.size());
         };
     processPath(cpath, vertex_task, edge_task);
 }
@@ -431,7 +431,7 @@ void RecordStorage::removeSubpath(const CompactPath &cpath) {
     std::function<void(Segment<Edge>)> edge_task = [](Segment<Edge> seg){};
     if(track_cov)
         edge_task = [](Segment<Edge> seg) {
-            seg.contig().incCov(size_t(-seg.size()));
+            seg.contig().getData().incCov(size_t(-seg.size()));
         };
     processPath(cpath, vertex_task, edge_task);
 }

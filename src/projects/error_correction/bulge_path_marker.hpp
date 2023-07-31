@@ -37,10 +37,10 @@ public:
             }
             for(size_t i = 0; i < bulgePath.size(); i++) {
                 if(checkBulgeIdeal(bulgePath, i)) {
-                    bulgePath[i].first->mark(dbg::EdgeMarker::unique);
-                    bulgePath[i].second->mark(dbg::EdgeMarker::unique);
-                    bulgePath[i].first->rc().mark(dbg::EdgeMarker::unique);
-                    bulgePath[i].second->rc().mark(dbg::EdgeMarker::unique);
+                    bulgePath[i].first->getData().mark(dbg::EdgeMarker::unique);
+                    bulgePath[i].second->getData().mark(dbg::EdgeMarker::unique);
+                    bulgePath[i].first->rc().getData().mark(dbg::EdgeMarker::unique);
+                    bulgePath[i].second->rc().getData().mark(dbg::EdgeMarker::unique);
                 }
             }
         }
@@ -48,7 +48,7 @@ public:
 
     std::vector<dbg::Component> split(dbg::SparseDBG &dbg) {
         std::function<bool(const dbg::Edge &)> splitEdge = [this](const dbg::Edge &edge) {
-            return edge.getMarker() == dbg::EdgeMarker::unique;
+            return edge.getData().getMarker() == dbg::EdgeMarker::unique;
         };
         return dbg::ConditionSplitter(splitEdge).splitGraph(dbg);
     }
@@ -71,15 +71,15 @@ public:
                     for(dbg::Edge &edge : vit->rc()) {
                         size_t score = 0;
                         if(!component.contains(edge.getFinish())) {
-                            VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
+                            VERIFY(edge.getData().getMarker() == dbg::EdgeMarker::unique);
                             if(used.find(&edge) == used.end())
                                 score = 1000000;
                             else
                                 score = 0;
                         } else {
                             if(used.find(&edge) == used.end())
-                                score = edge.intCov() - std::min(edge.intCov(), edge.truncSize());
-                            else if(edge.getCoverage() < 8) {
+                                score = edge.getData().intCov() - std::min(edge.getData().intCov(), edge.truncSize());
+                            else if(edge.getData().getCoverage() < 8) {
                                 score = 0;
                             } else {
                                 score = edge.truncSize() * 2;
@@ -124,15 +124,15 @@ public:
         if(found != 2)
             return 0;
         for(dbg::Edge &edge : component.edgesInner()) {
-            if(edge.getMarker() == dbg::EdgeMarker::common)
+            if(edge.getData().getMarker() == dbg::EdgeMarker::common)
                 if(used.find(&edge) == used.end()) {
-                    edge.mark(dbg::EdgeMarker::incorrect);
+                    edge.getData().mark(dbg::EdgeMarker::incorrect);
                 } else {
-                    if(!edge.is_reliable) {
-                        edge.is_reliable = true;
+                    if(!edge.getData().is_reliable) {
+                        edge.getData().is_reliable = true;
                         new_rel++;
                     }
-                    edge.mark(dbg::EdgeMarker::correct);
+                    edge.getData().mark(dbg::EdgeMarker::correct);
                 }
         }
         return new_rel;
@@ -144,7 +144,7 @@ public:
         for(dbg::Component &component : split(dbg)) {
             for(dbg::Edge &edge : component.edges()) {
                 if(!component.contains(edge.getFinish())) {
-                    VERIFY(edge.getMarker() == dbg::EdgeMarker::unique);
+                    VERIFY(edge.getData().getMarker() == dbg::EdgeMarker::unique);
                 }
             }
             cnt += markAcyclicComponent(component);

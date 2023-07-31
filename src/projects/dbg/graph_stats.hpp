@@ -19,7 +19,7 @@ inline void simpleStats(logging::Logger &logger, dbg::SparseDBG &dbg) {
                 elen += edge.truncSize();
             }
         }
-        for(const Sequence &seq : v.getHanging()) {
+        for(const Sequence &seq : v.getData().getHanging()) {
             e_cnt += 2;
             elen += 2 * seq.size();
         }
@@ -112,7 +112,7 @@ inline void coverageStats(logging::Logger &logger, dbg::SparseDBG &dbg, size_t m
     logger.trace() << "Kmer coverage statistics:\n";
     std::vector<size_t> hist(max_cov + 1);
     for(dbg::Edge &edge : dbg.edgesUnique()) {
-        hist[std::min<size_t>(edge.getCoverage(), max_cov)] += edge.truncSize();
+        hist[std::min<size_t>(edge.getData().getCoverage(), max_cov)] += edge.truncSize();
     }
     for(size_t i = 0; i < hist.size(); i++) {
         logger << i << " " << hist[i] << std::endl;

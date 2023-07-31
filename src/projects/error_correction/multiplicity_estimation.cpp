@@ -16,11 +16,11 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
     for(dbg::Vertex &v : component.vertices()) {
         for(dbg::Edge &edge : v) {
             if (!unique(edge)) {
-                size_t min_flow = (!edge.is_reliable || (edge.getCoverage() < rel_coverage && edge.truncSize() < 20000)) ? 0 : 1;
+                size_t min_flow = (!edge.getData().is_reliable || (edge.getData().getCoverage() < rel_coverage && edge.truncSize() < 20000)) ? 0 : 1;
                 size_t max_flow = 1000000000;
-                if(edge.truncSize() > 1000 && edge.getCoverage() < double_coverage)
+                if(edge.truncSize() > 1000 && edge.getData().getCoverage() < double_coverage)
                     max_flow = 2;
-                if(edge.truncSize() > 1000 && edge.getCoverage() < unique_coverage)
+                if(edge.truncSize() > 1000 && edge.getData().getCoverage() < unique_coverage)
                     max_flow = 1;
                 int eid = addEdge(vertex_mapping[&v], vertex_mapping[&edge.getFinish()], min_flow, max_flow);
                 VERIFY(eid > 0);
@@ -67,10 +67,10 @@ void UniqueClassificator::markPseudoHets() const {
         Vertex &start = edge.getFinish();
         if(!isUnique(edge) || start.outDeg() != 2 || start.inDeg() != 1)
             continue;
-        Edge &correct = start.front().getCoverage() > start.back().getCoverage() ? start.front() : start.back();
-        Edge &incorrect = start.front().getCoverage() <= start.back().getCoverage() ? start.front() : start.back();
-        incorrect.is_reliable = false;
-        incorrect.rc().is_reliable = false;
+        Edge &correct = start.front().getData().getCoverage() > start.back().getData().getCoverage() ? start.front() : start.back();
+        Edge &incorrect = start.front().getData().getCoverage() <= start.back().getData().getCoverage() ? start.front() : start.back();
+        incorrect.getData().is_reliable = false;
+        incorrect.rc().getData().is_reliable = false;
         DBGGraphPath cor_ext = reads_storage.getRecord(start).
                 getFullUniqueExtension(correct.truncSeq().Subseq(0, 1), 1, 0).getAlignment();
         DBGGraphPath incor_ext = reads_storage.getRecord(start).
@@ -85,8 +85,8 @@ void UniqueClassificator::markPseudoHets() const {
             }
             if(found)
                 break;
-            seg.contig().is_reliable = false;
-            seg.contig().rc().is_reliable = false;
+            seg.contig().getData().is_reliable = false;
+            seg.contig().rc().getData().is_reliable = false;
         }
     }
 }
@@ -98,7 +98,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         recreate_dir(dir);
     size_t cnt = 0;
     for(Edge &edge : dbg.edges()) {
-        edge.is_reliable = true;
+        edge.getData().is_reliable = true;
     }
     if(diploid) {
         SetUniquenessStorage duninque = BulgePathFinder(dbg).uniqueEdges(unique_len);
@@ -148,7 +148,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         if(back_unique.size() >= path.size()) {
             extra_unique.emplace_back(&edge);
             cnt++;
-            logger.trace() << "Found extra unique getEdge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getCoverage() << std::endl;
+            logger.trace() << "Found extra unique getEdge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getData().getCoverage() << std::endl;
         }
     }
     for(Edge *eit : extra_unique) {
@@ -248,7 +248,7 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
             return false;
         bad_candidates = {&e11, &e2, &e32};
     }
-    std::function<double(Edge* const &)> f = [](Edge * const &edge){return edge->getCoverage();};
+    std::function<double(Edge* const &)> f = [](Edge * const &edge){return edge->getData().getCoverage();};
     Edge &bad = *bad_candidates[MinIndex<Edge *, double>(bad_candidates, f)];
     std::unordered_set<Edge *> nonUnique = {&bad, &bad.rc()};
     if(bad.getStart() == start) {
@@ -369,8 +369,8 @@ std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordS
                          record.countStartsWith(Sequence(s + "G")) +
                          record.countStartsWith(Sequence(s + "T"));
             if(edge.truncSize() < 20000) {
-                min_cov = std::min<double>(min_cov, std::min<double>(cnt, edge.getCoverage()));
-                max_cov = std::max<double>(max_cov, std::min<double>(cnt, edge.getCoverage()));
+                min_cov = std::min<double>(min_cov, std::min<double>(cnt, edge.getData().getCoverage()));
+                max_cov = std::max<double>(max_cov, std::min<double>(cnt, edge.getData().getCoverage()));
             } else {
                 min_cov = std::min<double>(min_cov, cnt);
                 max_cov = std::max<double>(max_cov, cnt);
@@ -438,7 +438,7 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
                 break;
             }
             VERIFY(prev.find(&edge.getFinish().rc()) != prev.end());
-            size_t score = edge.intCov() + prev[&edge.getFinish().rc()].second;
+            size_t score = edge.getData().intCov() + prev[&edge.getFinish().rc()].second;
             if(score > val) {
                 pedge = &edge.rc();
                 val = score;
@@ -448,13 +448,13 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
         prev[cur] = {pedge, val};
     }
     for(Edge &edge : component.edgesInner()) {
-        edge.is_reliable = false;
+        edge.getData().is_reliable = false;
     }
     Vertex *end = order.back();
     size_t cnt = 0;
     while(prev[end].first != nullptr) {
-        prev[end].first->is_reliable = true;
-        prev[end].first->rc().is_reliable = true;
+        prev[end].first->getData().is_reliable = true;
+        prev[end].first->rc().getData().is_reliable = true;
         end = &prev[end].first->getStart();
         cnt++;
         VERIFY(cnt < 50);
@@ -551,8 +551,8 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
         double max_cov = tmp.second;
         double med_cov = (max_cov + min_cov) / 2;
         double dev = std::max<double>(4, max_cov - min_cov) / med_cov / 2;
-        size_t vote1 = floor(forward_edge.getCoverage() / med_cov + 0.5);
-        size_t vote2 = floor(back_edge.getCoverage() / med_cov + 0.5);
+        size_t vote1 = floor(forward_edge.getData().getCoverage() / med_cov + 0.5);
+        size_t vote2 = floor(back_edge.getData().getCoverage() / med_cov + 0.5);
         if(vote1 * dev * 2 > med_cov || vote1 != vote2 + 1)
             continue;
         DBGGraphPath longest = reads_storage.getRecord(in.getStart()).

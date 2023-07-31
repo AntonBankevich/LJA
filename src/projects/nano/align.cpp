@@ -10,7 +10,7 @@
 
 using namespace multigraph;
 std::unordered_map<std::string, std::vector<nano::GraphContig>> AlignOnt(logging::Logger &logger, const size_t threads,
-                 const std::experimental::filesystem::path &dir, const multigraph::MultiGraph &mg, const io::Library &ont_reads){
+                 const std::experimental::filesystem::path &dir, const multigraph::MultiGraph &mg, const io::Library &ont_reads, bool reuse_alignment = false){
     const unsigned int BATCH_SIZE = 10000;
     io::SeqReader reader(ont_reads);
     const std::experimental::filesystem::path &input_gfa = dir / "input.gfa";
@@ -28,12 +28,14 @@ std::unordered_map<std::string, std::vector<nano::GraphContig>> AlignOnt(logging
         Contig contig = scontig.makeContig();
         batch[contig.getInnerId()] = contig;
         if (batch.size() > BATCH_SIZE) {
-//            reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
+            if(!reuse_alignment)
+                reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
             batch_num++;
             batch.clear();
         }
     }
-//    reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
+    if(!reuse_alignment)
+        reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
     batch_num++;
     batch.clear();
     std::unordered_map<std::string, std::vector<nano::GraphContig>> result;
@@ -572,7 +574,7 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
 
 
 int main(int argc, char **argv) {
-    AlgorithmParameters parameters({"threads=", "output-dir="}, {"nano", "graph"}, "");
+    AlgorithmParameters parameters({"threads=", "output-dir=", "reuse-alignment"}, {"nano", "graph"}, "");
     CLParser parser(parameters, {"o=output-dir", "t=threads"});
     AlgorithmParameterValues parameterValues = parser.parseCL(argc, argv);
     if (!parameterValues.checkMissingValues().empty()) {
@@ -596,11 +598,12 @@ int main(int argc, char **argv) {
     logger << std::endl;
     logging::logGit(logger, dir / "version.txt");
 
+    bool reuse = parameterValues.getCheck("reuse-alignment");
     multigraph::MultiGraph mg = MultiGraphHelper::LoadGFA(graph, false);
     mg = MultiGraphHelper::TransformToEdgeGraph(mg);
 
     logger.info() << "Performing alignment" << std::endl;
-    std::unordered_map<std::string, std::vector<nano::GraphContig>> result = AlignOnt(logger, threads, dir, mg, reads);
+    std::unordered_map<std::string, std::vector<nano::GraphContig>> result = AlignOnt(logger, threads, dir, mg, reads, reuse);
     logger.info() << "Alignment finished. Correcting paths." << std::endl;
     std::cout << result.size() << std::endl;
 

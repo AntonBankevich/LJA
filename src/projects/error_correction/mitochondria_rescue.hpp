@@ -6,7 +6,7 @@ inline bool CheckCov(const dbg::Component &component, double &d) {
     size_t bad_cnt = 0;
     size_t good_cnt = 0;
     for(dbg::Edge &edge :component.edgesUnique()) {
-        if(edge.getCoverage() <= d)
+        if(edge.getData().getCoverage() <= d)
             bad_cnt++;
         else
             good_cnt++;
@@ -30,7 +30,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
                 ok = false;
                 break;
             }
-            covs.emplace_back(edge.getCoverage());
+            covs.emplace_back(edge.getData().getCoverage());
         }
         if(!ok)
             continue;
@@ -40,7 +40,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
                 if(CheckCov(component, covs[i])) {
                     size_t sz = 0;
                     for(dbg::Edge &edge :component.edges()) {
-                        if(edge.getCoverage() <= covs[i]) {
+                        if(edge.getData().getCoverage() <= covs[i]) {
                             bad_edges.emplace(&edge);
                         } else {
                             sz += edge.truncSize();

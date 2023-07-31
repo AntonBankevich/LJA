@@ -8,7 +8,7 @@ void ManyKCorrector::calculateReliable(const DBGGraphPath &read_path, std::vecto
     for(size_t i = 0; i < read_path.size(); i++) {
         const Segment<Edge> &seg= read_path[i];
         Edge & edge = seg.contig();
-        if (edge.getCoverage() >= reliable_threshold || edge.is_reliable) {
+        if (edge.getData().getCoverage() >= reliable_threshold || edge.getData().is_reliable) {
             last_reliable.emplace_back(i + 1);
             next_reliable.emplace_back(i);
             size_t j = i;
@@ -73,8 +73,8 @@ ManyKCorrector::calculateLowRegions(const std::vector<size_t> &last_reliable, co
     for(size_t i = 0; i < read_path.size(); i++) {
         const Segment<Edge> &seg = read_path[i];
         Edge &edge = seg.contig();
-        if (edge.getCoverage() < reliable_threshold && !edge.is_reliable &&
-            (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0 || edge.getCoverage() <= bad_threshold)) {
+        if (edge.getData().getCoverage() < reliable_threshold && !edge.getData().is_reliable &&
+            (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0 || edge.getData().getCoverage() <= bad_threshold)) {
             size_t left = last_reliable[i];
             size_t right = next_reliable[i];
             if(positions.empty() || left > positions.back()) {

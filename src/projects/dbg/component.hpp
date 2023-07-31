@@ -87,11 +87,11 @@ namespace dbg {
                 continue;
             Vertex &vert = graph.getVertex(val.second);
             for (Edge &edge : vert) {
-                if (edge.getCoverage() >= min_coverage)
+                if (edge.getData().getCoverage() >= min_coverage)
                     queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
             }
             for (Edge &edge : vert.rc()) {
-                if (edge.getCoverage() >= min_coverage)
+                if (edge.getData().getCoverage() >= min_coverage)
                     queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
             }
         }

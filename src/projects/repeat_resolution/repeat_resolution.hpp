@@ -61,7 +61,6 @@ class RepeatResolver {
         logger.info() << "Resolving repeats" << std::endl;
         logger.info() << "Constructing paths" << std::endl;
         RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
-
         logger.info() << "Building graph" << std::endl;
         MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
         if (debug) {

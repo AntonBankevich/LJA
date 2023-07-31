@@ -131,7 +131,7 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
                const std::string &color = "black") {
     dbg:: Vertex &end = edge.getFinish();
     os << "\"" << edge.getStart().getShortId() << "\" -> \"" << end.getShortId() <<
-       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
+       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.truncSize() << "(" << edge.getData().getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;

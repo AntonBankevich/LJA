@@ -38,7 +38,7 @@ FilterAlternatives(const DBGGraphPath &initial, const std::vector<DBGGraphPath> 
         CompactPath cpath(al);
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
-            if(al[i].contig().getCoverage() < threshold && !al[i].contig().is_reliable) {
+            if(al[i].contig().getData().getCoverage() < threshold && !al[i].contig().getData().is_reliable) {
                 ok = false;
                 break;
             }
@@ -154,8 +154,8 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
     for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
         VERIFY_OMP(corrected_path.size() == 0 || corrected_path.finish() == path.getVertex(path_pos), "End");
         Edge &edge = path[path_pos].contig();
-        if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
-            (edge.getStart().inDeg() > 0 && edge.getFinish().outDeg() > 0 && (edge.getCoverage() > threshold ||
+        if (edge.getData().getCoverage() >= reliable_threshold || edge.getData().is_reliable ||
+            (edge.getStart().inDeg() > 0 && edge.getFinish().outDeg() > 0 && (edge.getData().getCoverage() > threshold ||
                     edge.truncSize() > 10000)) ) {
 //              Tips need to pass reliable threshold to avoid being corrected.
             corrected_path += path[path_pos];
@@ -165,14 +165,14 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
         size_t step_front = 0;
         size_t size = edge.truncSize();
         while(step_back < corrected_path.size() &&
-              (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold &&
-               !corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
+              (corrected_path[corrected_path.size() - step_back - 1].contig().getData().getCoverage() < reliable_threshold &&
+               !corrected_path[corrected_path.size() - step_back - 1].contig().getData().is_reliable)) {
             size += corrected_path[corrected_path.size() - step_back - 1].size();
             step_back += 1;
         }
         while(step_front + path_pos + 1 < path.size() &&
-              (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold &&
-               !path[step_front + path_pos + 1].contig().is_reliable)) {
+              (path[step_front + path_pos + 1].contig().getData().getCoverage() < reliable_threshold &&
+               !path[step_front + path_pos + 1].contig().getData().is_reliable)) {
             size += path[step_front + path_pos + 1].size();
             step_front += 1;
         }
@@ -280,16 +280,16 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
             Edge & alt = edge == start.front() ? start.back() : start.front();
 
             const VertexRecord &rec = ref_storage.getRecord(start);
-            if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
+            if(edge.getData().getCoverage() < 1 || alt.getData().getCoverage() < 1) {
                 continue;
             }
-            if(edge.getCoverage() > alt.getCoverage()) {
+            if(edge.getData().getCoverage() > alt.getData().getCoverage()) {
                 continue;
             }
             Edge &rcEdge = edge.rc();
             bulge_cnt.emplace_back(&edge);
             bulge_cnt.emplace_back(&rcEdge);
-            if(edge.getCoverage() + alt.getCoverage() > threshold || edge.getCoverage() > alt.getCoverage()) {
+            if(edge.getData().getCoverage() + alt.getData().getCoverage() > threshold || edge.getData().getCoverage() > alt.getData().getCoverage()) {
                 continue;
             }
             collapsable_cnt.emplace_back(&edge);
@@ -338,14 +338,14 @@ std::string PrimitiveBulgeCorrector::correctRead(DBGGraphPath &path) {
         }
         Edge & alt = edge == start.front() ? start.back() : start.front();
 
-        if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
+        if(edge.getData().getCoverage() < 1 || alt.getData().getCoverage() < 1) {
             continue;
         }
-        if(edge.getCoverage() > alt.getCoverage()) {
+        if(edge.getData().getCoverage() > alt.getData().getCoverage()) {
             continue;
         }
         Edge &rcEdge = edge.rc();
-        if(edge.getCoverage() + alt.getCoverage() > threshold || edge.getCoverage() > alt.getCoverage()) {
+        if(edge.getData().getCoverage() + alt.getData().getCoverage() > threshold || edge.getData().getCoverage() > alt.getData().getCoverage()) {
             continue;
         }
         corrected++;

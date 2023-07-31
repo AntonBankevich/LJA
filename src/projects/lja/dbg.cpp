@@ -82,12 +82,12 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     std::ofstream os_mult;
     os_mult.open(cov_dump);
     for(auto & it : eset) {
-        os_mult << it.second << " " << it.first->getCoverage() << " " << it.first->truncSize() << std::endl;
+        os_mult << it.second << " " << it.first->getData().getCoverage() << " " << it.first->truncSize() << std::endl;
     }
     os_mult.close();
     for(auto & vert : dbg.verticesUnique()) {
         for (Edge &edge : vert) {
-            size_t cov_val = std::min(max_cov, size_t(edge.getCoverage()));
+            size_t cov_val = std::min(max_cov, size_t(edge.getData().getCoverage()));
             if (eset.find(&edge) == eset.end() && eset.find(&edge.rc()) == eset.end()) {
                 cov_bad[cov_val] += 1;
                 cov_bad_len[cov_val] += edge.truncSize();
@@ -127,7 +127,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
             Edge &edge = v->getOutgoing(char(next));
             size_t cov;
             is >> cov;
-            edge.incCov(cov);
+            edge.getData().incCov(cov);
         }
     }
     is.close();
@@ -459,14 +459,14 @@ int main(int argc, char **argv) {
             if(read.truncSize() < w + hasher.getK() - 1)
                 return;
             DBGGraphPath gal = GraphAligner(dbg).align(read.getSeq());
-            if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
+            if (gal.size() > 0 && gal.front().contig().getData().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
                 gal = gal.subPath(1, gal.size());
             }
-            if (gal.size() > 0 && gal.back().contig().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
+            if (gal.size() > 0 && gal.back().contig().getData().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
                 gal = gal.subPath(0, gal.size() - 1);
             }
             for(Segment<Edge> seg : gal) {
-                if (seg.contig().getCoverage() < 2)
+                if (seg.contig().getData().getCoverage() < 2)
                     return;
             }
             if (gal.size() > 0) {
@@ -499,13 +499,13 @@ int main(int argc, char **argv) {
         for(auto & vert : dbg.verticesUnique()) {
             bool add = false;
             for(Edge & edge : vert) {
-                if (edge.getCoverage() >= threshold) {
+                if (edge.getData().getCoverage() >= threshold) {
                     edges.push_back(vert.getSeq() + edge.truncSeq());
                     add = true;
                 }
             }
             for(Edge & edge : vert.rc()) {
-                if (edge.getCoverage() >= threshold){
+                if (edge.getData().getCoverage() >= threshold){
                     edges.push_back(vert.rc().getSeq() + edge.truncSeq());
                     add = true;
                 }
@@ -518,10 +518,10 @@ int main(int argc, char **argv) {
         for(auto & vert : simp_dbg.verticesUnique()) {
             Vertex &other = dbg.getVertex(vert.hash());
             for(Edge & edge : vert) {
-                edge.incCov(other.getOutgoing(edge.truncSeq()[0]).intCov());
+                edge.getData().incCov(other.getOutgoing(edge.truncSeq()[0]).getData().intCov());
             }
             for(Edge & edge : vert.rc()) {
-                edge.incCov(other.rc().getOutgoing(edge.truncSeq()[0]).intCov());
+                edge.getData().incCov(other.rc().getOutgoing(edge.truncSeq()[0]).getData().intCov());
             }
         }
         printDot(dir / "simp_graph1.dot", Component(simp_dbg));

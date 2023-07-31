@@ -10,10 +10,10 @@ DBGGraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, s
     while(sz < max_size) {
         dbg::Edge *next = nullptr;
         for(dbg::Edge &edge : res.finish()) {
-            if(edge.getCoverage() > 1 && edge.getCoverage() < reliable_coverage) {
+            if(edge.getData().getCoverage() > 1 && edge.getData().getCoverage() < reliable_coverage) {
                 next = nullptr;
                 break;
-            } else if(edge.getCoverage() >= reliable_coverage) {
+            } else if(edge.getData().getCoverage() >= reliable_coverage) {
                 if(next != nullptr) {
                     next = nullptr;
                     break;
@@ -71,9 +71,9 @@ std::string Precorrector::correctRead(DBGGraphPath &path) {
     size_t ncor = 0;
     std::vector<std::string> message;
     for(size_t i = 0; i < path.size(); i++) {
-        if(path[i].contig().getCoverage() != 1 ||
-           (i > 0 && path[i - 1].contig().getCoverage() < reliable_threshold) ||
-           (i + 1 < path.size() && path[i + 1].contig().getCoverage() < reliable_threshold)) {
+        if(path[i].contig().getData().getCoverage() != 1 ||
+           (i > 0 && path[i - 1].contig().getData().getCoverage() < reliable_threshold) ||
+           (i + 1 < path.size() && path[i + 1].contig().getData().getCoverage() < reliable_threshold)) {
             corrected_path += path[i];
             continue;
         }

@@ -21,7 +21,7 @@ namespace dbg {
                 masked_cnt++;
             }
             out << end.hash() << int(end.isCanonical());
-            out << "_" << edge.truncSize() << "_" << edge.getCoverage() << "\n";
+            out << "_" << edge.truncSize() << "_" << edge.getData().getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
         }
@@ -34,7 +34,7 @@ namespace dbg {
             Vertex &end = edge.getFinish();
             out << ">" << cnt << "_" << edge.getStart().hash() << int(edge.getStart().isCanonical()) <<
                 "_" << end.hash() << int(end.isCanonical()) << "_" << edge.truncSize()
-                        << "_" << edge.getCoverage() << "\n";
+                << "_" << edge.getData().getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
         }
@@ -64,7 +64,7 @@ namespace dbg {
             Vertex &end = edge.getFinish();
             out << ">" << cnt << "_" << edge.getStart().hash() << int(edge.getStart().isCanonical()) <<
                 "_" << end.hash() << int(end.isCanonical()) << "_" << edge_seq.size() - edge.getStart().getSeq().size()
-                << "_" << edge.getCoverage() << "\n";
+                << "_" << edge.getData().getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
         }
@@ -90,12 +90,12 @@ namespace dbg {
         size_t cnt = 0;
         std::unordered_map<const Edge *, std::string> eids;
         for (Edge &edge : component.edges()) {
-            if (edge.getStart().isCanonical(edge)) {
+            if (edge.isCanonical()) {
                 eids[&edge] = edge.oldId();
                 eids[&edge.rc()] = edge.oldId();
                 if (calculate_coverage)
                     out << "S\t" << edge.oldId() << "\t" << edge.getStart().getSeq() << edge.truncSeq()
-                        << "\tKC:i:" << edge.intCov() << "\n";
+                        << "\tKC:i:" << edge.getData().intCov() << "\n";
                 else
                     out << "S\t" << edge.oldId() << "\t" << edge.getStart().getSeq() << edge.truncSeq() << "\n";
             }
@@ -103,10 +103,10 @@ namespace dbg {
         for (Vertex &vertex : component.verticesUnique()) {
             for (const Edge &out_edge : vertex) {
                 std::string outid = eids[&out_edge];
-                bool outsign = vertex.isCanonical(out_edge);
+                bool outsign = out_edge.isCanonical();
                 for (const Edge &inc_edge : vertex.rc()) {
                     std::string incid = eids[&inc_edge];
-                    bool incsign = !vertex.rc().isCanonical(inc_edge);
+                    bool incsign = inc_edge.isCanonical();
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
                         << (outsign ? "+" : "-") << "\t" << component.graph().hasher().getK() << "M" << "\n";
                 }

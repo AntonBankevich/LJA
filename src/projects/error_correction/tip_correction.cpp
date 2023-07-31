@@ -3,10 +3,10 @@
 
 using namespace dbg;
 void MakeUnreliable(Edge &e) {
-    e.is_reliable = false;
+    e.getData().is_reliable = false;
     for(Edge &edge : e.getFinish()) {
-        if(edge.is_reliable) {
-            edge.is_reliable = false;
+        if(edge.getData().is_reliable) {
+            edge.getData().is_reliable = false;
             MakeUnreliable(edge);
         }
     }
@@ -18,7 +18,7 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
         for(Vertex * vp : {&vit, &vit.rc()}) {
             Vertex &v = *vp;
             for(Edge &edge : v) {
-                edge.is_reliable = true;
+                edge.getData().is_reliable = true;
             }
         }
     }
@@ -26,7 +26,8 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
     std::unordered_map<Vertex *, size_t> max_tip;
     std::vector<Edge*> queue;
     for(Edge &edge : sdbg.edges()) {
-        if(edge.getFinish().outDeg() == 0 && edge.getFinish().inDeg() == 1 && edge.truncSize() < 15000 && edge.getCoverage() < reliable_threshold) {
+        if(edge.getFinish().outDeg() == 0 && edge.getFinish().inDeg() == 1 && edge.truncSize() < 15000 &&
+                edge.getData().getCoverage() < reliable_threshold) {
             max_tip[&edge.getFinish()] = 0;
             queue.emplace_back(&edge);
         }
@@ -53,12 +54,13 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
             max_tip[&v] = val;
             for(Edge &out : v) {
                 if(&out == best) {
-                    out.is_reliable = true;
+                    out.getData().is_reliable = true;
                 } else {
                     MakeUnreliable(out);
                 }
             }
-            if(v.inDeg() == 1 && v.rc().begin()->truncSize() < 10000 && v.rc().begin()->getCoverage() < reliable_threshold) {
+            if(v.inDeg() == 1 && v.rc().begin()->truncSize() < 10000 &&
+                    v.rc().begin()->getData().getCoverage() < reliable_threshold) {
                 queue.emplace_back(&(v.rc().begin()->rc()));
             }
         }
@@ -71,7 +73,7 @@ inline DBGGraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
     while(len < max_size) {
         Edge *next = nullptr;
         for (Edge &edge : path.finish()) {
-            if (edge.is_reliable) {
+            if (edge.getData().is_reliable) {
                 if(next != nullptr) {
                     next = nullptr;
                     break;
@@ -92,7 +94,7 @@ inline DBGGraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
 inline DBGGraphPath CorrectSuffix(const DBGGraphPath &al) {
     size_t first_unreliable = al.size();
     size_t bad_end_size = 0;
-    while(first_unreliable > 0 && !al[first_unreliable - 1].contig().is_reliable) {
+    while(first_unreliable > 0 && !al[first_unreliable - 1].contig().getData().is_reliable) {
         first_unreliable--;
         bad_end_size += al[first_unreliable].size();
     }

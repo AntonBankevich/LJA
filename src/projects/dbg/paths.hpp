@@ -178,7 +178,7 @@ template<class Graph>
 double GraphPath<Graph>::minCoverage() const {
     double res = 100000000;
     for (const Edge *edge : path) {
-        res = std::min(edge->getCoverage(), res);
+        res = std::min(edge->getData().getCoverage(), res);
     }
     return res;
 }
@@ -523,7 +523,7 @@ std::string GraphPath<Graph>::str(bool show_coverage) const {
     for(const Segment<Edge> &seg : *this) {
         ss << " " << seg.size() << "/" <<seg.contig().truncSize() << "ACGT"[seg.contig().truncSeq()[0]] ;
         if(show_coverage) {
-            ss << "(" << seg.contig().getCoverage() << ")";
+            ss << "(" << seg.contig().getData().getCoverage() << ")";
         }
         ss << " " << seg.contig().getFinish().getInnerId();
     }

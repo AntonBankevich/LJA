@@ -15,8 +15,8 @@ namespace dbg {
                 DBGGraphPath path = GraphAligner(sdbg).align(seq);
                 lens.add(path.size());
                 for (Segment<Edge> seg: path) {
-                    seg.contig().incCov(seg.size());
-                    seg.contig().rc().incCov(seg.size());
+                    seg.contig().getData().incCov(seg.size());
+                    seg.contig().rc().getData().incCov(seg.size());
                 }
             }
         };
@@ -49,7 +49,7 @@ namespace dbg {
         std::function<void(size_t, Vertex &)> task =
                 [&sdbg, &new_minimizers, &new_edges](size_t pos, Vertex &vertex) {
                     VERIFY(!vertex.getSeq().empty());
-                    for(const Sequence &hanging : vertex.getHanging()) {
+                    for(const Sequence &hanging : vertex.getData().getHanging()) {
                         Sequence seq = hanging.size() >= sdbg.hasher().getK() ? hanging.Suffix(sdbg.hasher().getK()) :
                                 (vertex.getSeq() + hanging).Suffix(sdbg.hasher().getK());
                         new_edges.emplace_back(&vertex, hanging);
@@ -77,91 +77,6 @@ namespace dbg {
         logger.info() << "Finished fixing sparse de Bruijn graph to include all hanging vertices." << std::endl;
     }
 
-    void UpdateVertexTips(Vertex &rec, ParallelRecordCollector<Vertex *> &queue) {
-        bool ok = true;
-        for (const Edge &edge: rec) {
-            if (edge.getTipSize() == size_t(-1)) {
-                edge.updateTipSize();
-            }
-            if (edge.getTipSize() == size_t(-1)) {
-                ok = false;
-            }
-        }
-        if (ok && rec.inDeg() == 1) {
-            queue.add(&(rec.rc().front().getFinish().rc()));
-        }
-    }
-
-    void findTipLengths(logging::Logger &logger, size_t threads, SparseDBG &sdbg, double threshold) {
-        std::queue<dbg::Vertex *> queue;
-        for(Vertex &v : sdbg.vertices()) {
-            if(v.outDeg() == 0) {
-                queue.push(&v);
-            }
-        }
-        while(!queue.empty()) {
-            Vertex &v = *queue.front();
-            queue.pop();
-            bool tip = true;
-            size_t longest = 0;
-            for(Edge &edge : v) {
-                if(edge.getTipSize() == 0) {
-                    tip = false;
-                    break;
-                } else {
-                    longest = std::max(longest, edge.getTipSize());
-                }
-            }
-            if(!tip)
-                continue;
-            for(Edge &edge : v.rc()) {
-                edge.setTipSize(edge.truncSize() + longest);
-            }
-        }
-    }
-
-    void findTips(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
-        logger.info() << " Finding tips " << std::endl;
-//    TODO reduce memory consumption!! A lot of duplicated k-mer storing
-        ParallelRecordCollector<Vertex *> queue(threads);
-#pragma omp parallel default(none) shared(sdbg, logger, queue)
-        {
-#pragma omp single
-            {
-                for (auto &rec: sdbg.verticesUnique()) {
-                    VERIFY_OMP(!rec.getSeq().empty());
-#pragma omp task default(none) shared(sdbg, rec, logger, queue)
-                    {
-                        UpdateVertexTips(rec, queue);
-                        UpdateVertexTips(rec.rc(), queue);
-                    }
-                }
-            }
-        }
-        logger.info() << "Found initial tips. Looking for iterative tips" << std::endl;
-        size_t cnt = 0;
-        while (!queue.empty()) {
-            logger.info() << "Iteration " << cnt << ". Queue size " << queue.size() << std::endl;
-            std::vector<Vertex *> prev_queue = queue.collectUnique();
-            queue.clear();
-#pragma omp parallel default(none) shared(sdbg, logger, prev_queue, queue)
-            {
-#pragma omp single
-                {
-                    for (auto &it: prev_queue) {
-                        Vertex &rec = *it;
-                        VERIFY_OMP(!rec.getSeq().empty());
-#pragma omp task default(none) shared(sdbg, rec, logger, queue)
-                        {
-                            UpdateVertexTips(rec, queue);
-                        }
-                    }
-                }
-            }
-        }
-        logger.info() << "Tip finding finished" << std::endl;
-    }
-
     void MergeMarkAndDetachPath(DBGGraphPath path) {
         if(path.size() == 1)
             return;
@@ -170,15 +85,15 @@ namespace dbg {
         bool self_rc = path.frontEdge() == path.backEdge().rc();
         size_t cov = 0;
         for (Edge &edge : path.edges()) {
-            cov += edge.intCov();
+            cov += edge.getData().intCov();
         }
         for(size_t i = 1; i < path.size(); i++) {
             path.getVertex(i).mark();
             path.getVertex(i).rc().mark();
         }
         Edge &new_edge = path.start().addEdgeLockFree(path.finish(), newSeq);
-        new_edge.incCov(cov - new_edge.intCov());
-        new_edge.rc().incCov(cov - new_edge.rc().intCov());
+        new_edge.getData().incCov(cov - new_edge.getData().intCov());
+        new_edge.rc().getData().incCov(cov - new_edge.rc().getData().intCov());
         if(!self_rc) {
             path.finish().rc().innerRemoveEdge(path.backEdge().rc());
         }
@@ -276,10 +191,10 @@ namespace dbg {
         for (Vertex &v: dbg.verticesUnique()) {
             os << v.hash() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
             for (const Edge &edge: v) {
-                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
+                os << size_t(edge.truncSeq()[0]) << " " << edge.getData().intCov() << std::endl;
             }
             for (const Edge &edge: v.rc()) {
-                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
+                os << size_t(edge.truncSeq()[0]) << " " << edge.getData().intCov() << std::endl;
             }
         }
 //    dbg.printCoverageStats(logger);
@@ -326,7 +241,7 @@ namespace dbg {
         return alignments_file;
     }
 
-    SparseDBG LoadDBGFromEdgeSequences(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
+    SparseDBG                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            LoadDBGFromEdgeSequences(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
         logger.info() << "Loading graph from fasta" << std::endl;
         io::SeqReader reader(lib);
         ParallelRecordCollector<Sequence> sequences(threads);

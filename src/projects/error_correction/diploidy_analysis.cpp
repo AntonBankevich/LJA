@@ -25,11 +25,11 @@ dbg::Vertex &BulgePath::getVertex(size_t ind) const {
 void BulgePath::extend(double threshold) {
     dbg::Vertex &last = finish();
     size_t deg = last.outDeg();
-    if(last.front().getCoverage() > threshold && last.back().getCoverage() > threshold)
+    if(last.front().getData().getCoverage() > threshold && last.back().getData().getCoverage() > threshold)
         path.emplace_back(&last.front(), &last.back());
     else {
         for(dbg::Edge &edge: last) {
-            if(edge.getCoverage() > threshold) {
+            if(edge.getData().getCoverage() > threshold) {
                 path.emplace_back(&edge, &edge);
                 return;
             }
@@ -126,7 +126,7 @@ DBGGraphPath BulgePath::randomPath() const {
 bool BulgePathFinder::checkVertexForward(const dbg::Vertex &v) {
     size_t cnt = 0;
     for(dbg::Edge &edge : v) {
-        if(edge.getCoverage() > threshold)
+        if(edge.getData().getCoverage() > threshold)
             cnt++;
     }
     if(cnt > 1 && cnt != v.outDeg())
@@ -192,7 +192,7 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
             dbg::Edge &edge = *bp[0].first;
             if(edge.truncSize() > min_len || (
                     (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0) &&
-                            edge.truncSize() > min_len / 3 && edge.getCoverage() > 4)) {
+                            edge.truncSize() > min_len / 3 && edge.getData().getCoverage() > 4)) {
                 res.emplace_back(&edge);
             }
         } else {

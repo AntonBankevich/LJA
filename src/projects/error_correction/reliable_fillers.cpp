@@ -7,16 +7,16 @@
 
 size_t AbstractReliableFillingAlgorithm::ReFill(dbg::SparseDBG &dbg) {
     for(dbg::Edge &edge : dbg.edges()) {
-        edge.is_reliable = false;
-        edge.mark(dbg::EdgeMarker::common);
+        edge.getData().is_reliable = false;
+        edge.getData().mark(dbg::EdgeMarker::common);
     }
     return Fill(dbg);
 }
 
 size_t AbstractReliableFillingAlgorithm::LoggedReFill(logging::Logger &logger, dbg::SparseDBG &dbg) {
     for(dbg::Edge &edge : dbg.edges()) {
-        edge.is_reliable = false;
-        edge.mark(dbg::EdgeMarker::common);
+        edge.getData().is_reliable = false;
+        edge.getData().mark(dbg::EdgeMarker::common);
     }
     return LoggedFill(logger, dbg);
 }
@@ -47,9 +47,9 @@ size_t CompositeReliableFiller::Fill(dbg::SparseDBG &dbg) {
 size_t CoverageReliableFiller::Fill(dbg::SparseDBG &sdbg) {
     size_t cnt = 0;
     for(dbg::Edge &edge : sdbg.edgesUnique()) {
-        if(!edge.is_reliable && edge.getCoverage() >= threshold) {
-            edge.is_reliable = true;
-            edge.rc().is_reliable = true;
+        if(!edge.getData().is_reliable && edge.getData().getCoverage() >= threshold) {
+            edge.getData().is_reliable = true;
+            edge.rc().getData().is_reliable = true;
             cnt++;
         }
     }
@@ -59,14 +59,14 @@ size_t CoverageReliableFiller::Fill(dbg::SparseDBG &sdbg) {
 size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
     size_t cnt = 0;
     for(dbg::Edge &edge : dbg.edgesUnique()) {
-        if(edge.getCoverage() < min_rel_cov)
+        if(edge.getData().getCoverage() < min_rel_cov)
             continue;
         DBGGraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
         if(al.len() < min_length)
             continue;
         for(Segment<dbg::Edge> seg : al) {
-            if(!seg.contig().is_reliable) {
-                seg.contig().is_reliable = true;
+            if(!seg.contig().getData().is_reliable) {
+                seg.contig().getData().is_reliable = true;
                 cnt++;
             }
         }
@@ -85,7 +85,7 @@ std::vector<dbg::Edge *> BridgeReliableFiller::bridges(dbg::Edge &start) {
         dbg::Edge &next = *stack.back().first;
         size_t dist = stack.back().second;
         stack.pop_back();
-        if(!stack.empty() && (next.is_reliable || (dist >= max_length && dist != size_t(-1)))) { //We stop on reliable edges and long paths except on the first step of DFS
+        if(!stack.empty() && (next.getData().is_reliable || (dist >= max_length && dist != size_t(-1)))) { //We stop on reliable edges and long paths except on the first step of DFS
             if(reachable_open == size_t(-1))
                 reachable_open = open_close.size();
             reachable_close = closed.size();
@@ -119,7 +119,7 @@ std::vector<dbg::Edge *> BridgeReliableFiller::bridges(dbg::Edge &start) {
         dbg::Edge &candidate = *closed[i];
         if(reachable.find(&candidate) != reachable.end() && latest >= i &&
            reachable_open > open_close[&candidate].first && reachable_close <= open_close[&candidate].second) {
-            if(candidate.is_reliable) {
+            if(candidate.getData().is_reliable) {
                 VERIFY(candidate == start);
             } else {
                 result.emplace_back(&candidate);
@@ -138,20 +138,20 @@ size_t BridgeReliableFiller::Fill(dbg::SparseDBG &dbg) {
     size_t marked = 0;
     std::queue<dbg::Edge *> queue;
     for(dbg::Edge &edge : dbg.edges()) {
-        if(edge.is_reliable) {
+        if(edge.getData().is_reliable) {
             queue.push(&edge);
         }
     }
     while(!queue.empty()) {
         dbg::Edge &edge = *queue.front();
         queue.pop();
-        VERIFY(edge.is_reliable);
+        VERIFY(edge.getData().is_reliable);
         std::vector<dbg::Edge *> new_reliable = bridges(edge);
         marked += new_reliable.size();
         for(dbg::Edge * new_rel : new_reliable) {
 //            VERIFY(!new_rel->is_reliable);
-            new_rel->is_reliable = true;
-            new_rel->rc().is_reliable = true;
+            new_rel->getData().is_reliable = true;
+            new_rel->rc().getData().is_reliable = true;
             queue.push(new_rel);
             queue.push(&new_rel->rc());
         }
@@ -163,7 +163,7 @@ dbg::Edge *ConnectionReliableFiller::checkBorder(dbg::Vertex &v) {
     dbg::Edge * res = nullptr;
     size_t out_rel = 0;
     for(dbg::Edge &edge : v.rc()) {
-        if(edge.is_reliable) {
+        if(edge.getData().is_reliable) {
             if (res == nullptr)
                 res = &edge.rc();
 //            else
@@ -171,7 +171,7 @@ dbg::Edge *ConnectionReliableFiller::checkBorder(dbg::Vertex &v) {
         }
     }
     for(dbg::Edge &edge : v) {
-        if(edge.is_reliable)
+        if(edge.getData().is_reliable)
             out_rel += 1;
     }
     if(out_rel == 0)
@@ -184,11 +184,11 @@ bool ConnectionReliableFiller::checkInner(dbg::Vertex &v) {
     size_t inc_rel = 0;
     size_t out_rel = 0;
     for(dbg::Edge &edge : v.rc()) {
-        if(edge.is_reliable)
+        if(edge.getData().is_reliable)
             inc_rel += 1;
     }
     for(dbg::Edge &edge : v) {
-        if(edge.is_reliable)
+        if(edge.getData().is_reliable)
             out_rel += 1;
     }
     return out_rel >= 1 && inc_rel >= 1;
@@ -231,7 +231,7 @@ size_t ConnectionReliableFiller::Fill(dbg::SparseDBG &dbg) {
                 break;
             } else {
                 for(dbg::Edge &edge : next->getFinish()) {
-                    double score = edge.truncSize() / std::max<double>(std::min(edge.getCoverage(), threshold), 1);
+                    double score = edge.truncSize() / std::max<double>(std::min(edge.getData().getCoverage(), threshold), 1);
                     queue.emplace(dist + score, &edge);
                 }
             }
@@ -239,9 +239,9 @@ size_t ConnectionReliableFiller::Fill(dbg::SparseDBG &dbg) {
     }
     size_t cnt = 0;
     for(dbg::Edge *edge : new_reliable) {
-        if(!edge->is_reliable) {
-            edge->is_reliable = true;
-            edge->rc().is_reliable = true;
+        if(!edge->getData().is_reliable) {
+            edge->getData().is_reliable = true;
+            edge->rc().getData().is_reliable = true;
             cnt++;
         }
     }

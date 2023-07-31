@@ -74,7 +74,7 @@ public:
 std::vector<const dbg::Edge *> GetOutgoing(const dbg::Vertex &start, double min_cov) {
     std::vector<const dbg::Edge *> res;
     for(const dbg::Edge &edge : start) {
-        if(edge.getCoverage() >= min_cov)
+        if(edge.getData().getCoverage() >= min_cov)
             res.emplace_back(&edge);
     }
     return std::move(res);
@@ -98,7 +98,7 @@ const dbg::Edge *SeekCovered(const dbg::Vertex &start, double min_cov) {
     size_t max_steps = 20;
     for(size_t i = 0; i < max_steps; i++) {
         for(const dbg::Edge &edge : *tmp) {
-            if (edge.getCoverage() >= min_cov)
+            if (edge.getData().getCoverage() >= min_cov)
                 return &edge;
         }
         for(const dbg::Edge &edge : *tmp) {
@@ -116,8 +116,8 @@ DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const RecordSto
     for(dbg::Vertex &v : dbg.vertices()) {
         if(v.inDeg() != 1 || v.outDeg() != 2)
             continue;
-        double min_cov= std::min(v.front().getCoverage(), v.back().getCoverage());
-        if(min_cov < 4 || min_cov * 10 < v.rc().front().getCoverage())
+        double min_cov= std::min(v.front().getData().getCoverage(), v.back().getData().getCoverage());
+        if(min_cov < 4 || min_cov * 10 < v.rc().front().getData().getCoverage())
             continue;
         observations.emplace_back(size_t(min_cov));
     }

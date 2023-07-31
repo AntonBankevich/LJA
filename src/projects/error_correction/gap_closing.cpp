@@ -18,7 +18,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
     size_t k = dbg.hasher().getK();
     std::vector<dbg::Edge *> tips;
     for (dbg::Edge &edge : dbg.edges()) {
-        if (edge.truncSize() > min_overlap && edge.getCoverage() > 2 && edge.getFinish().outDeg() == 0 &&
+        if (edge.truncSize() > min_overlap && edge.getData().getCoverage() > 2 && edge.getFinish().outDeg() == 0 &&
                 edge.getFinish().inDeg() == 1)
             tips.emplace_back(&edge);
     }
@@ -123,11 +123,11 @@ void processVertex(dbg::SparseDBG &dbg, const Sequence &seq) {
     dbg::Vertex &v1 = dbg.getVertex(kwh);
     for(dbg::Edge &edge : v1) {
         if(edge.truncSeq()[0] != seq[k]) {
-            edge.is_reliable = false;
-            edge.rc().is_reliable = false;
+            edge.getData().is_reliable = false;
+            edge.rc().getData().is_reliable = false;
         } else {
-            edge.is_reliable = true;
-            edge.rc().is_reliable = true;
+            edge.getData().is_reliable = true;
+            edge.rc().getData().is_reliable = true;
         }
     }
 }
@@ -135,7 +135,7 @@ void processVertex(dbg::SparseDBG &dbg, const Sequence &seq) {
 void MarkUnreliableTips(dbg::SparseDBG &dbg, const std::vector<Connection> &patches) {
     size_t k = dbg.hasher().getK();
     for(dbg::Edge &edge : dbg.edges()) {
-        edge.is_reliable = edge.getCoverage() >= 2;
+        edge.getData().is_reliable = edge.getData().getCoverage() >= 2;
     }
     for(const Connection &connection : patches) {
         processVertex(dbg, connection.connection);

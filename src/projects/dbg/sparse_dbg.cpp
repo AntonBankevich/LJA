@@ -5,52 +5,13 @@ bool IsMarkerCorrect(EdgeMarker marker) {
     return marker == EdgeMarker::correct || marker == EdgeMarker::unique || marker == EdgeMarker::repeat;
 }
 
-size_t Edge::updateTipSize() const {
-    size_t new_val = 0;
-    if(extraInfo == size_t(-1) && finish->inDeg() == 1) {
-        for (const Edge & other : *finish) {
-            other.finish->lock();
-            new_val = std::max(new_val, other.extraInfo);
-            other.finish->unlock();
-        }
-        if(new_val != size_t(-1))
-            new_val += truncSize();
-        finish->lock();
-        extraInfo = new_val;
-        finish->unlock();
-    }
-    return new_val;
-}
-
 Edge &Edge::rc() const {
     VERIFY(!getStart().getSeq().empty());
     return *_rc;
 }
 
-size_t Edge::getTipSize() const {
-    return extraInfo;
-}
-
-void Edge::setTipSize(size_t val) const {
-    extraInfo = val;
-}
-
 size_t Edge::truncSize() const {
     return truncSeq().size();
-}
-
-double Edge::getCoverage() const {
-    VERIFY(truncSize() != 0);
-    return double(cov) / truncSize();
-}
-
-size_t Edge::intCov() const {
-    return cov;
-}
-
-void Edge::incCov(size_t val) const {
-#pragma omp atomic
-    cov += val;
 }
 
 bool Edge::operator==(const Edge &other) const {
@@ -153,26 +114,12 @@ void Edge::DeleteEdgeLockFree(Edge &edge) {
 //    return os;
 //}
 
-Vertex::Vertex(hashing::htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false) {
+Vertex::Vertex(hashing::htype hash, Vertex *_rc) : hash_(hash), rc_(_rc), canonical(false), data(*this) {
     omp_init_lock(&writelock);
 }
 
 bool Vertex::isCanonical() const {
     return canonical;
-}
-
-size_t Vertex::coverage() const {
-    return coverage_;
-}
-
-bool Vertex::isCanonical(const Edge &edge) const {
-    const Vertex &other = edge.getFinish().rc();
-    if(hash() != other.hash())
-        return hash() < other.hash();
-    if (isCanonical() != other.isCanonical())
-        return isCanonical();
-    const Edge &rc_edge = edge.rc();
-    return edge.truncSeq() <= rc_edge.truncSeq();
 }
 
 void Vertex::checkConsistency() const {
@@ -204,13 +151,6 @@ std::string Vertex::getShortId() const {
     return ss.str();
 }
 
-void Vertex::incCoverage() {
-#pragma omp atomic update
-    coverage_ += 1;
-#pragma omp atomic update
-    rc().coverage_ += 1;
-}
-
 void Vertex::setSeq(Sequence _seq) {
     lock();
     if (getSeq().empty()) {
@@ -225,28 +165,6 @@ void Vertex::setSeq(Sequence _seq) {
 }
 
 //}
-
-void Vertex::addSequence(const Sequence &new_seq) {
-    lock();
-    for (Edge &edge : outgoing_) {
-        if (new_seq.size() < edge.truncSize() && edge.truncSeq().Subseq(new_seq.size()) == new_seq) {
-            unlock();
-            return;
-        }
-    }
-    for (Sequence &out : hanging) {
-        if (new_seq.size() > out.size() && new_seq.Subseq(0, out.size())== out) {
-            out = new_seq;
-            unlock();
-            return;
-        } else if(new_seq.size() <= out.size() && out.Subseq(0, new_seq.size())== new_seq) {
-            unlock();
-            return;
-        }
-    }
-    hanging.emplace_back(new_seq);
-    unlock();
-}
 
 //void Vertex::clearSequence() {
 //    if (!seq.empty()) {
@@ -275,12 +193,7 @@ Edge &Vertex::innerAddEdge(Vertex &end, const Sequence &full_sequence) {
     outgoing_.emplace_back(*this, end, full_sequence.Subseq(size()));
     Edge &edge = outgoing_.back();
     _outDeg++;
-    for(auto it = hanging.begin(); it != hanging.end(); ++it) {
-        if(it->size() <= edge.truncSize() && edge.truncSeq().Subseq(0, it->size()) == *it) {
-            hanging.erase(it);
-            break;
-        }
-    }
+    data.fireAddEdge(edge);
     return edge;
 }
 
@@ -347,16 +260,12 @@ bool Vertex::operator>(const Vertex &other) const {
 //TODO: create method deleteEdge and do this properly
 void Vertex::clear() {
     outgoing_.clear();
-    hanging.clear();
+    data.clear();
     _outDeg = 0;
 }
 
-void Vertex::clearOutgoing() {
-    outgoing_.clear();
-    _outDeg = 0;
-}
 
-Vertex::Vertex(hashing::htype hash) : hash_(hash), rc_(new Vertex(hash, this)), canonical(true) {
+Vertex::Vertex(hashing::htype hash) : hash_(hash), rc_(new Vertex(hash, this)), canonical(true), data(*this) {
     omp_init_lock(&writelock);
 }
 
@@ -619,7 +528,10 @@ Vertex &SparseDBG::getVertex(const Vertex &other_graph_vertex) {
 
 std::array<Vertex *, 2> SparseDBG::getVertices(hashing::htype hash) {
     Vertex &res = v.find(hash)->second;
-    return {&res, &res.rc()};
+    if(res != res.rc())
+        return {&res, &res.rc()};
+    else
+        return {&res};
 }
 
 void SparseDBG::fillAnchors(size_t w, logging::Logger &logger, size_t threads) {
@@ -721,7 +633,6 @@ void SparseDBG::processRead(const Sequence &seq) {
         vertices.emplace_back(&getVertex(kmers[i]));
         if (i == 0 || vertices[i] != vertices[i - 1]) {
             vertices.back()->setSeq(kmers[i].getSeq().copy());
-            vertices.back()->incCoverage();
         }
     }
     for (size_t i = 0; i + 1 < vertices.size(); i++) {
@@ -737,10 +648,10 @@ void SparseDBG::processRead(const Sequence &seq) {
                                                                                     hasher_.getK()).str()));
     }
     if (kmers.front().pos > 0) {
-        vertices.front()->rc().addSequence(!(seq.Subseq(0, kmers[0].pos)));
+        vertices.front()->rc().getData().addOutgoingSequence(!(seq.Subseq(0, kmers[0].pos)));
     }
     if (kmers.back().pos + hasher_.getK() < seq.size()) {
-        vertices.back()->addSequence(seq.Subseq(kmers.back().pos + hasher_.getK(), seq.size()));
+        vertices.back()->getData().addOutgoingSequence(seq.Subseq(kmers.back().pos + hasher_.getK(), seq.size()));
     }
 }
 
@@ -836,7 +747,7 @@ void SparseDBG::removeMarked() {
 
 void SparseDBG::resetMarkers() {
     for(dbg::Edge &edge: edges()) {
-        edge.mark(dbg::EdgeMarker::common);
+        edge.getData().mark(dbg::EdgeMarker::common);
     }
     for(dbg::Vertex &vertex : vertices()) {
         vertex.unmark();
@@ -862,5 +773,38 @@ std::vector<EdgePosition> EdgePosition::step() const {
         return std::move(res);
     } else {
         return {{*edge, pos + 1}};
+    }
+}
+
+double EdgeData::getCoverage() const {return double(cov) / edge->truncSize();}
+
+void VertexData::addOutgoingSequence(const Sequence &new_seq) {
+    vertex->lock();
+    for (Edge &edge : *vertex) {
+        if (new_seq.size() < edge.truncSize() && edge.truncSeq().Subseq(new_seq.size()) == new_seq) {
+            vertex->unlock();
+            return;
+        }
+    }
+    for (Sequence &out : hanging) {
+        if (new_seq.size() > out.size() && new_seq.Subseq(0, out.size())== out) {
+            out = new_seq;
+            vertex->unlock();
+            return;
+        } else if(new_seq.size() <= out.size() && out.Subseq(0, new_seq.size())== new_seq) {
+            vertex->unlock();
+            return;
+        }
+    }
+    hanging.emplace_back(new_seq);
+    vertex->unlock();
+}
+
+void VertexData::fireAddEdge(Edge &edge) {
+    for(auto it = hanging.begin(); it != hanging.end(); ++it) {
+        if(it->size() <= edge.truncSize() && edge.truncSeq().Subseq(0, it->size()) == *it) {
+            hanging.erase(it);
+            break;
+        }
     }
 }

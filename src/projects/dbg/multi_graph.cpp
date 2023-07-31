@@ -682,4 +682,8 @@ namespace multigraph {
             return false;
         }
     }
+
+    double EdgeData::getCoverage() const {
+        return double(cov) / edge->truncSize();
+    }
 }

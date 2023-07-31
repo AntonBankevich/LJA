@@ -32,9 +32,27 @@ namespace dbg {
 
     bool IsMarkerCorrect(EdgeMarker marker);
 
-    class Vertex;
-
     class SparseDBG;
+    class Vertex;
+    class Edge;
+
+//    TODO: this class should be constructed as a mixture of multiple classes each representing possible piece of informations
+//that is to be stored in the edge. Corresponding information should be able to support itself during various graph
+//operations.
+    class EdgeData {
+    private:
+        Edge *edge;
+        size_t cov = 0;
+        EdgeMarker marker = EdgeMarker::common;
+    public:
+        explicit EdgeData(Edge &edge) : edge(&edge) {}
+        bool is_reliable = false;
+        void incCov(int delta) {cov += delta;}
+        size_t intCov() const {return cov;}
+        double getCoverage() const;
+        void mark(EdgeMarker _marker) { marker = _marker; };
+        EdgeMarker getMarker() const { return marker; };
+    };
 
     class Edge {
     private:
@@ -42,92 +60,70 @@ namespace dbg {
         Vertex *finish;
         Sequence seq;
         Edge *_rc;
-        mutable size_t cov;
-        mutable EdgeMarker marker = EdgeMarker::common;
+        mutable EdgeData data;
 
         friend class dbg::Vertex;
 
     public:
-        typedef int id_type;
-        mutable size_t extraInfo;//TODO remove
-        bool is_reliable = false;
+        typedef std::string id_type;
         friend class Vertex;
 
 
         Edge(Vertex &_start, Vertex &_end, Sequence _seq) :
-                start(&_start), finish(&_end), cov(0), extraInfo(-1), seq(std::move(_seq)), _rc(nullptr) {
+                start(&_start), finish(&_end), seq(std::move(_seq)), _rc(nullptr), data(*this) {
         }
+        Edge() : start(nullptr), finish(nullptr), seq(), data(*this) {}
+
+        bool isCanonical() const {return *this <= rc();}
+
+        EdgeData &getData() const {return data;}
+
+        id_type getInnerId() const;
+        std::string oldId() const;
+        std::string getShortId() const;
+        std::string str() const;
 
         Sequence getSeq() const;
         const Sequence &truncSeq() const { return seq; }
+        Sequence firstNucl() const;
+        Sequence kmerSeq(size_t pos) const {return fullSubseq(pos, pos);}
+        Sequence fullSubseq(size_t from, size_t to) const;
+        Sequence suffix(size_t pos) const;
         size_t getStartSize() const;
-        bool isCanonical() const {return *this <= rc();}
-
-
-        Edge() : start(nullptr), finish(nullptr), cov(0), extraInfo(-1), seq() {}
-//        This method should only be invoked if no graph modification is performed in parallel or if both start and
-//        rc end vertices are locked by this process or otherwise prevented from modification by other processes
-        static void DeleteEdgeLockFree(Edge &edge);
-
-        static void DeleteEdge(Edge &edge);
-
-        std::string getInnerId() const;
-
-        std::string oldId() const;
-
-        std::string getShortId() const;
-
-        EdgeMarker getMarker() const { return marker; };
-
-        bool checkCorrect() const { return IsMarkerCorrect(marker); }
+        size_t truncSize() const;
 
         const Vertex &getFinish() const {return *finish;}
         Vertex &getFinish() {return *finish;}
         const Vertex &getStart() const {return *start;}
         Vertex &getStart() {return *start;}
-
-        size_t getTipSize() const;
-
-        void setTipSize(size_t val) const;
-
-        size_t updateTipSize() const;
-
-        size_t truncSize() const;
-
-        double getCoverage() const;
-
-        size_t intCov() const;
-
         Edge &rc() const;
 
-        Sequence firstNucl() const;
-
-        Sequence kmerSeq(size_t pos) const {return fullSubseq(pos, pos);}
-
-        Sequence fullSubseq(size_t from, size_t to) const;
-
-        Sequence suffix(size_t pos) const;
-
-        std::string str() const;
+        //        This method should only be invoked if no graph modification is performed in parallel or if both start and
+//        rc end vertices are locked by this process or otherwise prevented from modification by other processes
+        static void DeleteEdgeLockFree(Edge &edge);
+        static void DeleteEdge(Edge &edge);
 
         bool operator==(const Edge &other) const;
-
         bool operator!=(const Edge &other) const;
-
         bool operator<(const Edge &other) const;
-
         bool operator>(const Edge &other) const;
-
         bool operator<=(const Edge &other) const;
-
-        void incCov(size_t val) const;
-
-        void mark(EdgeMarker _marker) const { marker = _marker; };
     };
 
 //    std::ostream& operator<<(std::ostream& os, const Edge& edge);
 
 
+    class VertexData {
+    private:
+        Vertex *vertex;
+        std::list<Sequence> hanging{};
+    public:
+        VertexData(Vertex &vertex) : vertex(&vertex) {}
+        const std::list<Sequence> &getHanging() const {return hanging;}
+        void addOutgoingSequence(const Sequence &edge_seq);
+        void fireAddEdge(Edge &edge);
+        void clear() {hanging.clear();}
+    };
 
     class Vertex {
     private:
@@ -136,11 +132,9 @@ namespace dbg {
 
         mutable std::list<Edge> outgoing_{};
         size_t _outDeg = 0;
-        std::list<Sequence> hanging{};
         Vertex *rc_;
         hashing::htype hash_;
         omp_lock_t writelock = {};
-        size_t coverage_ = 0;
         bool canonical = false;
         bool mark_ = false;
 
@@ -148,25 +142,31 @@ namespace dbg {
         Edge &innerAddEdge(Vertex &end, const Sequence &full_sequence);
 
         Sequence seq;
+        mutable VertexData data;
 
     public:
-
         explicit Vertex(hashing::htype hash = 0);
-
         Vertex(const Vertex &) = delete;
 
         ~Vertex();
 
+        std::string getInnerId() const;
+        std::string oldId() const;
+        std::string getShortId() const;
+
+        void lock() { omp_set_lock(&writelock); }
+        void unlock() { omp_unset_lock(&writelock); }
+
+        VertexData &getData() const {return data;}
+        bool isCanonical() const;
+
         void mark() { mark_ = true; }
-
         void unmark() { mark_ = false; }
-
         bool marked() const { return mark_; }
 
         hashing::htype hash() const { return hash_; }
 
         Vertex &rc() { return *rc_; }
-
         const Vertex &rc() const { return *rc_; }
 
         void setSeq(Sequence _seq);
@@ -175,60 +175,20 @@ namespace dbg {
 
         const Sequence &getSeq() const { return seq; }
 
-        const std::list<Sequence> &getHanging() const {return hanging;}
-
-//        void clearSequence();
-        void lock() { omp_set_lock(&writelock); }
-
-        void unlock() { omp_unset_lock(&writelock); }
-
         std::list<Edge>::iterator begin() const { return outgoing_.begin(); }
-
         std::list<Edge>::iterator end() const { return outgoing_.end(); }
-
-        size_t outDeg() const { return _outDeg; }
-
-        size_t inDeg() const { return rc_->outgoing_.size(); }
-
         Edge &front() const { return outgoing_.front(); }
-
         Edge &back() const { return outgoing_.back(); }
-//        Edge &operator[](size_t ind) const {
-//            if(ind == outgoing_.size() - 1)
-//                return outgoing_.back();
-//            auto it = outgoing_.begin();
-//            for(size_t i = 0; i < ind; i++){
-//                ++it;
-//            }
-//            return *it;
-//        }
-
-
-        size_t coverage() const;
-
-        bool isCanonical() const;
-
-        bool isCanonical(const Edge &edge) const;
-
-        void clear();
-
-        void clearOutgoing();
-
         void sortOutgoing();
 
+        Edge &getOutgoing(unsigned char c) const;
+        bool hasOutgoing(unsigned char c) const;
+
+        size_t outDeg() const { return _outDeg; }
+        size_t inDeg() const { return rc_->outgoing_.size(); }
+        bool isJunction() const;
+
         void checkConsistency() const;
-
-        std::string getInnerId() const;
-
-        std::string oldId() const;
-
-        std::string getShortId() const;
-
-        void incCoverage();
-
-//        Edge &addEdgeLockFree(const Edge &edge);
-//
-//        Edge &addEdge(const Edge &e);
 
 //        This method should only be invoked if no graph modification is performed in parallel or if both start and
 //        rc end vertices are locked by this process or otherwise prevented from modification by other processes
@@ -238,23 +198,12 @@ namespace dbg {
 //        This method removes one edge in a pair of rc edges. When a thread invokes this method no other thread should
 //        try to access rc() method in the rc edge.
         void innerRemoveEdge(Edge &edge);
-
-        void addSequence(const Sequence &edge_seq);
-
-        Edge &getOutgoing(unsigned char c) const;
-
-        bool hasOutgoing(unsigned char c) const;
-
-        bool isJunction() const;
+        void clear();
 
         bool operator==(const Vertex &other) const;
-
         bool operator!=(const Vertex &other) const;
-
         bool operator<(const Vertex &other) const;
-
         bool operator>(const Vertex &other) const;
-
     };
 
     class VertexLocker {

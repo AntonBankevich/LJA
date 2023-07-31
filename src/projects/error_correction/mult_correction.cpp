@@ -193,9 +193,9 @@ inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(l
         bool operator()(Edge* a, Edge* b) const {
             if(a == b)
                 return false;
-            if((a->truncSize() < 10000 && a->getCoverage() < 3) || (b->truncSize() < 10000 && b->getCoverage() < 3)) {
-                if(a->intCov() * b->truncSize() != b->intCov() * a->truncSize())
-                    return a->intCov() * b->truncSize() > b->intCov() * a->truncSize();
+            if((a->truncSize() < 10000 && a->getData().getCoverage() < 3) || (b->truncSize() < 10000 && b->getData().getCoverage() < 3)) {
+                if(a->getData().intCov() * b->truncSize() != b->getData().intCov() * a->truncSize())
+                    return a->getData().intCov() * b->truncSize() > b->getData().intCov() * a->truncSize();
             } else if(a->truncSize() != b->truncSize())
                 return a->truncSize() > b->truncSize();
             return *a < *b;
@@ -305,7 +305,7 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     logger.info() << "Removed " << bad_edges.size() / 2 << " disconnected edges"<< std::endl;
     std::ofstream brs;
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
-        return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
+        return edge.getData().getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
     reads_storage.delayedInvalidateBad(logger, threads, is_bad, "after_mult");
     reads_storage.applyCorrections(logger, threads);
@@ -335,7 +335,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
                         }
                     }
                     res.addUnique(edge);
-                    logger.trace() << "Found extra unique getEdge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getCoverage() << std::endl;
+                    logger.trace() << "Found extra unique getEdge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getData().getCoverage() << std::endl;
                     break;
                 }
             }
@@ -355,7 +355,7 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
             return "black";
         if(uniquenessStorage.isError(edge))
             return "red";
-        if(!edge.is_reliable)
+        if(!edge.getData().is_reliable)
             return "orange";
         return "blue";
     };

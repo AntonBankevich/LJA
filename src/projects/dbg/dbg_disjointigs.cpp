@@ -8,18 +8,18 @@ Sequence buildDisjointig(DBGGraphPath &path) {
     const Vertex &last = path.finish().rc();
     const Edge &lastEdge = path.backEdge().rc();
     size_t k = path.start().size();
-    if(path.frontEdge().intCov() + lastEdge.intCov() + k >= disjointig.size())
+    if(path.frontEdge().getData().intCov() + lastEdge.getData().intCov() + k >= disjointig.size())
         return Sequence{};
-    disjointig = disjointig.Subseq(path.frontEdge().intCov(), disjointig.size() - lastEdge.intCov());
+    disjointig = disjointig.Subseq(path.frontEdge().getData().intCov(), disjointig.size() - lastEdge.getData().intCov());
     if (path.start().inDeg() > 1 && path.start().outDeg() == 1) {
-        VERIFY(path.frontEdge().intCov() == 0);
+        VERIFY(path.frontEdge().getData().intCov() == 0);
         const Edge& extra = *path.start().rc().begin();
-        disjointig = !(extra.truncSeq().Subseq(0, extra.intCov())) + disjointig;
+        disjointig = !(extra.truncSeq().Subseq(0, extra.getData().intCov())) + disjointig;
     }
     if(last.inDeg() > 1 && last.outDeg() == 1) {
-        VERIFY(lastEdge.intCov() == 0);
+        VERIFY(lastEdge.getData().intCov() == 0);
         const Edge& extra = *last.rc().begin();
-        disjointig = disjointig + extra.truncSeq().Subseq(0, extra.intCov());
+        disjointig = disjointig + extra.truncSeq().Subseq(0, extra.getData().intCov());
     }
     return disjointig;
 }
@@ -46,9 +46,9 @@ void prepareVertex(Vertex &vertex) {
     Edge *prev = nullptr;
     for(Edge &edge : vertex) {
         if(prev != nullptr) {
-            edge.incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
+            edge.getData().incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
             if (*prev == vertex.front()) {
-                prev->incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
+                prev->getData().incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
             }
         }
         prev = &edge;
@@ -74,11 +74,11 @@ void extractLinearDisjointigs(SparseDBG &sdbg, ParallelRecordCollector<Sequence>
                         Sequence disjointig  = vertex.getSeq();
                         if (vertex.inDeg() > 0) {
                             Edge &e1 = vertex.rc().front();
-                            disjointig = !(e1.truncSeq().Subseq(0, e1.intCov())) + disjointig;
+                            disjointig = !(e1.truncSeq().Subseq(0, e1.getData().intCov())) + disjointig;
                         }
                         if (vertex.outDeg() > 0) {
                             Edge &e2 = vertex.front();
-                            disjointig = disjointig + e2.truncSeq().Subseq(0, e2.intCov());
+                            disjointig = disjointig + e2.truncSeq().Subseq(0, e2.getData().intCov());
                         }
                         if(res.size() > vertex.size() || vertex.inDeg() > 0 || vertex.outDeg() > 0)
                             res.add(disjointig.copy());

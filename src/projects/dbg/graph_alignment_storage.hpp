@@ -205,7 +205,7 @@ void RecordStorage::fill(I begin, I end, dbg::SparseDBG &dbg, size_t min_read_si
     if (track_cov) {
         logger.info() << "Cleaning edge coverages" << std::endl;
         for(dbg::Edge & edge: dbg.edges()) {
-            edge.incCov(-edge.intCov());
+            edge.getData().incCov(-edge.getData().intCov());
         }
     }
     logger.info() << "Collecting alignments of sequences to the graph" << std::endl;
