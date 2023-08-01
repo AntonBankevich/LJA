@@ -129,15 +129,25 @@ std::pair<size_t, size_t> FromToLen(const std::vector<cigar_pair> &cigar) {
     return {from_len, to_len};
 }
 
-std::vector<cigar_pair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq, int end_bonus = 0) {
+std::vector<cigar_pair> defaultAlignExtension(const Sequence &from_seq, const Sequence &to_seq) {
     KSWAligner kswAligner(1, 5, 5, 3);
-    return kswAligner.iterativeBandAlign(to_seq.str(), from_seq.str(), 5, 100, 0.01, end_bonus);
+    return kswAligner.iterativeBandExtend(to_seq.str(), from_seq.str(), 5, 100);
 }
 
-size_t Score(const Sequence &from_seq, const Sequence &to_seq, const std::vector<std::pair<size_t, size_t>> &to_ignore, int end_bonus = 0) {
-    std::vector<cigar_pair> cigar = defaultAlign(from_seq, to_seq, end_bonus);
-    return Score(cigar, from_seq, to_seq, to_ignore);
+std::vector<cigar_pair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq, bool extension = false) {
+    if(extension) {
+        return defaultAlignExtension(from_seq, to_seq);
+    } else {
+        KSWAligner kswAligner(1, 5, 5, 3);
+        return kswAligner.iterativeBandAlign(to_seq.str(), from_seq.str(), 5, 100);
+    }
 }
+
+//size_t Score(const Sequence &from_seq, const Sequence &to_seq, const std::vector<std::pair<size_t, size_t>> &to_ignore, bool extension = false) {
+//    std::vector<cigar_pair> cigar = defaultAlign(from_seq, to_seq, extension);
+//    return Score(cigar, from_seq, to_seq, to_ignore);
+//}
+
 
 std::vector<std::pair<size_t, size_t>> Mark(const Sequence &seq) {
     size_t w = 20;
@@ -167,9 +177,11 @@ std::vector<std::pair<size_t, size_t>> Mark(const Sequence &seq) {
     return std::move(res);
 }
 
-std::pair<size_t, size_t> Score2(const Sequence &read, const Sequence &p1, const Sequence &p2, int end_bonus = 0) {
+std::pair<size_t, size_t> Score2(const Sequence &read, const Sequence &p1, const Sequence &p2) {
     std::vector<std::pair<size_t, size_t>> to_ignore = Mark(read);
-    return {Score(read, p1, to_ignore, end_bonus), Score(read, p2, to_ignore, end_bonus)};
+    std::vector<cigar_pair> cigar1 = defaultAlign(read, p1);
+    std::vector<cigar_pair> cigar2 = defaultAlign(read, p2);
+    return {Score(cigar1, read, p1, to_ignore), Score(cigar2, read, p2, to_ignore)};
 }
 
 std::string CigarToString(const std::vector<cigar_pair> &cigar) {
@@ -471,14 +483,14 @@ cigarToAlignmentString(const Sequence &from_seq, const Sequence &to_seq, std::ve
     return res;
 }
 
-void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq, int end_bonus = 0) {
-    std::vector<cigar_pair> cigar = defaultAlign(from_seq, to_seq, end_bonus);
-    std::vector<std::pair<size_t, size_t>> to_ignore = Mark(from_seq);
-    std::cout << CigarToString(cigar) << std::endl;
-    std::cout << Score(cigar, from_seq, to_seq, to_ignore) << " " << Score(cigar, from_seq, to_seq, {}) << std::endl;
-    std::vector<string> res = cigarToAlignmentString(from_seq, to_seq, cigar, to_ignore);
-    std::cout << res[0] << "\n" << res[1] << "\n" << res[2] << std::endl;
-}
+//void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq, int end_bonus = 0) {
+//    std::vector<cigar_pair> cigar = defaultAlign(from_seq, to_seq, end_bonus);
+//    std::vector<std::pair<size_t, size_t>> to_ignore = Mark(from_seq);
+//    std::cout << CigarToString(cigar) << std::endl;
+//    std::cout << Score(cigar, from_seq, to_seq, to_ignore) << " " << Score(cigar, from_seq, to_seq, {}) << std::endl;
+//    std::vector<string> res = cigarToAlignmentString(from_seq, to_seq, cigar, to_ignore);
+//    std::cout << res[0] << "\n" << res[1] << "\n" << res[2] << std::endl;
+//}
 
 std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const std::vector<std::string> &s2) {
     std::vector<char> ref1;
@@ -553,9 +565,9 @@ std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const
             std::string(m2.begin(), m2.end()), std::string(ref2.begin(), ref2.end())};
 }
 
-void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Sequence &to_seq2, int end_bonus = 0) {
-    std::vector<cigar_pair> cigar1 = defaultAlign(from_seq, to_seq1, end_bonus);
-    std::vector<cigar_pair> cigar2 = defaultAlign(from_seq, to_seq2, end_bonus);
+void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Sequence &to_seq2, bool extension = false) {
+    std::vector<cigar_pair> cigar1 = defaultAlign(from_seq, to_seq1, extension);
+    std::vector<cigar_pair> cigar2 = defaultAlign(from_seq, to_seq2, extension);
     std::vector<std::pair<size_t, size_t>> to_ignore = Mark(from_seq);
     std::vector<string> res1 = cigarToAlignmentString(from_seq, to_seq1, cigar1, to_ignore);
     std::vector<string> res2 = cigarToAlignmentString(from_seq, to_seq2, cigar2, to_ignore);
@@ -604,8 +616,8 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
         Sequence s2 = edge.getSeq().Subseq(nails.back().second, edge.size());
         s2 = s2.Subseq(0, std::min(s2.size(), s.size() + 1000));
         std::vector<std::pair<size_t, size_t>> to_ignore = Mark(s);
-        std::vector<cigar_pair> al1 = defaultAlign(s, s1, 1000000);
-        std::vector<cigar_pair> al2 = defaultAlign(s, s2, 1000000);
+        std::vector<cigar_pair> al1 = defaultAlignExtension(s, s1);
+        std::vector<cigar_pair> al2 = defaultAlignExtension(s, s2);
         size_t score1 = Score(al1, s, s1, to_ignore);
         size_t score2 = Score(al2, s, s2, to_ignore);
         std::pair<size_t, size_t> fromto1 = FromToLen(al1);
@@ -614,13 +626,13 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
 //                AnalyseAndPrint(s, s1, 1000000);
 //            }
         if(fromto1.first >= s.size() - 5 && fromto2.first >= s.size() - 5 &&  score1 > score2) {
-            std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(s, s1, {}) << " " << Score(s, s2, {}) << std::endl;
+            std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(al1, s, s1, {}) << " " << Score(al2, s, s2, {}) << std::endl;
             mpath.pop_back();
             mpath += edge;
             mpath.cutBack(edge.size() - fromto2.second - nails.back().second);
 //            AnalyseAndPrint(s, s1, 1000000);
 //            AnalyseAndPrint(s, s2, 1000000);
-            AnalyseAndPrint(s, s1, s2, 1000000);
+            AnalyseAndPrint(s, s1, s2, true);
 
             changed = true;
         }

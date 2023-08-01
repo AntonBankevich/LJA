@@ -148,15 +148,33 @@ public:
         return align_ksw(tseq, qseq, sc_mch, sc_mis, gapo, gape, width, end_bonus);
     }
 
-    std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width, double max_divergence, int end_bonus = 0) const {
+    std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width) const {
         size_t l1 = strlen(tseq);
         size_t l2 = strlen(qseq);
-        min_width += std::max(l1, l2) - std::min(l1, l2);
-        max_width += std::max(l1, l2) - std::min(l1, l2);
-        int64_t prev_cost = -1000000;        
+        if(max_width < std::max(l1, l2) - std::min(l1, l2)) {
+            if (l1 < l2)
+                return {{'M', l1}, {'D', l2 - l1}};
+            else
+                return {{'M', l2}, {'D', l2 - l1}};
+        }
+        min_width += std::min<int>(std::max(l1, l2) - std::min(l1, l2) + min_width, max_width);
+        int64_t prev_cost = -1000000;
         while(true) {
-            auto res = align(tseq, qseq, min_width, end_bonus);
-	    int64_t new_cost = cost(tseq, qseq, res);
+            auto res = align(tseq, qseq, min_width);
+            int64_t new_cost = cost(tseq, qseq, res);
+            if(new_cost == prev_cost || min_width == max_width)
+                return std::move(res);
+            prev_cost = new_cost;
+            min_width = std::min(min_width * 2, max_width);
+        }
+        return align(tseq, qseq, min_width);
+    }
+
+    std::vector<cigar_pair> iterativeBandExtend(const char *tseq, const char *qseq, int min_width, int max_width) const {
+        int64_t prev_cost = -1000000;
+        while(true) {
+            auto res = align(tseq, qseq, min_width, 100000);
+            int64_t new_cost = cost(tseq, qseq, res);
             if(new_cost == prev_cost)
                 return std::move(res);
 //          if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
@@ -165,15 +183,18 @@ public:
             prev_cost = new_cost;
             min_width = std::min(min_width * 2, max_width);
         }
-        return align(tseq, qseq, min_width, end_bonus);
+        return align(tseq, qseq, min_width, 100000);
     }
 
     std::vector<cigar_pair> align(const std::string &tseq, const std::string &qseq, int width, int end_bonus) const {
         return align(tseq.c_str(), qseq.c_str(), width, end_bonus);
     }
 
-    std::vector<cigar_pair> iterativeBandAlign(const std::string &tseq, const std::string &qseq, int min_width, int max_width, double max_divergence, int end_bonus) const {
-        return iterativeBandAlign(tseq.c_str(), qseq.c_str(), min_width, max_width, max_divergence, end_bonus);
+    std::vector<cigar_pair> iterativeBandAlign(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
+        return iterativeBandAlign(tseq.c_str(), qseq.c_str(), min_width, max_width);
+    }
+    std::vector<cigar_pair> iterativeBandExtend(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
+        return iterativeBandExtend(tseq.c_str(), qseq.c_str(), min_width, max_width);
     }
 };
 
