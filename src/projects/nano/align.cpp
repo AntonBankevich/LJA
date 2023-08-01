@@ -491,7 +491,7 @@ std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const
     size_t cnt = 0;
     std::string insert = "======";
     while(cur1 < s1[0].size() || cur2 < s2[0].size()) {
-        if(cur1 < s1[0].size() && cur2 < s2[0].size() && s1[0][cur1] == s2[0][cur1]) {
+        if(cur1 < s1[0].size() && cur2 < s2[0].size() && s1[0][cur1] == s2[0][cur2]) {
             ref1.emplace_back(s1[2][cur1]);
             m1.emplace_back(s1[1][cur1]);
             read.emplace_back(s1[0][cur1]);
@@ -515,7 +515,7 @@ std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const
         } else if(cur2 < s2[0].size() && s2[0][cur2] == '-') {
             ref1.emplace_back('-');
             m1.emplace_back(s2[1][cur2]);
-            read.emplace_back(s1[0][cur1]);
+            read.emplace_back(s2[0][cur2]);
             m2.emplace_back(s2[1][cur2]);
             ref2.emplace_back(s2[2][cur2]);
             cur2++;
