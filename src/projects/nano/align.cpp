@@ -436,11 +436,9 @@ public:
     }
 };
 
-void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq, int end_bonus = 0) {
-    std::vector<cigar_pair> cigar = defaultAlign(from_seq, to_seq, end_bonus);
-    std::vector<std::pair<size_t, size_t>> to_ignore = Mark(from_seq);
-    std::cout << CigarToString(cigar) << std::endl;
-    std::cout << Score(cigar, from_seq, to_seq, to_ignore) << " " << Score(cigar, from_seq, to_seq, {}) << std::endl;
+std::vector<string>
+cigarToAlignmentString(const Sequence &from_seq, const Sequence &to_seq, std::vector<cigar_pair> &cigar,
+                       const std::vector<std::pair<size_t, size_t>> &to_ignore) {
     size_t from_pos = 0;
     size_t to_pos = 0;
     size_t cur = 0;
@@ -469,9 +467,100 @@ void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq, int end_b
             }
         }
     }
-    std::cout << std::string(s1.begin(), s1.end()) << std::endl;
-    std::cout << std::string(m.begin(), m.end()) << std::endl;
-    std::cout << std::string(s2.begin(), s2.end()) << std::endl;
+    std::vector<std::string> res = {std::string(s1.begin(), s1.end()), std::string(m.begin(), m.end()), std::string(s2.begin(), s2.end())};
+    return res;
+}
+
+void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq, int end_bonus = 0) {
+    std::vector<cigar_pair> cigar = defaultAlign(from_seq, to_seq, end_bonus);
+    std::vector<std::pair<size_t, size_t>> to_ignore = Mark(from_seq);
+    std::cout << CigarToString(cigar) << std::endl;
+    std::cout << Score(cigar, from_seq, to_seq, to_ignore) << " " << Score(cigar, from_seq, to_seq, {}) << std::endl;
+    std::vector<string> res = cigarToAlignmentString(from_seq, to_seq, cigar, to_ignore);
+    std::cout << res[0] << "\n" << res[1] << "\n" << res[2] << std::endl;
+}
+
+std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const std::vector<std::string> &s2) {
+    std::vector<char> ref1;
+    std::vector<char> m1;
+    std::vector<char> read;
+    std::vector<char> m2;
+    std::vector<char> ref2;
+    size_t cur1 = 0;
+    size_t cur2 = 0;
+    size_t cnt = 0;
+    std::string insert = "======";
+    while(cur1 < s1[0].size() || cur2 < s2[0].size()) {
+        if(cur1 < s1[0].size() && cur2 < s2[0].size() && s1[0][cur1] == s2[0][cur1]) {
+            ref1.emplace_back(s1[2][cur1]);
+            m1.emplace_back(s1[1][cur1]);
+            read.emplace_back(s1[0][cur1]);
+            m2.emplace_back(s2[1][cur2]);
+            ref2.emplace_back(s2[2][cur2]);
+            cur1++;
+            cur2++;
+            if(ref1.back() == ref2.back()) {
+                cnt++;
+            } else {
+                cnt = 0;
+            }
+        } else if(cur1 < s1[0].size() && s1[0][cur1] == '-') {
+            ref1.emplace_back(s1[2][cur1]);
+            m1.emplace_back(s1[1][cur1]);
+            read.emplace_back(s1[0][cur1]);
+            m2.emplace_back(s1[1][cur1]);
+            ref2.emplace_back('-');
+            cur1++;
+            cnt = 0;
+        } else if(cur2 < s2[0].size() && s2[0][cur2] == '-') {
+            ref1.emplace_back('-');
+            m1.emplace_back(s2[1][cur2]);
+            read.emplace_back(s1[0][cur1]);
+            m2.emplace_back(s2[1][cur2]);
+            ref2.emplace_back(s2[2][cur2]);
+            cur2++;
+            cnt = 0;
+        } else if(cur1 == s1[0].size()){
+            read.emplace_back(s2[0][cur2]);
+            m2.emplace_back(s2[1][cur2]);
+            ref2.emplace_back(s2[2][cur2]);
+            cur2++;
+            cnt = 0;
+        } else if(cur2 == s2[0].size()) {
+            ref1.emplace_back(s1[2][cur1]);
+            m1.emplace_back(s1[1][cur1]);
+            read.emplace_back(s1[0][cur1]);
+            cur1++;
+            cnt = 0;
+        } else {
+            VERIFY(false);
+        }
+        if(cnt == 20) {
+            ref1.insert(ref1.end() - 10, insert.begin(), insert.end());
+            m1.insert(m1.end() - 10, insert.begin(), insert.end());
+            read.insert(read.end() - 10, insert.begin(), insert.end());
+            m2.insert(m2.end() - 10, insert.begin(), insert.end());
+            ref2.insert(ref2.end() - 10, insert.begin(), insert.end());
+        } else if(cnt > 20) {
+            ref1.erase(ref1.end() - 10);
+            m1.erase(m1.end() - 10);
+            read.erase(read.end() - 10);
+            m2.erase(m2.end() - 10);
+            ref2.erase(ref2.end() - 10);
+        }
+    }
+    return {std::string(ref1.begin(), ref1.end()), std::string(m1.begin(), m1.end()), std::string(read.begin(), read.end()),
+            std::string(m2.begin(), m2.end()), std::string(ref2.begin(), ref2.end())};
+}
+
+void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Sequence &to_seq2, int end_bonus = 0) {
+    std::vector<cigar_pair> cigar1 = defaultAlign(from_seq, to_seq1, end_bonus);
+    std::vector<cigar_pair> cigar2 = defaultAlign(from_seq, to_seq2, end_bonus);
+    std::vector<std::pair<size_t, size_t>> to_ignore = Mark(from_seq);
+    std::vector<string> res1 = cigarToAlignmentString(from_seq, to_seq1, cigar1, to_ignore);
+    std::vector<string> res2 = cigarToAlignmentString(from_seq, to_seq2, cigar2, to_ignore);
+    std::vector<std::string> res = mixAndShorten(res1, res2);
+    std::cout << res[0] << "\n" << res[1] << "\n" << res[2] << "\n" << res[3] << "\n" << res[4] << std::endl;
 }
 
 bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_t, size_t>> &nails, MGGraphPath &path,
@@ -489,9 +578,10 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
         std::cout << alignedSubread.str() << std::endl;
         path = path.reroute(detour.start, detour.end, detour.path);
         std::cout << std::endl;
-        AnalyseAndPrint(alignedSubread, alignedInitial.Seq());
-        AnalyseAndPrint(alignedSubread, alignedDetour.Seq());
-        AnalyseAndPrint(alignedInitial.Seq(), alignedDetour.Seq());
+//        AnalyseAndPrint(alignedSubread, alignedInitial.Seq());
+//        AnalyseAndPrint(alignedSubread, alignedDetour.Seq());
+//        AnalyseAndPrint(alignedInitial.Seq(), alignedDetour.Seq());
+        AnalyseAndPrint(alignedSubread, alignedInitial.Seq(), alignedDetour.Seq());
         return true;
     }
     return false;
@@ -528,8 +618,10 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
             mpath.pop_back();
             mpath += edge;
             mpath.cutBack(edge.size() - fromto2.second - nails.back().second);
-            AnalyseAndPrint(s, s1, 1000000);
-            AnalyseAndPrint(s, s2, 1000000);
+//            AnalyseAndPrint(s, s1, 1000000);
+//            AnalyseAndPrint(s, s2, 1000000);
+            AnalyseAndPrint(s, s1, s2, 1000000);
+
             changed = true;
         }
     }
