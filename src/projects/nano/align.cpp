@@ -708,8 +708,8 @@ int main(int argc, char **argv) {
 
     logger.info() << "Performing alignment" << std::endl;
     std::unordered_map<std::string, std::vector<nano::GraphContig>> result = AlignOnt(logger, threads, dir, mg, reads, reuse);
+    logger.info() << "Aligned " << result.size() << " reads" << std::endl;
     logger.info() << "Alignment finished. Correcting paths." << std::endl;
-    std::cout << result.size() << std::endl;
 
     BulgeFinder bulgeFinder(mg, 5000, 1000);
     for(auto &it : result) {

@@ -155,7 +155,7 @@ public:
             if (l1 < l2)
                 return {{'M', l1}, {'D', l2 - l1}};
             else
-                return {{'M', l2}, {'D', l2 - l1}};
+                return {{'M', l2}, {'I', l2 - l1}};
         }
         min_width += std::min<int>(std::max(l1, l2) - std::min(l1, l2) + min_width, max_width);
         int64_t prev_cost = -1000000;
