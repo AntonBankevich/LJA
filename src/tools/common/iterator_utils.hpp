@@ -10,7 +10,7 @@ public:
 private:
     Iterator iterator;
     Iterator end;
-    std::function<bool(const value_type &)> use;
+    std::function<bool(const typename Iterator::value_type &)> use;
 
     void seek() {
         while(iterator != end && !use(*iterator)) {
@@ -18,12 +18,12 @@ private:
         }
     }
 public:
-    SkippingIterator(Iterator iterator, Iterator end, const std::function<bool(const value_type &)> &use) :
+    SkippingIterator(Iterator iterator, Iterator end, const std::function<bool(const typename Iterator::value_type &)> &use) :
                                         iterator(iterator), end(end), use(use) {
         seek();
     }
 
-    value_type &operator*() const {
+    typename Iterator::reference operator*() const {
         return *iterator;
     }
 
@@ -58,8 +58,8 @@ private:
 
     Iterator iterator;
     Iterator end;
-    std::function<std::array<value_type*, MAX_SIZE>(old_value_type)> apply;
-    std::array<value_type*, MAX_SIZE> values;
+    std::function<std::array<V*, MAX_SIZE>(old_value_type)> apply;
+    std::array<V*, MAX_SIZE> values;
     size_t cur;
 
     void fill() {
@@ -80,7 +80,7 @@ private:
 
 public:
     ApplyingIterator(Iterator iterator, Iterator end,
-                     const std::function<std::array<value_type*, MAX_SIZE>(old_value_type)> &apply) :
+                     const std::function<std::array<V*, MAX_SIZE>(old_value_type)> &apply) :
                         iterator(iterator), end(end), apply(apply), values(), cur(0) {
         fill();
         seek();
@@ -101,7 +101,7 @@ public:
     ApplyingIterator operator++(int) const {
         ApplyingIterator other = *this;
         ++other;
-        return other;
+        return std::move(other);
     }
 
     bool operator==(const ApplyingIterator &other) const {

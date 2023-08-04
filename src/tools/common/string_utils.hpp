@@ -3,6 +3,7 @@
 //
 
 #pragma once
+#include <functional>
 #include <sstream>
 #include <string>
 #include <algorithm>
@@ -40,7 +41,7 @@ static bool startsWith(const std::string& str, const std::string& prefix)
 
 static inline void ltrim_inplace(std::string &s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
-                                    std::not1(std::ptr_fun<int, int>(std::isspace))));
+                                    std::function<int(int)>([](int c){ return !std::isspace(c);})));
 }
 
 static inline void rtrim_inplace(std::string &s) {
