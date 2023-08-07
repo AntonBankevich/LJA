@@ -25,7 +25,7 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
             paths.emplace_back(std::move(contig));
         }
     }
-    GraphAlignmentStorage storage(dbg);
+    GraphPathStorage storage(dbg);
     for(Contig &contig : paths) {
         storage.addContig(contig);
     }

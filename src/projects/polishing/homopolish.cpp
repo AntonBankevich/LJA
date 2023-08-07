@@ -410,7 +410,7 @@ struct AssemblyInfo {
 
 
     //Some strange cigars are output
-    bool verifyCigar(vector<cigar_pair> &cigars, int bandwidth ) {
+    bool verifyCigar(vector<CigarPair> &cigars, int bandwidth ) {
 //TODO constant??
         if (cigars.size() > 200) {
             return false;
@@ -431,7 +431,7 @@ struct AssemblyInfo {
         return true;
     }
 
-    string str(vector<cigar_pair> &cigars) {
+    string str(vector<CigarPair> &cigars) {
         std::stringstream ss;
         for(size_t i = 0; i < cigars.size(); i++) {
             ss << cigars[i].length << cigars[i].type;
@@ -439,7 +439,7 @@ struct AssemblyInfo {
         return ss.str();
     }
 
-    size_t matchedLength(vector<cigar_pair> &cigars) {
+    size_t matchedLength(vector<CigarPair> &cigars) {
         size_t res = 0;
         for(size_t i = 0; i < cigars.size(); i++) {
             if (cigars[i].type == 'M')
@@ -448,7 +448,7 @@ struct AssemblyInfo {
         return res;
     }
 
-    std::vector<cigar_pair> getFastAln(logging::Logger &logger, AlignmentInfo& aln, const char * contig, const char *read) {
+    std::vector<CigarPair> getFastAln(logging::Logger &logger, AlignmentInfo& aln, const char * contig, const char *read) {
 
         size_t cur_bandwidth = SW_BANDWIDTH;
 //strings, match, mismatch, gap_open, gap_extend, width

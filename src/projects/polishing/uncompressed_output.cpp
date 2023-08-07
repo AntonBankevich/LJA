@@ -9,7 +9,7 @@
 using namespace multigraph;
 
 struct OverlapRecord {
-    OverlapRecord(multigraph::Edge &left, multigraph::Edge &right, Sequence seq_left, Sequence seq_right, std::vector<cigar_pair> _cigar) :
+    OverlapRecord(multigraph::Edge &left, multigraph::Edge &right, Sequence seq_left, Sequence seq_right, std::vector<CigarPair> _cigar) :
                             left(left.getId()), right(right.getId()), seq_left(std::move(seq_left)), seq_right(std::move(seq_right)),
                                                                                                     cigar(std::move(_cigar)) {
         if(!cigar.empty() && cigar.back().type == 'I')
@@ -21,7 +21,7 @@ struct OverlapRecord {
     EdgeId left;
     EdgeId right;
     Sequence seq_left, seq_right;
-    std::vector<cigar_pair> cigar;
+    std::vector<CigarPair> cigar;
     std::string cigarString() const {
         std::stringstream ss;
         for(auto &pair : cigar) {
@@ -52,7 +52,7 @@ struct OverlapRecord {
         size_t pos_q = 0;
         std::vector<char> s_ref;
         std::vector<char> s_q;
-        for(const cigar_pair &pair : cigar) {
+        for(const CigarPair &pair : cigar) {
             for(size_t i = 0; i < pair.length; i++) {
                 if(pair.type == 'I')
                     s_ref.emplace_back('-');
@@ -119,7 +119,7 @@ size_t rightHomoSize(const Sequence &s) {
     return homoSize(s, s.size() - 1);
 }
 
-std::vector<cigar_pair> UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left, const Sequence & right) {
+std::vector<CigarPair> UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left, const Sequence & right) {
     StringContig sc(left.str(), "left");
     size_t left_len = compressedPrefixSize(!hpcOverlap, !left);
     size_t right_len = compressedPrefixSize(hpcOverlap, right);
@@ -156,8 +156,8 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
             for (Edge &inc_edge : vertex.rc()) {
                 VERIFY_OMP(out_edge.getSeq().startsWith(vertex.getSeq()));
                 VERIFY_OMP(inc_edge.getSeq().startsWith(!vertex.getSeq()));
-                std::vector<cigar_pair> cigar = UncompressOverlap(vertex.getSeq(), uncompression_results[inc_edge.rc().getId().innerId()],
-                                                                  uncompression_results[out_edge.getId().innerId()]);
+                std::vector<CigarPair> cigar = UncompressOverlap(vertex.getSeq(), uncompression_results[inc_edge.rc().getId().innerId()],
+                                                                 uncompression_results[out_edge.getId().innerId()]);
                 OverlapRecord overlapRecord(inc_edge.rc(), out_edge, uncompression_results[inc_edge.rc().getId().innerId()],
                                                                   uncompression_results[out_edge.getId().innerId()], cigar);
                 if(debug) {

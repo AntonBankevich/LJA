@@ -3,17 +3,31 @@
 #include <vector>
 #include <cstring>
 
-struct cigar_pair {
-    char type;
-    size_t length;
-    cigar_pair(char type, size_t len):type(type), length(len) {}
+enum CigarEvent : char {
+    I = 'I', D = 'D', M = 'M',
 };
 
-inline std::vector<cigar_pair> RcCigar(const std::vector<cigar_pair> &cigar) {
+CigarEvent CigarEventFromChar(char c) {
+    if(c == 'I')
+        return I;
+    else if (c == 'D')
+        return D;
+    else
+        return M;
+}
+
+struct CigarPair {
+    CigarEvent type;
+    size_t length;
+    CigarPair(CigarEvent type, size_t len) : type(type), length(len) {}
+    CigarPair(char type, size_t len) : type(CigarEventFromChar(type)), length(len) {}
+};
+
+inline std::vector<CigarPair> RcCigar(const std::vector<CigarPair> &cigar) {
     return {cigar.rbegin(), cigar.rend()};
 }
 
-inline size_t MaxAlignmentShift(std::vector<cigar_pair> &cigars) {
+inline size_t MaxAlignmentShift(std::vector<CigarPair> &cigars) {
     int shift = 0;
     int min_shift = 0;
     int max_shift = 0;
@@ -31,11 +45,11 @@ inline size_t MaxAlignmentShift(std::vector<cigar_pair> &cigars) {
     return std::max(std::abs(min_shift), std::abs(max_shift));
 }
 
-inline double Divergence(const char *tseq, const char *qseq, std::vector<cigar_pair> &cigar) {
+inline double Divergence(const char *tseq, const char *qseq, std::vector<CigarPair> &cigar) {
     size_t from_pos = 0;
     size_t to_pos = 0;
     size_t match_size = 0;
-    for(cigar_pair &cp: cigar) {
+    for(CigarPair &cp: cigar) {
         if(cp.type == 'M') {
             for(size_t i = 0; i < cp.length; i++) {
                 if(tseq[to_pos + i] == qseq[from_pos + i])
@@ -54,7 +68,7 @@ inline double Divergence(const char *tseq, const char *qseq, std::vector<cigar_p
 }
 
 
-inline std::vector<cigar_pair> align_ksw(const char *tseq, const char *qseq, int8_t sc_mch, int8_t sc_mis, int gapo, int gape, int width, int end_bonus = 0){
+inline std::vector<CigarPair> align_ksw(const char *tseq, const char *qseq, int8_t sc_mch, int8_t sc_mis, int gapo, int gape, int width, int end_bonus = 0){
     int i; int8_t a = sc_mch, b = sc_mis < 0? sc_mis : -sc_mis; // a>0 and b<0
     int flag = 0;
     if(end_bonus != 0)
@@ -73,7 +87,7 @@ inline std::vector<cigar_pair> align_ksw(const char *tseq, const char *qseq, int
     for (i = 0; i < tl; ++i) ts[i] = c[(uint8_t)tseq[i]]; // encode to 0/1/2/3
     for (i = 0; i < ql; ++i) qs[i] = c[(uint8_t)qseq[i]];
     ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, width, -1, end_bonus, flag, &ez);
-    std::vector<cigar_pair> res;
+    std::vector<CigarPair> res;
     for (i = 0; i < ez.n_cigar; ++i) // print CIGAR
 //        printf("%d%c", ez.cigar[i]>>4, "MID"[ez.cigar[i]&0xf]);
 //        ss << ez.cigar[i]>>4 << "MID"[ez.cigar[i]&0xf]);
@@ -90,11 +104,11 @@ private:
     int8_t sc_mis;
     int gapo;
     int gape;
-    inline int64_t cost(const char *tseq, const char *qseq, std::vector<cigar_pair> &cigar) {
+    inline int64_t cost(const char *tseq, const char *qseq, std::vector<CigarPair> &cigar) {
         size_t from_pos = 0;
         size_t to_pos = 0;
         int64_t res = 0;
-        for(cigar_pair &cp: cigar) {
+        for(CigarPair &cp: cigar) {
             if(cp.type == 'M') {
                 for(size_t i = 0; i < cp.length; i++) {
                     if(tseq[to_pos + i] == qseq[from_pos + i])
@@ -119,11 +133,11 @@ public:
     KSWAligner(int8_t scMch, int8_t scMis, int gapo, int gape) : sc_mch(scMch), sc_mis(scMis), gapo(gapo), gape(gape) {}
 
 
-    inline int64_t cost(const char *tseq, const char *qseq, std::vector<cigar_pair> &cigar) const {
+    inline int64_t cost(const char *tseq, const char *qseq, std::vector<CigarPair> &cigar) const {
         size_t from_pos = 0;
         size_t to_pos = 0;
         int64_t res = 0;
-        for(cigar_pair &cp: cigar) {
+        for(CigarPair &cp: cigar) {
             if(cp.type == 'M') {
                 for(size_t i = 0; i < cp.length; i++) {
                     if(tseq[to_pos + i] == qseq[from_pos + i])
@@ -144,11 +158,11 @@ public:
         return res;
     }
 
-    std::vector<cigar_pair> align(const char *tseq, const char *qseq, int width, int end_bonus = 0) const {
+    std::vector<CigarPair> align(const char *tseq, const char *qseq, int width, int end_bonus = 0) const {
         return align_ksw(tseq, qseq, sc_mch, sc_mis, gapo, gape, width, end_bonus);
     }
 
-    std::vector<cigar_pair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width) const {
+    std::vector<CigarPair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width) const {
         size_t l1 = strlen(tseq);
         size_t l2 = strlen(qseq);
         if(max_width < std::max(l1, l2) - std::min(l1, l2)) {
@@ -170,7 +184,7 @@ public:
         return align(tseq, qseq, min_width);
     }
 
-    std::vector<cigar_pair> iterativeBandExtend(const char *tseq, const char *qseq, int min_width, int max_width) const {
+    std::vector<CigarPair> iterativeBandExtend(const char *tseq, const char *qseq, int min_width, int max_width) const {
         int64_t prev_cost = -1000000;
         while(true) {
             auto res = align(tseq, qseq, min_width, 100000);
@@ -186,14 +200,14 @@ public:
         return align(tseq, qseq, min_width, 100000);
     }
 
-    std::vector<cigar_pair> align(const std::string &tseq, const std::string &qseq, int width, int end_bonus) const {
+    std::vector<CigarPair> align(const std::string &tseq, const std::string &qseq, int width, int end_bonus) const {
         return align(tseq.c_str(), qseq.c_str(), width, end_bonus);
     }
 
-    std::vector<cigar_pair> iterativeBandAlign(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
+    std::vector<CigarPair> iterativeBandAlign(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
         return iterativeBandAlign(tseq.c_str(), qseq.c_str(), min_width, max_width);
     }
-    std::vector<cigar_pair> iterativeBandExtend(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
+    std::vector<CigarPair> iterativeBandExtend(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
         return iterativeBandExtend(tseq.c_str(), qseq.c_str(), min_width, max_width);
     }
 };

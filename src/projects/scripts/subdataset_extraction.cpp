@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
-    GraphAlignmentStorage storage(dbg);
+    GraphPathStorage storage(dbg);
     for(StringContig stringContig : io::SeqReader(ref_lib)) {
         storage.addContig(stringContig.makeContig());
     }

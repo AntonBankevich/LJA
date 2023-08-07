@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
     if(!paths_lib.empty()) {
         logger << "Printing additional figures with paths" << std::endl;
         logger << "Aligning contigs from paths files" << std::endl;
-        GraphAlignmentStorage storage(dbg);
+        GraphPathStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
     if(params.getCheck("print-all")) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        GraphAlignmentStorage storage(dbg);
+        GraphPathStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -337,7 +337,7 @@ int main(int argc, char **argv) {
         logger.info() << "Aligning paths" << std::endl;
         std::vector<Component> comps;
         std::vector<std::ofstream *> os;
-        GraphAlignmentStorage storage(dbg);
+        GraphPathStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         size_t cnt = 0;
         size_t radius = std::stoull(params.getValue("subdataset-radius"));
@@ -377,7 +377,7 @@ int main(int argc, char **argv) {
     if(!path_segments.empty()) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        GraphAlignmentStorage storage(dbg);
+        GraphPathStorage storage(dbg);
         std::vector<std::tuple<std::string, size_t, size_t, std::string>> seg_recs;
         for(const std::string& s : path_segments) {
             std::vector<std::string> parsed = split(s, "[,]");
@@ -411,7 +411,7 @@ int main(int argc, char **argv) {
     if(params.getCheck("genome-path")) {
         logger.info() << "Printing additional figures with reference alignments" << std::endl;
         logger.info() << "Aligning genome" << std::endl;
-        GraphAlignmentStorage storage(dbg);
+        GraphPathStorage storage(dbg);
         io::SeqReader reader(genome_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();

@@ -1,12 +1,13 @@
+#include "ReadsAligner.h"
+#include "graph_alignment.hpp"
+#include <dbg/paths.hpp>
 #include <dbg/multi_graph.hpp>
 #include <common/logging.hpp>
-#include <sequences/seqio.hpp>
 #include <common/cl_parser.hpp>
+#include <sequences/seqio.hpp>
 #include <ksw2/ksw_wrapper.hpp>
 #include <utility>
 #include <queue>
-#include <dbg/paths.hpp>
-#include "ReadsAligner.h"
 
 using namespace multigraph;
 std::unordered_map<std::string, std::vector<nano::GraphContig>> AlignOnt(logging::Logger &logger, const size_t threads,
@@ -58,36 +59,13 @@ std::vector<int> CodeToPath(const std::vector<std::string> &code) {
     return std::move(res);
 }
 
-Sequence GraphSeq(multigraph::MultiGraph &graph, const nano::GraphContig &al) {
-    size_t skip_left = al.gStart;
-    size_t len = al.gEnd - al.gStart;
-    SequenceBuilder sb;
-    std::vector<int> ids = CodeToPath(al.path);
-    for(int id : ids) {
-        multigraph::Edge &edge = *graph.getEdgeById(id);
-        VERIFY(skip_left < edge.size());
-        Sequence to_add = edge.getSeq().Subseq(skip_left);
-        if(len <= to_add.size()) {
-            sb.append(to_add.Subseq(0, len));
-            len = 0;
-            skip_left = 0;
-            break;
-        } else {
-            sb.append(to_add);
-            skip_left = edge.getFinish().size();
-            len -= to_add.size();
-        }
-    }
-    VERIFY(len == 0);
-    return sb.BuildSequence();
-}
-size_t Score(const std::vector<cigar_pair> &cigar, const Sequence &from_seq, const Sequence &to_seq,
+size_t Score(const std::vector<CigarPair> &cigar, const Sequence &from_seq, const Sequence &to_seq,
              const std::vector<std::pair<size_t, size_t>> &to_ignore) {
     size_t from_pos = 0;
     size_t to_pos = 0;
     size_t diff = 0;
     size_t cur = 0;
-    for(const cigar_pair &cp: cigar) {
+    for(const CigarPair &cp: cigar) {
         if(cp.type == 'M') {
             for(size_t i = 0; i < cp.length; i++) {
                 if(cur < to_ignore.size() && from_pos + i >= to_ignore[cur].second)
@@ -117,10 +95,10 @@ size_t Score(const std::vector<cigar_pair> &cigar, const Sequence &from_seq, con
     return diff;
 }
 
-std::pair<size_t, size_t> FromToLen(const std::vector<cigar_pair> &cigar) {
+std::pair<size_t, size_t> FromToLen(const std::vector<CigarPair> &cigar) {
     size_t from_len = 0;
     size_t to_len = 0;
-    for(const cigar_pair &cp: cigar) {
+    for(const CigarPair &cp: cigar) {
         if(cp.type != 'I')
             to_len += cp.length;
         if(cp.type != 'D')
@@ -129,12 +107,12 @@ std::pair<size_t, size_t> FromToLen(const std::vector<cigar_pair> &cigar) {
     return {from_len, to_len};
 }
 
-std::vector<cigar_pair> defaultAlignExtension(const Sequence &from_seq, const Sequence &to_seq) {
+std::vector<CigarPair> defaultAlignExtension(const Sequence &from_seq, const Sequence &to_seq) {
     KSWAligner kswAligner(1, 5, 5, 3);
     return kswAligner.iterativeBandExtend(to_seq.str(), from_seq.str(), 5, 100);
 }
 
-std::vector<cigar_pair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq, bool extension = false) {
+std::vector<CigarPair> defaultAlign(const Sequence &from_seq, const Sequence &to_seq, bool extension = false) {
     if(extension) {
         return defaultAlignExtension(from_seq, to_seq);
     } else {
@@ -179,14 +157,14 @@ std::vector<std::pair<size_t, size_t>> Mark(const Sequence &seq) {
 
 std::pair<size_t, size_t> Score2(const Sequence &read, const Sequence &p1, const Sequence &p2) {
     std::vector<std::pair<size_t, size_t>> to_ignore = Mark(read);
-    std::vector<cigar_pair> cigar1 = defaultAlign(read, p1);
-    std::vector<cigar_pair> cigar2 = defaultAlign(read, p2);
+    std::vector<CigarPair> cigar1 = defaultAlign(read, p1);
+    std::vector<CigarPair> cigar2 = defaultAlign(read, p2);
     return {Score(cigar1, read, p1, to_ignore), Score(cigar2, read, p2, to_ignore)};
 }
 
-std::string CigarToString(const std::vector<cigar_pair> &cigar) {
+std::string CigarToString(const std::vector<CigarPair> &cigar) {
     std::stringstream ss;
-    for(const cigar_pair &p : cigar) {
+    for(const CigarPair &p : cigar) {
         if(p.length != 1)
             ss << p.length;
         ss << p.type;
@@ -195,30 +173,6 @@ std::string CigarToString(const std::vector<cigar_pair> &cigar) {
 }
 
 
-std::vector<cigar_pair> GAStringToCigar(const std::string &s) {
-    size_t n = 0;
-    std::vector<cigar_pair> res;
-    size_t pos = s.find_last_of(':') + 1;
-    for(size_t i = pos; i < s.size(); i++){
-        char c = s[i];
-        if(c >= '0' && c <= '9') {
-            n = n * 10 + c - '0';
-        } else {
-            if (n == 0)
-                n = 1;
-            if (c == '=' || c == 'X') {
-                c = 'M';
-            }
-            if(!res.empty() && c == res.back().type) {
-                res.back() = {c, res.back().length + n};
-            } else {
-                res.emplace_back(c, n);
-            }
-            n = 0;
-        }
-    }
-    return std::move(res);
-}
 MGGraphPath ContigToPath(const nano::GraphContig &al, multigraph::MultiGraph &graph) {
     size_t skip_left = al.gStart;
     size_t skip_right = 0;
@@ -259,7 +213,7 @@ MGGraphPath ContigToPath(const nano::GraphContig &al, multigraph::MultiGraph &gr
 }
 
 std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph, const Sequence &from_seq,
-                                             const MGGraphPath &mpath, const std::vector<cigar_pair> &cigar) {
+                                             const MGGraphPath &mpath, const AlignmentForm &cigar) {
     Sequence to_seq = mpath.Seq();
     std::vector<std::pair<size_t, size_t>> vertices;
     size_t skip_left = mpath.leftSkip();
@@ -277,8 +231,8 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
     size_t from_pos = 0;
     size_t to_pos = 0;
     size_t cur = 0;
-    for(const cigar_pair &cp: cigar) {
-        if(cp.type == 'M') {
+    for(const CigarPair &cp: cigar) {
+        if(cp.type == CigarEvent::M) {
             size_t match = 0;
             for(size_t i = 0; i < cp.length; i++) {
                 if(to_seq[to_pos + i] == from_seq[from_pos + i])
@@ -308,10 +262,10 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
             from_pos += cp.length;
             to_pos += cp.length;
         }
-        if(cp.type == 'D') {
+        if(cp.type == CigarEvent::D) {
             to_pos += cp.length;
         }
-        if(cp.type == 'I') {
+        if(cp.type == CigarEvent::I) {
             from_pos += cp.length;
         }
         while(cur < vertices.size() && vertices[cur].second <= to_pos) {
@@ -449,13 +403,13 @@ public:
 };
 
 std::vector<string>
-cigarToAlignmentString(const Sequence &from_seq, const Sequence &to_seq, std::vector<cigar_pair> &cigar,
+cigarToAlignmentString(const Sequence &from_seq, const Sequence &to_seq, std::vector<CigarPair> &cigar,
                        const std::vector<std::pair<size_t, size_t>> &to_ignore) {
     size_t from_pos = 0;
     size_t to_pos = 0;
     size_t cur = 0;
     std::vector<char> s1, s2, m;
-    for(const cigar_pair &cp: cigar) {
+    for(const CigarPair &cp: cigar) {
         for(size_t t = 0; t < cp.length; t++) {
             if(cur < to_ignore.size() && to_ignore[cur].second == from_pos)
                 cur++;
@@ -520,13 +474,13 @@ std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const
             ref1.emplace_back(s1[2][cur1]);
             m1.emplace_back(s1[1][cur1]);
             read.emplace_back(s1[0][cur1]);
-            m2.emplace_back(s1[1][cur1]);
+            m2.emplace_back('|');
             ref2.emplace_back('-');
             cur1++;
             cnt = 0;
         } else if(cur2 < s2[0].size() && s2[0][cur2] == '-') {
             ref1.emplace_back('-');
-            m1.emplace_back(s2[1][cur2]);
+            m1.emplace_back('|');
             read.emplace_back(s2[0][cur2]);
             m2.emplace_back(s2[1][cur2]);
             ref2.emplace_back(s2[2][cur2]);
@@ -566,8 +520,8 @@ std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const
 }
 
 void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Sequence &to_seq2, bool extension = false) {
-    std::vector<cigar_pair> cigar1 = defaultAlign(from_seq, to_seq1, extension);
-    std::vector<cigar_pair> cigar2 = defaultAlign(from_seq, to_seq2, extension);
+    std::vector<CigarPair> cigar1 = defaultAlign(from_seq, to_seq1, extension);
+    std::vector<CigarPair> cigar2 = defaultAlign(from_seq, to_seq2, extension);
     std::vector<std::pair<size_t, size_t>> to_ignore = Mark(from_seq);
     std::vector<string> res1 = cigarToAlignmentString(from_seq, to_seq1, cigar1, to_ignore);
     std::vector<string> res2 = cigarToAlignmentString(from_seq, to_seq2, cigar2, to_ignore);
@@ -616,8 +570,8 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
         Sequence s2 = edge.getSeq().Subseq(nails.back().second, edge.size());
         s2 = s2.Subseq(0, std::min(s2.size(), s.size() + 1000));
         std::vector<std::pair<size_t, size_t>> to_ignore = Mark(s);
-        std::vector<cigar_pair> al1 = defaultAlignExtension(s, s1);
-        std::vector<cigar_pair> al2 = defaultAlignExtension(s, s2);
+        std::vector<CigarPair> al1 = defaultAlignExtension(s, s1);
+        std::vector<CigarPair> al2 = defaultAlignExtension(s, s2);
         size_t score1 = Score(al1, s, s1, to_ignore);
         size_t score2 = Score(al2, s, s2, to_ignore);
         std::pair<size_t, size_t> fromto1 = FromToLen(al1);
@@ -645,7 +599,7 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
     Sequence from_seq = graphContig.read_str.getSeq().Subseq(graphContig.qStart, graphContig.qEnd);
     MGGraphPath mpath = ContigToPath(graphContig, graph);
 
-    std::vector<cigar_pair> cigar = GAStringToCigar(graphContig.cigar);
+    AlignmentForm cigar(graphContig.cigar);
     bool changed = true;
     while(changed) {
         changed = false;
@@ -667,7 +621,7 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
         if(changed)
             cigar = defaultAlign(from_seq, mpath.Seq());
         mpath = mpath.RC();
-        cigar = RcCigar(cigar);
+        cigar = cigar.RC();
         nails = Nails(graph, !from_seq, mpath, cigar);
         changed = changeEnd(mpath, !from_seq, nails);
         mpath = mpath.RC();
@@ -711,7 +665,7 @@ int main(int argc, char **argv) {
     logger.info() << "Aligned " << result.size() << " reads" << std::endl;
     logger.info() << "Alignment finished. Correcting paths." << std::endl;
 
-    BulgeFinder bulgeFinder(mg, 5000, 1000);
+    BulgeFinder bulgeFinder(mg, 10000, 1000);
     for(auto &it : result) {
         for (nano::GraphContig &al: it.second) {
             MGGraphPath path = ContigToPath(al, mg);

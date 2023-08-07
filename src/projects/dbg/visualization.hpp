@@ -7,7 +7,7 @@
 #include "component.hpp"
 #include "dbg_graph_aligner.hpp"
 
-class GraphAlignmentStorage {
+class GraphPathStorage {
 private:
     std::unordered_map<const dbg::Edge *, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>> alignments;
     std::vector<Contig*> stored_contigs;
@@ -38,17 +38,17 @@ private:
     }
 
 public:
-    explicit GraphAlignmentStorage(dbg::SparseDBG & dbg_) : dbg(dbg_) {
+    explicit GraphPathStorage(dbg::SparseDBG & dbg_) : dbg(dbg_) {
     }
 
-    GraphAlignmentStorage(const GraphAlignmentStorage &) = delete;
+    GraphPathStorage(const GraphPathStorage &) = delete;
 
-    GraphAlignmentStorage(GraphAlignmentStorage &&other)  noexcept : dbg(other.dbg) {
+    GraphPathStorage(GraphPathStorage &&other)  noexcept : dbg(other.dbg) {
         std::swap(other.alignments, alignments);
         std::swap(other.stored_contigs, stored_contigs);
     }
 
-    ~GraphAlignmentStorage() {
+    ~GraphPathStorage() {
         for(Contig * contig : stored_contigs) {
             delete contig;
         }
