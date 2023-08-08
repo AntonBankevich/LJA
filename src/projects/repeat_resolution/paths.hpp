@@ -5,6 +5,8 @@
 #pragma once
 
 #include "mdbg_topology.hpp"
+#include "GraphContig.hpp"
+
 #include <cctype>
 #include <dbg/graph_alignment_storage.hpp>
 #include <list>
@@ -66,12 +68,14 @@ std::unordered_map<PairEdgeIndexType, IteratorInPathUSet,
                    PairEdgeIndexHash>;
 
 class RRPaths {
-    std::vector<RRPath> paths;
+    std::unordered_map<int, RRPath> paths;
     EdgeIndex2PosMap edge2pos;
     EdgeIndexPair2PosMap edgepair2pos;
 
+    void SplitByTransition(const RREdgeIndexType &in_ind, const RREdgeIndexType &out_ind);
+
  public:
-    RRPaths(std::vector<RRPath> paths, EdgeIndex2PosMap edge2pos,
+    RRPaths(std::unordered_map<int, RRPath> paths, EdgeIndex2PosMap edge2pos,
             EdgeIndexPair2PosMap edgepair2pos)
         : paths{std::move(paths)}, edge2pos{std::move(edge2pos)},
           edgepair2pos{std::move(edgepair2pos)} {
@@ -81,6 +85,7 @@ class RRPaths {
     void assert_validity() const;
 
     const std::vector<RRPath> &GetPaths() const;
+
     const EdgeIndex2PosMap &GetEdge2Pos() const;
     const EdgeIndexPair2PosMap &GetEdgepair2Pos() const;
 
@@ -104,6 +109,9 @@ class RRPaths {
     GetActiveTransitions() const;
 
     void ExportActiveTransitions(const std::experimental::filesystem::path &path) const;
+
+    void SplitByTransitions(std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
+                            &split_transitions);
 };
 
 class PathsBuilder {
@@ -116,6 +124,9 @@ class PathsBuilder {
 
     static RRPaths FromDBGStorages(dbg::SparseDBG &dbg,
                                    const std::vector<RecordStorage *> &storages);
+
+    static RRPaths FromGAF(dbg::SparseDBG &dbg,
+                            const std::experimental::filesystem::path &gaf);
 };
 
 } // End namespace repeat_resolution

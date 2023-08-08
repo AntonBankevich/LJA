@@ -146,7 +146,7 @@ void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
         }
     }
      */
-
+    graph.SplitONTPaths(ac_s2e, vertex);
     auto[edge2vertex, new_vertices] = SplitVertex(graph, vertex);
 
     for (const auto &[edge1, edge1_neighbors] : ac_s2e) {

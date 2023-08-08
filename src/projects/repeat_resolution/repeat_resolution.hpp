@@ -61,9 +61,11 @@ class RepeatResolver {
         logger.info() << "Resolving repeats" << std::endl;
         logger.info() << "Constructing paths" << std::endl;
         RRPaths rr_paths = PathsBuilder::FromDBGStorages(dbg, get_storages());
+        std::experimental::filesystem::path ga_file = "/Poppy/tdvorkina/nanoLJA/shortIdealReadsGraph/lja_run_15k_80x/ont.chm13_hg002.100000.identity60.compressed.v017b.gaf";
+        RRPaths ont_paths = PathsBuilder::FromGAF(dbg, ga_file);
 
         logger.info() << "Building graph" << std::endl;
-        MultiplexDBG mdbg(dbg, &rr_paths, start_k, classificator);
+        MultiplexDBG mdbg(dbg, &rr_paths, &ont_paths, start_k, classificator);
         if (debug) {
             logger.trace() << "Checking validity of graph" << std::endl;
             mdbg.AssertValidity();

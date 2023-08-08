@@ -147,7 +147,91 @@ void RRPaths::Merge(RREdgeIndexType left_index, RREdgeIndexType right_index) {
     Remove(right_index);
 }
 
-const std::vector<RRPath> &RRPaths::GetPaths() const { return paths; }
+void RRPaths::SplitByTransition(const RREdgeIndexType &lhs, const RREdgeIndexType &rhs) {
+    if (edgepair2pos.find(std::make_pair(lhs, rhs))!=edgepair2pos.end()) {
+        std::cerr << "Split by transition " << lhs << " " << rhs << std::endl;
+        std::cerr << "Path size: " << paths.size() << std::endl;
+        std::vector<RRPath> new_paths;
+        std::list<RRPath*> lrpaths;
+        std::unordered_set<std::string> paths_with_transition;
+        for (const IteratorInPath &iter_in_path : edgepair2pos.at({lhs, rhs})) {
+            RRPath *const &p_path = iter_in_path.p_path;
+            lrpaths.push_back(p_path);
+            paths_with_transition.insert(iter_in_path.p_path->id);
+        }
+        for (auto p_path: lrpaths) {
+            auto &path = *p_path;
+            std::vector<PathEdgeList::iterator> split_pairs;
+            PathEdgeList::iterator left_iter{path.edge_list.begin()};
+            for (auto it = path.edge_list.begin(); it!=path.edge_list.end(); ++it) {
+                if (*it == lhs && std::next(it, 1) != path.edge_list.end() && *std::next(it, 1) == rhs) {
+                    split_pairs.push_back(left_iter);
+                    left_iter = std::next(it, 1);
+                }
+            }
+
+            split_pairs.push_back(left_iter);
+            if (split_pairs.size() > 1) {
+                for (auto it = split_pairs.at(1); it!=path.edge_list.end(); ++it) {
+                    edge2pos[*it].erase(IteratorInPath(&path, it));
+                }
+                // TODO make a normal zip
+                for (auto it2{split_pairs.at(1)}, it1{it2++}; it2!=path.edge_list.end(); ++it1, ++it2) {
+                    edgepair2pos[std::make_pair(*it1, *it2)].erase(IteratorInPath(&path, it1));
+                }
+                std::reverse(split_pairs.begin(), split_pairs.end());
+                for (int i = 0; i < split_pairs.size() - 1; ++ i){
+                    PathEdgeList::iterator left_iter = split_pairs[i];
+                    PathEdgeList new_edge_list;
+                    new_edge_list.splice(new_edge_list.begin(), path.edge_list, left_iter, path.edge_list.end());
+                    std::cerr << " Add path: " << path.id + 'R' << std::endl;
+                    std::string ids_lst = "";
+                    for (auto it = path.edge_list.begin(); it!= path.edge_list.end(); ++it) {
+                        ids_lst += std::to_string(*it) + ",";
+                    }
+                    ids_lst += " ";
+                    for (auto it = new_edge_list.begin(); it!=new_edge_list.end(); ++it) {
+                        ids_lst += std::to_string(*it) + ",";
+                    }
+                    std::cerr << " " << ids_lst << std::endl;
+                    new_paths.push_back({path.id + 'R', new_edge_list});
+                }
+            }
+        }
+	    edgepair2pos.erase({lhs, rhs});
+        if (new_paths.size() > 0) {
+             for (const auto &path:new_paths) {
+                 paths.insert(std::pair<int, RRPath>(paths.size(), path));
+                 RRPath &new_path = paths[paths.size() - 1];
+            	 for (auto it = new_path.edge_list.begin(); it!=new_path.edge_list.end(); ++it) {
+                	edge2pos[*it].emplace(&new_path, it);
+            	 }
+                    // TODO make a normal zip
+            	 for (auto it2{new_path.edge_list.begin()}, it1{it2++};
+                        	it2!=new_path.edge_list.end(); ++it1, ++it2) {
+                	edgepair2pos[std::make_pair(*it1, *it2)].emplace(&new_path, it1);
+            	 }
+             }
+	     //this->PrintRRPaths();
+        }
+    }
+}
+
+void RRPaths::SplitByTransitions(std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
+                          &split_pairs) {
+    for (auto split_pair: split_pairs) {
+        this->SplitByTransition(split_pair.first, split_pair.second);
+    }
+}
+
+const std::vector<RRPath> &RRPaths::GetPaths() const {
+     std::vector<RRPath> paths_vec;
+     for (const auto&[key, path]: paths) {
+          paths_vec.push_back(path);
+     }
+     return std::move(paths_vec);
+}
+
 const EdgeIndex2PosMap &RRPaths::GetEdge2Pos() const { return edge2pos; }
 const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
     return edgepair2pos;
@@ -179,7 +263,11 @@ void RRPaths::ExportActiveTransitions(const std::experimental::filesystem::path 
 RRPaths PathsBuilder::FromPathVector(std::vector<RRPath> path_vec) {
     EdgeIndex2PosMap edge2pos;
     EdgeIndexPair2PosMap edgepair2pos;
+    std::unordered_map<int, RRPath> path_map;
     for (RRPath &path : path_vec) {
+        path_map.insert(std::pair<int, RRPath> (path_map.size(), path));
+    }
+    for (auto  &[key, path] : path_map) {
         for (auto it = path.edge_list.begin(); it!=path.edge_list.end();
              ++it) {
             edge2pos[*it].emplace(&path, it);
@@ -191,7 +279,7 @@ RRPaths PathsBuilder::FromPathVector(std::vector<RRPath> path_vec) {
             edgepair2pos[std::make_pair(*it1, *it2)].emplace(&path, it1);
         }
     }
-    return {std::move(path_vec), std::move(edge2pos),
+    return {std::move(path_map), std::move(edge2pos),
             std::move(edgepair2pos)};
 }
 
@@ -246,4 +334,75 @@ RRPaths PathsBuilder::FromDBGStorages(dbg::SparseDBG &dbg,
         ++i;
     }
     return PathsBuilder::FromStorages(storages, edgeid2ind);
+}
+
+nano::GraphContig ExtractAlignment(const std::string &ln, std::unordered_map<std::string, std::string> &edgeid2edgeid_rc){
+    std::vector<std::string> params;
+    std::istringstream iss(ln);
+    std::string s;
+    char delim = '\t';
+    while (std::getline(iss, s, delim)) {
+        params.push_back(s);
+    }
+    return nano::GraphContig(params, edgeid2edgeid_rc);
+}
+
+RRPaths
+PathsBuilder::FromGAF(dbg::SparseDBG &dbg,
+                           const std::experimental::filesystem::path &batch_gaf) {
+    std::unordered_map<std::string, size_t> edgeid2ind;
+    std::unordered_map<std::string, std::string> edgeid2edgeid_rc;
+    size_t i = 0;
+    for (auto it = dbg.edges().begin(); it!=dbg.edges().end(); ++it) {
+        const dbg::Edge &edge = *it;
+        // TODO use it - dbg.edges.begin()
+        edgeid2ind[edge.getId()] = i;
+        edgeid2edgeid_rc[edge.getId()] = edge.rc().getId();
+        ++i;
+    }
+
+    std::vector<RRPath> paths;
+    std::ifstream is_cut;
+    is_cut.open(batch_gaf);
+    std::string ln;
+    std::unordered_map<std::string, std::vector<nano::GraphContig>> alignments;
+    while (std::getline(is_cut, ln)) {
+        nano::GraphContig gcontig = ExtractAlignment(ln, edgeid2edgeid_rc);
+        if (gcontig.qEnd - gcontig.qStart > 0.9*gcontig.qLen) {
+            if (alignments.count(gcontig.query) == 0) {
+                if (alignments.count(gcontig.query) == 0) {
+                    alignments[gcontig.query] = std::vector<nano::GraphContig>();
+                }
+                alignments[gcontig.query].push_back(gcontig);
+            } else {
+                nano::GraphContig &prevAln = alignments.at(gcontig.query)[0];
+                if (prevAln.nMatches * (gcontig.qEnd - gcontig.qStart)
+                            < gcontig.nMatches * (prevAln.qEnd - prevAln.qStart)) {
+                    alignments.at(gcontig.query)[0] = gcontig;
+                }
+            }
+        }
+    }
+    is_cut.close();
+
+    for (const auto &[key,val]: alignments) {
+        std::vector<std::string> path_ids = val.at(0).path;
+        PathEdgeList edge_list;
+        PathEdgeList edge_list_rc;
+        for (const string &cur_id: path_ids){
+            edge_list.emplace_back(edgeid2ind.at(cur_id));
+            edge_list_rc.emplace_front(edgeid2ind.at(edgeid2edgeid_rc.at(cur_id)));
+        }
+        paths.push_back({'+' + key, edge_list});
+        paths.push_back({'-' + key, edge_list_rc});
+        // std::cerr << std::endl << std::endl << key << std::endl;
+        // for (const auto eid: edge_list) {
+        //     std::cerr << eid << ",";
+        // }
+        // std::cerr << "\n";
+        // for (const auto eid: edge_list_rc) {
+        //     std::cerr << eid << ",";
+        // }
+    }
+    return FromPathVector(std::move(paths));
 }

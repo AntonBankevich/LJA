@@ -6,6 +6,29 @@
 
 using namespace repeat_resolution;
 
+
+void MultiplexDBG::SplitONTPaths(const MultiplexDBG::EdgeNeighborMap &ac_s2e,
+                                    const RRVertexType &vertex) {
+    const auto[in_edges, out_edges] = GetNeighborEdgesIndexes(vertex);
+    std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>> split_transitions;
+    for (const RREdgeIndexType &in_ind : in_edges) {
+        for (const RREdgeIndexType &out_ind : out_edges) {
+            bool contains_transition = false;
+            for (const auto &[edge1, edge1_neighbors] : ac_s2e) {
+                for (const auto &edge2 : edge1_neighbors) {
+                    if (in_ind == edge1 && out_ind == edge2) {
+                        contains_transition = true;
+                    }
+                }
+            }
+            if (!contains_transition) {
+                split_transitions.push_back({in_ind, out_ind});
+            }
+        }
+    }
+    ont_paths->SplitByTransitions(split_transitions);
+}
+
 std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
     dbg::SparseDBG &dbg, const UniqueClassificator &classificator) {
     const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg]() {
@@ -248,6 +271,7 @@ void MultiplexDBG::MergeEdges(const RRVertexType &s1, NeighborsIterator e1_it,
     RREdgeProperty &e2_prop = e2_it->second.prop();
     const RREdgeIndexType e2_index = e2_prop.Index();
     rr_paths->Merge(e1_prop.Index(), e2_prop.Index());
+    ont_paths->Merge(e1_prop.Index(), e2_prop.Index());
     const RRVertexProperty &v1 = node_prop(s1);
     const RRVertexProperty &v3 = node_prop(e2_it->first);
     e1_prop.Merge(std::move(node_prop(s2)), std::move(e2_prop));
@@ -271,6 +295,7 @@ RREdgeIndexType MultiplexDBG::AddConnectingEdge(NeighborsIterator eleft_it,
 
     RREdgeProperty e_new_prop = Add(vleft_prop, vright_prop, new_index);
     rr_paths->Add(eleft_prop.Index(), eright_prop.Index(), e_new_prop.Index());
+    ont_paths->Add(eleft_prop.Index(), eright_prop.Index(), e_new_prop.Index());
     add_edge_with_prop(vleft, vright, std::move(e_new_prop));
     return new_index;
 }
@@ -284,9 +309,9 @@ RRVertexType MultiplexDBG::GetNewVertex(MDBGSeq seq) {
 }
 
 MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
-                           const uint64_t start_k, RRPaths *const rr_paths,
+                           const uint64_t start_k, RRPaths *const rr_paths, RRPaths *const ont_paths,
                            bool contains_rc)
-    : rr_paths{rr_paths}, start_k{start_k}, contains_rc{contains_rc} {
+    : rr_paths{rr_paths}, ont_paths{ont_paths}, start_k{start_k}, contains_rc{contains_rc} {
     for (const SuccinctEdgeInfo &edge_info : edges) {
         const dbg::Edge *edge = edge_info.edge;
         next_vert_index = std::max(next_vert_index, 1 + edge_info.start_ind);
@@ -320,11 +345,11 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
     SpreadFrost();
 }
 
-MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths,
+MultiplexDBG::MultiplexDBG(dbg::SparseDBG &dbg, RRPaths *const rr_paths, RRPaths *const ont_paths,
                            const uint64_t start_k,
                            UniqueClassificator &classificator)
     : MultiplexDBG(SparseDBG2SuccinctEdgeInfo(dbg, classificator), start_k,
-                   rr_paths, true) {}
+                   rr_paths, ont_paths, true) {}
 
 void MultiplexDBG::ExportToDot(
     const std::experimental::filesystem::path &path) const {
