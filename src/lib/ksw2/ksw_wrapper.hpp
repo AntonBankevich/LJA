@@ -34,6 +34,16 @@ struct CigarPair {
                 VERIFY(false);
         }
     }
+    size_t qlen() const {
+        if(type == D)
+            return 0;
+        return length;
+    }
+    size_t tlen() const {
+        if(type == I)
+            return 0;
+        return length;
+    }
 };
 
 inline std::vector<CigarPair> RcCigar(const std::vector<CigarPair> &cigar) {

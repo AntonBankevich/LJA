@@ -134,6 +134,8 @@ AlignmentForm::AlignmentColumnIterator::AlignmentColumnIterator(AlignmentForm &f
 }
 
 AlignmentForm::AlignmentColumnIterator &AlignmentForm::AlignmentColumnIterator::operator++() {
+    this->qpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
+    this->tpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
     block_pos++;
     if(alignmentForm->cigar[cigar_pos].length == block_pos) {
         cigar_pos++;
@@ -154,6 +156,8 @@ AlignmentForm::AlignmentColumnIterator &AlignmentForm::AlignmentColumnIterator::
         block_pos = alignmentForm->cigar[cigar_pos].length;
     }
     block_pos--;
+    this->qpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
+    this->tpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
     return *this;
 }
 
