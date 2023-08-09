@@ -6,22 +6,24 @@
 #include <ksw2/ksw_wrapper.hpp>
 #include <utility>
 #include "dbg/multi_graph.hpp"
+#include "alignment/ksw_aligner.hpp"
+
 using namespace multigraph;
 
 struct OverlapRecord {
-    OverlapRecord(multigraph::Edge &left, multigraph::Edge &right, Sequence seq_left, Sequence seq_right, std::vector<CigarPair> _cigar) :
+    OverlapRecord(multigraph::Edge &left, multigraph::Edge &right, Sequence seq_left, Sequence seq_right, AlignmentForm _cigar) :
                             left(left.getId()), right(right.getId()), seq_left(std::move(seq_left)), seq_right(std::move(seq_right)),
                                                                                                     cigar(std::move(_cigar)) {
         if(!cigar.empty() && cigar.back().type == 'I')
             cigar.pop_back();
         if(!cigar.empty() && cigar.front().type == 'D')
-            cigar = {cigar.begin() + 1, cigar.end()};
+            cigar.pop_front();
     }
 
     EdgeId left;
     EdgeId right;
     Sequence seq_left, seq_right;
-    std::vector<CigarPair> cigar;
+    AlignmentForm cigar;
     std::string cigarString() const {
         std::stringstream ss;
         for(auto &pair : cigar) {
@@ -119,7 +121,7 @@ size_t rightHomoSize(const Sequence &s) {
     return homoSize(s, s.size() - 1);
 }
 
-std::vector<CigarPair> UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left, const Sequence & right) {
+AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left, const Sequence & right) {
     StringContig sc(left.str(), "left");
     size_t left_len = compressedPrefixSize(!hpcOverlap, !left);
     size_t right_len = compressedPrefixSize(hpcOverlap, right);
@@ -132,7 +134,7 @@ std::vector<CigarPair> UncompressOverlap(const Sequence &hpcOverlap, const Seque
         right_seq = right_seq.Subseq(0, right_seq.size() - (rightHomoSize(right_seq) - rightHomoSize(left_seq)));
     }
     KSWAligner kswAligner(1, 5, 10, 2);
-    return kswAligner.iterativeBandAlign(left_seq.str(), right_seq.str(), 5, 100, 0.01, 0);
+    return kswAligner.globalAlignment(left_seq.str(), right_seq.str());
 }
 
 std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
@@ -156,7 +158,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
             for (Edge &inc_edge : vertex.rc()) {
                 VERIFY_OMP(out_edge.getSeq().startsWith(vertex.getSeq()));
                 VERIFY_OMP(inc_edge.getSeq().startsWith(!vertex.getSeq()));
-                std::vector<CigarPair> cigar = UncompressOverlap(vertex.getSeq(), uncompression_results[inc_edge.rc().getId().innerId()],
+                AlignmentForm cigar = UncompressOverlap(vertex.getSeq(), uncompression_results[inc_edge.rc().getId().innerId()],
                                                                  uncompression_results[out_edge.getId().innerId()]);
                 OverlapRecord overlapRecord(inc_edge.rc(), out_edge, uncompression_results[inc_edge.rc().getId().innerId()],
                                                                   uncompression_results[out_edge.getId().innerId()], cigar);

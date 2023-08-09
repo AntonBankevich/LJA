@@ -1,5 +1,6 @@
 #pragma once
 #include "ksw2.h"
+#include "common/verify.hpp"
 #include <vector>
 #include <cstring>
 
@@ -7,7 +8,7 @@ enum CigarEvent : char {
     I = 'I', D = 'D', M = 'M',
 };
 
-CigarEvent CigarEventFromChar(char c) {
+inline CigarEvent CigarEventFromChar(char c) {
     if(c == 'I')
         return I;
     else if (c == 'D')
@@ -21,6 +22,18 @@ struct CigarPair {
     size_t length;
     CigarPair(CigarEvent type, size_t len) : type(type), length(len) {}
     CigarPair(char type, size_t len) : type(CigarEventFromChar(type)), length(len) {}
+    CigarPair Reverse() const {
+        switch(type) {
+            case M:
+                return *this;
+            case I:
+                return {D, length};
+            case D:
+                return {I, length};
+            default:
+                VERIFY(false);
+        }
+    }
 };
 
 inline std::vector<CigarPair> RcCigar(const std::vector<CigarPair> &cigar) {
@@ -97,118 +110,4 @@ inline std::vector<CigarPair> align_ksw(const char *tseq, const char *qseq, int8
     return res;
 }
 
-
-class KSWAligner {
-private:
-    int8_t sc_mch;
-    int8_t sc_mis;
-    int gapo;
-    int gape;
-    inline int64_t cost(const char *tseq, const char *qseq, std::vector<CigarPair> &cigar) {
-        size_t from_pos = 0;
-        size_t to_pos = 0;
-        int64_t res = 0;
-        for(CigarPair &cp: cigar) {
-            if(cp.type == 'M') {
-                for(size_t i = 0; i < cp.length; i++) {
-                    if(tseq[to_pos + i] == qseq[from_pos + i])
-                        res += sc_mch;
-                    else
-                        res -= sc_mis;
-                }
-            }
-            if(cp.type != 'I') {
-                to_pos += cp.length;
-                res -= gapo + gape * (cp.length - 1);
-            }
-            if(cp.type != 'D') {
-                from_pos += cp.length;
-                res -= gapo + gape * (cp.length - 1);
-            }
-        }
-        return res;
-    }
-
-public:
-    KSWAligner(int8_t scMch, int8_t scMis, int gapo, int gape) : sc_mch(scMch), sc_mis(scMis), gapo(gapo), gape(gape) {}
-
-
-    inline int64_t cost(const char *tseq, const char *qseq, std::vector<CigarPair> &cigar) const {
-        size_t from_pos = 0;
-        size_t to_pos = 0;
-        int64_t res = 0;
-        for(CigarPair &cp: cigar) {
-            if(cp.type == 'M') {
-                for(size_t i = 0; i < cp.length; i++) {
-                    if(tseq[to_pos + i] == qseq[from_pos + i])
-                        res += sc_mch;
-                    else
-                        res -= sc_mis;
-                }
-            }
-            if(cp.type != 'I') {
-                to_pos += cp.length;
-                res -= gapo + gape * (cp.length - 1);
-            }
-            if(cp.type != 'D') {
-                from_pos += cp.length;
-                res -= gapo + gape * (cp.length - 1);
-            }
-        }
-        return res;
-    }
-
-    std::vector<CigarPair> align(const char *tseq, const char *qseq, int width, int end_bonus = 0) const {
-        return align_ksw(tseq, qseq, sc_mch, sc_mis, gapo, gape, width, end_bonus);
-    }
-
-    std::vector<CigarPair> iterativeBandAlign(const char *tseq, const char *qseq, int min_width, int max_width) const {
-        size_t l1 = strlen(tseq);
-        size_t l2 = strlen(qseq);
-        if(max_width < std::max(l1, l2) - std::min(l1, l2)) {
-            if (l1 < l2)
-                return {{'M', l1}, {'D', l2 - l1}};
-            else
-                return {{'M', l2}, {'I', l2 - l1}};
-        }
-        min_width += std::min<int>(std::max(l1, l2) - std::min(l1, l2) + min_width, max_width);
-        int64_t prev_cost = -1000000;
-        while(true) {
-            auto res = align(tseq, qseq, min_width);
-            int64_t new_cost = cost(tseq, qseq, res);
-            if(new_cost == prev_cost || min_width == max_width)
-                return std::move(res);
-            prev_cost = new_cost;
-            min_width = std::min(min_width * 2, max_width);
-        }
-        return align(tseq, qseq, min_width);
-    }
-
-    std::vector<CigarPair> iterativeBandExtend(const char *tseq, const char *qseq, int min_width, int max_width) const {
-        int64_t prev_cost = -1000000;
-        while(true) {
-            auto res = align(tseq, qseq, min_width, 100000);
-            int64_t new_cost = cost(tseq, qseq, res);
-            if(new_cost == prev_cost)
-                return std::move(res);
-//          if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
-//              return std::move(res);
-//          }
-            prev_cost = new_cost;
-            min_width = std::min(min_width * 2, max_width);
-        }
-        return align(tseq, qseq, min_width, 100000);
-    }
-
-    std::vector<CigarPair> align(const std::string &tseq, const std::string &qseq, int width, int end_bonus) const {
-        return align(tseq.c_str(), qseq.c_str(), width, end_bonus);
-    }
-
-    std::vector<CigarPair> iterativeBandAlign(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
-        return iterativeBandAlign(tseq.c_str(), qseq.c_str(), min_width, max_width);
-    }
-    std::vector<CigarPair> iterativeBandExtend(const std::string &tseq, const std::string &qseq, int min_width, int max_width) const {
-        return iterativeBandExtend(tseq.c_str(), qseq.c_str(), min_width, max_width);
-    }
-};
 
