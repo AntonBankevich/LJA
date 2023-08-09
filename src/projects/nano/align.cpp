@@ -515,6 +515,7 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
     for(Edge &edge: last_junction) {
         if(edge == mpath.backEdge())
             continue;
+        std::cout << "Change end attempt" << std::endl;
         if(edge.size() < mpath.getEdge(mpath.size() - 1).size() - mpath.rightSkip())
             continue;
         Sequence s = from_seq.Subseq(nails.back().first, from_seq.size());
@@ -528,6 +529,10 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
         AlignmentForm al2 = defaultAlignExtension(s, s2);
         size_t score1 = Score(al1, s, s1, to_ignore);
         size_t score2 = Score(al2, s, s2, to_ignore);
+        std::cout << "Alignment: " << score1 << " " << al1.queryLength() << " (" << s.size() << ") "  << al1.targetLength() << " (" << s1.size() << ")\n "
+                << join("\n", al1.toString(s, s1)) << "\n";
+        std::cout << "Alignment: " << score2 << " " << al2.queryLength() << " (" << s.size() << ") "  << al2.targetLength() << " (" << s2.size() << ")\n "
+                  << join("\n", al2.toString(s, s2)) << "\n";
 //            if(fromto1.first < s.size()) {
 //                AnalyseAndPrint(s, s1, 1000000);
 //            }
@@ -558,7 +563,7 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
         std::vector<std::pair<size_t, size_t>> nails = Nails(graph, from_seq, mpath, cigar);
         MGGraphPath correction = mpath;
         for(const Detour &detour : bulgeFinder.findBulges(correction)) {
-            std::cout << detour.path.size() << " " << detour.end - detour.start << std::endl;
+            std::cout << "Detour attempt " << detour.path.size() << " " << detour.end - detour.start << std::endl;
             if(CheckAndReroute(from_seq, nails, correction, detour)) {
                 mpath = std::move(correction);
                 cigar = defaultAlign(from_seq, mpath.Seq());
@@ -619,6 +624,7 @@ int main(int argc, char **argv) {
 
     BulgeFinder bulgeFinder(mg, 10000, 1000);
     for(auto &it : result) {
+        logger.info() << it.first << " " << it.second.size() << std::endl;
         for (nano::GraphContig &al: it.second) {
             MGGraphPath path = ContigToPath(al, mg);
 //            AnalyseAndPrint(al.read_str.seq.Subseq(al.qStart, al.qEnd), GraphSeq(mg, al));
