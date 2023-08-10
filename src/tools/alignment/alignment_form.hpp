@@ -98,13 +98,13 @@ public:
                 if(cp.type == 'D') {
                     s1.emplace_back('-');
                 } else {
-                    s1.emplace_back("ACGT"[from_seq[from_pos]]);
+                    s1.emplace_back(nucl(from_seq[from_pos]));
                     from_pos++;
                 }
                 if(cp.type == 'I') {
                     s2.emplace_back('-');
                 } else {
-                    s2.emplace_back("ACGT"[to_seq[to_pos]]);
+                    s2.emplace_back(nucl(to_seq[to_pos]));
                     to_pos++;
                 }
             }
