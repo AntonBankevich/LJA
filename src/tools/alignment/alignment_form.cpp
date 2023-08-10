@@ -109,6 +109,17 @@ AlignmentForm::AlignmentForm(const std::string &s) {
     calculateLens();
 }
 
+std::string AlignmentForm::toCigarString() const {
+    std::stringstream ss;
+    for(auto p : *this) {
+        if(p.length == 1)
+            ss << p.type;
+        else
+            ss << p.length << p.type;
+    }
+    return ss.str();
+}
+
 AlignmentForm::AlignmentColumnIterator::AlignmentColumnIterator(AlignmentForm &form, size_t cigar_pos, size_t block_pos)
         :
         alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(0), tpos(0) {

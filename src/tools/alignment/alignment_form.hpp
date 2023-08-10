@@ -78,6 +78,9 @@ public:
     AlignmentForm Prefix(AlignmentColumnIterator bound);
     AlignmentForm Suffix(AlignmentColumnIterator bound);
 
+
+    std::string toCigarString() const;
+
     template<class U, class V>
     std::vector<std::string> toString(U &from_seq, V &to_seq,
                                  const std::vector<std::pair<size_t, size_t>> &to_ignore = {}) const {
