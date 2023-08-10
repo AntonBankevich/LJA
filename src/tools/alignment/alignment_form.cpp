@@ -17,27 +17,17 @@ void AlignmentForm::operator+=(const AlignmentForm &other) {
 }
 
 void AlignmentForm::operator+=(CigarEvent e) {
-    if(e == cigar.back().type) {
-        cigar.back().length ++;
-    } else {
-        cigar.emplace_back(e, 1);
-    }
-    if(e != CigarEvent::D)
-        qlen += 1;
-    if(e != CigarEvent::I)
-        tlen += 1;
+    *this += CigarPair(e, 1);
 }
 
 void AlignmentForm::operator+=(CigarPair p) {
-    if(p.type == cigar.back().type) {
+    if(!empty() && p.type == cigar.back().type) {
         cigar.back().length += p.length;
     } else {
         cigar.emplace_back(p);
     }
-    if(p.type != CigarEvent::D)
-        qlen += p.length;
-    if(p.type != CigarEvent::I)
-        tlen += p.length;
+    qlen += p.qlen();
+    tlen += p.tlen();
 }
 
 AlignmentForm AlignmentForm::operator+(const AlignmentForm &other) const {
