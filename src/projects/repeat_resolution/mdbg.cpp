@@ -195,14 +195,15 @@ void MultiplexDBG::FreezeUnpairedVertices() {
             FreezeVertex(vertex);
         } else if (in_edges.size() >= 2 and out_edges.size() >= 2) {
             auto[ac_s2e, ac_e2s] = GetEdgepairsVertex(vertex);
+            auto[ac_s2e_ont, ac_e2s_ont] = GetEdgepairsVertexFromONT(vertex);
             for (const RREdgeIndexType &edge : in_edges) {
-                if (ac_s2e.find(edge)==ac_s2e.end()) {
+                if (ac_s2e.find(edge)==ac_s2e.end() && ac_s2e_ont.find(edge)==ac_s2e_ont.end()) {
                     FreezeVertex(vertex);
                     break;
                 }
             }
             for (const RREdgeIndexType &edge : out_edges) {
-                if (ac_e2s.find(edge)==ac_e2s.end()) {
+                if (ac_e2s.find(edge)==ac_e2s.end() && ac_e2s_ont.find(edge)==ac_e2s_ont.end()) {
                     FreezeVertex(vertex);
                     break;
                 }
@@ -663,6 +664,133 @@ MultiplexDBG::GetEdgepairsVertex(const RRVertexType &vertex) const {
     extend_transitions_single_loop(in_edges, out_edges, ac_s2e, ac_e2s);
     extend_transitions_all_unique(in_edges, out_edges, ac_s2e, ac_e2s);
 
+    return std::make_pair(ac_s2e, ac_e2s);
+}
+
+std::pair<MultiplexDBG::EdgeNeighborMap, MultiplexDBG::EdgeNeighborMap>
+MultiplexDBG::GetEdgepairsVertexFromONT(const RRVertexType &vertex) const {
+    auto get_init_transitions_ont =
+        [this](const std::vector<RREdgeIndexType> &in_edges,
+               const std::vector<RREdgeIndexType> &out_edges) {
+          EdgeNeighborMapCnt ac_s2e_cnt, ac_e2s_cnt;
+          //ont_paths->PrintRRPaths();
+          int sum_cnt = 0;
+          for (const RREdgeIndexType &in_ind : in_edges) {
+              for (const RREdgeIndexType &out_ind : out_edges) {
+                  if (ont_paths->ContainsPair(in_ind, out_ind)) {
+                      ac_s2e_cnt[in_ind][out_ind] = ont_paths->PairCount(in_ind, out_ind);
+                      ac_e2s_cnt[out_ind][in_ind] = ac_s2e_cnt[in_ind][out_ind];
+                      sum_cnt += ac_s2e_cnt[in_ind][out_ind];
+                  }
+              }
+          }
+          EdgeNeighborMap ac_s2e, ac_e2s;
+          const int threshold = 3;
+          const int sm_threshold = sum_cnt/(in_edges.size()*out_edges.size())-1;
+          int p_cnt = 0;
+          std::set<RREdgeIndexType> in_used, out_used;
+          for (const auto &[in_ind, out_inds] : ac_s2e_cnt) {
+              for (const auto&[out_ind, cnt] : out_inds) {
+                  std::cerr << "Pairs to resolve: " << in_ind << " " << out_ind << " " << cnt << std::endl;
+                  if (cnt > std::max(threshold, sm_threshold)) {
+                      ++ p_cnt;
+                      std::cerr << "Pairs to resolve: Choose: " << in_ind << " " << out_ind << " " << cnt << std::endl;
+                      ac_s2e[in_ind].emplace(out_ind);
+                      ac_e2s[out_ind].emplace(in_ind);
+                      in_used.insert(in_ind);
+                      out_used.insert(out_ind);
+                  }
+              }
+          }
+          /*if (in_edges.size() == 2 && out_edges.size() == 2 && p_cnt > 2) {
+              ac_s2e.clear();
+              ac_e2s.clear();
+          }
+          if (in_used.size() < in_edges.size() || out_used.size() < out_edges.size()) {
+              ac_s2e.clear();
+              ac_e2s.clear();
+          }*/
+          return std::make_pair(ac_s2e, ac_e2s);
+        };
+
+    auto extend_transitions_single_loop_ont =
+        [this, &vertex](const std::vector<RREdgeIndexType> &in_edges,
+                        const std::vector<RREdgeIndexType> &out_edges,
+                        EdgeNeighborMap &ac_s2e, EdgeNeighborMap &ac_e2s) {
+          std::vector<RREdgeIndexType> loops;
+          for (const RREdgeIndexType &index : in_edges) {
+              if (std::find(out_edges.begin(), out_edges.end(), index)!=
+                  out_edges.end()) {
+                  loops.push_back(index);
+              }
+          }
+
+          if (loops.size()==1) {
+              const RREdgeIndexType loop = loops.front();
+              const RREdgeProperty &loop_prop =
+                  FindOutEdgeConstiterator(vertex, loop)->second.prop();
+              if (loop_prop.IsUnique()) {
+                  if (in_edges.size()==2) {
+                      const size_t loop_index = in_edges.back()==loop;
+                      const size_t nonloop = in_edges[loop_index ^ 1];
+                      ac_s2e[nonloop].emplace(loop);
+                      ac_e2s[loop].emplace(nonloop);
+                  }
+                  if (out_edges.size()==2) {
+                      const size_t loop_index = out_edges.back()==loop;
+                      const size_t nonloop = out_edges[loop_index ^ 1];
+                      ac_s2e[loop].emplace(nonloop);
+                      ac_e2s[nonloop].emplace(loop);
+                  }
+              }
+          }
+        };
+
+    auto extend_transitions_all_unique_ont =
+        [this, &vertex](const std::vector<RREdgeIndexType> &in_edges,
+                        const std::vector<RREdgeIndexType> &out_edges,
+                        EdgeNeighborMap &ac_s2e, EdgeNeighborMap &ac_e2s) {
+          std::vector<RREdgeIndexType> unpaired_in, unpaired_out;
+          for (const RREdgeIndexType &index : out_edges) {
+              if (ac_e2s.find(index)==ac_e2s.end()) {
+                  unpaired_out.push_back(index);
+              }
+          }
+          for (const RREdgeIndexType &index : in_edges) {
+              if (ac_s2e.find(index)==ac_s2e.end()) {
+                  unpaired_in.push_back(index);
+              }
+          }
+
+          bool all_in_unique =
+              std::all_of(in_edges.begin(), in_edges.end(),
+                          [this, &vertex](const RREdgeIndexType &edge_index) {
+                            return FindInEdgeConstiterator(vertex, edge_index)
+                                ->second.prop()
+                                .IsUnique();
+                          });
+          bool all_out_unique =
+              std::all_of(out_edges.begin(), out_edges.end(),
+                          [this, &vertex](const RREdgeIndexType &edge_index) {
+                            return FindOutEdgeConstiterator(vertex, edge_index)
+                                ->second.prop()
+                                .IsUnique();
+                          });
+          if (unpaired_in.size()==1 and unpaired_out.size()==1 and
+              (all_in_unique or all_out_unique)) {
+              const RRVertexType unp_in = unpaired_in.front();
+              const RRVertexType unp_out = unpaired_out.front();
+              VERIFY(ac_s2e.find(unp_in)==ac_s2e.end());
+              VERIFY(ac_e2s.find(unp_out)==ac_e2s.end());
+              ac_s2e[unp_in] = {unp_out};
+              ac_e2s[unp_out] = {unp_in};
+          }
+        };
+
+    const auto[in_edges, out_edges] = GetNeighborEdgesIndexes(vertex);
+    auto[ac_s2e, ac_e2s] = get_init_transitions_ont(in_edges, out_edges);
+    extend_transitions_single_loop_ont(in_edges, out_edges, ac_s2e, ac_e2s);
+    extend_transitions_all_unique_ont(in_edges, out_edges, ac_s2e, ac_e2s);
     return std::make_pair(ac_s2e, ac_e2s);
 }
 

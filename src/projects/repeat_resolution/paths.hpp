@@ -105,6 +105,9 @@ class RRPaths {
     [[nodiscard]] bool ContainsPair(const RREdgeIndexType &lhs,
                                     const RREdgeIndexType &rhs) const;
 
+    [[nodiscard]] int PairCount(const RREdgeIndexType &lhs,
+                                    const RREdgeIndexType &rhs) const;
+
     [[nodiscard]] std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
     GetActiveTransitions() const;
 
@@ -112,6 +115,8 @@ class RRPaths {
 
     void SplitByTransitions(std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
                             &split_transitions);
+
+    void PrintRRPaths() const;
 };
 
 class PathsBuilder {

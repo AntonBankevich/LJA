@@ -134,7 +134,20 @@ void MDBGComplexVertexProcessor::Process(MultiplexDBG &graph,
     const RRVertexProperty &v_prop = graph.node_prop(vertex);
 
     auto[ac_s2e, ac_e2s] = graph.GetEdgepairsVertex(vertex);
-
+    std::cerr << "AC_S2E size=" << ac_s2e.size() << std::endl;
+    if (ac_s2e.size() == 0) {
+        std::cerr << "Resolve with ont!\n";
+        std::tie(ac_s2e, ac_e2s) = graph.GetEdgepairsVertexFromONT(vertex);
+        std::cerr << "Map size " << ac_s2e.size() << std::endl;
+        // bool dont = false;
+        for (const auto &[edge1, edge1_neighbors] : ac_s2e) {
+            for (const auto &edge2 : edge1_neighbors) {
+                //if (graph.untouched_edges.count(edge1) > 0) { std::cerr << "Dont\n"; dont = true;}
+                std::cerr << edge1 << " " << edge2 << std::endl;
+            }
+        }
+        //if (dont) { ac_s2e.clear(); ac_e2s.clear();}
+    }
     /*
     {
         auto[in_edges, out_edges] = graph.GetNeighborEdgesIndexes(vertex);

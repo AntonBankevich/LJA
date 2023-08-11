@@ -232,6 +232,42 @@ const std::vector<RRPath> &RRPaths::GetPaths() const {
      return std::move(paths_vec);
 }
 
+void RRPaths::PrintRRPaths() const {
+    int cnt = 0;
+    int n = 100000;
+    // for (const auto &[transition, pos] : edgepair2pos) {
+    //      std::cerr << transition.first << " " << transition.second << " " << pos.size() << std::endl;
+    //      cnt ++;
+    //     if (cnt > n) break;
+    // }
+
+    cnt = 0;
+    for (const auto &[key,ont_path] : paths) {
+        if (ont_path.id.find("e10aa8e58d62") != std::string::npos) {
+            std::cerr << ont_path.id << std::endl;
+            std::string ids = "";
+            for (auto const &edge: ont_path.edge_list) {
+                ids += std::to_string(edge) + ",";
+            }
+            std::cerr << " " << ids << std::endl;
+            cnt ++;
+            if (cnt > n) break;
+        }
+    }
+    // cnt = 10;
+    // for (const auto &[edge, val] : edge2pos) {
+    //     std::cerr << edge << " " << val.size() << ": " << std::endl;
+    //     int cnt_in = 0;
+    //     for (const IteratorInPath &iter_in_path : val) {
+    //         std::cerr << " " << iter_in_path.p_path->id << "\n";
+    //         cnt_in ++;
+    //         if (cnt_in > 10) break;
+    //     }
+    //     cnt ++;
+    //     if (cnt > n) break;
+    // }
+}
+
 const EdgeIndex2PosMap &RRPaths::GetEdge2Pos() const { return edge2pos; }
 const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
     return edgepair2pos;
@@ -240,6 +276,15 @@ const EdgeIndexPair2PosMap &RRPaths::GetEdgepair2Pos() const {
 [[nodiscard]] bool RRPaths::ContainsPair(const RREdgeIndexType &lhs,
                                          const RREdgeIndexType &rhs) const {
     return edgepair2pos.find(std::make_pair(lhs, rhs))!=edgepair2pos.end();
+}
+
+[[nodiscard]] int RRPaths::PairCount(const RREdgeIndexType &lhs,
+                                         const RREdgeIndexType &rhs) const {
+    if (edgepair2pos.find(std::make_pair(lhs, rhs)) == edgepair2pos.end()) {
+        return 0;
+    } else {
+        return edgepair2pos.at({lhs, rhs}).size();
+    }
 }
 
 [[nodiscard]] std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>

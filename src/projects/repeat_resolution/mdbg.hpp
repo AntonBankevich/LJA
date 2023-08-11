@@ -147,6 +147,11 @@ class MultiplexDBG
     [[nodiscard]] std::pair<EdgeNeighborMap, EdgeNeighborMap>
     GetEdgepairsVertex(const RRVertexType &vertex) const;
 
+    using EdgeNeighborMapCnt =
+    std::unordered_map<RREdgeIndexType, std::unordered_map<RREdgeIndexType, RREdgeIndexType>>;
+    [[nodiscard]] std::pair<EdgeNeighborMap, EdgeNeighborMap>
+    GetEdgepairsVertexFromONT(const RRVertexType &vertex) const;
+
     void SplitONTPaths(const EdgeNeighborMap &ac_s2e, const RRVertexType &vertex);
 
     NeighborsIterator FindInEdgeIterator(const RRVertexType &v,
