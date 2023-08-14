@@ -1,5 +1,5 @@
 #include "alignment_form.hpp"
-#import "sstream"
+#include "sstream"
 
 void AlignmentForm::operator+=(const AlignmentForm &other) {
     if(empty()) {

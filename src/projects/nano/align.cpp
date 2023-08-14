@@ -480,7 +480,7 @@ void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Se
     std::vector<string> res1 = cigar1.toString(from_seq, to_seq1, to_ignore);
     std::vector<string> res2 = cigar2.toString(from_seq, to_seq2, to_ignore);
     std::vector<std::string> res = mixAndShorten(res1, res2);
-    std::cout << res[0] << "\n" << res[1] << "\n" << res[2] << "\n" << res[3] << "\n" << res[4] << std::endl;
+    std::cout << join("\n", res) << std::endl;
 }
 
 bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_t, size_t>> &nails, MGGraphPath &path,
@@ -529,10 +529,9 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
         AlignmentForm al2 = defaultAlignExtension(s, s2);
         size_t score1 = Score(al1, s, s1, to_ignore);
         size_t score2 = Score(al2, s, s2, to_ignore);
-        std::cout << "Alignment: " << score1 << " " << al1.queryLength() << " (" << s.size() << ") "  << al1.targetLength() << " (" << s1.size() << ")\n "
-                << join("\n", al1.toString(s, s1)) << "\n";
-        std::cout << "Alignment: " << score2 << " " << al2.queryLength() << " (" << s.size() << ") "  << al2.targetLength() << " (" << s2.size() << ")\n "
-                  << join("\n", al2.toString(s, s2)) << "\n";
+        std::cout << "Alignment: " << score1 << " " << al1.queryLength() << " (" << s.size() << ") "  << al1.targetLength() << " (" << s1.size() << ")" << std::endl;
+        std::cout << "Alignment: " << score2 << " " << al2.queryLength() << " (" << s.size() << ") "  << al2.targetLength() << " (" << s2.size() << ")" << std::endl;
+        AnalyseAndPrint(s, s1, s2, true);
 //            if(fromto1.first < s.size()) {
 //                AnalyseAndPrint(s, s1, 1000000);
 //            }
@@ -543,7 +542,7 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
             mpath.cutBack(edge.size() - al2.targetLength() - nails.back().second);
 //            AnalyseAndPrint(s, s1, 1000000);
 //            AnalyseAndPrint(s, s2, 1000000);
-            AnalyseAndPrint(s, s1, s2, true);
+//            AnalyseAndPrint(s, s1, s2, true);
 
             changed = true;
         }
