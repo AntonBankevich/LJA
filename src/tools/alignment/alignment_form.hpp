@@ -140,14 +140,14 @@ public:
                 nucl_count[2] = 0;
                 nucl_count[3] = 0;
             }
-            if(cnt == match) {
+            if(cnt >= match) {
                 if(nucl_count[0] + nucl_count[1] <= max2 && nucl_count[0] + nucl_count[2] <= max2 && nucl_count[0] + nucl_count[3] <= max2 &&
                         nucl_count[2] + nucl_count[1] <= max2 && nucl_count[3] + nucl_count[1] <= max2 && nucl_count[2] + nucl_count[3] <= max2) {
                     for (size_t i = 0; i < match; i++)
                         ++iter;
                     break;
                 } else {
-                    VERIFY(tseq[column.tpos + match - 1]);
+                    VERIFY_MSG(tseq[column.tpos + match - 1] > 0, "Incorrect nucleotide counting");
                     nucl_count[tseq[column.tpos + match - 1]]--;
                 }
             }

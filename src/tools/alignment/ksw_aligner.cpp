@@ -116,7 +116,7 @@ AlignmentForm KSWAligner::alignByExtension(const char *tseq, const char *qseq) c
     }
     while(!initial.empty() && initial.targetLength() + 1000 > tlen)
         initial.pop_back();
-    initial = initial.Prefix(AlignmentHelper::LastComplexLongMatch(tseq, qseq, initial, 10));
+    initial = initial.Prefix(AlignmentHelper::LastComplexLongMatch(tseq, qseq, initial, 15));
     AlignmentForm extension = iterativeBandAlign(tseq + initial.targetLength(), qseq + initial.queryLength());
     initial += extension;
     return std::move(initial);
