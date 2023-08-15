@@ -26,7 +26,7 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
     std::unordered_set<EdgePosition> visited;
     for(Edge &edge : mg.edges()) {
         queue.emplace_back(edge, 0);
-        queue.emplace_back(edge, edge.size());
+        queue.emplace_back(edge, edge.fullSize());
     }
     while(!queue.empty()) {
         EdgePosition ep = queue.back();
@@ -38,7 +38,7 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
             Vertex &start = ep.contig().getStart();
             for(Edge &rcedge2: start.rc()) {
                 Edge &edge2 = rcedge2.rc();
-                EdgePosition other(edge2, edge2.size() - start.size() + ep.getPos());
+                EdgePosition other(edge2, edge2.fullSize() - start.size() + ep.getPos());
                 if(visited.find(other) == visited.end()) {
                     if(ep.getPos() < start.size())
                         linked_positions.link(ep, other);
@@ -54,21 +54,21 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
                 }
             }
         }
-        if(ep.getPos() >= ep.contig().size() - ep.contig().getFinish().size()) {
+        if(ep.getPos() >= ep.contig().fullSize() - ep.contig().getFinish().size()) {
             Vertex &end = ep.contig().getFinish();
             for(Edge &edge2 : end) {
-                EdgePosition other(edge2, ep.getPos() - ep.contig().size() + end.size());
+                EdgePosition other(edge2, ep.getPos() - ep.contig().fullSize() + end.size());
                 if(visited.find(other) == visited.end()) {
-                    if(ep.getPos() < ep.contig().size())
+                    if(ep.getPos() < ep.contig().fullSize())
                         linked_positions.link(ep, other);
                     queue.emplace_back(other);
                 }
             }
             for(Edge &rcedge2 : end.rc()) {
                 Edge &edge2 = rcedge2.rc();
-                EdgePosition other(edge2, edge2.size() - ep.contig().size() + ep.getPos());
+                EdgePosition other(edge2, edge2.fullSize() - ep.contig().fullSize() + ep.getPos());
                 if(visited.find(other) == visited.end()) {
-                    if(ep.getPos() < ep.contig().size())
+                    if(ep.getPos() < ep.contig().fullSize())
                         linked_positions.link(ep, other);
                     queue.emplace_back(other);
                 }

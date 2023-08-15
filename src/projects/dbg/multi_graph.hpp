@@ -121,7 +121,7 @@ namespace multigraph {
         ConstEdgeId getId() const {return {id, this};}
         int getInnerId() const {return id;}
         const std::string &getLabel() const {return label;}
-        size_t size() const {return sz;}
+        size_t fullSize() const {return sz;}
         Vertex &getStart() {return *_start;}
         Vertex &getFinish() {return *_end;}
         const Vertex &getStart() const {return *_start;}

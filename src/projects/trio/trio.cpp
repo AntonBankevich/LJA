@@ -86,7 +86,7 @@ void HaplotypeRemover::cleanGraph() {
             logger_.debug() << "considering " << eid << " label " << eid->getLabel() <<std::endl;
             if (eid->isTip()) {
                 logger_.debug() << "is being deleted as tip\n";
-                if (eid->size() < MAX_TIP_LENGTH) {
+                if (eid->fullSize() < MAX_TIP_LENGTH) {
                     logger_.debug() << "is deleted as tip\n";
                     deleteEdgeHaplo(eid);
                     changed = true;
@@ -97,7 +97,8 @@ void HaplotypeRemover::cleanGraph() {
                 Edge & first_e = eid->getStart()[0];
                 Edge & second_e = eid->getStart()[1];
                 if (first_e.getFinish() == second_e.getFinish() && first_e != second_e.rc()
-                    && first_e.size() < BULGE_MULTIPLICATIVE_CUTOFF * second_e.size() &&  second_e.size() < BULGE_MULTIPLICATIVE_CUTOFF * first_e.size()) {
+                    && first_e.fullSize() < BULGE_MULTIPLICATIVE_CUTOFF * second_e.fullSize() && second_e.fullSize() < BULGE_MULTIPLICATIVE_CUTOFF *
+                                                                                                                       first_e.fullSize()) {
                     logger_.debug() << "is deleted as bulge\n";
                     Haplotype decision = AssignBulge(haplotypes[first_e.getLabel()], haplotypes[second_e.getLabel()]);
                     if (decision == haplotype_)
@@ -191,12 +192,12 @@ void HaplotypeRemover::removeHaplotype() {
             auto label = eid->getLabel();
             if (haplotypes.find(label) != haplotypes.end()) {
                 if (haplotypes[label].haplotype == haplotype_) {
-                    if (eid->isSimpleBridge() && eid->size() < saved_bridge_cutoff) {
+                    if (eid->isSimpleBridge() && eid->fullSize() < saved_bridge_cutoff) {
                         bridges ++;
                         logger_.info() << "Skipping getEdge " << eid << " as bridge\n";
                         continue;
                     }
-                    removed_len += eid->size();
+                    removed_len += eid->fullSize();
                     deleteEdgeHaplo(eid);
 
                     logger_.trace() << "removing " << eid  << " label " << label <<std::endl;

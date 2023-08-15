@@ -69,6 +69,7 @@ public:
     Segment<Edge> front() const;
     Segment<Edge> operator[](size_t i) const;
     std::string str(bool show_coverage = false) const;
+    std::string lenStr() const;
 
     bool valid() const;
     void invalidate();
@@ -540,6 +541,19 @@ std::string GraphPath<Graph>::str(bool show_coverage) const {
         ss << " " << seg.contig().getFinish().getInnerId();
     }
     ss << " " << rightSkip();
+    return ss.str();
+}
+
+template<class Graph>
+std::string GraphPath<Graph>::lenStr() const {
+    if(!valid())
+        return "";
+    std::stringstream ss;
+    ss << leftSkip() << " [" << start().getInnerId() << "(" << start().size() << ")";
+    for(const typename Graph::Edge &edge : edges()) {
+        ss << " -> " << "ACGT"[edge.truncSeq()[0]] << "(" << edge.fullSize() << ") -> "  << edge.end().getInnerId() << "(" << edge.end().size() << ")" ;
+    }
+    ss << "] " << rightSkip();
     return ss.str();
 }
 

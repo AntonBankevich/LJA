@@ -172,11 +172,11 @@ MGGraphPath ContigToPath(const nano::GraphContig &al, multigraph::MultiGraph &gr
     for(int id : ids) {
         multigraph::Edge &edge = *graph.getEdgeById(id);
         if(path.empty()) {
-            if(skip_left >= edge.size() - edge.getFinish().size()) {
-                skip_left -= edge.size() - edge.getFinish().size();
+            if(skip_left >= edge.fullSize() - edge.getFinish().size()) {
+                skip_left -= edge.fullSize() - edge.getFinish().size();
             } else {
                 path.emplace_back(&edge);
-                size_t to_add = edge.size() - skip_left;
+                size_t to_add = edge.fullSize() - skip_left;
                 if(len <= to_add) {
                     skip_right = to_add - len;
                     len = 0;
@@ -187,7 +187,7 @@ MGGraphPath ContigToPath(const nano::GraphContig &al, multigraph::MultiGraph &gr
             }
         } else {
             path.emplace_back(&edge);
-            size_t to_add = edge.size() - edge.getStart().size();
+            size_t to_add = edge.fullSize() - edge.getStart().size();
             if (len <= to_add) {
                 skip_right = to_add - len;
                 len = 0;
@@ -208,8 +208,8 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
     size_t skip_left = mpath.leftSkip();
     size_t cur_pos = 0;
     for(multigraph::Edge & edge: mpath.edges()) {
-        VERIFY(skip_left < edge.size());
-        size_t to_add = edge.size() - skip_left;
+        VERIFY(skip_left < edge.fullSize());
+        size_t to_add = edge.fullSize() - skip_left;
         cur_pos += to_add;
         vertices.emplace_back(cur_pos - edge.getFinish().size(), cur_pos);
         skip_left = edge.getFinish().size();
@@ -526,13 +526,13 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
         if(edge == mpath.backEdge())
             continue;
         std::cout << "Change end attempt" << std::endl;
-        if(edge.size() < mpath.getEdge(mpath.size() - 1).size() - mpath.rightSkip())
+        if(edge.fullSize() < mpath.getEdge(mpath.size() - 1).fullSize() - mpath.rightSkip())
             continue;
         Sequence s = from_seq.Subseq(nails.back().first, from_seq.size());
         Sequence s1 = mpath.getEdge(mpath.size() - 1).getSeq().Subseq(nails.back().second,
-                                                                   mpath.getEdge(mpath.size() - 1).size() -
-                                                                                        mpath.rightSkip());
-        Sequence s2 = edge.getSeq().Subseq(nails.back().second, edge.size());
+                                                                      mpath.getEdge(mpath.size() - 1).fullSize() -
+                                                                      mpath.rightSkip());
+        Sequence s2 = edge.getSeq().Subseq(nails.back().second, edge.fullSize());
         s2 = s2.Subseq(0, std::min(s2.size(), s.size() + 1000));
         std::vector<std::pair<size_t, size_t>> to_ignore = Mark(s);
         AlignmentForm al1 = defaultAlignExtension(s, s1);
@@ -549,7 +549,7 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
             std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(al1, s, s1, {}) << " " << Score(al2, s, s2, {}) << std::endl;
             mpath.pop_back();
             mpath += edge;
-            mpath.cutBack(edge.size() - al2.targetLength() - nails.back().second);
+            mpath.cutBack(edge.fullSize() - al2.targetLength() - nails.back().second);
 //            AnalyseAndPrint(s, s1, 1000000);
 //            AnalyseAndPrint(s, s2, 1000000);
 //            AnalyseAndPrint(s, s1, s2, true);

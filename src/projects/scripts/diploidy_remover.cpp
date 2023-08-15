@@ -81,7 +81,7 @@ void CollapseSimpleBulges(MultiGraph &mg) {
         size_t len = 0;
         for(VertexId v : it.second) {
             if(v->outDeg() > 0 && paths.get(v->begin()->getFinish().getId()) == it.first) {
-                len += 2 * std::min(v->front().size(), v->back().size()) - v->front().getFinish().size() - v->size();
+                len += 2 * std::min(v->front().fullSize(), v->back().fullSize()) - v->front().getFinish().size() - v->size();
             }
         }
         len /= 2;
@@ -107,9 +107,9 @@ void CollapseSimpleBulges(MultiGraph &mg) {
         std::vector<EdgeId> comp = component(*e);
         size_t size = 0;
         for(EdgeId e1: comp) {
-            size+= 2 * e1->size() - e1->getStart().size() - e1->getFinish().size();
+            size+= 2 * e1->fullSize() - e1->getStart().size() - e1->getFinish().size();
         }
-        size_t elen = 2*e->size() - e->getStart().size() - e->getFinish().size();
+        size_t elen = 2* e->fullSize() - e->getStart().size() - e->getFinish().size();
         std::cout << elen << " " << comp.size() << " " << size << std::endl;
         if((comp.size() == 1 && e->getStart().outDeg() == 2 && e->getFinish().inDeg() == 2 && size <= elen) || size < elen * 1.5 + 100000) {
             for(EdgeId e1 : comp) {
@@ -129,7 +129,7 @@ void CollapseSimpleBulges(MultiGraph &mg) {
 void ChooseShortcuts(MultiGraph &mg) {
     DisjointSet<VertexId> small_components;
     for(Edge &edge : mg.edges()) {
-        if(edge.size() < 1000000)
+        if(edge.fullSize() < 1000000)
             small_components.link(edge.getStart().getId(), edge.getFinish().getId());
     }
     std::unordered_set<VertexId> all_vert;
@@ -177,13 +177,15 @@ void ChooseShortcuts(MultiGraph &mg) {
         std::cout << std::endl;
         EdgeId shortcut;
         for(EdgeId e : edges) {
-            if(e->getStart().getId() == start && e->getFinish().getId() == end && (!shortcut.valid() || shortcut->size() < e->size())) {
+            if(e->getStart().getId() == start && e->getFinish().getId() == end && (!shortcut.valid() ||
+                    shortcut->fullSize() <
+                                                                                                        e->fullSize())) {
                 shortcut = e;
             }
         }
         size_t size = 0;
         for(EdgeId e : edges) {
-            size += e->size() * 2 - e->getStart().size() - e->getFinish().size();
+            size += e->fullSize() * 2 - e->getStart().size() - e->getFinish().size();
         }
         if(size <= 1000000 && (to_remove.find(shortcut) == to_remove.end()) && (shortcut.valid() || start == end)) {
             if(shortcut.valid())
@@ -207,7 +209,7 @@ void ChooseShortcuts(MultiGraph &mg) {
 void PassAcyclic(MultiGraph &mg) {
     DisjointSet<VertexId> small_components;
     for(Edge &edge : mg.edges()) {
-        if(edge.size() < 1000000)
+        if(edge.fullSize() < 1000000)
             small_components.link(edge.getStart().getId(), edge.getFinish().getId());
     }
     std::unordered_set<VertexId> all_vert;
@@ -255,7 +257,7 @@ void PassAcyclic(MultiGraph &mg) {
         std::cout << std::endl;
         size_t size = 0;
         for(EdgeId e : edges) {
-            size += e->size() * 2 - e->getStart().size() - e->getFinish().size();
+            size += e->fullSize() * 2 - e->getStart().size() - e->getFinish().size();
         }
         if(size > 1000000)
             continue;
@@ -305,7 +307,7 @@ void RemoveSmall(MultiGraph &mg) {
     for(auto &it : comps) {
         size_t size = 0;
         for(EdgeId e : it.second) {
-            size += e->size();
+            size += e->fullSize();
             if(e->getStart().inDeg() != 0)
                 size -= e->getStart().size();
         }
@@ -334,7 +336,7 @@ void RemoveInversions(MultiGraph &mg) {
     for(Vertex &v : mg.vertices()) {
         if(!v.isCanonical())
             continue;
-        if(v.inDeg()== 2 && v.outDeg() == 2 && v[0] == v[1].rc() && v[0].size() < 300000) {
+        if(v.inDeg()== 2 && v.outDeg() == 2 && v[0] == v[1].rc() && v[0].fullSize() < 300000) {
             Edge &in1 = v.rc()[0].rc();
             Edge &in2 = v.rc()[1].rc();
             Edge &b1 = v[0];

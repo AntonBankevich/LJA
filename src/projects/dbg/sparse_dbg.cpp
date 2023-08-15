@@ -109,6 +109,10 @@ void Edge::DeleteEdgeLockFree(Edge &edge) {
     start.innerRemoveEdge(edge);
 }
 
+size_t Edge::fullSize() const {
+    return truncSeq().size() + getStartSize();
+}
+
 //std::ostream &operator<<(std::ostream &os, const Edge &edge) {
 //    os << edge.getShortId();
 //    return os;

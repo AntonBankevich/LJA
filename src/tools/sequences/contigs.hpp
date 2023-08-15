@@ -180,7 +180,7 @@ public:
     Position() : contig_ptr(nullptr), pos(0){}
 
     Position(T &contig, size_t pos) : contig_ptr(&contig), pos(pos){
-        VERIFY(0 <= pos && pos <= contig_ptr->size())
+        VERIFY(0 <= pos && pos <= contig_ptr->fullSize())
     }
 
     T &contig() const {return *contig_ptr;}
@@ -200,7 +200,7 @@ public:
         return 0;
     }
 
-    Position<T> RC() const {return {contig_ptr->rc(), contig_ptr->size() - pos};}
+    Position<T> RC() const {return {contig_ptr->rc(), contig_ptr->fullSize() - pos};}
 
     bool operator<(const Position<T> &other) const {
         return contig() < other.contig() ||
@@ -290,6 +290,10 @@ public:
     }
 
     size_t truncSize() const {
+        return getSeq().size();
+    }
+
+    size_t fullSize() const {
         return getSeq().size();
     }
 

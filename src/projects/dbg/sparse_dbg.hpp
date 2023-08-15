@@ -91,6 +91,7 @@ namespace dbg {
         Sequence suffix(size_t pos) const;
         size_t getStartSize() const;
         size_t truncSize() const;
+        size_t fullSize() const;
 
         const Vertex &getFinish() const {return *finish;}
         Vertex &getFinish() {return *finish;}

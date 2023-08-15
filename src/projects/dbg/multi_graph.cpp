@@ -100,8 +100,8 @@ namespace multigraph {
         size_t total_clean_length = 0;
         for(Vertex &v : vertices()) {
             for(Edge &edge : v) {
-                total_length += edge.size();
-                total_clean_length += edge.size() - v.seq.size();
+                total_length += edge.fullSize();
+                total_clean_length += edge.fullSize() - v.seq.size();
             }
             if(v.outDeg() == 1 && v.inDeg() == 0) {
                 tips += 2;
@@ -275,8 +275,8 @@ namespace multigraph {
         }
 //Rc loops are always loops, so this condition should never fail.
         VERIFY_MSG(edge1 != edge2.rc(), "Reverse-complement loop is not a loop. This should never happen");
-        VERIFY(edge1.size() >= v.size());
-        VERIFY(edge2.size() >= v.size());
+        VERIFY(edge1.fullSize() >= v.size());
+        VERIFY(edge2.fullSize() >= v.size());
         Sequence new_seq = edge1.getSeq() + edge2.getSeq().Subseq(v.size());
         VertexId new_start = edge1.getStart().getId();
         VertexId new_end = edge2.getFinish().getId();
@@ -285,7 +285,7 @@ namespace multigraph {
         std::vector<std::string> path = {edge1.getLabel(), edge2.getLabel()};
 
         if(edge1 == edge1.rc()) {
-            new_seq = edge2.rc().getSeq().Prefix(edge2.size() - v.size()) + new_seq;
+            new_seq = edge2.rc().getSeq().Prefix(edge2.fullSize() - v.size()) + new_seq;
             new_start = edge2.rc().getStart().getId();
             new_end = edge2.getFinish().getId();
             new_label = edge2.rc().getLabel() + "_" + edge1.getLabel() + "_" + edge2.getLabel();
@@ -417,10 +417,10 @@ namespace multigraph {
                     cut_left = 0;
                     cut_right = 0;
                 }
-                if(cut_left + cut_right >= edge.size()) {
+                if(cut_left + cut_right >= edge.fullSize()) {
                     continue;
                 }
-                res.emplace_back(edge.getSeq().Subseq(cut_left, edge.size() - cut_right), itos(edge.getId().innerId()));
+                res.emplace_back(edge.getSeq().Subseq(cut_left, edge.fullSize() - cut_right), itos(edge.getId().innerId()));
                 cnt++;
             }
         }
@@ -447,7 +447,7 @@ namespace multigraph {
         std::unordered_map<EdgeId, std::string> eids;
         for (const Edge &edge : mg.edges()) {
             os << "\"" << edge.getStart().getId() << "\" -> \"" << edge.getFinish().getId() <<
-               "\" [label=\"" << edge.getId() << "(" << edge.size() << ")\" color = \"black\"]\n" ;
+               "\" [label=\"" << edge.getId() << "(" << edge.fullSize() << ")\" color = \"black\"]\n" ;
 
         }
         os << "}\n";
@@ -517,12 +517,12 @@ namespace multigraph {
         for(ConstVertexId v : component)
             for (const Edge &edge : *v) {
                 if (edge.isCanonical()) {
-                    VERIFY(edge.size() < edge.getStart().size() + edge.getFinish().size());
+                    VERIFY(edge.fullSize() < edge.getStart().size() + edge.getFinish().size());
                     bool incsign = v->isCanonical();
                     bool outsign = edge.getFinish().isCanonical();
                     os << "L\t" << vids[v] << "\t" << (incsign ? "+" : "-") << "\t"
                        << vids[edge.getFinish().getId()] << "\t" << (outsign ? "+" : "-") << "\t"
-                       << (v->size() + edge.getFinish().size() - edge.size()) << "M" << "\n";
+                       << (v->size() + edge.getFinish().size() - edge.fullSize()) << "M" << "\n";
                 }
             }
         os.close();
