@@ -14,7 +14,7 @@ private:
     int gape;
     static unsigned long window;
     size_t max_width = 10000;
-    size_t min_width = 10;
+    size_t min_width = 20;
 
     AlignmentForm runAlignment(const char *tseq, const char *qseq, int width, int end_bonus = 0) const;
 

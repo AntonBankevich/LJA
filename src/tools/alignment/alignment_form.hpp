@@ -2,6 +2,7 @@
 
 #include "common/iterator_utils.hpp"
 #include <ksw2/ksw_wrapper.hpp>
+#include "sequences/nucl.hpp"
 #include <string>
 
 class AlignmentForm {
@@ -121,21 +122,34 @@ class AlignmentHelper {
 public:
     template<class U, class V>
     static AlignmentForm::AlignmentColumnIterator
-    LastLongMatch(U tseq, V qseq, AlignmentForm &extension, size_t match) {
+    LastComplexLongMatch(U tseq, V qseq, AlignmentForm &extension, size_t match) {
         size_t cnt = 0;
+        size_t nucl_count[4];
+        size_t max2 = match * 3 / 4;
         auto iter = extension.columns().end();
         while(iter != extension.columns().begin()) {
             --iter;
             auto column = *iter;
             if(column.event == M && tseq[column.tpos] == qseq[column.qpos]) {
+                nucl_count[tseq[column.tpos]]++;
                 cnt++;
             } else {
                 cnt = 0;
+                nucl_count[0] = 0;
+                nucl_count[1] = 0;
+                nucl_count[2] = 0;
+                nucl_count[3] = 0;
             }
             if(cnt == match) {
-                for(size_t i = 0; i < match; i++)
-                    ++iter;
-                break;
+                if(nucl_count[0] + nucl_count[1] <= max2 && nucl_count[0] + nucl_count[2] <= max2 && nucl_count[0] + nucl_count[3] <= max2 &&
+                        nucl_count[2] + nucl_count[1] <= max2 && nucl_count[3] + nucl_count[1] <= max2 && nucl_count[2] + nucl_count[3] <= max2) {
+                    for (size_t i = 0; i < match; i++)
+                        ++iter;
+                    break;
+                } else {
+                    VERIFY(tseq[column.tpos + match - 1]);
+                    nucl_count[tseq[column.tpos + match - 1]]--;
+                }
             }
         }
         return iter;

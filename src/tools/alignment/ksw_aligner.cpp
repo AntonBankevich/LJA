@@ -1,6 +1,7 @@
 //
 // Created by anton on 07.08.2023.
 //
+#include <common/string_utils.hpp>
 #include "ksw_aligner.hpp"
 
 size_t KSWAligner::window = 1000;
@@ -56,7 +57,7 @@ AlignmentForm KSWAligner::iterativeBandExtend(const char *tseq, const char *qseq
     while(true) {
         auto res = runAlignment(tseq, qseq, cur_width, 100000);
         __int64_t new_cost = cost(tseq, qseq, res);
-        if(new_cost == prev_cost)
+        if((new_cost == prev_cost && (res.queryLength() == strlen(qseq) || res.targetLength() == strlen(tseq))) || cur_width == max_width)
             return std::move(res);
 //          if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
 //              return std::move(res);
@@ -81,8 +82,9 @@ AlignmentForm KSWAligner::extendAlignment(const char *tseq, const char *qseq) co
         AlignmentForm extension = iterativeBandExtend(newTarget, newQuery);
         if(extension.queryLength() == 0 || extension.targetLength() == 0)
             break;
-        size_t match = 10;
-        AlignmentForm::AlignmentColumnIterator iter = AlignmentHelper::LastLongMatch(newTarget, newQuery, extension, match);
+        size_t match = 15;
+        AlignmentForm::AlignmentColumnIterator iter = AlignmentHelper::LastComplexLongMatch(newTarget, newQuery,
+                                                                                            extension, match);
         if(iter == extension.columns().begin())
             break;
         extension = extension.Prefix(iter);
@@ -114,7 +116,7 @@ AlignmentForm KSWAligner::alignByExtension(const char *tseq, const char *qseq) c
     }
     while(!initial.empty() && initial.targetLength() + 1000 > tlen)
         initial.pop_back();
-    initial = initial.Prefix(AlignmentHelper::LastLongMatch(tseq, qseq, initial, 10));
+    initial = initial.Prefix(AlignmentHelper::LastComplexLongMatch(tseq, qseq, initial, 10));
     AlignmentForm extension = iterativeBandAlign(tseq + initial.targetLength(), qseq + initial.queryLength());
     initial += extension;
     return std::move(initial);

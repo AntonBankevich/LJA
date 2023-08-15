@@ -428,13 +428,19 @@ std::vector<std::string> mixAndShorten(const std::vector<std::string> &s1, const
             ref1.emplace_back(s1[2][cur1]);
             m1.emplace_back(s1[1][cur1]);
             read.emplace_back(s1[0][cur1]);
-            m2.emplace_back('|');
+            if(s1[1][cur1] == '*')
+                m2.emplace_back('*');
+            else
+                m2.emplace_back('|');
             ref2.emplace_back('-');
             cur1++;
             cnt = 0;
         } else if(cur2 < s2[0].size() && s2[0][cur2] == '-') {
             ref1.emplace_back('-');
-            m1.emplace_back('|');
+            if(s2[1][cur2] == '*')
+                m1.emplace_back('*');
+            else
+                m1.emplace_back('|');
             read.emplace_back(s2[0][cur2]);
             m2.emplace_back(s2[1][cur2]);
             ref2.emplace_back(s2[2][cur2]);
