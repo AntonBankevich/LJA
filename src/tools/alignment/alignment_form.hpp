@@ -148,7 +148,7 @@ public:
                     break;
                 } else {
                     VERIFY_MSG(tseq[column.tpos + match - 1] > 0, "Incorrect nucleotide counting");
-                    nucl_count[tseq[column.tpos + match - 1]]--;
+                    nucl_count[dignucl(tseq[column.tpos + match - 1])]--;
                 }
             }
         }
