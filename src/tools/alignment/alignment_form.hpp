@@ -124,14 +124,14 @@ public:
     static AlignmentForm::AlignmentColumnIterator
     LastComplexLongMatch(U tseq, V qseq, AlignmentForm &extension, size_t match) {
         size_t cnt = 0;
-        size_t nucl_count[4];
+        size_t nucl_count[4] = {0,0,0,0};
         size_t max2 = match * 3 / 4;
         auto iter = extension.columns().end();
         while(iter != extension.columns().begin()) {
             --iter;
             auto column = *iter;
             if(column.event == M && tseq[column.tpos] == qseq[column.qpos]) {
-                nucl_count[tseq[column.tpos]]++;
+                nucl_count[dignucl(tseq[column.tpos])]++;
                 cnt++;
             } else {
                 cnt = 0;

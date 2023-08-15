@@ -493,10 +493,14 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
                      const Detour &detour){
     MGGraphPath alignedDetour = detour.path;
     MGGraphPath alignedInitial = path.subPath(detour.start, detour.end);
-    alignedDetour.cutFront(nails[detour.start - 1].second).cutBack(detour.path.finish().size() - nails[detour.end - 1].second - 1);
-    alignedInitial.cutFront(nails[detour.start - 1].second).cutBack(detour.path.finish().size() - nails[detour.end - 1].second - 1);
+    Sequence alignedDetourSeq = alignedDetour.Seq();
+    alignedDetourSeq = alignedDetourSeq.Subseq(nails[detour.start - 1].second, alignedDetourSeq.size() -
+                    (detour.path.finish().size() - nails[detour.end - 1].second - 1));
+    Sequence alignedInitialSeq = alignedInitial.Seq();
+    alignedInitialSeq = alignedInitialSeq.Subseq(nails[detour.start - 1].second, alignedInitialSeq.size() -
+                    (detour.path.finish().size() - nails[detour.end - 1].second - 1));
     Sequence alignedSubread = read_seq.Subseq(nails[detour.start - 1].first, nails[detour.end - 1].first + 1);
-    std::pair<size_t, size_t> scores = Score2(alignedSubread, alignedInitial.Seq(), alignedDetour.Seq());
+    std::pair<size_t, size_t> scores = Score2(alignedSubread, alignedInitialSeq, alignedDetourSeq);
     if(scores.second < scores.first) {
         std::cout << "Changed path " << scores.first << " " << scores.second << " " << std::endl;
         std::cout << path.str() << std::endl;
@@ -507,7 +511,7 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
 //        AnalyseAndPrint(alignedSubread, alignedInitial.Seq());
 //        AnalyseAndPrint(alignedSubread, alignedDetour.Seq());
 //        AnalyseAndPrint(alignedInitial.Seq(), alignedDetour.Seq());
-        AnalyseAndPrint(alignedSubread, alignedInitial.Seq(), alignedDetour.Seq());
+        AnalyseAndPrint(alignedSubread, alignedInitialSeq, alignedDetourSeq);
         return true;
     }
     return false;
