@@ -492,7 +492,7 @@ void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Se
 bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_t, size_t>> &nails, MGGraphPath &path,
                      const Detour &detour){
     VERIFY(path.getVertex(detour.start) == detour.path.start());
-    VERIFY(path.getVertex(detour.end) == detour.path.end());
+    VERIFY(path.getVertex(detour.end) == detour.path.finish());
     MGGraphPath alignedDetour = detour.path;
     MGGraphPath alignedInitial = path.subPath(detour.start, detour.end);
     Sequence alignedDetourSeq = alignedDetour.Seq();
