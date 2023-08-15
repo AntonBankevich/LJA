@@ -364,7 +364,7 @@ public:
             if(edge == path.getEdge(start))
                 continue;
             MGGraphPath bulge(edge);
-            found_all &=!recursiveFindBulges(bulges, bulge, path.getEdge(end), edge.truncSize(), path_len);
+            found_all &=!recursiveFindBulges(bulges, bulge, path.getEdge(end - 1), edge.truncSize(), path_len);
         }
         for(MGGraphPath &bulge : bulges) {
             res.emplace_back(start, end, std::move(bulge));
@@ -491,6 +491,8 @@ void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Se
 
 bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_t, size_t>> &nails, MGGraphPath &path,
                      const Detour &detour){
+    VERIFY(path.getVertex(detour.start) == detour.path.start());
+    VERIFY(path.getVertex(detour.end) == detour.path.end());
     MGGraphPath alignedDetour = detour.path;
     MGGraphPath alignedInitial = path.subPath(detour.start, detour.end);
     Sequence alignedDetourSeq = alignedDetour.Seq();
@@ -498,7 +500,7 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
                     (detour.path.finish().size() - nails[detour.end - 1].second - 1));
     Sequence alignedInitialSeq = alignedInitial.Seq();
     alignedInitialSeq = alignedInitialSeq.Subseq(nails[detour.start - 1].second, alignedInitialSeq.size() -
-                    (detour.path.finish().size() - nails[detour.end - 1].second - 1));
+                    (alignedInitial.finish().size() - nails[detour.end - 1].second - 1));
     Sequence alignedSubread = read_seq.Subseq(nails[detour.start - 1].first, nails[detour.end - 1].first + 1);
     std::pair<size_t, size_t> scores = Score2(alignedSubread, alignedInitialSeq, alignedDetourSeq);
     if(scores.second < scores.first) {

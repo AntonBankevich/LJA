@@ -551,7 +551,7 @@ std::string GraphPath<Graph>::lenStr() const {
     std::stringstream ss;
     ss << leftSkip() << " [" << start().getInnerId() << "(" << start().size() << ")";
     for(const typename Graph::Edge &edge : edges()) {
-        ss << " -> " << "ACGT"[edge.truncSeq()[0]] << "(" << edge.fullSize() << ") -> "  << edge.end().getInnerId() << "(" << edge.end().size() << ")" ;
+        ss << " -> " << "ACGT"[edge.truncSeq()[0]] << "(" << edge.fullSize() << ") -> "  << edge.getFinish().getInnerId() << "(" << edge.getFinish().size() << ")" ;
     }
     ss << "] " << rightSkip();
     return ss.str();
