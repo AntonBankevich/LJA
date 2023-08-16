@@ -262,6 +262,12 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
         }
     }
     VERIFY(res.size() == vertices.size());
+    for(size_t i = 0; i + 1< res.size(); i++) {
+        if(res[i+1].first < res[i].first) {
+            res[i+1].second += res[i].first - res[i+1].first;
+            res[i+1].first = res[i].first;
+        }
+    }
     return std::move(res);
 }
 
@@ -496,6 +502,8 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
     MGGraphPath alignedDetour = detour.path;
     MGGraphPath alignedInitial = path.subPath(detour.start, detour.end);
     Sequence alignedDetourSeq = alignedDetour.Seq();
+    if(alignedDetourSeq.size() < nails[detour.start - 1].second + (detour.path.finish().size() - nails[detour.end - 1].second - 1))
+           return false;
     alignedDetourSeq = alignedDetourSeq.Subseq(nails[detour.start - 1].second, alignedDetourSeq.size() -
                     (detour.path.finish().size() - nails[detour.end - 1].second - 1));
     Sequence alignedInitialSeq = alignedInitial.Seq();
@@ -505,9 +513,10 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
     std::pair<size_t, size_t> scores = Score2(alignedSubread, alignedInitialSeq, alignedDetourSeq);
     if(scores.second < scores.first) {
         std::cout << "Changed path " << scores.first << " " << scores.second << " " << std::endl;
-        std::cout << path.str() << std::endl;
-        std::cout << alignedInitial.str() << std::endl;
-        std::cout << alignedSubread.str() << std::endl;
+        std::cout << alignedInitial.lenStr() << std::endl;
+        std::cout << alignedDetour.lenStr() << std::endl;
+        AnalyseAndPrint(alignedSubread, alignedInitialSeq, alignedDetourSeq);
+
         path = path.reroute(detour.start, detour.end, detour.path);
         std::cout << std::endl;
 //        AnalyseAndPrint(alignedSubread, alignedInitial.Seq());
