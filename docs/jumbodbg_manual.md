@@ -11,6 +11,7 @@ Input
 Input reads can be in fasta or fastq format and can be compressed using gzip.
 Make sure that file name extensions correspond to contents of files since they are used to determine file formats.
 E.g. uncompressed fasta reads are expected to be stored in files with name extensions ".fasta" or ".fa" while compressed fastq reads are expected to be stored in files with name extensions ".fq.gz" or "fastq.gz".
+Note that degenerate nucleotides (`N` / `n`) contained in the input reads will be converted into `A` nucleotides.
 
 Command line
 -------------------------------------
