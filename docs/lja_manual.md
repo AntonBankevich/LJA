@@ -5,7 +5,7 @@ Requirements
 ---------------------
 
 * 64 bit Linux OS
-* CMake version 3.1 or above
+* CMake version 3.12 or above
 * C++ compiler with C++17 support (GCC-7+)
 * GNU make
 * zlib
