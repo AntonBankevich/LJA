@@ -523,7 +523,8 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
         std::cout << "Changed path " << initialScore << " " << correctionScore << " " << std::endl;
         std::cout << initial.lenStr() << std::endl;
         std::cout << correction.lenStr() << std::endl;
-        std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq), correctionCigar.toString(subreadSeq, correctionSeq))) << std::endl;
+        std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq, to_ignore),
+                                              correctionCigar.toString(subreadSeq, correctionSeq, to_ignore))) << std::endl;
         auto lit = al.columnByQpos(nails[detour.start - 1].first);
         auto rit = al.columnByQpos(nails[detour.end - 1].first);
         ++rit;
@@ -569,13 +570,16 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
             return false;
         size_t score1 = Score(initialCigar, subreadSeq, initialSeq, to_ignore);
         size_t score2 = Score(correctionCigar, subreadSeq, correctionSeq, to_ignore);
-        std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq), correctionCigar.toString(subreadSeq, correctionSeq))) << std::endl;
+        std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq, to_ignore),
+                                              correctionCigar.toString(subreadSeq, correctionSeq, to_ignore))) << std::endl;
 //        AnalyseAndPrint(subreadSeq, initialSeq, correctionSeq, true);
 //            if(fromto1.first < s.size()) {
 //                AnalyseAndPrint(s, s1, 1000000);
 //            }
         if(initialCigar.queryLength() >= subreadSeq.size() - 5 && correctionCigar.queryLength() >= subreadSeq.size() - 5 && score1 > score2) {
             std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(initialCigar, subreadSeq, initialSeq, {}) << " " << Score(correctionCigar, subreadSeq, correctionSeq, {}) << std::endl;
+            std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq, to_ignore),
+                                                  correctionCigar.toString(subreadSeq, correctionSeq, to_ignore))) << std::endl;
             mpath.pop_back();
             mpath += edge;
             mpath.cutBack(edge.fullSize() - correctionCigar.targetLength() - nails.back().second);

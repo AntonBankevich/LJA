@@ -86,7 +86,7 @@ public:
     std::string toCigarString() const;
 
     template<class U, class V>
-    std::vector<std::string> toString(U &from_seq, V &to_seq,
+    std::vector<std::string> toString(const U &from_seq, const V &to_seq,
                                  const std::vector<std::pair<size_t, size_t>> &to_ignore = {}) const {
         size_t from_pos = 0;
         size_t to_pos = 0;
