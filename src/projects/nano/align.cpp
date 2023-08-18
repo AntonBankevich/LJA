@@ -577,6 +577,7 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
 //                AnalyseAndPrint(s, s1, 1000000);
 //            }
         if(initialCigar.queryLength() >= subreadSeq.size() - 5 && correctionCigar.queryLength() >= subreadSeq.size() - 5 && score1 > score2) {
+            VERIFY(correctionCigar.queryLength() == subreadSeq.size());
             std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(initialCigar, subreadSeq, initialSeq, {}) << " " << Score(correctionCigar, subreadSeq, correctionSeq, {}) << std::endl;
             std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq, to_ignore),
                                                   correctionCigar.toString(subreadSeq, correctionSeq, to_ignore))) << std::endl;

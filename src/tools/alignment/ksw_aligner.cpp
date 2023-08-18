@@ -57,7 +57,7 @@ AlignmentForm KSWAligner::iterativeBandExtend(const char *tseq, const char *qseq
     while(true) {
         auto res = runAlignment(tseq, qseq, cur_width, 100000);
         __int64_t new_cost = cost(tseq, qseq, res);
-        if((new_cost == prev_cost && (res.queryLength() == strlen(qseq) || res.targetLength() == strlen(tseq))) || cur_width == max_width)
+        if((new_cost == prev_cost && res.queryLength() == strlen(qseq)) || cur_width == max_width)
             return std::move(res);
 //          if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
 //              return std::move(res);
@@ -83,6 +83,10 @@ AlignmentForm KSWAligner::extendAlignment(const char *tseq, const char *qseq) co
         if(extension.queryLength() == 0 || extension.targetLength() == 0)
             break;
         size_t match = 15;
+        if(subqlen < window) {
+            res += extension;
+            break;
+        }
         AlignmentForm::AlignmentColumnIterator iter = AlignmentHelper::LastComplexLongMatch(newTarget, newQuery,
                                                                                             extension, match);
         if(iter == extension.columns().begin())
