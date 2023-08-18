@@ -600,7 +600,8 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
 
     AlignmentForm cigar(graphContig.cigar);
     bool changed = true;
-    while(changed) {
+    size_t cnt = 0;
+    while(changed && cnt < 10) {
         changed = false;
         std::vector<std::pair<size_t, size_t>> nails = Nails(graph, from_seq, mpath, cigar);
         MGGraphPath correction = mpath;
@@ -610,6 +611,7 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
                 mpath = std::move(correction);
 //                cigar = defaultAlign(from_seq, mpath.Seq());
                 changed = true;
+                cnt++;
                 break;
             }
         }
