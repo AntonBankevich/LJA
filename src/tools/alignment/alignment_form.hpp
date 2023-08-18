@@ -66,6 +66,9 @@ public:
     IterableStorage<AlignmentColumnIterator> columns() {
         return {{*this, 0, 0, 0, 0}, {*this, cigar.size(), 0, qlen, tlen}};
     }
+    AlignmentColumnIterator columnByQpos(size_t qpos);
+    AlignmentColumnIterator columnByTpos(size_t tpos);
+
 
     void operator+=(const AlignmentForm &other);
     void operator+=(CigarEvent e);

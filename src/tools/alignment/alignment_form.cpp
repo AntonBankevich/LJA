@@ -111,6 +111,25 @@ std::string AlignmentForm::toCigarString() const {
     return ss.str();
 }
 
+//TODO: optimize.
+AlignmentForm::AlignmentColumnIterator AlignmentForm::columnByQpos(size_t qpos) {
+    for(auto it = columns().begin(); it != columns().end(); ++it) {
+        if((*it).qpos == qpos) {
+            return it;
+        }
+    }
+    return columns().end();
+}
+
+AlignmentForm::AlignmentColumnIterator AlignmentForm::columnByTpos(size_t tpos) {
+    for(auto it = columns().begin(); it != columns().end(); ++it) {
+        if((*it).tpos == tpos) {
+            return it;
+        }
+    }
+    return columns().end();
+}
+
 AlignmentForm::AlignmentColumnIterator::AlignmentColumnIterator(AlignmentForm &form, size_t cigar_pos, size_t block_pos)
         :
         alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(0), tpos(0) {

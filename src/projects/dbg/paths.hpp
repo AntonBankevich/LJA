@@ -64,6 +64,7 @@ public:
     Sequence Seq() const;
     Sequence truncSeq() const;
     size_t truncLen() const;
+    size_t len() const;
 
     Segment<Edge> back() const;
     Segment<Edge> front() const;
@@ -588,4 +589,13 @@ typename GraphPath<Graph>::segment_iterator GraphPath<Graph>::end() const {
     };
     CountingIterator<size_t> end_it(size());
     return {end_it, end_it, transformer};
+}
+
+template<class Graph>
+size_t GraphPath<Graph>::len() const {
+    size_t res = start().size();
+    for(Edge &edge : edges()) {
+        res += edge.truncSize();
+    }
+    return res - leftSkip() - rightSkip();
 }

@@ -148,6 +148,8 @@ std::pair<size_t, size_t> Score2(const Sequence &read, const Sequence &p1, const
     std::vector<std::pair<size_t, size_t>> to_ignore = Mark(read);
     AlignmentForm cigar1 = defaultAlign(read, p1);
     AlignmentForm cigar2 = defaultAlign(read, p2);
+    if(cigar1.queryLength() == 0 || cigar2.queryLength() == 0)
+        return {0, 0};
     return {Score(cigar1, read, p1, to_ignore), Score(cigar2, read, p2, to_ignore)};
 }
 
@@ -233,16 +235,16 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
                 size_t right = std::min(vertices[cur1].second, to_pos + cp.length);
                 VERIFY(left < right);
                 size_t p = (right - left) / 2;
-                while (p < cp.length && from_seq[left - to_pos + from_pos + p] != to_seq[left + p]) {
+                while (p < right - left && from_seq[left - to_pos + from_pos + p] != to_seq[left + p]) {
                     p++;
                 }
-                if(p == cp.length) {
+                if(p == right - left) {
                     p = 0;
-                    while (p < cp.length && from_seq[left - to_pos + from_pos + p] != to_seq[left + p]) {
+                    while (p < right - left && from_seq[left - to_pos + from_pos + p] != to_seq[left + p]) {
                         p++;
                     }
                 }
-                if(p < cp.length && cp.length > best_len[cur1]) {
+                if(p < right - left && cp.length > best_len[cur1]) {
                     res[cur1] = {left - to_pos + from_pos + p, left + p - vertices[cur1].first};
                     best_len[cur1] = cp.length;
                 }
@@ -496,33 +498,48 @@ void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Se
 }
 
 bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_t, size_t>> &nails, MGGraphPath &path,
-                     const Detour &detour){
+                     AlignmentForm &al, const Detour &detour){
     VERIFY(path.getVertex(detour.start) == detour.path.start());
     VERIFY(path.getVertex(detour.end) == detour.path.finish());
-    MGGraphPath alignedDetour = detour.path;
-    MGGraphPath alignedInitial = path.subPath(detour.start, detour.end);
-    Sequence alignedDetourSeq = alignedDetour.Seq();
-    if(alignedDetourSeq.size() < nails[detour.start - 1].second + (detour.path.finish().size() - nails[detour.end - 1].second - 1))
+    MGGraphPath correction = detour.path;
+    MGGraphPath initial = path.subPath(detour.start, detour.end);
+    Sequence correctionSeq = correction.Seq();
+    if(correctionSeq.size() < nails[detour.start - 1].second + (detour.path.finish().size() - nails[detour.end - 1].second - 1))
            return false;
-    alignedDetourSeq = alignedDetourSeq.Subseq(nails[detour.start - 1].second, alignedDetourSeq.size() -
-                    (detour.path.finish().size() - nails[detour.end - 1].second - 1));
-    Sequence alignedInitialSeq = alignedInitial.Seq();
-    alignedInitialSeq = alignedInitialSeq.Subseq(nails[detour.start - 1].second, alignedInitialSeq.size() -
-                    (alignedInitial.finish().size() - nails[detour.end - 1].second - 1));
-    Sequence alignedSubread = read_seq.Subseq(nails[detour.start - 1].first, nails[detour.end - 1].first + 1);
-    std::pair<size_t, size_t> scores = Score2(alignedSubread, alignedInitialSeq, alignedDetourSeq);
-    if(scores.second < scores.first) {
-        std::cout << "Changed path " << scores.first << " " << scores.second << " " << std::endl;
-        std::cout << alignedInitial.lenStr() << std::endl;
-        std::cout << alignedDetour.lenStr() << std::endl;
-        AnalyseAndPrint(alignedSubread, alignedInitialSeq, alignedDetourSeq);
-
+    correctionSeq = correctionSeq.Subseq(nails[detour.start - 1].second, correctionSeq.size() -
+                                                                         (detour.path.finish().size() - nails[detour.end - 1].second - 1));
+    Sequence initialSeq = initial.Seq();
+    initialSeq = initialSeq.Subseq(nails[detour.start - 1].second, initialSeq.size() -
+                                                                   (initial.finish().size() - nails[detour.end - 1].second - 1));
+    Sequence subreadSeq = read_seq.Subseq(nails[detour.start - 1].first, nails[detour.end - 1].first + 1);
+    std::vector<std::pair<size_t, size_t>> to_ignore = Mark(subreadSeq);
+    AlignmentForm initialCigar = defaultAlign(subreadSeq, initialSeq);
+    AlignmentForm correctionCigar = defaultAlign(subreadSeq, correctionSeq);
+    if(initialCigar.queryLength() == 0 || correctionCigar.queryLength() == 0)
+        return false;
+    size_t initialScore = Score(initialCigar, subreadSeq, initialSeq, to_ignore);
+    size_t correctionScore = Score(correctionCigar, subreadSeq, correctionSeq, to_ignore);
+    if(correctionScore < initialScore) {
+        std::cout << "Changed path " << initialScore << " " << correctionScore << " " << std::endl;
+        std::cout << initial.lenStr() << std::endl;
+        std::cout << correction.lenStr() << std::endl;
+        std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq), correctionCigar.toString(subreadSeq, correctionSeq))) << std::endl;
+        auto lit = al.columnByQpos(nails[detour.start - 1].first);
+        auto rit = al.columnByQpos(nails[detour.end - 1].first);
+        ++rit;
+        AlignmentForm new_al;
+        new_al += al.Prefix(lit);
+        new_al += correctionCigar;
+        new_al += al.Suffix(rit);
+        al = std::move(new_al);
         path = path.reroute(detour.start, detour.end, detour.path);
+        VERIFY(al.queryLength() == read_seq.size());
+        VERIFY(al.targetLength() == path.len());
         std::cout << std::endl;
 //        AnalyseAndPrint(alignedSubread, alignedInitial.Seq());
 //        AnalyseAndPrint(alignedSubread, alignedDetour.Seq());
 //        AnalyseAndPrint(alignedInitial.Seq(), alignedDetour.Seq());
-        AnalyseAndPrint(alignedSubread, alignedInitialSeq, alignedDetourSeq);
+//        AnalyseAndPrint(alignedSubread, alignedInitialSeq, alignedDetourSeq);
         return true;
     }
     return false;
@@ -530,7 +547,7 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
 
 int BulgeFinder::INF = std::numeric_limits<int>::max() / 2;
 
-bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<std::pair<size_t, size_t>> &nails) {
+bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<std::pair<size_t, size_t>> &nails, AlignmentForm &al) {
     Vertex &last_junction = mpath.getVertex(mpath.size() - 1);
     bool changed = false;
     for(Edge &edge: last_junction) {
@@ -539,28 +556,33 @@ bool changeEnd(MGGraphPath &mpath, const Sequence &from_seq, const std::vector<s
         std::cout << "Change end attempt" << std::endl;
         if(edge.fullSize() < mpath.getEdge(mpath.size() - 1).fullSize() - mpath.rightSkip())
             continue;
-        Sequence s = from_seq.Subseq(nails.back().first, from_seq.size());
-        Sequence s1 = mpath.getEdge(mpath.size() - 1).getSeq().Subseq(nails.back().second,
+        Sequence subreadSeq = from_seq.Subseq(nails.back().first, from_seq.size());
+        Sequence initialSeq = mpath.backEdge().getSeq().Subseq(nails.back().second,
                                                                       mpath.getEdge(mpath.size() - 1).fullSize() -
                                                                       mpath.rightSkip());
-        Sequence s2 = edge.getSeq().Subseq(nails.back().second, edge.fullSize());
-        s2 = s2.Subseq(0, std::min(s2.size(), s.size() + 1000));
-        std::vector<std::pair<size_t, size_t>> to_ignore = Mark(s);
-        AlignmentForm al1 = defaultAlignExtension(s, s1);
-        AlignmentForm al2 = defaultAlignExtension(s, s2);
-        size_t score1 = Score(al1, s, s1, to_ignore);
-        size_t score2 = Score(al2, s, s2, to_ignore);
-        std::cout << "Alignment: " << score1 << " " << al1.queryLength() << " (" << s.size() << ") "  << al1.targetLength() << " (" << s1.size() << ")" << std::endl;
-        std::cout << "Alignment: " << score2 << " " << al2.queryLength() << " (" << s.size() << ") "  << al2.targetLength() << " (" << s2.size() << ")" << std::endl;
-        AnalyseAndPrint(s, s1, s2, true);
+        Sequence correctionSeq = edge.getSeq().Subseq(nails.back().second, edge.fullSize());
+        correctionSeq = correctionSeq.Subseq(0, std::min(correctionSeq.size(), subreadSeq.size() + 1000));
+        std::vector<std::pair<size_t, size_t>> to_ignore = Mark(subreadSeq);
+        AlignmentForm initialCigar = defaultAlignExtension(subreadSeq, initialSeq);
+        AlignmentForm correctionCigar = defaultAlignExtension(subreadSeq, correctionSeq);
+        if(initialCigar.queryLength() == 0 || correctionCigar.queryLength() == 0)
+            return false;
+        size_t score1 = Score(initialCigar, subreadSeq, initialSeq, to_ignore);
+        size_t score2 = Score(correctionCigar, subreadSeq, correctionSeq, to_ignore);
+        std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq), correctionCigar.toString(subreadSeq, correctionSeq))) << std::endl;
+//        AnalyseAndPrint(subreadSeq, initialSeq, correctionSeq, true);
 //            if(fromto1.first < s.size()) {
 //                AnalyseAndPrint(s, s1, 1000000);
 //            }
-        if(al1.queryLength() >= s.size() - 5 && al2.queryLength() >= s.size() - 5 &&  score1 > score2) {
-            std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(al1, s, s1, {}) << " " << Score(al2, s, s2, {}) << std::endl;
+        if(initialCigar.queryLength() >= subreadSeq.size() - 5 && correctionCigar.queryLength() >= subreadSeq.size() - 5 && score1 > score2) {
+            std::cout << "Changed path end " << score1 << " " << score2 << " " << Score(initialCigar, subreadSeq, initialSeq, {}) << " " << Score(correctionCigar, subreadSeq, correctionSeq, {}) << std::endl;
             mpath.pop_back();
             mpath += edge;
-            mpath.cutBack(edge.fullSize() - al2.targetLength() - nails.back().second);
+            mpath.cutBack(edge.fullSize() - correctionCigar.targetLength() - nails.back().second);
+            auto start = al.columnByQpos(nails.back().first);
+            al = al.Prefix(start) + correctionCigar;
+            VERIFY(al.queryLength() == from_seq.size());
+            VERIFY(al.targetLength() == mpath.len());
 //            AnalyseAndPrint(s, s1, 1000000);
 //            AnalyseAndPrint(s, s2, 1000000);
 //            AnalyseAndPrint(s, s1, s2, true);
@@ -584,9 +606,9 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
         MGGraphPath correction = mpath;
         for(const Detour &detour : bulgeFinder.findBulges(correction)) {
             std::cout << "Detour attempt " << detour.path.size() << " " << detour.end - detour.start << std::endl;
-            if(CheckAndReroute(from_seq, nails, correction, detour)) {
+            if(CheckAndReroute(from_seq, nails, correction, cigar, detour)) {
                 mpath = std::move(correction);
-                cigar = defaultAlign(from_seq, mpath.Seq());
+//                cigar = defaultAlign(from_seq, mpath.Seq());
                 changed = true;
                 break;
             }
@@ -594,14 +616,15 @@ void FixPath(const nano::GraphContig &graphContig, BulgeFinder &bulgeFinder, mul
     }
     if(mpath.size() > 1) {
         std::vector<std::pair<size_t, size_t>> nails = Nails(graph, from_seq, mpath, cigar);
-        changed = changeEnd(mpath, from_seq, nails);
-        if(changed)
-            cigar = defaultAlign(from_seq, mpath.Seq());
+        changed = changeEnd(mpath, from_seq, nails, cigar);
+//        if(changed)
+//            cigar = defaultAlign(from_seq, mpath.Seq());
         mpath = mpath.RC();
         cigar = cigar.RC();
         nails = Nails(graph, !from_seq, mpath, cigar);
-        changed = changeEnd(mpath, !from_seq, nails);
+        changed = changeEnd(mpath, !from_seq, nails, cigar);
         mpath = mpath.RC();
+        cigar = cigar.RC();
     }
 }
 
