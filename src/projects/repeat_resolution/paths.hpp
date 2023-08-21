@@ -113,6 +113,8 @@ class RRPaths {
 
     void ExportActiveTransitions(const std::experimental::filesystem::path &path) const;
 
+    void ExportRRPaths(const std::experimental::filesystem::path &path) const;
+
     void SplitByTransitions(std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
                             &split_transitions);
 

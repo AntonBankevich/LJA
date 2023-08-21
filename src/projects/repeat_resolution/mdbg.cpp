@@ -1023,7 +1023,19 @@ std::vector<Contig> MultiplexDBG::ExportContigsAndGFA(
 
 void MultiplexDBG::ExportActiveTransitions(
     const std::experimental::filesystem::path &path) const {
+    const std::unordered_map<RREdgeIndexType, Sequence>
+        edge_seqs = GetEdgeSeqs(32);
+    std::ofstream os(path);
+    for (auto &[key, seq]: edge_seqs){
+        for (auto &[key2, seq2]: edge_seqs){
+            if (seq == !seq2) {
+                os << "RC: " << key << " " << key2 << std::endl;
+            }
+        }
+    }
+    os << std::endl;
     rr_paths->ExportActiveTransitions(path);
+    ont_paths->ExportRRPaths(path);
 }
 
 void MultiplexDBG::ExportUniqueEdges(const std::experimental::filesystem::path &path) const {

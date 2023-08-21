@@ -299,9 +299,27 @@ RRPaths::GetActiveTransitions() const {
 void RRPaths::ExportActiveTransitions(const std::experimental::filesystem::path &path) const {
     std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
         transitions = GetActiveTransitions();
-    std::ofstream os(path);
+    std::ofstream os(path, std::ios_base::app);
     for(const auto &transition : transitions) {
         os << transition.first << " " << transition.second << "\n";
+    }
+}
+
+
+void RRPaths::ExportRRPaths(const std::experimental::filesystem::path &path) const {
+    std::vector<std::pair<RREdgeIndexType, RREdgeIndexType>>
+        transitions = GetActiveTransitions();
+    std::ofstream os(path, std::ios_base::app);
+    for(const auto &transition : transitions) {
+        os << transition.first << " " << transition.second << "\n";
+    }
+    for (const auto &[key,ont_path] : paths) {
+        os << ont_path.id << std::endl;
+        std::string ids = "";
+        for (auto const &edge: ont_path.edge_list) {
+            ids += std::to_string(edge) + ",";
+        }
+        os << " " << ids << std::endl;
     }
 }
 
@@ -440,14 +458,14 @@ PathsBuilder::FromGAF(dbg::SparseDBG &dbg,
         }
         paths.push_back({'+' + key, edge_list});
         paths.push_back({'-' + key, edge_list_rc});
-        // std::cerr << std::endl << std::endl << key << std::endl;
-        // for (const auto eid: edge_list) {
-        //     std::cerr << eid << ",";
-        // }
-        // std::cerr << "\n";
-        // for (const auto eid: edge_list_rc) {
-        //     std::cerr << eid << ",";
-        // }
+        std::cerr << std::endl << std::endl << key << std::endl;
+        for (const auto eid: edge_list) {
+            std::cerr << eid << ",";
+        }
+        std::cerr << "\n";
+        for (const auto eid: edge_list_rc) {
+            std::cerr << eid << ",";
+        }
     }
     return FromPathVector(std::move(paths));
 }
