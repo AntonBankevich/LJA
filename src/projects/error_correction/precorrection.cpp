@@ -4,16 +4,16 @@
 #include "correction_utils.hpp"
 #include "dbg/sparse_dbg.hpp"
 
-DBGGraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, size_t max_size, dbg::Vertex *finish = nullptr) {
-    DBGGraphPath res(start);
+dbg::GraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, size_t max_size, dbg::Vertex *finish = nullptr) {
+    dbg::GraphPath res(start);
     size_t sz = 0;
     while(sz < max_size) {
         dbg::Edge *next = nullptr;
         for(dbg::Edge &edge : res.finish()) {
-            if(edge.getData().getCoverage() > 1 && edge.getData().getCoverage() < reliable_coverage) {
+            if(edge.getCoverage() > 1 && edge.getCoverage() < reliable_coverage) {
                 next = nullptr;
                 break;
-            } else if(edge.getData().getCoverage() >= reliable_coverage) {
+            } else if(edge.getCoverage() >= reliable_coverage) {
                 if(next != nullptr) {
                     next = nullptr;
                     break;
@@ -33,8 +33,8 @@ DBGGraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, s
     return std::move(res);
 }
 
-DBGGraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
-    DBGGraphPath res = FindOnlyPathForward(seg.contig().getStart(), reliable_coverage, seg.size());
+dbg::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
+    dbg::GraphPath res = FindOnlyPathForward(seg.contig().getStart(), reliable_coverage, seg.size());
     if(res.truncLen() >= seg.size()) {
         res.cutBack(res.truncLen() - seg.size());
         return std::move(res);
@@ -43,8 +43,8 @@ DBGGraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_covera
     }
 }
 
-DBGGraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
-    DBGGraphPath res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.truncSize() + 20,
+dbg::GraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
+    dbg::GraphPath res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.truncSize() + 20,
                                            &bulge.getFinish());
     if(res.finish() == bulge.getFinish() && res.endClosed() && res.truncLen() + 20 > bulge.truncSize()) {
         return std::move(res);
@@ -53,7 +53,7 @@ DBGGraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
         if(res.start() == bulge.getStart() && res.startClosed() && res.truncLen() + 20 > bulge.truncSize())
             return std::move(res);
         else {
-            std::vector<DBGGraphPath> candidates = FindPlausibleBulgeAlternatives(DBGGraphPath(bulge), 10, reliable_coverage);
+            std::vector<dbg::GraphPath> candidates = FindPlausibleBulgeAlternatives(dbg::GraphPath(bulge), 10, reliable_coverage);
             if(candidates.size() == 1 && candidates[0].truncLen() + 20 > bulge.truncSize() && candidates[0].truncLen() <
                                                                                             bulge.truncSize() + 20) {
                 return std::move(candidates[0]);
@@ -64,20 +64,20 @@ DBGGraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
 }
 
 
-std::string Precorrector::correctRead(DBGGraphPath &path) {
+std::string Precorrector::correctRead(dbg::GraphPath &path) {
     if(path.size() == 1)
         return "";
-    DBGGraphPath corrected_path;
+    dbg::GraphPath corrected_path;
     size_t ncor = 0;
     std::vector<std::string> message;
     for(size_t i = 0; i < path.size(); i++) {
-        if(path[i].contig().getData().getCoverage() != 1 ||
-           (i > 0 && path[i - 1].contig().getData().getCoverage() < reliable_threshold) ||
-           (i + 1 < path.size() && path[i + 1].contig().getData().getCoverage() < reliable_threshold)) {
+        if(path[i].contig().getCoverage() != 1 ||
+           (i > 0 && path[i - 1].contig().getCoverage() < reliable_threshold) ||
+           (i + 1 < path.size() && path[i + 1].contig().getCoverage() < reliable_threshold)) {
             corrected_path += path[i];
             continue;
         }
-        DBGGraphPath correction;
+        dbg::GraphPath correction;
         std::string m = "";
         if(i == 0) {
             correction = PrecorrectTip(path[i].RC(), reliable_threshold).RC();

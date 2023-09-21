@@ -13,18 +13,21 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
     io::Library construction_lib = reads_lib + pseudo_reads_lib;
     SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
-    dbg.fillAnchors(w, logger, threads);
     size_t extension_size = std::max<size_t>(k * 2, 1000);
     ReadLogger readLogger(threads, dir/"read_log.txt");
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
     RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, true, false);
     io::SeqReader reader(reads_lib);
-    readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+    {
+        KmerIndex index(dbg);
+        index.fillAnchors(logger, threads, dbg, w);
+        readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
+    }
     coverageStats(logger, dbg);
     if(debug) {
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
     }
-    dbg.printFastaOld(dir / "final_dbg.fasta");
+    printFasta(dir / "final_dbg.fasta", dbg);
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     printGFA(dir / "final_dbg.gfa", Component(dbg), true);
     SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});

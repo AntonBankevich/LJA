@@ -8,15 +8,15 @@ using namespace repeat_resolution;
 
 std::vector<SuccinctEdgeInfo> MultiplexDBG::SparseDBG2SuccinctEdgeInfo(
     dbg::SparseDBG &dbg, const UniqueClassificator &classificator) {
-    const std::unordered_map<std::string, uint64_t> vert2ind = [&dbg]() {
-      std::unordered_map<std::string, uint64_t> vert2ind;
+    const std::unordered_map<int, uint64_t> vert2ind = [&dbg]() {
+      std::unordered_map<int, uint64_t> vert2ind;
       uint64_t cnt{0};
       for (const dbg::Vertex &vertex : dbg.vertices()) {
-          const std::string &id = vertex.getInnerId();
+          int id = vertex.getInnerId();
           vert2ind.emplace(id, cnt);
           ++cnt;
       }
-      return vert2ind;
+      return std::move(vert2ind);
     }();
 
     std::vector<SuccinctEdgeInfo> edge_info;

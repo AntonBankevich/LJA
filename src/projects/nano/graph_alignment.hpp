@@ -5,25 +5,25 @@
 #include <ksw2/ksw_wrapper.hpp>
 
 
-template<class Graph>
+template<class Traits>
 class GraphAlignment {
 private:
     Segment<Contig> segment;
-    GraphPath<Graph> path;
+    ag::GraphPath<Traits> path;
     AlignmentForm alignment;
 public:
-    GraphAlignment(Segment<Contig> segment, GraphPath<Graph> path, AlignmentForm alignment) :
+    GraphAlignment(Segment<Contig> segment, ag::GraphPath<Traits> path, AlignmentForm alignment) :
                 segment(segment), path(std::move(path)), alignment(std::move(alignment)) {
     }
 
-    void operator+=(const GraphAlignment<Graph> &other) {
+    void operator+=(const GraphAlignment<Traits> &other) {
         alignment += other.alignment;
         path += other.path;
         segment = segment + other.segment;
     }
 
-    GraphAlignment operator+(const GraphAlignment<Graph> &other) const {
-        GraphAlignment<Graph> res = *this;
+    GraphAlignment operator+(const GraphAlignment<Traits> &other) const {
+        GraphAlignment<Traits> res = *this;
         res += other;
         return std::move(res);
     }

@@ -10,11 +10,12 @@ std::unordered_map<std::string, std::experimental::filesystem::path> MDBGConstru
     logger.info() << "Performing repeat resolution by transforming de Bruijn graph into Multiplex de Bruijn graph" << std::endl;
     hashing::RollingHash hasher(k);
     SparseDBG dbg = dbg::LoadDBGFromEdgeSequences({graph_gfa}, hasher, logger, threads);
+    IdIndex<Vertex> index(dbg.vertices().begin(), dbg.vertices().end());
     size_t extension_size = 10000000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
     RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, debug);
-    LoadAllReads(read_paths, {&readStorage, &extra_reads}, dbg);
+    LoadAllReads(read_paths, {&readStorage, &extra_reads}, index);
     repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
                                          k, kmdbg, dir, unique_threshold,
                                          diploid, debug, logger);

@@ -1,6 +1,7 @@
 #include <dbg/graph_algorithms.hpp>
 #include <dbg/minimizer_selection.hpp>
 #include "dbg/sparse_dbg.hpp"
+#include "dbg/graph_algorithms.hpp"
 #include <sequences/contigs.hpp>
 #include <common/cl_parser.hpp>
 #include <common/logging.hpp>
@@ -40,12 +41,12 @@ int main(int argc, char **argv) {
     std::vector<hashing::htype> hash_list = constructMinimizers(logger, reads_lib, threads, hasher, w);
     SparseDBG sdbg = constructSparseDBGFromReads(logger, reads_lib, threads, hasher, hash_list, w);
 //    sdbg.printStats(logger);
-    sdbg.checkSeqFilled(threads, logger);
+    DbgConstructionHelper(hasher).checkSeqFilled(threads, logger, sdbg);
     if(parameterValues.getCheck("add-ends"))
-        tieTips(logger, sdbg, w, threads);
+        tieTips(logger, sdbg, k, w, threads);
     simpleStats(logger, sdbg);
     io::SeqReader reader(ref);
-    GraphAligner aligner(sdbg);
+    KmerIndex aligner(sdbg);
     size_t cnt = 0;
     for(StringContig scontig : reader) {
         cnt += 1;

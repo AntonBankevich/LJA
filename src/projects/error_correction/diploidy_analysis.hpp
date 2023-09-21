@@ -26,10 +26,10 @@ public:
     BulgePath RC();
     void extend(double threshold);
     BulgePath operator+(const BulgePath &other) const;
-    DBGGraphPath randomPath() const;
+    dbg::GraphPath randomPath() const;
 
     bool isBulge(size_t ind) const {return path[ind].first != path[ind].second;}
-    bool isBad(size_t bad_bulge_size) const;
+    bool isBad(size_t bad_bulge_inner_size) const;
     size_t size() const {return path.size();}
     size_t length() const;
     size_t bulgeLength() const;
@@ -76,10 +76,10 @@ private:
         size_t score1;
         size_t score2;
     };
-    std::pair<DBGGraphPath, DBGGraphPath> resolveBulgePath(const RecordStorage &reads, const BulgePath &path) const;
+    std::pair<dbg::GraphPath, dbg::GraphPath> resolveBulgePath(const RecordStorage &reads, const BulgePath &path) const;
 
     std::vector<BulgePath> paths;
-    std::vector<std::pair<DBGGraphPath, DBGGraphPath>> resolved;
+    std::vector<std::pair<dbg::GraphPath, dbg::GraphPath>> resolved;
     std::unordered_map<dbg::Edge *, PathPos> pathPoses;
     size_t unique_length;
     double threshold;
@@ -91,5 +91,5 @@ public:
 
     void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) override;
 
-    std::string correctRead(DBGGraphPath &path) override;
+    std::string correctRead(dbg::GraphPath &path) override;
 };

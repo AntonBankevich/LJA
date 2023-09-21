@@ -24,11 +24,11 @@ TEST(RC, Basic) {
 TEST(EdgeSegment, Basic) {
     Sequence seq("AATTCCGG");
     uint64_t k = 2;
-    Vertex st(0);
-    Vertex en(1);
+    Vertex st(1, {0});
+    Vertex en(2, {1});
     st.setSeq(seq.Prefix(k));
     en.setSeq(seq.Suffix(k));
-    dbg::Edge edge(st, en, seq.Suffix(seq.size() - k));
+    dbg::Edge edge({st.getInnerId(), 1}, st, en, seq.Suffix(seq.size() - k), DBGEdgeData());
     EdgeSegment segm(&edge, 0, seq.size());
     ASSERT_TRUE(segm.LeftFull());
     ASSERT_TRUE(segm.RightFull());
@@ -63,11 +63,11 @@ TEST(EdgeSegment, Basic) {
 TEST(MDBGSeq, SingleSegment) {
     Sequence s1("AATTCCGG");
     uint64_t k = 2;
-    Vertex st(0);
-    Vertex en(1);
+    Vertex st(1, {0});
+    Vertex en(2, {1});
     st.setSeq(s1.Prefix(k));
     en.setSeq(s1.Suffix(k));
-    dbg::Edge edge1(st, en, s1.Suffix(s1.size() - k));
+    dbg::Edge edge1({st.getInnerId(), 1}, st, en, s1.Suffix(s1.size() - k), {});
     MDBGSeq seq1(&edge1, 0, s1.size());
     ASSERT_EQ(seq1.ToSequence(), s1);
     ASSERT_EQ(seq1.Size(), s1.size());
@@ -94,28 +94,28 @@ TEST(MDBGSeq, SeveralSegments) {
     uint64_t k = 2;
 
     Sequence s1("AATTCCGG");
-    Vertex st(0);
-    Vertex en(1);
+    Vertex st(1, {0});
+    Vertex en(2, {1});
     st.setSeq(s1.Prefix(k));
     en.setSeq(s1.Suffix(k));
-    dbg::Edge edge1(st, en, s1.Suffix(s1.size() - k));
+    dbg::Edge edge1({st.getInnerId(), 1}, st, en, s1.Suffix(s1.size() - k), {});
     MDBGSeq seq1(&edge1, 0, s1.size());
 
     Sequence s2("ACC");
-    Vertex st2(0);
-    Vertex en2(1);
+    Vertex st2(1, {0});
+    Vertex en2(2, {1});
     st2.setSeq(s2.Prefix(k));
     en2.setSeq(s2.Suffix(k));
-    dbg::Edge edge2(st2, en2, s2.Subseq(k));
+    dbg::Edge edge2({st2.getInnerId(), 1}, st2, en2, s2.Subseq(k), {});
     MDBGSeq seq2(&edge2, 0, s2.size());
     seq1.Append(std::move(seq2));
 
     Sequence s3("TGA");
-    Vertex st3(0);
-    Vertex en3(1);
+    Vertex st3(1, {0});
+    Vertex en3(2, {1});
     st3.setSeq(s3.Prefix(k));
     en3.setSeq(s3.Suffix(k));
-    dbg::Edge edge3(st3, en3, s3.Subseq(k));
+    dbg::Edge edge3({st3.getInnerId(), 1}, st3, en3, s3.Subseq(k), {});
     MDBGSeq seq3(&edge3, 0, s3.size());
     seq1.Prepend(std::move(seq3));
 

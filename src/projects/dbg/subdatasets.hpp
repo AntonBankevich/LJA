@@ -20,7 +20,7 @@ struct Subdataset {
         std::ofstream os;
         os.open(reads_file);
         for(AlignedRead * read : reads) {
-            os << ">" << read->id << "\n" << read->path.getAlignment().Seq() << "\n";
+            os << ">" << read->id << "\n" << read->path.unpack().Seq() << "\n";
         }
         os.close();
     }
@@ -37,7 +37,7 @@ inline void FillSubdatasets(std::vector<Subdataset> &result, const std::vector<R
         for(AlignedRead &read : *recordStorage) {
             if(!read.valid())
                 continue;
-            DBGGraphPath al = read.path.getAlignment();
+            dbg::GraphPath al = read.path.unpack();
             std::vector<size_t> cids;
             for(size_t i = 1; i < al.size(); i++) {
                 if(cmap.find(&al.getVertex(i)) != cmap.end())

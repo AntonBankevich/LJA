@@ -1,3 +1,4 @@
+#include "dbg/graph_algorithms.hpp"
 #include "tournament_correction.hpp"
 #include "bulge_path_marker.hpp"
 #include "error_correction.hpp"
@@ -28,17 +29,17 @@ size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates
     return winner;
 }
 
-std::vector<DBGGraphPath>
-FilterAlternatives(const DBGGraphPath &initial, const std::vector<DBGGraphPath> &als,
+std::vector<dbg::GraphPath>
+FilterAlternatives(const dbg::GraphPath &initial, const std::vector<dbg::GraphPath> &als,
                    size_t max_diff, double threshold) {
     size_t len = initial.truncLen();
-    std::vector<DBGGraphPath> res;
+    std::vector<dbg::GraphPath> res;
     size_t k = initial.getVertex(0).size();
-    for(const DBGGraphPath &al : als) {
+    for(const dbg::GraphPath &al : als) {
         CompactPath cpath(al);
         bool ok = true;
         for(size_t i = 0; i < al.size(); i++) {
-            if(al[i].contig().getData().getCoverage() < threshold && !al[i].contig().getData().is_reliable) {
+            if(al[i].contig().getCoverage() < threshold && !al[i].contig().is_reliable) {
                 ok = false;
                 break;
             }
@@ -55,17 +56,17 @@ FilterAlternatives(const DBGGraphPath &initial, const std::vector<DBGGraphPath> 
     return res;
 }
 
-DBGGraphPath chooseBulgeCandidate(const DBGGraphPath &bulge, const RecordStorage &reads_storage,
-                                  double threshold, std::vector<DBGGraphPath> &read_alternatives, string &message) {
+dbg::GraphPath chooseBulgeCandidate(const dbg::GraphPath &bulge, const RecordStorage &reads_storage,
+                                  double threshold, std::vector<dbg::GraphPath> &read_alternatives, string &message) {
     size_t size = bulge.truncLen();
-    std::vector<DBGGraphPath> read_alternatives_filtered = FilterAlternatives(bulge, read_alternatives,
+    std::vector<dbg::GraphPath> read_alternatives_filtered = FilterAlternatives(bulge, read_alternatives,
                                                                               std::max<size_t>(100,
                                                                                                bulge.truncLen() * 3 / 100), threshold);
     size_t alt_size = read_alternatives_filtered.size();
     if(read_alternatives_filtered.size() > 1) {
         Sequence old = bulge.truncSeq();
         std::vector<Sequence> candidates;
-        for(DBGGraphPath &cand : read_alternatives_filtered) {
+        for(dbg::GraphPath &cand : read_alternatives_filtered) {
             candidates.push_back(cand.truncSeq());
         }
         size_t winner = tournament(old, candidates);
@@ -85,26 +86,26 @@ DBGGraphPath chooseBulgeCandidate(const DBGGraphPath &bulge, const RecordStorage
     }
 }
 
-std::pair<DBGGraphPath, size_t> BestAlignmentPrefix(const DBGGraphPath &al, const Sequence &seq) {
+std::pair<dbg::GraphPath, size_t> BestAlignmentPrefix(const dbg::GraphPath &al, const Sequence &seq) {
     Sequence candSeq = al.truncSeq();
     std::pair<size_t, size_t> bp = bestPrefix(seq, candSeq);
     size_t len = bp.first;
     Sequence prefix = candSeq.Subseq(0, len);
-    DBGGraphPath res(al.start());
+    dbg::GraphPath res(al.start());
     res.extend(prefix);
     return {res, bp.second};
 }
 
-DBGGraphPath processTip(const DBGGraphPath &tip,
-                        const std::vector<DBGGraphPath> &alternatives,
+dbg::GraphPath processTip(const dbg::GraphPath &tip,
+                        const std::vector<dbg::GraphPath> &alternatives,
                         double threshold, string &message) {
     size_t size = tip.truncLen();
-    std::vector<DBGGraphPath> read_alternatives_filtered =
+    std::vector<dbg::GraphPath> read_alternatives_filtered =
             FilterAlternatives(tip, alternatives, size_t(-1) / 2, threshold);
-    std::vector<DBGGraphPath> trunc_alignments;
+    std::vector<dbg::GraphPath> trunc_alignments;
     Sequence old = tip.truncSeq();
-    for(const DBGGraphPath &al : read_alternatives_filtered) {
-        std::pair<DBGGraphPath, size_t> tres = BestAlignmentPrefix(al, old);
+    for(const dbg::GraphPath &al : read_alternatives_filtered) {
+        std::pair<dbg::GraphPath, size_t> tres = BestAlignmentPrefix(al, old);
         if (tres.second < 10 + (al.truncLen() / 50))
             trunc_alignments.emplace_back(std::move(tres.first));
     }
@@ -112,7 +113,7 @@ DBGGraphPath processTip(const DBGGraphPath &tip,
     if(trunc_alignments.size() > 1) {
         message = "m";
         std::vector<Sequence> candidates;
-        for(DBGGraphPath &cand : trunc_alignments) {
+        for(dbg::GraphPath &cand : trunc_alignments) {
             Sequence candSeq = cand.truncSeq();
             candidates.push_back(candSeq);
         }
@@ -145,18 +146,18 @@ void TournamentPathCorrector::initialize(logging::Logger &logger, size_t threads
     if(diploid)
         algs.emplace_back(&bulge);
     CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
-    max_size = std::min(reads_storage.getMaxLen() * 9 / 10, std::max<size_t>(sdbg.hasher().getK() * 2, 1000));
+    max_size = reads_storage.getMaxLen() * 9 / 10;
 }
 
-std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
-    DBGGraphPath corrected_path;
+std::string TournamentPathCorrector::correctRead(dbg::GraphPath &path) {
+    dbg::GraphPath corrected_path;
     std::vector<std::string> messages;
     bool corrected = false;
     for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
         VERIFY_OMP(corrected_path.size() == 0 || corrected_path.finish() == path.getVertex(path_pos), "End");
         Edge &edge = path[path_pos].contig();
-        if (edge.getData().getCoverage() >= reliable_threshold || edge.getData().is_reliable ||
-            (edge.getStart().inDeg() > 0 && edge.getFinish().outDeg() > 0 && (edge.getData().getCoverage() > threshold ||
+        if (edge.getCoverage() >= reliable_threshold || edge.is_reliable ||
+            (edge.getStart().inDeg() > 0 && edge.getFinish().outDeg() > 0 && (edge.getCoverage() > threshold ||
                     edge.truncSize() > 10000)) ) {
 //              Tips need to pass reliable threshold to avoid being corrected.
             corrected_path += path[path_pos];
@@ -166,20 +167,20 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
         size_t step_front = 0;
         size_t size = edge.truncSize();
         while(step_back < corrected_path.size() &&
-              (corrected_path[corrected_path.size() - step_back - 1].contig().getData().getCoverage() < reliable_threshold &&
-               !corrected_path[corrected_path.size() - step_back - 1].contig().getData().is_reliable)) {
+              (corrected_path[corrected_path.size() - step_back - 1].contig().getCoverage() < reliable_threshold &&
+               !corrected_path[corrected_path.size() - step_back - 1].contig().is_reliable)) {
             size += corrected_path[corrected_path.size() - step_back - 1].size();
             step_back += 1;
         }
         while(step_front + path_pos + 1 < path.size() &&
-              (path[step_front + path_pos + 1].contig().getData().getCoverage() < reliable_threshold &&
-               !path[step_front + path_pos + 1].contig().getData().is_reliable)) {
+              (path[step_front + path_pos + 1].contig().getCoverage() < reliable_threshold &&
+               !path[step_front + path_pos + 1].contig().is_reliable)) {
             size += path[step_front + path_pos + 1].size();
             step_front += 1;
         }
         Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
         Vertex &end = path.getVertex(path_pos + 1 + step_front);
-        DBGGraphPath badPath =
+        dbg::GraphPath badPath =
                 corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size())
                 + path.subPath(path_pos, path_pos + 1 + step_front);
         corrected_path.pop_back(step_back);
@@ -189,32 +190,32 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
             }
         } else if(corrected_path.size() == 0) {
             corrected_path.invalidate();
-            DBGGraphPath tip = badPath.RC();
-            std::vector<DBGGraphPath> alternatives;
-            if(tip.truncLen() < max_size)
+            dbg::GraphPath tip = badPath.RC();
+            std::vector<dbg::GraphPath> alternatives;
+            if(checkTipSize(tip))
                 alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.truncLen(), threshold);
             if (alternatives.empty())
                 alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
             std::string new_message = "";
-            DBGGraphPath substitution = processTip(tip, alternatives, threshold, new_message);
+            dbg::GraphPath substitution = processTip(tip, alternatives, threshold, new_message);
             if(!new_message.empty()) {
                     messages.emplace_back("it" + new_message);
                 messages.emplace_back(itos(tip.truncLen(), 0));
                 messages.emplace_back(itos(substitution.truncLen(), 0));
             }
             VERIFY_OMP(substitution.start() == tip.start(), "samestart");
-            DBGGraphPath rcSubstitution = substitution.RC();
+            dbg::GraphPath rcSubstitution = substitution.RC();
             corrected_path = std::move(rcSubstitution);
             VERIFY_OMP(corrected_path.finish() == badPath.finish(), "End1");
         } else if(step_front == path.size() - path_pos - 1) {
-            DBGGraphPath tip = badPath;
-            std::vector<DBGGraphPath> alternatives;
-            if(tip.truncLen() < max_size)
+            dbg::GraphPath tip = badPath;
+            std::vector<dbg::GraphPath> alternatives;
+            if(checkTipSize(tip))
                 alternatives = reads_storage.getRecord(tip.start()).getTipAlternatives(tip.truncLen(), threshold);
             if (alternatives.empty())
                 alternatives = FindPlausibleTipAlternatives(tip, std::max<size_t>(size * 3 / 100, 100), 3);
             std::string new_message = "";
-            DBGGraphPath substitution = processTip(tip, alternatives, threshold, new_message);
+            dbg::GraphPath substitution = processTip(tip, alternatives, threshold, new_message);
             if(!new_message.empty()) {
                 messages.emplace_back("ot" + new_message);
                 messages.emplace_back(itos(tip.truncLen()), 0);
@@ -224,16 +225,16 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
                 corrected_path += seg;
             }
         } else {
-            std::vector<DBGGraphPath> read_alternatives;
+            std::vector<dbg::GraphPath> read_alternatives;
             std::string new_message = "br";
-            if(size < max_size)
+            if(checkTipSize(badPath))
                 read_alternatives = reads_storage.getRecord(badPath.start()).getBulgeAlternatives(badPath.finish(), threshold);
             if(read_alternatives.empty()) {
                 new_message = "bp";
                 read_alternatives = FindPlausibleBulgeAlternatives(badPath,
                                                                    std::max<size_t>(size * 3 / 100, 100), 3);
             }
-            DBGGraphPath substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
+            dbg::GraphPath substitution = chooseBulgeCandidate(badPath, reads_storage, threshold, read_alternatives, new_message);
             if(!new_message.empty()) {
                 messages.emplace_back(new_message);
                 messages.emplace_back(itos(badPath.truncLen(), 0));
@@ -248,6 +249,10 @@ std::string TournamentPathCorrector::correctRead(DBGGraphPath &path) {
     if(!messages.empty())
         path = std::move(corrected_path);
     return join("_", messages);
+}
+
+bool TournamentPathCorrector::checkTipSize(const dbg::GraphPath &tip) {
+    return tip.truncLen() < std::min(max_size, std::max<size_t>(1000, tip.start().size() * 3));
 }
 
 size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, RecordStorage &ref_storage,
@@ -266,7 +271,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
         if(!alignedRead.valid())
             continue;
         CompactPath &initial_cpath = alignedRead.path;
-        DBGGraphPath path = initial_cpath.getAlignment();
+        dbg::GraphPath path = initial_cpath.unpack();
         bool corrected = false;
         for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
             Edge &edge = path[path_pos].contig();
@@ -281,16 +286,16 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
             Edge & alt = edge == start.front() ? start.back() : start.front();
 
             const VertexRecord &rec = ref_storage.getRecord(start);
-            if(edge.getData().getCoverage() < 1 || alt.getData().getCoverage() < 1) {
+            if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
                 continue;
             }
-            if(edge.getData().getCoverage() > alt.getData().getCoverage()) {
+            if(edge.getCoverage() > alt.getCoverage()) {
                 continue;
             }
             Edge &rcEdge = edge.rc();
             bulge_cnt.emplace_back(&edge);
             bulge_cnt.emplace_back(&rcEdge);
-            if(edge.getData().getCoverage() + alt.getData().getCoverage() > threshold || edge.getData().getCoverage() > alt.getData().getCoverage()) {
+            if(edge.getCoverage() + alt.getCoverage() > threshold || edge.getCoverage() > alt.getCoverage()) {
                 continue;
             }
             collapsable_cnt.emplace_back(&edge);
@@ -306,10 +311,10 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
                 }
             }
             corrected = true;
-            path=path.reroute(path_pos, path_pos + 1, DBGGraphPath(alt));
+            path=path.reroute(path_pos, path_pos + 1, dbg::GraphPath(alt));
         }
         if(corrected) {
-            DBGGraphPath path0 = initial_cpath.getAlignment();
+            dbg::GraphPath path0 = initial_cpath.unpack();
             reads_storage.reroute(alignedRead, path0, path, "simple bulge corrected");
         }
         results.emplace_back(ss.str());
@@ -324,7 +329,7 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
     return collapsable;
 }
 
-std::string PrimitiveBulgeCorrector::correctRead(DBGGraphPath &path) {
+std::string PrimitiveBulgeCorrector::correctRead(dbg::GraphPath &path) {
     std::stringstream ss;
     size_t corrected = 0;
     for(size_t path_pos = 0; path_pos < path.size(); path_pos++) {
@@ -339,18 +344,18 @@ std::string PrimitiveBulgeCorrector::correctRead(DBGGraphPath &path) {
         }
         Edge & alt = edge == start.front() ? start.back() : start.front();
 
-        if(edge.getData().getCoverage() < 1 || alt.getData().getCoverage() < 1) {
+        if(edge.getCoverage() < 1 || alt.getCoverage() < 1) {
             continue;
         }
-        if(edge.getData().getCoverage() > alt.getData().getCoverage()) {
+        if(edge.getCoverage() > alt.getCoverage()) {
             continue;
         }
         Edge &rcEdge = edge.rc();
-        if(edge.getData().getCoverage() + alt.getData().getCoverage() > threshold || edge.getData().getCoverage() > alt.getData().getCoverage()) {
+        if(edge.getCoverage() + alt.getCoverage() > threshold || edge.getCoverage() > alt.getCoverage()) {
             continue;
         }
         corrected++;
-        path.reroute(path_pos, path_pos + 1, DBGGraphPath(alt));
+        path.reroute(path_pos, path_pos + 1, dbg::GraphPath(alt));
     }
     if(corrected > 0) {
         return itos(corrected);
@@ -374,7 +379,7 @@ void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
     ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
     SimpleRemoveUncovered(logger, threads, dbg, {&reads_storage, &ref_storage});
-    dbg.checkConsistency(threads, logger);
+    DbgConstructionHelper(dbg.hasher()).checkConsistency(threads, logger, dbg);
     ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
     ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
     ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);

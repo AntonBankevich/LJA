@@ -3,10 +3,10 @@
 
 using namespace dbg;
 void MakeUnreliable(Edge &e) {
-    e.getData().is_reliable = false;
+    e.is_reliable = false;
     for(Edge &edge : e.getFinish()) {
-        if(edge.getData().is_reliable) {
-            edge.getData().is_reliable = false;
+        if(edge.is_reliable) {
+            edge.is_reliable = false;
             MakeUnreliable(edge);
         }
     }
@@ -18,7 +18,7 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
         for(Vertex * vp : {&vit, &vit.rc()}) {
             Vertex &v = *vp;
             for(Edge &edge : v) {
-                edge.getData().is_reliable = true;
+                edge.is_reliable = true;
             }
         }
     }
@@ -27,7 +27,7 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
     std::vector<Edge*> queue;
     for(Edge &edge : sdbg.edges()) {
         if(edge.getFinish().outDeg() == 0 && edge.getFinish().inDeg() == 1 && edge.truncSize() < 15000 &&
-                edge.getData().getCoverage() < reliable_threshold) {
+                edge.getCoverage() < reliable_threshold) {
             max_tip[&edge.getFinish()] = 0;
             queue.emplace_back(&edge);
         }
@@ -54,26 +54,26 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
             max_tip[&v] = val;
             for(Edge &out : v) {
                 if(&out == best) {
-                    out.getData().is_reliable = true;
+                    out.is_reliable = true;
                 } else {
                     MakeUnreliable(out);
                 }
             }
             if(v.inDeg() == 1 && v.rc().begin()->truncSize() < 10000 &&
-                    v.rc().begin()->getData().getCoverage() < reliable_threshold) {
+                    v.rc().begin()->getCoverage() < reliable_threshold) {
                 queue.emplace_back(&(v.rc().begin()->rc()));
             }
         }
     }
 }
 
-inline DBGGraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
-    DBGGraphPath path(v);
+inline dbg::GraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
+    dbg::GraphPath path(v);
     size_t len = 0;
     while(len < max_size) {
         Edge *next = nullptr;
         for (Edge &edge : path.finish()) {
-            if (edge.getData().is_reliable) {
+            if (edge.is_reliable) {
                 if(next != nullptr) {
                     next = nullptr;
                     break;
@@ -91,10 +91,10 @@ inline DBGGraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
 
 
 
-inline DBGGraphPath CorrectSuffix(const DBGGraphPath &al) {
+inline dbg::GraphPath CorrectSuffix(const dbg::GraphPath &al) {
     size_t first_unreliable = al.size();
     size_t bad_end_size = 0;
-    while(first_unreliable > 0 && !al[first_unreliable - 1].contig().getData().is_reliable) {
+    while(first_unreliable > 0 && !al[first_unreliable - 1].contig().is_reliable) {
         first_unreliable--;
         bad_end_size += al[first_unreliable].size();
     }
@@ -102,7 +102,7 @@ inline DBGGraphPath CorrectSuffix(const DBGGraphPath &al) {
         return al;
     }
     size_t max_len = bad_end_size  * 11/10 + 100;
-    DBGGraphPath alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
+    dbg::GraphPath alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
     if(alternative.finish().outDeg() != 0 && alternative.truncLen() + 2000 < bad_end_size) {
         return al;
     }
@@ -111,7 +111,7 @@ inline DBGGraphPath CorrectSuffix(const DBGGraphPath &al) {
     Sequence projection = alt;
     if(alt.size() > tip.size())
         projection = alt.Subseq(0, bestPrefix(tip, alt).first);
-    DBGGraphPath res = al.subPath(0, first_unreliable);
+    dbg::GraphPath res = al.subPath(0, first_unreliable);
     res.extend(projection);
     return res;
 }
@@ -127,9 +127,9 @@ void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
             AlignedRead &read = storageIt->operator[](i);
             if (!read.valid())
                 continue;
-            DBGGraphPath al = read.path.getAlignment();
-            DBGGraphPath al1 = CorrectSuffix(al);
-            DBGGraphPath al2 = CorrectSuffix(al1.RC()).RC();
+            dbg::GraphPath al = read.path.unpack();
+            dbg::GraphPath al1 = CorrectSuffix(al);
+            dbg::GraphPath al2 = CorrectSuffix(al1.RC()).RC();
             if (al != al2) {
                 cnt += 1;
                 storageIt->reroute(read, al, al2, "Tip corrected");

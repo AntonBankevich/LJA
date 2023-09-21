@@ -59,7 +59,7 @@ protected:
         lib_triobin(threads, input.find("paternal_yak")->second[0].c_str(), input.find("maternal_yak")->second[0].c_str(),
                     input.find("contigs")->second[0].c_str());
         fclose(stdout);
-        freopen("/dev/tty", "w", stdout);
+        auto f = freopen("/dev/tty", "w", stdout);
         return {{"binning", out_file}};
     }
 };
@@ -76,7 +76,7 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     std::string out_name = "haplotype_";
     out_name += other_haplo(trio::Haplotype(haplotype));
     std::experimental::filesystem::path out_dir = dir / out_name;
-    trio::HaplotypeRemover hr(logger, mg, haployak, trio::Haplotype(haplotype), out_dir, saved_bridge_cutoff);
+    trio::HaplotypeRemover hr(logger, threads, mg, haployak, trio::Haplotype(haplotype), out_dir, saved_bridge_cutoff);
     hr.process();
     multigraph::MultiGraphHelper::printEdgeGFA(mg, output_file, true);
 

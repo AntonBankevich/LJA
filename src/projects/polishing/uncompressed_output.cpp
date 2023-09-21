@@ -11,7 +11,7 @@
 using namespace multigraph;
 
 struct OverlapRecord {
-    OverlapRecord(multigraph::Edge &left, multigraph::Edge &right, Sequence seq_left, Sequence seq_right, AlignmentForm _cigar) :
+    OverlapRecord(multigraph::MGEdge &left, multigraph::MGEdge &right, Sequence seq_left, Sequence seq_right, AlignmentForm _cigar) :
                             left(left.getId()), right(right.getId()), seq_left(std::move(seq_left)), seq_right(std::move(seq_right)),
                                                                                                     cigar(std::move(_cigar)) {
         if(!cigar.empty() && cigar.back().type == 'I')
@@ -140,28 +140,30 @@ AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left
 std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
                               const std::vector<Contig> &uncompressed, const std::experimental::filesystem::path &out_dir, bool debug) {
     logger.info() << "Calculating overlaps between adjacent uncompressed edges" << std::endl;
-    std::unordered_map<int, Sequence> uncompression_results;
+    std::unordered_map<EdgeId , Sequence> uncompression_results;
+    IdIndex<MGEdge> index(graph.edges().begin(), graph.edges().end());
     for(const Contig &contig : uncompressed) {
-        uncompression_results[std::stoi(contig.getInnerId())] = contig.getSeq();
-        uncompression_results[-std::stoi(contig.getInnerId())] = !contig.getSeq();
+        EdgeId eid = index.getById(Parse<MGEdge::id_type>(contig.getInnerId())).getId();
+        uncompression_results[eid] = contig.getSeq();
+        uncompression_results[eid->rc().getId()] = !contig.getSeq();
     }
     ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
     omp_set_num_threads(threads);
     std::vector<multigraph::VertexId> v_ids;
-    for (Vertex &v: graph.vertices())
+    for (MGVertex &v: graph.vertices())
         if(v.isCanonical())
             v_ids.push_back(v.getId());
 #pragma omp parallel for default(none) shared(graph, v_ids, cigars_collection, uncompression_results, logger, debug, std::cout)
     for(size_t i = 0; i < v_ids.size(); i++) {
-        Vertex &vertex = *v_ids[i];
-        for (Edge &out_edge : vertex) {
-            for (Edge &inc_edge : vertex.rc()) {
+        MGVertex &vertex = *v_ids[i];
+        for (MGEdge &out_edge : vertex) {
+            for (MGEdge &inc_edge : vertex.rc()) {
                 VERIFY_OMP(out_edge.getSeq().startsWith(vertex.getSeq()));
                 VERIFY_OMP(inc_edge.getSeq().startsWith(!vertex.getSeq()));
-                AlignmentForm cigar = UncompressOverlap(vertex.getSeq(), uncompression_results[inc_edge.rc().getId().innerId()],
-                                                                 uncompression_results[out_edge.getId().innerId()]);
-                OverlapRecord overlapRecord(inc_edge.rc(), out_edge, uncompression_results[inc_edge.rc().getId().innerId()],
-                                                                  uncompression_results[out_edge.getId().innerId()], cigar);
+                AlignmentForm cigar = UncompressOverlap(vertex.getSeq(), uncompression_results[inc_edge.rc().getId()],
+                                                                 uncompression_results[out_edge.getId()]);
+                OverlapRecord overlapRecord(inc_edge.rc(), out_edge, uncompression_results[inc_edge.rc().getId()],
+                                                                  uncompression_results[out_edge.getId()], cigar);
                 if(debug) {
 #pragma omp critical
                     {
@@ -180,10 +182,10 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     std::ofstream os;
     os.open(out_dir / "mdbg.gfa");
     os << "H\tVN:Z:1.0" << std::endl;
-    std::unordered_map<multigraph::Edge *, std::string> eids;
-    for(Edge &edge : graph.edges()){
+    std::unordered_map<multigraph::MGEdge *, std::string> eids;
+    for(MGEdge &edge : graph.edges()){
         if (edge.isCanonical()) {
-            os << "S\t" << edge.getId() << "\t" << uncompression_results[edge.getId().innerId()] << "\n";
+            os << "S\t" << edge.getId() << "\t" << uncompression_results[edge.getId()] << "\n";
         }
     }
     for(OverlapRecord &rec : cigars_collection) {
@@ -197,7 +199,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     os.close();
     std::ofstream os_cut;
     std::unordered_map<VertexId, size_t> cut; //Choice of vertex side for cutting
-    for(Vertex &v : graph.vertices()) {
+    for(MGVertex &v : graph.vertices()) {
         if(v.isCanonical()) {
             if(v.outDeg() == 1) {
                 cut[v.getId()] = 0;
@@ -208,7 +210,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
         }
     }
     std::unordered_map<EdgeId, size_t> cuts; //Sizes of cuts from the edge start
-    for(Edge &e : graph.edges()) {
+    for(MGEdge &e : graph.edges()) {
         cuts[e.getId()] = 0;
     }
     for(OverlapRecord &rec : cigars_collection) {
@@ -216,16 +218,16 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
         cuts[rec.right] = cut[rec.right->getStart().getId()] * rec.startSize();
     }
     std::vector<Contig> res;
-    for(Edge &edge : graph.edges()) {
+    for(MGEdge &edge : graph.edges()) {
         if(edge.isCanonical()) {
             //TODO make canonical be the same as positive id
             size_t cut_left = cuts[edge.getId()];
             size_t cut_right = cuts[edge.rc().getId()];
-            Sequence seq = uncompression_results[edge.getId().innerId()];
+            Sequence seq = uncompression_results[edge.getId()];
             if(cut_left + cut_right >= seq.size()) {
                 continue;
             }
-            res.emplace_back(seq.Subseq(cut_left, seq.size() - cut_right), itos(edge.getId().innerId()));
+            res.emplace_back(seq.Subseq(cut_left, seq.size() - cut_right), edge.getId().innerId().str());
         }
     }
     return std::move(res);

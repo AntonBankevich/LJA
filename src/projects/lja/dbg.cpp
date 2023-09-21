@@ -27,16 +27,18 @@
 #include <omp.h>
 #include <unordered_set>
 #include <wait.h>
+#include <dbg/id_index.hpp>
+
 using namespace dbg;
 
-void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
+void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file,
                    const std::experimental::filesystem::path &path_dump,
                    const std::experimental::filesystem::path &cov_dump,
                    const std::experimental::filesystem::path &mult_dump, logging::Logger &logger) {
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
-    std::vector<DBGGraphPath> paths;
+    std::vector<dbg::GraphPath> paths;
     std::ofstream os;
     os.open(path_dump);
     size_t cur = 0;
@@ -45,15 +47,15 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     for(StringContig & contig : ref) {
         Sequence seq = contig.makeSequence();
         os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
-        if(seq.size() < min_len) {
+        if(seq.size() < index.minReadLen()) {
             continue;
         }
-        auto tmp = GraphAligner(dbg).align(seq);
+        auto tmp = index.align(seq);
         for(size_t i = 0; i < tmp.size(); i++) {
             const Segment<Edge> &seg = tmp[i];
             mult[&seg.contig()]++;
             mult[&seg.contig().rc()]++;
-            os << "[" << cur << ", " << cur + seg.size() << "] -> " << tmp[i].contig().oldId() << " [" << seg.left << ", " << seg.right <<"]\n";
+            os << "[" << cur << ", " << cur + seg.size() << "] -> " << tmp[i].contig().getInnerId() << " [" << seg.left << ", " << seg.right << "]\n";
             cur += seg.size();
         }
         logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
@@ -64,7 +66,7 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     std::ofstream mos;
     mos.open(mult_dump);
     for(Edge &edge: dbg.edges()) {
-        mos << edge.oldId() << " " << mult[&edge] << "\n";
+        mos << edge.getInnerId() << " " << mult[&edge] << "\n";
     }
     mos.close();
     logger.info() << "Reference path consists of " << num << " edges" << std::endl;
@@ -76,18 +78,18 @@ void analyseGenome(SparseDBG &dbg, const std::string &ref_file, size_t min_len,
     std::vector<size_t> cov_good(max_cov + 1);
     std::vector<size_t> cov_good_len(max_cov + 1);
     std::unordered_map<Edge const *, size_t> eset;
-    for(DBGGraphPath &path: paths)
+    for(dbg::GraphPath &path: paths)
         for(Edge &edge : path.edges())
             eset[&edge] += 1;
     std::ofstream os_mult;
     os_mult.open(cov_dump);
     for(auto & it : eset) {
-        os_mult << it.second << " " << it.first->getData().getCoverage() << " " << it.first->truncSize() << std::endl;
+        os_mult << it.second << " " << it.first->getCoverage() << " " << it.first->truncSize() << std::endl;
     }
     os_mult.close();
     for(auto & vert : dbg.verticesUnique()) {
         for (Edge &edge : vert) {
-            size_t cov_val = std::min(max_cov, size_t(edge.getData().getCoverage()));
+            size_t cov_val = std::min(max_cov, size_t(edge.getCoverage()));
             if (eset.find(&edge) == eset.end() && eset.find(&edge.rc()) == eset.end()) {
                 cov_bad[cov_val] += 1;
                 cov_bad_len[cov_val] += edge.truncSize();
@@ -113,10 +115,11 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
     is.open(fname);
     size_t n;
     is >> n;
+    IdIndex<Vertex> id_index(dbg.vertices().begin(), dbg.vertices().end());
     for (size_t i = 0; i < n; i++) {
-        hashing::htype vid;
+        Vertex::id_type vid;
         is >> vid;
-        Vertex *v = &dbg.getVertex(vid);
+        Vertex *v = &id_index.getById(vid);
         size_t inDeg, outDeg;
         is >> outDeg >> inDeg;
         for (size_t j = 0; j < inDeg + outDeg; j++) {
@@ -127,7 +130,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
             Edge &edge = v->getOutgoing(char(next));
             size_t cov;
             is >> cov;
-            edge.getData().incCov(cov);
+            edge.incCov(cov);
         }
     }
     is.close();
@@ -220,15 +223,16 @@ int main(int argc, char **argv) {
             params.getValue("reference") != "none" || params.getCheck("tip-correct") ||
             params.getCheck("initial-correct") || params.getCheck("mult-correct") || !paths_lib.empty();
     calculate_coverage = calculate_coverage && !calculate_alignments;
+    KmerIndex index(dbg);
     if (!params.getListValue("align").empty() || params.getCheck("print-alignments") ||
                 params.getCheck("mult-correct") || params.getCheck("mult-analyse") ||
                 params.getCheck("split")|| calculate_coverage || calculate_alignments) {
-        dbg.fillAnchors(w, logger, threads);
+        index.fillAnchors(logger, threads, dbg, w);
     }
 
     if (calculate_coverage) {
         if (params.getValue("coverages") == "none") {
-            CalculateCoverage(dir, hasher, w, reads_lib, threads, logger, dbg);
+            CalculateCoverage(logger, threads, dbg, index, dir, reads_lib);
         } else {
             LoadCoverage(params.getValue("coverages"), logger, dbg);
         }
@@ -246,10 +250,10 @@ int main(int argc, char **argv) {
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;
         io::SeqReader reader(reads_lib);
-        readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+        readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
         logger.info() << "Collecting reference alignments" << std::endl;
         io::SeqReader refReader(genome_lib);
-        refStorage.fill(refReader.begin(), refReader.end(), dbg, w + k - 1, logger, threads);
+        refStorage.fill(logger, threads, refReader.begin(), refReader.end(), dbg, index);
     }
 
     if(params.getCheck("mult-correct")) {
@@ -278,7 +282,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             storage.addContig(contig);
         }
-        storage.Fill(threads);
+        storage.Fill(threads, index);
         {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
@@ -311,7 +315,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             storage.addContig(contig);
         }
-        storage.Fill(threads);
+        storage.Fill(threads, index);
         reader.reset();
         size_t cnt = 0;
         for(StringContig scontig : reader) {
@@ -323,7 +327,8 @@ int main(int argc, char **argv) {
             const std::experimental::filesystem::path seg_file = dir / fname;
             logger.info() << "Printing contig " << contig.getInnerId() << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
-            Component comp = Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 100);
+            std::vector<PerfectAlignment<Contig, Edge>> contig_al = index.carefulAlign(contig);
+            Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
             printDot(coordinates_dot, Component(comp), storage.labeler());
             coordinates_dot.close();
@@ -343,18 +348,19 @@ int main(int argc, char **argv) {
         size_t radius = std::stoull(params.getValue("subdataset-radius"));
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            comps.emplace_back(Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
+            std::vector<PerfectAlignment<Contig, Edge>> contig_al = index.carefulAlign(contig);
+            comps.emplace_back(Component::neighbourhood(dbg, contig_al, k + radius));
             os.emplace_back(new std::ofstream());
             os.back()->open(subdatasets_dir / (std::to_string(cnt) + ".fasta"));
             cnt += 1;
         }
         io::SeqReader read_reader(reads_lib);
-        std::function<void(size_t, StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &logger](size_t pos, StringContig & scontig) {
+        std::function<void(size_t, StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &index](size_t pos, StringContig & scontig) {
             string initial_seq = scontig.seq;
             Contig contig = scontig.makeContig();
             if(contig.truncSize() < hasher.getK() + w - 1)
                 return;
-            DBGGraphPath al = GraphAligner(dbg).align(contig.getSeq());
+            dbg::GraphPath al = index.align(contig.getSeq());
             for(size_t j = 0; j < comps.size(); j++) {
                 for(size_t i = 0; i <= al.size(); i++) {
                     if(comps[j].contains(al.getVertex(i))) {
@@ -396,12 +402,13 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        storage.Fill(threads);
+        storage.Fill(threads, index);
         for(Contig &seg : segs) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.getInnerId()) + ".dot");
             logger.info() << "Printing segment " << seg.getInnerId() << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
-            Component comp = Component::neighbourhood(dbg, seg, dbg.hasher().getK() + 100);
+            std::vector<PerfectAlignment<Contig, Edge>> contig_al = index.carefulAlign(seg);
+            Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
             printDot(coordinates_dot, Component(dbg), storage.labeler());
             coordinates_dot.close();
@@ -417,7 +424,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             storage.addContig(contig);
         }
-        storage.Fill(threads);
+        storage.Fill(threads, index);
         {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;
@@ -454,19 +461,19 @@ int main(int argc, char **argv) {
         std::experimental::filesystem::path out = dir / "tip_correct.fasta";
         ParallelRecordCollector<Contig> alignment_results(threads);
 
-        std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &logger](size_t pos, StringContig & contig) {
+        std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &index](size_t pos, StringContig & contig) {
             Contig read = contig.makeContig();
             if(read.truncSize() < w + hasher.getK() - 1)
                 return;
-            DBGGraphPath gal = GraphAligner(dbg).align(read.getSeq());
-            if (gal.size() > 0 && gal.front().contig().getData().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
+            dbg::GraphPath gal = index.align(read.getSeq());
+            if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
                 gal = gal.subPath(1, gal.size());
             }
-            if (gal.size() > 0 && gal.back().contig().getData().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
+            if (gal.size() > 0 && gal.back().contig().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
                 gal = gal.subPath(0, gal.size() - 1);
             }
             for(Segment<Edge> seg : gal) {
-                if (seg.contig().getData().getCoverage() < 2)
+                if (seg.contig().getCoverage() < 2)
                     return;
             }
             if (gal.size() > 0) {
@@ -484,48 +491,51 @@ int main(int argc, char **argv) {
 
     if (!params.getListValue("align").empty()) {
         io::Library align_lib = oneline::initialize<std::experimental::filesystem::path>(params.getListValue("align"));
-        alignLib(logger, dbg, align_lib, hasher, w, dir, threads);
+        alignLib(logger, threads, index, align_lib, dir);
     }
 
 //    findTips(logger, dbg, threads);
     if (params.getValue("reference") != "none") {
-        analyseGenome(dbg, params.getValue("reference"), k + w - 1, dir / "ref.info", dir / "cov.info", dir / "mult.info", logger);
+        analyseGenome(dbg, index, params.getValue("reference"), dir / "ref.info", dir / "cov.info", dir / "mult.info", logger);
     }
     if (params.getCheck("simplify")) {
         logger.info() << "Removing low covered edges" << std::endl;
         size_t threshold = std::stoull(params.getValue("cov-threshold"));
         std::vector<Sequence> edges;
-        std::vector<hashing::htype> vertices_again;
+        std::vector<Sequence> vertices_again;
         for(auto & vert : dbg.verticesUnique()) {
             bool add = false;
             for(Edge & edge : vert) {
-                if (edge.getData().getCoverage() >= threshold) {
+                if (edge.getCoverage() >= threshold) {
                     edges.push_back(vert.getSeq() + edge.truncSeq());
                     add = true;
                 }
             }
             for(Edge & edge : vert.rc()) {
-                if (edge.getData().getCoverage() >= threshold){
+                if (edge.getCoverage() >= threshold){
                     edges.push_back(vert.rc().getSeq() + edge.truncSeq());
                     add = true;
                 }
             }
             if (add)
-                vertices_again.push_back(vert.hash());
+                vertices_again.push_back(vert.getSeq());
         }
-        SparseDBG simp_dbg(vertices_again.begin(), vertices_again.end(), hasher);
+        SparseDBG simp_dbg(hasher);
+        for(Sequence &seq : vertices_again) {
+            simp_dbg.addKmerVertex(seq);
+        }
         FillSparseDBGEdges(simp_dbg, edges.begin(), edges.end(), logger, threads, 0);
         for(auto & vert : simp_dbg.verticesUnique()) {
-            Vertex &other = dbg.getVertex(vert.hash());
+            Vertex &other = index.getVertex(hashing::KWH(hasher, vert.getSeq(), 0).hash());
             for(Edge & edge : vert) {
-                edge.getData().incCov(other.getOutgoing(edge.truncSeq()[0]).getData().intCov());
+                edge.incCov(other.getOutgoing(edge.truncSeq()[0]).intCov());
             }
             for(Edge & edge : vert.rc()) {
-                edge.getData().incCov(other.rc().getOutgoing(edge.truncSeq()[0]).getData().intCov());
+                edge.incCov(other.rc().getOutgoing(edge.truncSeq()[0]).intCov());
             }
         }
         printDot(dir / "simp_graph1.dot", Component(simp_dbg));
-        mergeAll(logger, simp_dbg, threads);
+        ag::MergeAll<DBGTraits>(logger, threads, simp_dbg);
         printFasta(dir / "simp_graph.fasta", Component(simp_dbg));
         printDot(dir / "simp_graph.dot", Component(simp_dbg));
     }

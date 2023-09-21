@@ -2,9 +2,8 @@
 // Created by Tatiana Dvorkina on 12.04.2022.
 //
 
-#ifndef DR_GRAPHCONTIG_H
-#define DR_GRAPHCONTIG_H
-
+#pragma once
+#include "sequences/contigs.hpp"
 namespace nano {
 
     struct GraphContig{
@@ -89,14 +88,4 @@ namespace nano {
             }
         }
     };
-
-    inline multigraph::ConstEdgeId GetEdgebyStr(const std::string &edge_id_str,
-                                                const multigraph::MultiGraph &mg_) {
-        int edge_id = atoi(edge_id_str.substr(0, edge_id_str.size() - 1).c_str());
-        edge_id = edge_id_str[edge_id_str.size() - 1] == '-'? -edge_id: edge_id;
-        return mg_.getEdgeById(edge_id);
-    }
-
 }
-
-#endif //DR_GRAPHCONTIG_H

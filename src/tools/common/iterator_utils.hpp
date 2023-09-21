@@ -7,12 +7,12 @@ template<class Iterator>
 class SkippingIterator {
 public:
     typedef typename Iterator::value_type value_type;
-    typedef value_type &reference;
+    typedef typename Iterator::reference reference;
     typedef value_type &pointer;
 private:
     Iterator iterator;
     Iterator end;
-    std::function<bool(const value_type &)> use;
+    std::function<bool(reference)> use;
 
     void seek() {
         while(iterator != end && !use(*iterator)) {
@@ -20,12 +20,12 @@ private:
         }
     }
 public:
-    SkippingIterator(Iterator iterator, Iterator end, const std::function<bool(const value_type &)> &use) :
+    SkippingIterator(Iterator iterator, Iterator end, const std::function<bool(reference)> &use) :
                                         iterator(iterator), end(end), use(use) {
         seek();
     }
 
-    value_type &operator*() const {
+    reference operator*() const {
         return *iterator;
     }
 
@@ -162,11 +162,11 @@ public:
     }
 };
 
-template<class T>
-T& Dereference(T*&pointer) {return *pointer;}
+template<class T, class U = T*>
+T& Dereference(U&pointer) {return *pointer;}
 
-template<class T>
-T& ConstDereference(T*const &pointer) {return *pointer;}
+template<class T, class U = T*>
+T& ConstDereference(U const &pointer) {return *pointer;}
 
 
 template<class Iterator, typename V>
@@ -174,7 +174,6 @@ class TransformingIterator {
 public:
     typedef V value_type;
     typedef V &reference;
-    typedef V *pointer;
 private:
     typedef typename Iterator::reference old_value_type;
 
@@ -189,11 +188,11 @@ public:
     }
 
     static TransformingIterator<Iterator, V> DereferencingIterator(Iterator iterator, Iterator end) {
-        return {iterator, end, std::function<V&(V*&)>(&Dereference<V>)};
+        return {iterator, end, std::function<V&(old_value_type &)>(&Dereference<V, old_value_type>)};
     }
 
     static TransformingIterator<Iterator, V> DereferencingConstIterator(Iterator iterator, Iterator end) {
-        return {iterator, end, std::function<V&(V*const&)>(&ConstDereference<V>)};
+        return {iterator, end, std::function<V&(old_value_type const&)>(&ConstDereference<V, old_value_type>)};
     }
 
     reference operator*() const {
@@ -201,7 +200,7 @@ public:
         return transform(v);
     }
 
-    pointer operator->() const {
+    V* operator->() const {
         return &(operator*());
     }
 

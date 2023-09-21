@@ -1,4 +1,7 @@
 #pragma once
+#include <iostream>
+#include <functional>
+#include <cstddef>
 
 template<class T, typename id_type = int>
 class ObjectId {
@@ -7,12 +10,12 @@ private:
     T* ref;
 public:
     ObjectId(id_type id, T* ref): id(id), ref(ref) {
-        VERIFY_MSG((id == 0) == (ref == nullptr), "Id 0 is reserved for invalid objects");
+//        VERIFY_MSG((id == 0) == (ref == nullptr), "Id 0 is reserved for invalid objects");
     }
     template<class T1>
     ObjectId(const ObjectId<T1, id_type> &other) : id(other.innerId()), ref(other.reference()) {} // NOLINT(google-explicit-constructor)
-    ObjectId(): id(0), ref(nullptr) {}
-    bool valid() const {return id != 0 && ref != nullptr;}
+    ObjectId(): ref(nullptr) {}
+    bool valid() const {return id != id_type() && ref != nullptr;}
     id_type innerId() const {return id;}
     T* reference() const {return ref;}
     T& operator*() const {return *ref;}

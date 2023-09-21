@@ -52,14 +52,14 @@ int main(int argc, char **argv) {
     dbg::SparseDBG dbg = dbg_file == "none" ?
                          DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
                          dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
-    dbg.fillAnchors(w, logger, threads);
     logger.info() << "Constructing edge id mapping" << std::endl;
     std::unordered_map<dbg::Edge*, std::string> edge_mapping;
-    dbg::GraphAligner aligner(dbg);
+    dbg::KmerIndex aligner(dbg);
+    aligner.fillAnchors(logger, threads, dbg, w);
     io::SeqReader graphReader(dbg_file);
     for(StringContig s : graphReader) {
         Contig rseq = s.makeContig();
-        DBGGraphPath al = aligner.align(rseq.getSeq());
+        dbg::GraphPath al = aligner.align(rseq.getSeq());
         VERIFY(al.size() == 1);
         edge_mapping[&al.front().contig()] = s.id;
         edge_mapping[&al.front().contig().rc()] = "-" + s.id;

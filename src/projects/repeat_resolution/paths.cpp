@@ -2,6 +2,7 @@
 // Created by Andrey Bzikadze on 11/09/21.
 //
 
+#include <dbg/multi_graph.hpp>
 #include "paths.hpp"
 using namespace repeat_resolution;
 
@@ -197,10 +198,10 @@ RRPaths PathsBuilder::FromPathVector(std::vector<RRPath> path_vec) {
 
 RRPaths
 PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
-                           const std::unordered_map<std::string,
+                           const std::unordered_map<multigraph::MGEdge::id_type,
                                                     size_t> &edgeid2ind) {
     std::vector<RRPath> paths;
-    auto path2edge_list = [&edgeid2ind](const DBGGraphPath &dbg_path) {
+    auto path2edge_list = [&edgeid2ind](const dbg::GraphPath &dbg_path) {
       PathEdgeList edge_list;
       for (const dbg::Edge &p_edge : dbg_path.edges()) {
           RREdgeIndexType edge_i = edgeid2ind.at(p_edge.getInnerId());
@@ -223,7 +224,7 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
 //            if (rec.countStartsWith(aligned_read.path.cpath()) >= 2) {
 //                continue;
 //            }
-            DBGGraphPath path = aligned_read.path.getAlignment();
+            dbg::GraphPath path = aligned_read.path.unpack();
             if (path.size()==0) {
                 continue;
             }
@@ -237,7 +238,7 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
 
 RRPaths PathsBuilder::FromDBGStorages(dbg::SparseDBG &dbg,
                                       const std::vector<RecordStorage *> &storages) {
-    std::unordered_map<std::string, size_t> edgeid2ind;
+    std::unordered_map<multigraph::MGEdge::id_type, size_t> edgeid2ind;
     size_t i = 0;
     for (auto it = dbg.edges().begin(); it!= dbg.edges().end(); ++it) {
         const dbg::Edge &edge = *it;

@@ -3,20 +3,278 @@
 
 using namespace hashing;
 namespace dbg {
+
+    void DbgConstructionHelper::checkSeqFilled(size_t threads, logging::Logger &logger, SparseDBG &dbg) const {
+        logger.trace() << "Checking getVertex sequences" << std::endl;
+        std::function<void(size_t, Vertex &)> task =
+                [&logger](size_t pos, Vertex &vert) {
+                    if (vert.getSeq().empty() || vert.rc().getSeq().empty()) {
+                        logger.trace() << "Sequence not filled " << vert.getInnerId() << std::endl;
+                        VERIFY(false);
+                    }
+                    if (!vert.isCanonical()) {
+                        logger.trace() << "Canonical getVertex marked not canonical " << vert.getInnerId() << std::endl;
+                        VERIFY(false);
+                    }
+                    if (vert.rc().isCanonical()) {
+                        logger.trace() << "Noncanonical getVertex marked canonical " << vert.getInnerId() << std::endl;
+                        VERIFY(false);
+                    }
+                };
+        processObjects(dbg.verticesUnique().begin(), dbg.verticesUnique().end(), logger, threads, task);
+        logger.trace() << "Vertex sequence check success" << std::endl;
+    }
+
+    SparseDBG DbgConstructionHelper::Subgraph(std::vector<Segment<Edge>> &pieces) const{
+        SparseDBG res(hasher());
+        for(Segment<Edge> &seg : pieces) {
+            if (seg.left == 0) {
+                res.addKmerVertex(seg.contig().getStart().getSeq());
+            }
+            Segment<Edge> rcSeg = seg.RC();
+            if (rcSeg.left == 0) {
+                res.addKmerVertex(rcSeg.contig().getStart().getSeq());
+            }
+        }
+        KmerIndex index(res);
+        for(Segment<Edge> &seg : pieces) {
+            Vertex *left;
+            Vertex *right;
+            if (seg.left == 0) {
+                left = &index.getVertex(seg.contig().getStart().getSeq());
+            } else {
+                left = &res.addKmerVertex(seg.contig().kmerSeq(seg.left));
+            }
+            Segment<Edge> rcSeg = seg.RC();
+            if (rcSeg.left == 0) {
+                right = &index.getVertex(rcSeg.contig().getStart().getSeq());
+            } else if(seg == rcSeg) {
+                right = left;
+            } else {
+                right = &res.addKmerVertex(rcSeg.contig().kmerSeq(rcSeg.left));
+            }
+            left->addEdge(right->rc(), seg.fullSeq());
+        }
+        return std::move(res);
+    }
+
+    SparseDBG DbgConstructionHelper::SplitGraph(SparseDBG &dbg, const std::vector<EdgePosition> &breaks) const {
+        SparseDBG res(hasher());
+        for(Vertex &it : dbg.verticesUnique()) {
+            res.addVertex(it);
+        }
+        KmerIndex index(res);
+        std::unordered_set<Edge *> broken_edges;
+        for(const EdgePosition &epos : breaks) {
+            if(!epos.isBorder()) {
+                res.addKmerVertex(epos.kmerSeq());
+                broken_edges.emplace(epos.edge);
+                broken_edges.emplace(&epos.edge->rc());
+            }
+        }
+        for(Edge &edge : dbg.edgesUnique()) {
+            if(broken_edges.find(&edge) == broken_edges.end()) {
+                Vertex &start = index.getVertex(edge.getStart());
+                Vertex &end = index.getVertex(edge.getFinish());
+                start.addEdge(end, edge.getSeq());
+            } else {
+                Vertex &newVertex = index.getVertex(edge.getStart());
+                processFullEdgeSequence(res, index, edge.getSeq());
+            }
+        }
+        return std::move(res);
+    }
+
+    std::vector<dbg::GraphPath> DbgConstructionHelper::AddNewSequences(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const {
+        SparseDBG res(hasher());
+        for(Vertex &it : dbg.verticesUnique()) {
+            res.addVertex(it);
+        }
+        addAllKmers(res, new_seqs);
+        KmerIndex index(res);
+        std::function<void(size_t, Edge &)> task = [&res, this, &index](size_t num, Edge &edge) {
+            processFullEdgeSequence(res, index, edge.getSeq());
+        };
+        omp_set_num_threads(threads);
+        processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task);
+        std::function<void(size_t, const Sequence &)> task1 = [&res, this, &index](size_t num, const Sequence &seq) {
+            processRead(res, index, seq);
+        };
+        ParallelProcessor<const Sequence>(task1, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
+        std::vector<dbg::GraphPath> paths(new_seqs.size());
+        index.noAnchors();
+        std::function<void(size_t, const Sequence &)> task2 = [&index, &paths](size_t num, const Sequence &seq) {
+            paths[num] = index.align(seq);
+        };
+        ParallelProcessor<const Sequence>(task2, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
+//    processObjects<std::vector<Sequence>::const_iterator>(new_seqs.begin(), new_seqs.end(), logger, threads, task1);
+        dbg = std::move(res);
+        return std::move(paths);
+    }
+
+    void DbgConstructionHelper::addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const {
+        KmerIndex index(dbg);
+        for(const Sequence &seq: new_seqs) {
+            KWH kwh(hasher(), seq, 0);
+            while(true) {
+                if(!index.containsVertex(kwh.hash())) {
+                    dbg.addVertexPair({kwh.hash()});
+                }
+                if(!kwh.hasNext())
+                    break;
+                kwh = kwh.next();
+            }
+        }
+    }
+
+    void DbgConstructionHelper::checkConsistency(size_t threads, logging::Logger &logger, SparseDBG &dbg) const {
+        logger.trace() << "Checking consistency" << std::endl;
+        std::function<void(size_t,  Vertex &)> task =
+                [this](size_t pos, Vertex &vert) {
+                    vert.checkConsistency();
+                    vert.rc().checkConsistency();
+                };
+        processObjects(dbg.vertices().begin(), dbg.vertices().end(), logger, threads, task);
+        logger.trace() << "Consistency check success" << std::endl;
+    }
+
+    void DbgConstructionHelper::checkDBGConsistency(size_t threads, logging::Logger &logger, SparseDBG &dbg) const {
+        size_t sz = 0;
+        for(Edge &edge : dbg.edgesUnique()) {
+            sz += edge.truncSize();
+        }
+        for(Vertex &vertex: dbg.vertices()) {
+            std::vector<char> out;
+            for(Edge &edge : vertex) {
+                out.emplace_back(edge.truncSeq()[0]);
+            }
+            std::sort(out.begin(), out.end());
+            for(size_t i = 0; i + 1 < out.size(); i++) {
+                VERIFY(out[i] != out[i + 1]);
+            }
+        }
+        if(sz > 10000000)
+            return;
+        ParallelRecordCollector<hashing::htype> hashs(threads);
+        std::function<void(size_t, Edge &)> task1 =
+                [this, &hashs](size_t pos, Edge &edge) {
+                    hashing::KWH kwh(hasher(), edge.getSeq(), 1);
+                    for(size_t i = 1; i < edge.truncSize(); i++) {
+                        hashs.emplace_back(kwh.hash());
+                        kwh = kwh.next();
+                    }
+                };
+        processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task1);
+        for(Vertex &vertex : dbg.verticesUnique()) {
+            hashs.emplace_back(hashing::KWH(hasher(), vertex.getSeq(), 0).hash());
+        }
+        std::vector<hashing::htype> res = hashs.collect();
+        __gnu_parallel::sort(res.begin(), res.end());
+        bool ok = true;
+        for(size_t i = 0; i + 1 < res.size(); i++) {
+            ok &= res[i] != res[i + 1];
+        }
+        if(!ok) {
+            logger.trace() << "Duplicated k-mers in the graph" << std::endl;
+        }
+    }
+
+    void DbgConstructionHelper::checkIndexConsistency(logging::Logger &logger, size_t threads, SparseDBG &dbg, KmerIndex &index) const {
+        logger.trace() << "Checking kmer index" << std::endl;
+        std::function<void(size_t, Edge &)> task =
+                [this, &index](size_t pos, Edge &edge) {
+                    KWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 0);
+                    while (true) {
+                        if(index.containsVertex(kwh.hash())) {
+                            VERIFY_OMP((kwh.pos == 0 && index.getVertex(kwh) == edge.getStart()) || (kwh.pos ==
+                                                                                                              edge.truncSize() && index.getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
+                        }
+                        if(index.isAnchor(kwh.hash())) {
+                            EdgePosition ep = index.getAnchor(kwh);
+                            VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.pos, "Anchor kmer index corruption " + itos(ep.pos) + " " +
+                                                                              itos(ep.edge->truncSize()));
+                        }
+                        if(!kwh.hasNext())
+                            break;
+                        kwh = kwh.next();
+                    }
+                };
+        processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
+        logger.trace() << "Index check success" << std::endl;
+    }
+
+    void DbgConstructionHelper::processRead(SparseDBG &dbg, KmerIndex &index, const Sequence &seq) const {
+        VERIFY(index.alignmentReady());
+        std::vector<hashing::KWH> kmers = index.extractVertexPositions(seq);
+        if (kmers.size() == 0) {
+            std::cout << seq << std::endl;
+        }
+        VERIFY(kmers.size() > 0);
+        std::vector<Vertex *> vertices;
+        for (size_t i = 0; i < kmers.size(); i++) {
+            vertices.emplace_back(&index.getVertex(kmers[i]));
+            if (i == 0 || vertices[i] != vertices[i - 1]) {
+                vertices.back()->setSeq(kmers[i].getSeq().copy());
+            }
+        }
+        size_t k = hasher().getK();
+        for (size_t i = 0; i + 1 < vertices.size(); i++) {
+//            TODO: if too memory heavy save only some of the labels
+            VERIFY(kmers[i].pos + k <= seq.size())
+            if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
+                (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
+                kmers[i + 1].pos - kmers[i].pos < k) {
+                continue;
+            }
+            vertices[i]->addEdge(*vertices[i + 1], Sequence(seq.Subseq(kmers[i].pos,
+                                                                       kmers[i + 1].pos +
+                                                                       k).str()));
+        }
+        if (kmers.front().pos > 0) {
+            vertices.front()->rc().addOutgoingSequence(vertices.front()->rc(), !(seq.Subseq(0, kmers[0].pos)));
+        }
+        if (kmers.back().pos + k < seq.size()) {
+            vertices.back()->addOutgoingSequence(*vertices.back(), seq.Subseq(kmers.back().pos + k, seq.size()));
+        }
+    }
+
+    void DbgConstructionHelper::processFullEdgeSequence(SparseDBG &dbg, KmerIndex &index, const Sequence &full_seq) const {
+        VERIFY(index.alignmentReady());
+        std::vector<hashing::KWH> kmers = index.extractVertexPositions(full_seq);
+        VERIFY(kmers.front().pos == 0 && kmers.back().pos == full_seq.size() - hasher().getK());
+        std::vector<Vertex *> vertices;
+        for (auto & kmer : kmers) {
+            vertices.emplace_back(&index.getVertex(kmer));
+        }
+        for(size_t i = 0; i < vertices.size(); i++) {
+            if(i == 0 || vertices[i] != vertices[i-1]) {
+                vertices[i]->setSeq(full_seq.Subseq(kmers[i].pos, kmers[i].pos + hasher().getK()));
+            }
+        }
+        for (size_t i = 0; i + 1 < vertices.size(); i++) {
+//            TODO: if too memory heavy save only some of the labels
+            if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
+                (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
+                kmers[i + 1].pos - kmers[i].pos < hasher().getK()) {
+                continue;
+            }
+            vertices[i]->addEdge(*vertices[i + 1], full_seq.Subseq(kmers[i].pos, kmers[i + 1].pos + hasher().getK()));
+        }
+    }
+
     template<class Iterator>
-    void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
-                      const RollingHash &hasher, const size_t min_read_size) {
+    void fillCoverage(logging::Logger &logger, size_t threads, Iterator begin, Iterator end, KmerIndex &index) {
         typedef typename Iterator::value_type ContigType;
         logger.info() << "Starting to fill edge coverages" << std::endl;
         ParallelRecordCollector<size_t> lens(threads);
-        std::function<void(size_t, ContigType &)> task = [&sdbg, &lens, min_read_size](size_t pos, ContigType &contig) {
+        std::function<void(size_t, ContigType &)> task = [&index, &lens](size_t pos, ContigType &contig) {
             Sequence seq = std::move(contig.makeSequence());
-            if (seq.size() >= min_read_size) {
-                DBGGraphPath path = GraphAligner(sdbg).align(seq);
+            if (seq.size() >= index.minReadLen()) {
+                dbg::GraphPath path = index.align(seq);
                 lens.add(path.size());
                 for (Segment<Edge> seg: path) {
-                    seg.contig().getData().incCov(seg.size());
-                    seg.contig().rc().getData().incCov(seg.size());
+                    seg.contig().incCov(seg.size());
+                    seg.contig().rc().incCov(seg.size());
                 }
             }
         };
@@ -41,17 +299,17 @@ namespace dbg {
         return std::move(sdbg);
     }
 
-    void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t w, size_t threads) {
+    void tieTips(logging::Logger &logger, SparseDBG &sdbg, size_t k, size_t w, size_t threads) {
         logger.info() << "Collecting tips " << std::endl;
 //    TODO reduce memory consumption!! A lot of duplicated k-mer storing
         ParallelRecordCollector<std::pair<Vertex *, Sequence>> new_edges(threads);
         ParallelRecordCollector<Sequence> new_minimizers(threads);
         std::function<void(size_t, Vertex &)> task =
-                [&sdbg, &new_minimizers, &new_edges](size_t pos, Vertex &vertex) {
+                [&sdbg, &new_minimizers, &new_edges, k](size_t pos, Vertex &vertex) {
                     VERIFY(!vertex.getSeq().empty());
-                    for(const Sequence &hanging : vertex.getData().getHanging()) {
-                        Sequence seq = hanging.size() >= sdbg.hasher().getK() ? hanging.Suffix(sdbg.hasher().getK()) :
-                                (vertex.getSeq() + hanging).Suffix(sdbg.hasher().getK());
+                    for(const Sequence &hanging : vertex.getHanging()) {
+                        Sequence seq = hanging.size() >= k ? hanging.Suffix(k) :
+                                (vertex.getSeq() + hanging).Suffix(k);
                         new_edges.emplace_back(&vertex, hanging);
                         new_minimizers.emplace_back(seq);
                     }
@@ -64,11 +322,12 @@ namespace dbg {
         std::function<void(size_t, Vertex &)> clear_task =
                 [](size_t pos, Vertex &vertex) {
                     vertex.clear();
+                    vertex.clearHanging();
                 };
         processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, clear_task);
         logger.info() << "Added " << new_minimizers.size() << " artificial minimizers from tips." << std::endl;
         for (Sequence & kwh : new_minimizers) {
-            sdbg.addVertex(kwh);
+            sdbg.addKmerVertex(kwh);
         }
         new_minimizers.clear();
         logger.info() << "New minimizers added to sparse graph." << std::endl;
@@ -77,23 +336,23 @@ namespace dbg {
         logger.info() << "Finished fixing sparse de Bruijn graph to include all hanging vertices." << std::endl;
     }
 
-    void MergeMarkAndDetachPath(DBGGraphPath path) {
+    void MergeMarkAndDetachPath(dbg::GraphPath path) {
         if(path.size() == 1)
             return;
-        VertexLocker locker({&path.start(), &path.finish().rc()});
+        ag::Locker<Vertex> locker({&path.start(), &path.finish().rc()});
         Sequence newSeq(path.Seq());
         bool self_rc = path.frontEdge() == path.backEdge().rc();
         size_t cov = 0;
         for (Edge &edge : path.edges()) {
-            cov += edge.getData().intCov();
+            cov += edge.intCov();
         }
         for(size_t i = 1; i < path.size(); i++) {
             path.getVertex(i).mark();
             path.getVertex(i).rc().mark();
         }
-        Edge &new_edge = path.start().addEdgeLockFree(path.finish(), newSeq);
-        new_edge.getData().incCov(cov - new_edge.getData().intCov());
-        new_edge.rc().getData().incCov(cov - new_edge.rc().getData().intCov());
+        Edge &new_edge = path.start().addEdgeLockFree(path.finish(), newSeq, DBGTraits::EdgeData());
+        new_edge.incCov(cov - new_edge.intCov());
+        new_edge.rc().incCov(cov - new_edge.rc().intCov());
         if(!self_rc) {
             path.finish().rc().innerRemoveEdge(path.backEdge().rc());
         }
@@ -101,7 +360,7 @@ namespace dbg {
     }
 
     void mergeLoop(Vertex &start) {
-        DBGGraphPath path = DBGGraphPath::WalkForward(start.front());
+        dbg::GraphPath path = dbg::GraphPath::WalkForward(start.front());
         VERIFY(path.start() == path.finish())
         for(size_t i = 1; i < path.size(); i++) {
             if(path.getVertex(i) == start.rc()) {
@@ -113,6 +372,7 @@ namespace dbg {
         MergeMarkAndDetachPath(path);
     }
 
+//    TODO: this method should return mapping from removed vertex ids to their positions in merged graph
     void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
         logger.trace() << "Merging linear unbranching paths" << std::endl;
         std::function<void(size_t, Vertex &)> task =
@@ -120,15 +380,15 @@ namespace dbg {
                     if (!start.isJunction())
                         return;
                     start.lock();
-                    std::vector<DBGGraphPath> to_merge;
+                    std::vector<dbg::GraphPath> to_merge;
                     for (Edge &edge: start) {
-                        DBGGraphPath path = DBGGraphPath::WalkForward(edge);
+                        dbg::GraphPath path = dbg::GraphPath::WalkForward(edge);
                         if (path.size() > 1 && (path.finish().rc() > start || (path.finish().rc() == start && path.Seq() <= !path.Seq()))) {
                             to_merge.emplace_back(std::move(path));
                         }
                     }
                     start.unlock();
-                    for(DBGGraphPath &path : to_merge) {
+                    for(dbg::GraphPath &path : to_merge) {
                         MergeMarkAndDetachPath(path);
                     }
                 };
@@ -144,7 +404,7 @@ namespace dbg {
                     if (start.isJunction() || start.marked()) {
                         return;
                     }
-                    DBGGraphPath path = DBGGraphPath::WalkForward(start.front());
+                    dbg::GraphPath path = dbg::GraphPath::WalkForward(start.front());
                     VERIFY(path.finish() == start);
                     bool ismin = true;
                     for (const Vertex &v: path.vertices()) {
@@ -167,34 +427,21 @@ namespace dbg {
         logger.trace() << "Finished merging cyclic paths" << std::endl;
     }
 
-    void mergeAll(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
-        logger.trace() << "Merging unbranching paths" << std::endl;
-        sdbg.resetMarkers();
-        mergeLinearPaths(logger, sdbg, threads);
-//    sdbg.checkConsistency(threads, logger);
-        mergeCyclicPaths(logger, sdbg, threads);
-//    sdbg.checkConsistency(threads, logger);
-        logger.trace() << "Removing isolated vertices" << std::endl;
-        sdbg.removeMarked();
-        logger.trace() << "Finished removing isolated vertices" << std::endl;
-        logger.trace() << "Finished merging unbranching paths" << std::endl;
-    }
-
-    void CalculateCoverage(const std::experimental::filesystem::path &dir, const RollingHash &hasher, const size_t w,
-                           const io::Library &lib, size_t threads, logging::Logger &logger, SparseDBG &dbg) {
+    void CalculateCoverage(logging::Logger &logger, size_t threads, SparseDBG &dbg, KmerIndex &index,
+                           const std::experimental::filesystem::path &dir, const io::Library &lib) {
         logger.info() << "Calculating edge coverage." << std::endl;
         io::SeqReader reader(lib);
-        fillCoverage(dbg, logger, reader.begin(), reader.end(), threads, hasher, w + hasher.getK() - 1);
+        fillCoverage(logger, threads, reader.begin(), reader.end(), index);
         std::ofstream os;
         os.open(dir / "coverages.save");
         os << dbg.size() << std::endl;
         for (Vertex &v: dbg.verticesUnique()) {
-            os << v.hash() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
+            os << v.getInnerId() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
             for (const Edge &edge: v) {
-                os << size_t(edge.truncSeq()[0]) << " " << edge.getData().intCov() << std::endl;
+                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
             }
             for (const Edge &edge: v.rc()) {
-                os << size_t(edge.truncSeq()[0]) << " " << edge.getData().intCov() << std::endl;
+                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
             }
         }
 //    dbg.printCoverageStats(logger);
@@ -202,28 +449,27 @@ namespace dbg {
     }
 
     std::experimental::filesystem::path
-    alignLib(logging::Logger &logger, SparseDBG &dbg, const io::Library &align_lib, const RollingHash &hasher,
-             const size_t w, const std::experimental::filesystem::path &dir, size_t threads) {
+    alignLib(logging::Logger &logger, size_t threads, KmerIndex &index, const io::Library &align_lib,
+             const std::experimental::filesystem::path &dir) {
         logger.info() << "Aligning reads" << std::endl;
         ParallelRecordCollector<std::string> alignment_results(threads);
         std::string acgt = "ACGT";
-
-        std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, acgt](size_t pos,
+        std::function<void(size_t, StringContig &)> task = [&index, &alignment_results, acgt](size_t pos,
                                                                                                         StringContig &contig) {
             Contig read = contig.makeContig();
-            if (read.truncSize() < w + hasher.getK() - 1)
+            if (read.truncSize() < index.minReadLen())
                 return;
-            DBGGraphPath path = GraphAligner(dbg).align(read.getSeq());
+            dbg::GraphPath path = index.align(read.getSeq());
             std::stringstream ss;
-            ss << read.getInnerId() << " " << path.start().hash() << int(path.start().isCanonical()) << " ";
+            ss << read.getInnerId() << " " << path.start().getInnerId() << " ";
             for (Edge &edge : path.edges()) {
                 ss << acgt[edge.truncSeq()[0]];
             }
             alignment_results.emplace_back(ss.str());
             Contig rc_read = read.RC();
-            DBGGraphPath rc_path = GraphAligner(dbg).align(rc_read.getSeq());
+            dbg::GraphPath rc_path = index.align(rc_read.getSeq());
             std::stringstream rc_ss;
-            rc_ss << rc_read.getInnerId() << " " << rc_path.start().hash() << int(rc_path.start().isCanonical()) << " ";
+            rc_ss << rc_read.getInnerId() << " " << rc_path.start().getInnerId() << " ";
             for (size_t i = 0; i < rc_path.size(); i++) {
                 rc_ss << acgt[rc_path[i].truncSeq()[0]];
             }

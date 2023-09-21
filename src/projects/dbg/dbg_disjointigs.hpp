@@ -10,12 +10,14 @@
 #include <common/simple_computation.hpp>
 #include <common/logging.hpp>
 
-Sequence buildDisjointig(DBGGraphPath &path);
-void processVertex(dbg::Vertex &rec, ParallelRecordCollector<Sequence> &res);
-void prepareVertex(dbg::Vertex &vertex);
-void extractLinearDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &vertex, logging::Logger & logger, size_t threads);
-void extractCircularDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger & logger, size_t threads);
-std::vector<Sequence> extractDisjointigs(logging::Logger & logger, dbg::SparseDBG &sdbg, size_t threads);
-std::vector<Sequence> constructDisjointigs(const hashing::RollingHash &hasher, size_t w, const io::Library &reads_file,
-                                           const std::vector<hashing::htype> & hash_list, size_t threads,
-                                           logging::Logger & logger);
+namespace dbg {
+//    void extractLinearDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &vertex, logging::Logger &logger,
+//                             size_t threads);
+//    void extractCircularDisjointigs(dbg::SparseDBG &sdbg, ParallelRecordCollector<Sequence> &res, logging::Logger &logger,
+//                               size_t threads);
+    std::vector<Sequence> extractDisjointigs(logging::Logger &logger, dbg::SparseDBG &sdbg, size_t threads);
+    std::vector<Sequence> constructDisjointigs(logging::Logger &logger, size_t threads,
+                       const hashing::RollingHash &hasher, size_t w, const io::Library &reads_file,
+                       const std::vector<hashing::htype> &hash_list);
+
+}

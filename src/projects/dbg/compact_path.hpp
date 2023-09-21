@@ -1,15 +1,19 @@
 #pragma once
-#include "sparse_dbg.hpp"
-#include "graph_algorithms.hpp"
-#include "graph_stats.hpp"
+#include "paths.hpp"
+#include "id_index.hpp"
+#include "sequences/sequence.hpp"
 #include <parallel/algorithm>
 #include <utility>
-namespace dbg {
+namespace ag {
 
+    template<class Traits>
     class CompactPath {
+    public:
+        typedef typename Traits::Vertex Vertex;
+        typedef typename Traits::Edge Edge;
     private:
         Vertex *_start;
-        Sequence _edges;
+        Sequence _edges = {};
         size_t _first_skip;
         size_t _last_skip;
     public:
@@ -20,7 +24,7 @@ namespace dbg {
                 _start(&start), _edges(std::move(edges)), _first_skip(first_skip), _last_skip(last_skip) {
         }
 
-        explicit CompactPath(const DBGGraphPath &path) :
+        explicit CompactPath(const GraphPath<Traits> &path) :
                 _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
             std::vector<char> edges;
             for (Edge &edge: path.edges()) {
@@ -29,7 +33,7 @@ namespace dbg {
             _edges = Sequence(edges);
         }
 
-        static CompactPath Subpath(const DBGGraphPath &path, size_t left, size_t right) {
+        static CompactPath Subpath(const GraphPath<Traits> &path, size_t left, size_t right) {
             std::vector<char> edges;
             for (size_t i = left; i < right; i++) {
                 edges.push_back(path[i].contig().truncSeq()[0]);
@@ -42,10 +46,10 @@ namespace dbg {
             return _start != nullptr;
         }
 
-        DBGGraphPath getAlignment() const {
+        GraphPath<Traits> unpack() const {
             if (!valid())
                 return {};
-            DBGGraphPath res;
+            GraphPath<Traits> res;
             Vertex *cur = _start;
             for (size_t i = 0; i < _edges.size(); i++) {
                 VERIFY(cur->hasOutgoing(_edges[i]));
@@ -61,7 +65,7 @@ namespace dbg {
         CompactPath RC() const {
             if (!valid())
                 return {};
-            return CompactPath(getAlignment().RC());
+            return CompactPath(unpack().RC());
         }
 
 //    Vertex &start() {
@@ -91,25 +95,25 @@ namespace dbg {
         unsigned char operator[](size_t ind) const {
             return _edges[ind];
         }
-
-        static CompactPath Load(std::istream &os, SparseDBG &dbg) {
-            hashing::htype hash;
-            bool canonical;
+        static CompactPath Load(std::istream &os, IdIndex<Vertex> &index) {
+            typename Vertex::id_type id;
             size_t left = 0;
             size_t right = 0;
             std::string path;
-            os >> hash >> canonical >> path >> left >> right;
+            os >> id >> path >> left >> right;
             path = path.substr(2);
-            if(hash == 0 && path.size() == 0) {
+            if(id == 0 && path.empty()) {
                 return {};
             }
-            return {dbg.getVertex(hash, canonical), Sequence(path), left, right};
+            return {index.getById(id), Sequence(path), left, right};
         }
     };
 }
-inline std::ostream& operator<<(std::ostream  &os, const dbg::CompactPath &cpath) {
+
+template<class Traits>
+inline std::ostream& operator<<(std::ostream  &os, const ag::CompactPath<Traits> &cpath) {
     if(cpath.valid())
-        return os << cpath.start().hash() << " " << cpath.start().isCanonical() << " P:" << cpath.cpath() << " " << cpath.leftSkip() << " " << cpath.rightSkip();
+        return os << cpath.start().getInnerId() << " P:" << cpath.cpath() << " " << cpath.leftSkip() << " " << cpath.rightSkip();
     else
-        return os << "0 0 P: 0 0";
+        return os << "0 P: 0 0";
 }

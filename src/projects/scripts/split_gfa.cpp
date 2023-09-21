@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
     size_t cnt = 1;
     std::experimental::filesystem::path dir = argv[2];
     ensure_dir_existance(dir);
-    std::cout << "dbg " << mg.size() << " " << mg.edgeNumber() << std::endl;
+    std::cout << "dbg " << mg.size() << " " << mg.edgeCount() << std::endl;
     for(const std::vector<ConstVertexId> &comp : MultiGraphHelper::split(mg)) {
         std::cout << comp.size() << std::endl;
         MultiGraphHelper::printVertexGFA(dir / (itos(cnt) + ".gfa"), comp);

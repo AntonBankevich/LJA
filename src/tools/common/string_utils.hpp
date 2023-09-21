@@ -7,6 +7,31 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include "verify.hpp"
+
+template<class T>
+inline T Parse(const std::string &s);
+
+template<>
+inline int Parse<int>(const std::string &s) {return std::stoi(s);}
+
+template<>
+inline std::string Parse<std::string>(const std::string &s) {return s;}
+
+inline int ParseInt(const std::string &s, size_t pos = 0) {
+    bool neg = false;
+    if(pos < s.size() && s[pos] == '-') {
+        neg = true;
+        pos++;
+    }
+    VERIFY(pos < s.size() && s[pos] >= '0' && s[pos] <= '9');
+    int res = 0;
+    while(pos < s.size() && s[pos] >= '0' && s[pos] <= '9') {
+        res = res * 10 + s[pos] - '0';
+        pos++;
+    }
+    return neg ? -res : res;
+}
 
 inline std::string itos(size_t val, size_t min_size = 0) {
     std::stringstream ss;

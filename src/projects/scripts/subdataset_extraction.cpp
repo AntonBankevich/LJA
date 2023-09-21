@@ -58,12 +58,13 @@ int main(int argc, char **argv) {
                     DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
                          dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger,
                                                        threads); //Create dbg
-    dbg.fillAnchors(w, logger, threads);// Creates index of edge k-mers
     size_t extension_size = 100000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, track_paths);//Structure for read alignments
     io::SeqReader reader(reads_lib);//Reader that can read reads from file
-    readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);//Align reads to the graph
+    dbg::KmerIndex index(dbg);
+    index.fillAnchors(logger, threads, dbg, w);
+    readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);//Align reads to the graph
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
@@ -91,13 +92,14 @@ int main(int argc, char **argv) {
         size_t radius = std::stoull(parameterValues.getValue("radius"));
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
-            std::cout << contig.getInnerId() << " " << contig.truncSize() << " " << dbg::GraphAligner(dbg).carefulAlign(contig).size() << std::endl;
+            std::cout << contig.getInnerId() << " " << contig.truncSize() << " " << index.carefulAlign(contig).size() << std::endl;
             storage.addContig(contig);
-            subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + radius));
+            std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
+            subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig_al, k + radius));
             subdatasets.back().id = contig.getInnerId();
         }
     }
-    storage.Fill(threads);
+    storage.Fill(threads, index);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "dbg_graph_aligner.hpp"
 #include "paths.hpp"
 #include "sparse_dbg.hpp"
 #include "common/iterator_utils.hpp"
@@ -9,24 +10,29 @@ namespace dbg {
     class Component {
     private:
         SparseDBG *_graph;
-        std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
+        std::unordered_set<VertexId> v;
     public:
         template<class I>
-        Component(SparseDBG &_graph, I begin, I end) : _graph(&_graph), v(begin, end) {}
+        Component(SparseDBG &_graph, I begin, I end) : _graph(&_graph) {
+            for(;begin != end; ++begin) {
+                v.insert(*begin);
+                v.insert((*begin)->rc().getId());
+            }
+        }
         explicit Component(SparseDBG &_graph);
         template<class I>
         static Component neighbourhood(SparseDBG &graph, I begin, I end, size_t radius, size_t min_coverage = 0);
-        static Component neighbourhood(SparseDBG &graph, Contig &contig, size_t radius);
-        static Component longEdgeNeighbourhood(SparseDBG &graph, Contig &contig, size_t long_edge_threshold);
+        static Component neighbourhood(dbg::SparseDBG &graph, const std::vector<PerfectAlignment<Contig, Edge>> &als1, size_t radius);
+        static Component longEdgeNeighbourhood(SparseDBG &graph, const std::vector<PerfectAlignment<Contig, Edge>> &als1, size_t long_edge_threshold);
 
         SparseDBG &graph() const {return *_graph;}
-        bool contains(const Vertex &vert) const {return v.find(vert.hash()) != v.end();}
-        bool covers(const Vertex &vert) const;
+        bool contains(Vertex &vert) const {return v.find(vert.getId()) != v.end();}
+        bool covers(Vertex &vert) const;
         size_t size() const {return v.size();}
 
-        typedef std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>>::const_iterator iterator;
-        IterableStorage<ApplyingIterator<iterator, Vertex, 2>> vertices(bool unique = false) const;
-        IterableStorage<ApplyingIterator<iterator, Vertex, 2>> verticesUnique(bool unique = false) const;
+        typedef std::unordered_set<VertexId>::const_iterator iterator;
+        IterableStorage<TransformingIterator<iterator, Vertex>> vertices() const;
+        IterableStorage<SkippingIterator<TransformingIterator<iterator, Vertex>>> verticesUnique() const;
         IterableStorage<ApplyingIterator<iterator, Edge, 16>> edges(bool inner = false, bool unique = false) const;
         IterableStorage<ApplyingIterator<iterator, Edge, 16>> edgesInner() const;
         IterableStorage<ApplyingIterator<iterator, Edge, 16>> edgesUnique() const;
@@ -70,8 +76,8 @@ namespace dbg {
 
     template<class I>
     dbg::Component dbg::Component::neighbourhood(dbg::SparseDBG &graph, I begin, I end, size_t radius, size_t min_coverage) {
-        std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> v;
-        typedef std::pair<size_t, hashing::htype> StoredValue;
+        std::unordered_set<VertexId> v;
+        typedef std::pair<size_t, VertexId> StoredValue;
         std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
         while (begin != end) {
             queue.emplace(0, *begin);
@@ -85,17 +91,17 @@ namespace dbg {
             v.insert(val.second);
             if (val.first > radius)
                 continue;
-            Vertex &vert = graph.getVertex(val.second);
+            Vertex &vert = *val.second;
             for (Edge &edge : vert) {
-                if (edge.getData().getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
+                if (edge.getCoverage() >= min_coverage)
+                    queue.emplace(val.first + edge.truncSize(), edge.getFinish().getHash());
             }
             for (Edge &edge : vert.rc()) {
-                if (edge.getData().getCoverage() >= min_coverage)
-                    queue.emplace(val.first + edge.truncSize(), edge.getFinish().hash());
+                if (edge.getCoverage() >= min_coverage)
+                    queue.emplace(val.first + edge.truncSize(), edge.getFinish().getHash());
             }
         }
-        return Component(graph, v.begin(), v.end());
+        return {graph, v.begin(), v.end()};
     }
 
 }

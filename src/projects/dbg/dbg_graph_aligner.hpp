@@ -24,24 +24,88 @@ namespace dbg {
         }
     };
 
-    class GraphAligner {
+    class KmerIndex {
+    public:
+        typedef std::unordered_map<hashing::htype , Vertex*, hashing::alt_hasher<hashing::htype>> vertex_map_type;
+        typedef std::unordered_map<hashing::htype, Vertex*, hashing::alt_hasher<hashing::htype>>::iterator vertex_iterator_type;
+        typedef std::unordered_map<hashing::htype, EdgePosition, hashing::alt_hasher<hashing::htype>> anchor_map_type;
+
     private:
-        dbg::SparseDBG &dbg;
+        hashing::RollingHash hasher_;
+        mutable vertex_map_type v;
+        anchor_map_type anchors;
+        size_t w = 0;
+        bool anchors_filled = false;
 
         PerfectAlignment<Contig, dbg::Edge> extendLeft(const hashing::KWH &kwh, Contig &contig) const;
-
         PerfectAlignment<Contig, dbg::Edge> extendRight(const hashing::KWH &kwh, Contig &contig) const;
 
     public:
-        explicit GraphAligner(dbg::SparseDBG &dbg) : dbg(dbg) {
-            VERIFY(dbg.alignmentReady());
+        explicit KmerIndex(hashing::RollingHash _hasher) : hasher_(_hasher) {
         }
 
-        DBGGraphPath align(const dbg::EdgePosition &pos, const Sequence &seq) const;
+        explicit KmerIndex(SparseDBG &dbg) : hasher_(dbg.hasher()) {
+            for(Vertex &vertex : dbg.verticesUnique()) {
+                VERIFY(vertex.isCanonical());
+                v[vertex.getHash()] = &vertex;
+            }
+        }
 
-        DBGGraphPath align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to);
+        const hashing::RollingHash &hasher() const {
+            return hasher_;
+        }
 
-        DBGGraphPath align(const Sequence &seq, const std::string &name = "") const;
+        void addVertex(hashing::htype &hash, Vertex &vert) {
+            v[hash] = &vert;
+        }
+
+        bool containsVertex(const hashing::htype &hash) const {return v.find(hash) != v.end();}
+        Vertex &getVertex(const hashing::KWH &kwh) const;
+        Vertex &getVertex(const Sequence &seq) const;
+        Vertex &getVertex(hashing::htype hash, bool canonical = true) const {return canonical ? *v.find(hash)->second : v.find(hash)->second->rc();}
+        Vertex &getVertex(const Vertex &other_graph_vertex) const;
+        std::array<Vertex *, 2> getVertices(hashing::htype hash) const;
+//        const Vertex &getVertex(const hashing::KWH &kwh) const;
+        bool isAnchor(hashing::htype hash) const {return anchors.find(hash) != anchors.end();}
+        EdgePosition getAnchor(const hashing::KWH &kwh) const;
+        bool alignmentReady() const {return anchors_filled;}
+        bool minReadLen() const {
+            if(anchors_filled)
+                return w + hasher().getK() - 1;
+            else
+                return size_t(-1);
+        }
+
+        std::vector<hashing::KWH> extractVertexPositions(const Sequence &seq, size_t max = size_t(-1)) const {
+            std::vector<hashing::KWH> res;
+            hashing::KWH kwh(hasher(), seq, 0);
+            while (true) {
+                if (containsVertex(kwh.hash())) {
+                    res.emplace_back(kwh);
+                }
+                if (!kwh.hasNext() || res.size() == max)
+                    break;
+                kwh = kwh.next();
+            }
+            return std::move(res);
+        }
+
+        void noAnchors() {
+            anchors_filled = true;
+        }
+
+        void fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t w);
+        void fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t w,
+                         const std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> &to_add);
+
+
+    public:
+
+        dbg::GraphPath align(const dbg::EdgePosition &pos, const Sequence &seq) const;
+
+        dbg::GraphPath align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to);
+
+        dbg::GraphPath align(const Sequence &seq, const std::string &name = "") const;
 
         std::vector<PerfectAlignment<Contig, dbg::Edge>> carefulAlign(Contig &contig) const;
 

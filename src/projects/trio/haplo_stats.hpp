@@ -37,9 +37,8 @@ inline bool is_defined_haplo(Haplotype c) {
 
 
 struct HaplotypeStats {
-
     Haplotype haplotype;
-    std::string label;
+    std::vector<multigraph::Edge::id_type> label;
 //order: p, m, as in file;
     std::array<int, 2> decisive_strips;
     std::array<int, 2> decisive_counts;
@@ -51,7 +50,7 @@ struct HaplotypeStats {
     HaplotypeStats(std::string s) {
         std::vector<std::string> tokens = ::split(s);
         haplotype = Haplotype(tokens[1][0]);
-        label = tokens[0];
+        label = {Parse<multigraph::MGEdge::id_type>(tokens[0])};
 //Numbers of distinctive kmers in strips longer than k - eps
         decisive_strips = std::array<int, 2>{stoi(tokens[2]), stoi(tokens[3])};
 //Numbers of distinctive kmers
@@ -75,7 +74,7 @@ struct HaplotypeStats {
 
     }
 
-    HaplotypeStats() : haplotype(Haplotype::Unknown), label(""), decisive_counts{0, 0}, decisive_strips{0, 0}, total_kmers(0) {}
+    HaplotypeStats() : haplotype(Haplotype::Unknown), decisive_counts{0, 0}, decisive_strips{0, 0}, total_kmers(0) {}
 
     bool is_undefined() {
         return (haplotype != Haplotype::Maternal and haplotype != Haplotype::Paternal);
@@ -100,6 +99,5 @@ inline Haplotype AssignBulge(HaplotypeStats top_h, HaplotypeStats bottom_h) {
     return decision;
 }
 
-typedef std::unordered_map<std::string, HaplotypeStats> haplo_map_type;
 //primitive clean graph
 }

@@ -54,7 +54,7 @@ Output of de Bruijn graph construction
 All output files are stored in <output_dir> `, which is set by the user.
 
 -   `<output_dir>/graph.fasta` sequences of all edges of de Bruijn graph in fasta format
--   `<output_dir>/graph.gfa` sequences of all edges of de Bruijn graph in gfa format. Note that gfa format is ill-suited for de Bruijn graph storage since it does not represent some vertices such as vertices with indegree 2 and out degree 0.
+-   `<output_dir>/graph.gfa` sequences of all edges of de Bruijn graph in gfa format. Note that gfa format is ill-suited for de Bruijn graph storage since it does not represent some locked such as locked with indegree 2 and out degree 0.
 -   `<output_dir>/graph.dot` sequences of all edges of de Bruijn graph
 -   `<output_dir>/dbg.log` log file for the run
 

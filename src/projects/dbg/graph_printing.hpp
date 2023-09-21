@@ -4,27 +4,30 @@
 #include "sparse_dbg.hpp"
 namespace dbg {
     inline void printFasta(std::ostream &out, const Component &component, bool mask = false) {
-        size_t cnt = 0;
-        size_t masked_cnt = 1;
-        for (Edge &edge : component.edges()) {
-            Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
-            Vertex &end = edge.getFinish();
-            out << ">" << cnt << "_";
-            if(mask && !component.contains(edge.getStart())) {
-                out << masked_cnt << "0000";
-                masked_cnt++;
-            }
-            out << edge.getStart().hash() << int(edge.getStart().isCanonical());
-            out << "_";
-            if(mask && !component.contains(edge.getFinish())) {
-                out << masked_cnt << "0000";
-                masked_cnt++;
-            }
-            out << end.hash() << int(end.isCanonical());
-            out << "_" << edge.truncSize() << "_" << edge.getData().getCoverage() << "\n";
-            out << edge_seq << "\n";
-            cnt++;
+        for(Edge &edge : component.edges()) {
+            out << ">" << edge.getInnerId() << "\n" << edge.getSeq() << "\n";
         }
+//        size_t cnt = 0;
+//        size_t masked_cnt = 1;
+//        for (Edge &edge : component.edges()) {
+//            Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
+//            Vertex &end = edge.getFinish();
+//            out << ">" << cnt << "_";
+//            if(mask && !component.contains(edge.getStart())) {
+//                out << masked_cnt << "0000";
+//                masked_cnt++;
+//            }
+//            out << edge.getStart().getInnerId();
+//            out << "_";
+//            if(mask && !component.contains(edge.getFinish())) {
+//                out << masked_cnt << "0000";
+//                masked_cnt++;
+//            }
+//            out << end.getInnerId();
+//            out << "_" << edge.truncSize() << "_" << edge.getCoverage() << "\n";
+//            out << edge_seq << "\n";
+//            cnt++;
+//        }
     }
 
     inline void printAssembly(std::ostream &out, const Component &component) {
@@ -32,9 +35,9 @@ namespace dbg {
         for (Edge &edge : component.edgesUnique()) {
             Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
             Vertex &end = edge.getFinish();
-            out << ">" << cnt << "_" << edge.getStart().hash() << int(edge.getStart().isCanonical()) <<
-                "_" << end.hash() << int(end.isCanonical()) << "_" << edge.truncSize()
-                << "_" << edge.getData().getCoverage() << "\n";
+            out << ">" << cnt << "_" << edge.getStart().getInnerId() <<
+                "_" << end.getInnerId() << "_" << edge.truncSize()
+                << "_" << edge.getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
         }
@@ -45,30 +48,6 @@ namespace dbg {
         while(pos > 0 && seq[pos + k] != c)
             pos--;
         return seq.Subseq(pos, seq.size());
-    }
-
-    inline void cheatingFasta(const std::experimental::filesystem::path &outf, const Component &component, size_t cut) {
-        std::ofstream out;
-        out.open(outf);
-        size_t cnt = 0;
-        size_t k = component.graph().hasher().getK();
-        for (Edge &edge : component.edges()) {
-            Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
-            if(edge.truncSize() > cut) {
-                if(!component.contains(edge.getStart())) {
-                    edge_seq = cheatingCutStart(edge_seq, edge.truncSeq()[0], cut, k);
-                } else if(!component.contains(edge.getFinish())) {
-                    edge_seq = !cheatingCutStart(!edge_seq, edge.rc().truncSeq()[0], cut, k);
-                }
-            }
-            Vertex &end = edge.getFinish();
-            out << ">" << cnt << "_" << edge.getStart().hash() << int(edge.getStart().isCanonical()) <<
-                "_" << end.hash() << int(end.isCanonical()) << "_" << edge_seq.size() - edge.getStart().getSeq().size()
-                << "_" << edge.getData().getCoverage() << "\n";
-            out << edge_seq << "\n";
-            cnt++;
-        }
-        out.close();
     }
 
     inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component, bool mask = false) {
@@ -85,30 +64,44 @@ namespace dbg {
         out.close();
     }
 
+    inline void printFasta(const std::experimental::filesystem::path &outf, SparseDBG &dbg) {
+        std::ofstream out;
+        out.open(outf);
+        printFasta(out, Component(dbg));
+        out.close();
+    }
+
+    inline void printAssembly(const std::experimental::filesystem::path &outf, SparseDBG &dbg) {
+        std::ofstream out;
+        out.open(outf);
+        printAssembly(out, Component(dbg));
+        out.close();
+    }
+
     inline void printGFA(std::ostream &out, const Component &component, bool calculate_coverage) {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
-        std::unordered_map<const Edge *, std::string> eids;
+        std::unordered_map<const Edge *, Edge::id_type> eids;
         for (Edge &edge : component.edges()) {
             if (edge.isCanonical()) {
-                eids[&edge] = edge.oldId();
-                eids[&edge.rc()] = edge.oldId();
+                eids[&edge] = edge.getInnerId();
+                eids[&edge.rc()] = edge.getInnerId();
                 if (calculate_coverage)
-                    out << "S\t" << edge.oldId() << "\t" << edge.getStart().getSeq() << edge.truncSeq()
-                        << "\tKC:i:" << edge.getData().intCov() << "\n";
+                    out << "S\t" << edge.getInnerId() << "\t" << edge.getStart().getSeq() << edge.truncSeq()
+                        << "\tKC:i:" << edge.intCov() << "\n";
                 else
-                    out << "S\t" << edge.oldId() << "\t" << edge.getStart().getSeq() << edge.truncSeq() << "\n";
+                    out << "S\t" << edge.getInnerId() << "\t" << edge.getStart().getSeq() << edge.truncSeq() << "\n";
             }
         }
         for (Vertex &vertex : component.verticesUnique()) {
             for (const Edge &out_edge : vertex) {
-                std::string outid = eids[&out_edge];
+                Edge::id_type outid = eids[&out_edge];
                 bool outsign = out_edge.isCanonical();
                 for (const Edge &inc_edge : vertex.rc()) {
-                    std::string incid = eids[&inc_edge];
+                    Edge::id_type incid = eids[&inc_edge];
                     bool incsign = inc_edge.isCanonical();
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
-                        << (outsign ? "+" : "-") << "\t" << component.graph().hasher().getK() << "M" << "\n";
+                        << (outsign ? "+" : "-") << "\t" << vertex.size() << "M" << "\n";
                 }
             }
         }
@@ -121,13 +114,13 @@ namespace dbg {
         out.close();
     }
 
-    inline void printGraphAlignments(std::ostream &out, const std::vector<DBGGraphPath> &als) {
+    inline void printGraphAlignments(std::ostream &out, const std::vector<dbg::GraphPath> &als) {
         for(size_t i = 0; i < als.size(); i++) {
             out << ">" << i <<"\n" << als[i].Seq() << "\n";
         }
     }
 
-    inline void printGraphAlignments(const std::experimental::filesystem::path &f, const std::vector<DBGGraphPath> &als) {
+    inline void printGraphAlignments(const std::experimental::filesystem::path &f, const std::vector<dbg::GraphPath> &als) {
         std::ofstream out;
         out.open(f);
         printGraphAlignments(out, als);

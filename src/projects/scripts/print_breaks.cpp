@@ -52,11 +52,12 @@ int main(int argc, char **argv) {
                          dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger,
                                                        threads);
     size_t radius = std::stoull(parameterValues.getValue("radius"));
-    dbg.fillAnchors(100, logger, threads);
+
     radius -= std::min(radius, k);
     std::ofstream os;
     os.open(dir / "breaks.fasta");
-    dbg::GraphAligner aligner(dbg);
+    dbg::KmerIndex aligner(dbg);
+    aligner.fillAnchors(logger, threads, dbg, 100);
     for(StringContig sc : io::SeqReader(paths_lib)) {
         Contig contig = sc.makeContig();
         std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> al = aligner.carefulAlign(contig);

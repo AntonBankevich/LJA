@@ -25,10 +25,11 @@ private:
         size_t match_size_from;
         size_t match_size_to;
     };
+    bool HasInnerDuplications(const Sequence &seq, size_t k);
+
 public:
     GapCloser(size_t min_overlap, size_t max_overlap, size_t smallK, double allowed_divergence) :
             min_overlap(min_overlap), max_overlap(max_overlap), smallK(smallK), allowed_divergence(allowed_divergence){}
-    bool HasInnerDuplications(const Sequence &seq, const hashing::RollingHash &hasher);
     std::vector<Connection> GapPatches(logging::Logger &logger, dbg::SparseDBG &dbg, size_t threads);
 };
 

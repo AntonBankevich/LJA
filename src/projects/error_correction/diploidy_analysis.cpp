@@ -25,11 +25,11 @@ dbg::Vertex &BulgePath::getVertex(size_t ind) const {
 void BulgePath::extend(double threshold) {
     dbg::Vertex &last = finish();
     size_t deg = last.outDeg();
-    if(last.front().getData().getCoverage() > threshold && last.back().getData().getCoverage() > threshold)
+    if(last.front().getCoverage() > threshold && last.back().getCoverage() > threshold)
         path.emplace_back(&last.front(), &last.back());
     else {
         for(dbg::Edge &edge: last) {
-            if(edge.getData().getCoverage() > threshold) {
+            if(edge.getCoverage() > threshold) {
                 path.emplace_back(&edge, &edge);
                 return;
             }
@@ -103,20 +103,20 @@ std::string BulgePath::str() const {
     return ss.str();
 }
 
-bool BulgePath::isBad(size_t bad_bulge_size) const {
+bool BulgePath::isBad(size_t bad_bulge_inner_size) const {
     if(path.size() < 2)
         return false;
     for(const auto &p : path) {
         if(p.first != p.second)
-            if(p.first->truncSize() > bad_bulge_size || p.second->truncSize() > bad_bulge_size) {
+            if(p.first->innerSize() > bad_bulge_inner_size || p.second->truncSize() > bad_bulge_inner_size) {
                 return false;
             }
     }
     return true;
 }
 
-DBGGraphPath BulgePath::randomPath() const {
-    DBGGraphPath res(start());
+dbg::GraphPath BulgePath::randomPath() const {
+    dbg::GraphPath res(start());
     for(const std::pair<dbg::Edge *, dbg::Edge *> &pair: path) {
         res += *pair.first;
     }
@@ -126,7 +126,7 @@ DBGGraphPath BulgePath::randomPath() const {
 bool BulgePathFinder::checkVertexForward(const dbg::Vertex &v) {
     size_t cnt = 0;
     for(dbg::Edge &edge : v) {
-        if(edge.getData().getCoverage() > threshold)
+        if(edge.getCoverage() > threshold)
             cnt++;
     }
     if(cnt > 1 && cnt != v.outDeg())
@@ -192,11 +192,11 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
             dbg::Edge &edge = *bp[0].first;
             if(edge.truncSize() > min_len || (
                     (edge.getStart().inDeg() == 0 || edge.getFinish().outDeg() == 0) &&
-                            edge.truncSize() > min_len / 3 && edge.getData().getCoverage() > 4)) {
+                            edge.truncSize() > min_len / 3 && edge.getCoverage() > 4)) {
                 res.emplace_back(&edge);
             }
         } else {
-            if(!bp.isBad(dbg.hasher().getK()) && (bp.conservativeLength() < bp.length() / 2 || bp.size() >= 4) && bp.length() > min_len && bp.conservativeLength() < bp.length() * 95 / 100) {
+            if(!bp.isBad(0) && (bp.conservativeLength() < bp.length() / 2 || bp.size() >= 4) && bp.length() > min_len && bp.conservativeLength() < bp.length() * 95 / 100) {
                 for (auto &p : bp) {
                     if (p.first != p.second) {
                         res.emplace_back(p.first);
@@ -209,10 +209,10 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
     return {res.begin(), res.end()};
 }
 
-std::pair<DBGGraphPath, DBGGraphPath>
+std::pair<dbg::GraphPath, dbg::GraphPath>
 BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath &path) const {
-    DBGGraphPath p1(path.start());
-    DBGGraphPath p2(path.start());
+    dbg::GraphPath p1(path.start());
+    dbg::GraphPath p2(path.start());
     Sequence seq;
     size_t last = 0;
     Sequence s1;
@@ -249,7 +249,7 @@ BulgePathCorrector::resolveBulgePath(const RecordStorage &reads, const BulgePath
     return {std::move(p1), std::move(p2)};
 }
 
-std::string BulgePathCorrector::correctRead(DBGGraphPath &path) {
+std::string BulgePathCorrector::correctRead(dbg::GraphPath &path) {
     std::vector<Case> cases;
     std::vector<std::string> messages;
     for(size_t i = 0; i < path.size(); i++) {
@@ -273,7 +273,7 @@ std::string BulgePathCorrector::correctRead(DBGGraphPath &path) {
     }
     if(cases.empty())
         return "";
-    DBGGraphPath res;
+    dbg::GraphPath res;
     for(Case & bp : cases) {
         for(size_t i = res.size(); i < bp.read_from; i++)
             res += path[i];

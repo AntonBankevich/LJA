@@ -1,8 +1,10 @@
-#include <dbg/visualization.hpp>
 #include "gap_closing.hpp"
+#include <dbg/visualization.hpp>
+#include "dbg/graph_stats.hpp"
 #include "sequences/edit_distance.hpp"
 
-bool GapCloser::HasInnerDuplications(const Sequence &seq, const hashing::RollingHash &hasher) {
+bool GapCloser::HasInnerDuplications(const Sequence &seq, size_t k) {
+    hashing::RollingHash hasher(k);
     std::vector<hashing::htype> hashs;
     for(hashing::KWH kwh(hasher, seq, 0);; kwh = kwh.next()) {
         hashs.emplace_back(kwh.hash());
@@ -15,10 +17,10 @@ bool GapCloser::HasInnerDuplications(const Sequence &seq, const hashing::Rolling
 
 std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::SparseDBG &dbg, size_t threads) {
     logger.info() << "Started gap closing procedure" << std::endl;
-    size_t k = dbg.hasher().getK();
+//    size_t k = dbg.hasher().getK();
     std::vector<dbg::Edge *> tips;
     for (dbg::Edge &edge : dbg.edges()) {
-        if (edge.truncSize() > min_overlap && edge.getData().getCoverage() > 2 && edge.getFinish().outDeg() == 0 &&
+        if (edge.truncSize() > min_overlap && edge.getCoverage() > 2 && edge.getFinish().outDeg() == 0 &&
                 edge.getFinish().inDeg() == 1)
             tips.emplace_back(&edge);
     }
@@ -86,22 +88,26 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
     std::vector<Connection> res;
     for(OverlapRecord &rec : filtered_pairs) {
         if(deg[rec.from] == 1 && deg[rec.to] == 1) {
-            Sequence new_seq = tips[rec.from]->suffix(0);
-            new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(tips[rec.to]->suffix(0));
-            new_seq = tips[rec.from]->getStart().getSeq() + new_seq.Subseq(k);
+            dbg::Edge &edgeFrom = *tips[rec.from];
+            dbg::Edge &edgeTo = *tips[rec.to];
+            Sequence new_seq = edgeFrom.getSeq();
+            new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(edgeTo.getSeq());
+            new_seq = edgeFrom.getStart().getSeq() + new_seq.Subseq(edgeFrom.getStartSize());
             new_seq = StringContig(new_seq.str(), "new").makeSequence();
-            if(!new_seq.endsWith(!tips[rec.to]->getStart().getSeq()) || !new_seq.startsWith(tips[rec.from]->getStart().getSeq()) ||
-               HasInnerDuplications(new_seq, dbg.hasher()))
+            if(!new_seq.endsWith(!edgeTo.getStart().getSeq()) || !new_seq.startsWith(edgeFrom.getStart().getSeq())
+                    || HasInnerDuplications(new_seq, std::min(edgeFrom.getStartSize(), edgeTo.getStartSize())))
                 continue;
             size_t left_match = 0;
             size_t right_match = 0;
-            while(left_match < tips[rec.from]->truncSize() && new_seq[k + left_match] == tips[rec.from]->truncSeq()[left_match])
+            const Sequence &fromTruncSeq = edgeFrom.truncSeq();
+            while(left_match < edgeFrom.truncSize() && new_seq[edgeFrom.getStartSize() + left_match] == fromTruncSeq[left_match])
                 left_match++;
-            while(right_match < tips[rec.to]->truncSize() && (!new_seq)[k + right_match] == tips[rec.to]->truncSeq()[right_match])
+            const Sequence &toTruncSeq = edgeTo.truncSeq();
+            while(right_match < edgeTo.truncSize() && (!new_seq)[edgeTo.getStartSize() + right_match] == toTruncSeq[right_match])
                 right_match++;
-            dbg::EdgePosition p1(*tips[rec.from], left_match);
-            dbg::EdgePosition p2(*tips[rec.to], right_match);
-            VERIFY(left_match + right_match + k < new_seq.size());
+            dbg::EdgePosition p1(edgeFrom, left_match);
+            dbg::EdgePosition p2(edgeTo, right_match);
+            VERIFY(left_match + right_match + edgeFrom.getStartSize() + edgeTo.getStartSize() <= new_seq.size());
             Connection gap(p1, p2.RC(), new_seq.Subseq(left_match, new_seq.size() - right_match));
             gap = gap.shrink();
             res.emplace_back(gap);
@@ -115,31 +121,31 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
     return std::move(res);
 }
 
-void processVertex(dbg::SparseDBG &dbg, const Sequence &seq) {
+void processVertex(dbg::SparseDBG &dbg, dbg::KmerIndex &index, const Sequence &seq) {
     size_t k = dbg.hasher().getK();
     hashing::KWH kwh(dbg.hasher(), seq, 0);
-    if(!dbg.containsVertex(kwh.hash()))
+    if(!index.containsVertex(kwh.hash()))
         return;
-    dbg::Vertex &v1 = dbg.getVertex(kwh);
+    dbg::Vertex &v1 = index.getVertex(kwh);
     for(dbg::Edge &edge : v1) {
         if(edge.truncSeq()[0] != seq[k]) {
-            edge.getData().is_reliable = false;
-            edge.rc().getData().is_reliable = false;
+            edge.is_reliable = false;
+            edge.rc().is_reliable = false;
         } else {
-            edge.getData().is_reliable = true;
-            edge.rc().getData().is_reliable = true;
+            edge.is_reliable = true;
+            edge.rc().is_reliable = true;
         }
     }
 }
 
 void MarkUnreliableTips(dbg::SparseDBG &dbg, const std::vector<Connection> &patches) {
-    size_t k = dbg.hasher().getK();
+    dbg::KmerIndex index(dbg);
     for(dbg::Edge &edge : dbg.edges()) {
-        edge.getData().is_reliable = edge.getData().getCoverage() >= 2;
+        edge.is_reliable = edge.getCoverage() >= 2;
     }
     for(const Connection &connection : patches) {
-        processVertex(dbg, connection.connection);
-        processVertex(dbg, !connection.connection);
+        processVertex(dbg, index, connection.connection);
+        processVertex(dbg, index, !connection.connection);
     }
 }
 

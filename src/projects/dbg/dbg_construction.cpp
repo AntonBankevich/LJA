@@ -84,15 +84,21 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
 SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertices, const std::vector<Sequence> &disjointigs,
              const RollingHash &hasher, size_t threads) {
     logger.info() << "Assembling junctions and disjointigs into DBG." << std::endl;
-    SparseDBG dbg(vertices.begin(), vertices.end(), hasher);
-    logger.trace() << "Vertices created." << std::endl;
-    std::function<void(size_t, Sequence &)> edge_filling_task = [&dbg](size_t pos, Sequence & seq) {
-        dbg.processFullEdgeSequence(seq);
-    };
-    processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, edge_filling_task);
+    SparseDBG dbg(hasher);
+    for(hashing::htype hash : vertices) {
+        dbg.addVertexPair({hash});
+    }
+    {
+        KmerIndex index(dbg);
+        logger.trace() << "Vertices created." << std::endl;
+        std::function<void(size_t, Sequence &)> edge_filling_task = [&dbg, &hasher, &index](size_t pos, Sequence &seq) {
+            DbgConstructionHelper(hasher).processFullEdgeSequence(dbg, index, seq);
+        };
+        processRecords(disjointigs.begin(), disjointigs.end(), logger, threads, edge_filling_task);
+    }
 
     logger.trace() << "Filled dbg edges. Merging unbranching paths." << std::endl;
-    mergeAll(logger, dbg, threads);
+    ag::MergeAll(logger, threads, dbg);
     logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
     logger.trace() << "Statistics for de Bruijn graph:" << std::endl;
     printStats(logger, dbg);
@@ -139,7 +145,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
         std::function<void()> task = [&logger, &lib, &threads, &w, &dir, &hasher]() {
             std::vector<hashing::htype> hash_list;
             hash_list = constructMinimizers(logger, lib, threads, hasher, w);
-            std::vector<Sequence> disjointigs = constructDisjointigs(hasher, w, lib, hash_list, threads, logger);
+            std::vector<Sequence> disjointigs = constructDisjointigs(logger, threads, hasher, w, lib, hash_list);
             hash_list.clear();
             std::ofstream df;
             df.open(dir / "disjointigs.fasta");

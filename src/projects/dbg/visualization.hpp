@@ -13,23 +13,14 @@ private:
     std::vector<Contig*> stored_contigs;
     dbg::SparseDBG & dbg;
 
-    void innerFill(const Contig &old_contig) {
-        stored_contigs.emplace_back(new Contig(old_contig));
-        Contig &contig = *stored_contigs.back();
-        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> path = dbg::GraphAligner(dbg).carefulAlign(contig);
-        for(dbg::PerfectAlignment<Contig, dbg::Edge> &al : path) {
-            alignments[&al.seg_to.contig()].emplace_back(al);
-        }
-    }
-
     void printEdge(std::ostream &os, dbg::Vertex & start, dbg::Edge &edge) {
         dbg::Vertex &end = edge.getFinish();
         if (!start.isCanonical())
             os << "-";
-        os << start.hash() % 100000 << " -> ";
+        os << start.getInnerId() % 100000 << " -> ";
         if (!end.isCanonical())
             os << "-";
-        os << end.hash() % 100000 << "\n";
+        os << end.getInnerId() % 100000 << "\n";
         std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments[&edge];
         for(auto & al : als) {
             os << "\n" << al.seg_from << "->" << al.seg_to;
@@ -59,12 +50,12 @@ public:
         stored_contigs.emplace_back(new Contig(contig.RC()));
     }
 
-    void Fill(size_t threads) {
+    void Fill(size_t threads, dbg::KmerIndex &index) {
         ParallelRecordCollector<dbg::PerfectAlignment<Contig, dbg::Edge>> records(threads);
-#pragma omp parallel for default(none) shared(stored_contigs, records)
+#pragma omp parallel for default(none) shared(stored_contigs, records, index)
         for(size_t i = 0; i < stored_contigs.size(); i++) {
             Contig &contig = *stored_contigs[i];
-            std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> path = dbg::GraphAligner(dbg).carefulAlign(contig);
+            std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> path = index.carefulAlign(contig);
             for(dbg::PerfectAlignment<Contig, dbg::Edge> &al : path) {
                 records.emplace_back(al);
             }
@@ -131,7 +122,7 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
                const std::string &color = "black") {
     dbg:: Vertex &end = edge.getFinish();
     os << "\"" << edge.getStart().getShortId() << "\" -> \"" << end.getShortId() <<
-       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.truncSize() << "(" << edge.getData().getCoverage() << ")\"";
+       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;
@@ -154,17 +145,15 @@ namespace std {
 inline void printDot(std::ostream &os, const dbg::Component &component, const std::function<std::string(dbg::Edge &)> &labeler,
               const std::function<std::string(dbg::Edge &)> &edge_colorer) {
     os << "digraph {\nnodesep = 0.5;\n";
-    std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> extended;
-    for(dbg::Edge &edge : component.edgesUnique()) {
-        extended.emplace(edge.getFinish().hash());
-        extended.emplace(edge.getStart().hash());
+    std::unordered_set<dbg::VertexId> extended;
+    for(dbg::Edge &edge : component.edges()) {
+        extended.emplace(edge.getFinish().getId());
+        extended.emplace(edge.getStart().getId());
     }
-    for(hashing::htype vid : extended) {
-        for(dbg::Vertex * vit : component.graph().getVertices(vid)) {
-            dbg::Vertex &vert = *vit;
-            std::string color = component.covers(vert) ? "white" : "yellow";
-            os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
-        }
+    for(dbg::VertexId vid : extended) {
+        dbg::Vertex &vert = *vid;
+        std::string color = component.covers(vert) ? "white" : "yellow";
+        os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
     }
     for(dbg::Edge &edge : component.edges()) {
         printEdge(os, edge, labeler(edge), edge_colorer(edge));

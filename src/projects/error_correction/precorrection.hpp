@@ -7,5 +7,5 @@ public:
     Precorrector(double reliable_threshold) :
             AbstractCorrectionAlgorithm("Precorrector"), reliable_threshold(reliable_threshold) {}
 
-    std::string correctRead(DBGGraphPath &path) override;
+    std::string correctRead(dbg::GraphPath &path) override;
 };

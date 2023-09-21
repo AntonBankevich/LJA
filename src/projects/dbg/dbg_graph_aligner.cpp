@@ -33,10 +33,11 @@ PerfectAlignment<Contig, dbg::Edge> bestExtension(Edge &edge, const Segment<Cont
     return {Segment<Contig>(seg.contig(), seg.left, seg.left + len), Segment<Edge>(edge, 0, len)};
 }
 
-DBGGraphPath GraphAligner::align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to) {
-    size_t k = dbg.hasher().getK();
+dbg::GraphPath KmerIndex::align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to) {
+    VERIFY(alignmentReady());
+    size_t k = hasher().getK();
     size_t cur = k;
-    DBGGraphPath res;
+    dbg::GraphPath res;
     while(cur < seq.size()) {
         size_t len = std::min(seq.size() - cur, edge_to->truncSize() - pos_to);
         res += Segment<dbg::Edge>(*edge_to, pos_to, pos_to + len);
@@ -49,17 +50,18 @@ DBGGraphPath GraphAligner::align(const Sequence &seq, dbg::Edge *edge_to, size_t
     return res;
 }
 
-DBGGraphPath GraphAligner::align(const Sequence &seq, const std::string &name) const {
-    std::vector<hashing::KWH> kmers = dbg.extractVertexPositions(seq, 1);
-    size_t k = dbg.hasher().getK();
-    DBGGraphPath res;
-    if (kmers.size() == 0) {
-        hashing::KWH kwh(dbg.hasher(), seq, 0);
+dbg::GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) const {
+    VERIFY(alignmentReady());
+    std::vector<hashing::KWH> kmers = extractVertexPositions(seq, 1);
+    size_t k = hasher().getK();
+    dbg::GraphPath res;
+    if (kmers.empty()) {
+        hashing::KWH kwh(hasher(), seq, 0);
         while (true) {
-            if (dbg.isAnchor(kwh.hash())) {
-                dbg::EdgePosition pos = dbg.getAnchor(kwh);
+            if (isAnchor(kwh.hash())) {
+                dbg::EdgePosition pos = getAnchor(kwh);
                 VERIFY(kwh.pos < pos.pos);
-                VERIFY(pos.pos + seq.size() - kwh.pos <= pos.edge->truncSize() + k);
+                VERIFY(pos.pos + seq.size() - kwh.pos <= pos.edge->fullSize());
                 Segment<dbg::Edge> seg(*pos.edge, pos.pos - kwh.pos, pos.pos + seq.size() - kwh.pos - k);
                 return {seg};
             }
@@ -75,7 +77,7 @@ DBGGraphPath GraphAligner::align(const Sequence &seq, const std::string &name) c
             kwh = kwh.next();
         }
     }
-    dbg::Vertex *prestart = &dbg.getVertex(kmers.front());
+    dbg::Vertex *prestart = &getVertex(kmers.front());
     if (kmers.front().pos > 0) {
         dbg::Vertex &rcstart = prestart->rc();
         if (!rcstart.hasOutgoing(seq[kmers.front().pos - 1] ^ 3)) {
@@ -110,16 +112,17 @@ DBGGraphPath GraphAligner::align(const Sequence &seq, const std::string &name) c
     return std::move(res);
 }
 
-DBGGraphPath GraphAligner::align(const dbg::EdgePosition &pos, const Sequence &seq) const {
-    DBGGraphPath res(Segment<dbg::Edge>(*pos.edge, pos.pos, pos.pos));
+dbg::GraphPath KmerIndex::align(const dbg::EdgePosition &pos, const Sequence &seq) const {
+    VERIFY(alignmentReady());
+    dbg::GraphPath res(Segment<dbg::Edge>(*pos.edge, pos.pos, pos.pos));
     dbg::Edge *cedge = pos.edge;
     size_t epos = pos.pos;
     for (size_t cpos = 0; cpos < seq.size(); cpos++) {
         unsigned char c = seq[cpos];
         if (epos == cedge->truncSize()) {
-            dbg::Vertex &v = cedge->getFinish();
-            if (v.hasOutgoing(c)) {
-                cedge = &v.getOutgoing(c);
+            dbg::Vertex &vertex = cedge->getFinish();
+            if (vertex.hasOutgoing(c)) {
+                cedge = &vertex.getOutgoing(c);
                 res.addStep(*cedge);
                 epos = 1;
             } else {
@@ -137,24 +140,25 @@ DBGGraphPath GraphAligner::align(const dbg::EdgePosition &pos, const Sequence &s
     return std::move(res);
 }
 
-std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> GraphAligner::oldEdgeAlign(dbg::Edge &contig) const {
+std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> KmerIndex::oldEdgeAlign(dbg::Edge &contig) const {
+    VERIFY(alignmentReady());
     Sequence seq = contig.getSeq();
     std::vector<PerfectAlignment < dbg::Edge, dbg::Edge>> res;
-    hashing::KWH kwh(dbg.hasher(), seq, 0);
-    size_t k = dbg.hasher().getK();
+    hashing::KWH kwh(hasher(), seq, 0);
+    size_t k = hasher().getK();
     while (true) {
         if (!kwh.hasNext())
             break;
         if (res.empty() || kwh.pos >= res.back().seg_from.right) {
             dbg::Edge *edge = nullptr;
             size_t pos = 0;
-            if (dbg.containsVertex(kwh.hash())) {
-                dbg::Vertex &start = dbg.getVertex(kwh);
+            if (containsVertex(kwh.hash())) {
+                dbg::Vertex &start = getVertex(kwh);
                 if (start.hasOutgoing(seq[kwh.pos + k]))
-                    edge = &dbg.getVertex(kwh).getOutgoing(seq[kwh.pos + k]);
+                    edge = &getVertex(kwh).getOutgoing(seq[kwh.pos + k]);
             }
-            if (edge == nullptr && dbg.isAnchor(kwh.hash())) {
-                dbg::EdgePosition gpos = dbg.getAnchor(kwh);
+            if (edge == nullptr && isAnchor(kwh.hash())) {
+                dbg::EdgePosition gpos = getAnchor(kwh);
                 if (gpos.edge->truncSeq()[gpos.pos] == seq[kwh.pos + k]) {
                     edge = gpos.edge;
                     pos = gpos.pos;
@@ -170,18 +174,20 @@ std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> GraphAligner::oldEdgeAl
     return std::move(res);
 }
 
-std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::carefulAlign(Contig &contig) const {
+std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::KmerIndex::carefulAlign(Contig &contig) const {
+    VERIFY(alignmentReady());
     Sequence seq = contig.getSeq();
-    size_t k = dbg.hasher().getK();
+    size_t k = hasher().getK();
+
     if(contig.truncSize() < k) {
         return {};
     }
     std::vector<PerfectAlignment<Contig, Edge>> res;
-    hashing::KWH kwh(dbg.hasher(), seq, 0);
+    hashing::KWH kwh(hasher(), seq, 0);
     while (true) {
         if (res.empty() || kwh.pos >= res.back().seg_from.right) {
-            if (dbg.containsVertex(kwh.hash())) {
-                Vertex &vertex = dbg.getVertex(kwh);
+            if (containsVertex(kwh.hash())) {
+                Vertex &vertex = getVertex(kwh);
                 Vertex &rcVertex = vertex.rc();
                 if ((res.empty() || kwh.pos > res.back().seg_from.right)
                     && kwh.pos > 0 && rcVertex.hasOutgoing(seq[kwh.pos - 1] ^ 3)) {
@@ -201,8 +207,8 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::careful
                     res.emplace_back(Segment<Contig>(contig, kwh.pos, kwh.pos + len),
                                      Segment<Edge>(edge, 0, len));
                 }
-            } else if ((res.empty() || kwh.pos > res.back().seg_from.right) && dbg.isAnchor(kwh.hash())) {
-                EdgePosition pos = dbg.getAnchor(kwh);
+            } else if ((res.empty() || kwh.pos > res.back().seg_from.right) && isAnchor(kwh.hash())) {
+                EdgePosition pos = getAnchor(kwh);
 //                TODO replace this code with a call to expand method of PerfectAlignment class after each edge is marked by its full sequence
                 Edge &edge = *pos.edge;
                 Vertex &start = pos.edge->getStart();
@@ -233,13 +239,13 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::GraphAligner::careful
     return std::move(res);
 }
 
-PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendLeft(const hashing::KWH &kwh, Contig &contig) const {
-    size_t k = dbg.hasher().getK();
+PerfectAlignment<Contig, dbg::Edge> KmerIndex::extendLeft(const hashing::KWH &kwh, Contig &contig) const {
+    size_t k = hasher().getK();
     PerfectAlignment<Contig, dbg::Edge> best({contig, kwh.pos, kwh.pos}, {});
     if(kwh.pos == 0) {
         return best;
     }
-    Vertex &start = dbg.getVertex(kwh);
+    Vertex &start = getVertex(kwh);
     Contig rc_contig = contig.RC();
     if(start.inDeg() == 0) {
         return best;
@@ -251,23 +257,23 @@ PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendLeft(const hashing::KWH 
                           start_al.seg_to.contig().truncSize() - start_al.seg_to.left)};
 }
 
-PerfectAlignment<Contig, dbg::Edge> GraphAligner::extendRight(const hashing::KWH &kwh, Contig &contig) const {
-    size_t k = dbg.hasher().getK();
+PerfectAlignment<Contig, dbg::Edge> KmerIndex::extendRight(const hashing::KWH &kwh, Contig &contig) const {
+    size_t k = hasher().getK();
     PerfectAlignment<Contig, dbg::Edge> best({contig, kwh.pos, kwh.pos}, {});
     if(kwh.pos + k == contig.truncSize()) {
         return best;
     }
-    Vertex &start = dbg.getVertex(kwh);
+    Vertex &start = getVertex(kwh);
     if(start.outDeg() == 0) {
         return best;
     }
     return bestExtension(start, Segment<Contig>(contig, kwh.pos, contig.truncSize() - k));
 }
 
-std::vector<PerfectAlignment<Contig, dbg::Edge>> GraphAligner::sparseAlign(Contig &contig) const {
-    std::vector<hashing::KWH> vlist = dbg.extractVertexPositions(contig.getSeq());
+std::vector<PerfectAlignment<Contig, dbg::Edge>> KmerIndex::sparseAlign(Contig &contig) const {
+    VERIFY(alignmentReady());
+    std::vector<hashing::KWH> vlist = extractVertexPositions(contig.getSeq());
     std::vector<PerfectAlignment<Contig, dbg::Edge>> result;
-    size_t k = dbg.hasher().getK();
     if(vlist.empty())
         return result;
     for(hashing::KWH &kwh : vlist) {
@@ -285,4 +291,99 @@ std::vector<PerfectAlignment<Contig, dbg::Edge>> GraphAligner::sparseAlign(Conti
         }
     }
     return std::move(result);
+}
+
+Vertex &KmerIndex::getVertex(const hashing::KWH &kwh) const {
+    auto it = v.find(kwh.hash());
+    VERIFY(it != v.end());
+    if (kwh.isCanonical()) {
+        return *it->second;
+    } else {
+        return it->second->rc();
+    }
+}
+
+Vertex &KmerIndex::getVertex(const Sequence &seq) const {
+    return getVertex(hashing::KWH(hasher_, seq, 0));
+}
+
+Vertex &KmerIndex::getVertex(const Vertex &other_graph_vertex) const {
+    if(other_graph_vertex.isCanonical())
+        return *v.find(hashing::KWH(hasher_, other_graph_vertex.getSeq(), 0).hash())->second;
+    else
+        return v.find(hashing::KWH(hasher_, other_graph_vertex.getSeq(), 0).hash())->second->rc();
+}
+
+std::array<Vertex *, 2> KmerIndex::getVertices(hashing::htype hash) const {
+    Vertex &res = *v.find(hash)->second;
+    if(res != res.rc())
+        return {&res, &res.rc()};
+    else
+        return {&res};
+}
+
+void KmerIndex::fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t _w) {
+    w = _w;
+    logger.trace() << "Adding anchors from long edges for alignment" << std::endl;
+    ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
+    std::function<void(size_t, Edge &)> task = [&res, this](size_t pos, Edge &edge) {
+        Vertex &vertex = edge.getStart();
+        if (edge.truncSize() > w) {
+            Sequence seq = vertex.getSeq() + edge.truncSeq();
+//                    Does not run for the first and last kmers.
+            for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+                if (kmer.pos % w == 0) {
+                    EdgePosition ep(edge, kmer.pos);
+                    if (kmer.isCanonical())
+                        res.emplace_back(kmer.hash(), ep);
+                    else {
+                        res.emplace_back(kmer.hash(), ep.RC());
+                    }
+                }
+            }
+        }
+    };
+    processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
+    for (auto &tmp : res) {
+        anchors.emplace(tmp);
+    }
+    anchors_filled = true;
+    logger.trace() << "Added " << anchors.size() << " anchors" << std::endl;
+}
+
+void KmerIndex::fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t _w,
+                            const std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> &to_add) {
+    w = _w;
+    logger.trace() << "Adding anchors from long edges for alignment" << std::endl;
+    ParallelRecordCollector<std::pair<const hashing::htype, EdgePosition>> res(threads);
+    std::function<void(size_t, Edge &)> task = [&res, this, &to_add](size_t pos, Edge &edge) {
+        Vertex &vertex = edge.getStart();
+        if (edge.truncSize() > w || !to_add.empty()) {
+            Sequence seq = vertex.getSeq() + edge.truncSeq();
+//                    Does not run for the first and last kmers.
+            for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+                if (kmer.pos % w == 0 || to_add.find(kmer.hash()) != to_add.end()) {
+                    EdgePosition ep(edge, kmer.pos);
+                    if (kmer.isCanonical())
+                        res.emplace_back(kmer.hash(), ep);
+                    else {
+                        res.emplace_back(kmer.hash(), ep.RC());
+                    }
+                }
+            }
+        }
+    };
+    processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
+    for (auto &tmp : res) {
+        anchors.emplace(tmp);
+    }
+    anchors_filled = true;
+    logger.trace() << "Added " << anchors.size() << " anchors" << std::endl;
+}
+
+EdgePosition KmerIndex::getAnchor(const hashing::KWH &kwh) const {
+    if (kwh.isCanonical())
+        return anchors.find(kwh.hash())->second;
+    else
+        return anchors.find(kwh.hash())->second.RC();
 }

@@ -41,10 +41,10 @@ int main(int argc, char **argv) {
     hashing::RollingHash hasher(k);
     io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("ref"));
     SparseDBG dbg = DBGPipeline(logger, hasher, w, ref_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string());
-    dbg.fillAnchors(w, logger, threads);
 //    sdbg.printStats(logger);
     io::SeqReader reader(ref_lib);
-    GraphAligner aligner(dbg);
+    KmerIndex aligner(dbg);
+    aligner.fillAnchors(logger, threads, dbg, w);
     std::unordered_map<Edge *, size_t> mults;
     for(StringContig scontig : reader) {
         Sequence seq = scontig.makeSequence();

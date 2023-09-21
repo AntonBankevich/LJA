@@ -4,25 +4,25 @@
 #include "dbg/graph_alignment_storage.hpp"
 #include "diploidy_analysis.hpp"
 
-std::vector<DBGGraphPath> ResolveBulgePath(const BulgePath &bulgePath, const RecordStorage &reads) {
+std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath &bulgePath, const RecordStorage &reads) {
     VERIFY(bulgePath.size() > 0);
     if(bulgePath.size() == 1)
-        return {DBGGraphPath() + *bulgePath[0].first};
-    std::vector<DBGGraphPath> res;
+        return {dbg::GraphPath() + *bulgePath[0].first};
+    std::vector<dbg::GraphPath> res;
     size_t left = 0;
     while(left < bulgePath.size() && bulgePath[left].first == bulgePath[left].second)
         left++;
     if(left == bulgePath.size()) {
-        return {DBGGraphPath(bulgePath.randomPath())};
+        return {dbg::GraphPath(bulgePath.randomPath())};
     }
-    DBGGraphPath path1, path2;
+    dbg::GraphPath path1, path2;
     {
         dbg::Vertex &sv = bulgePath.getVertex(left + 1);
         const VertexRecord &vrec = reads.getRecord(sv.rc());
         path1 = vrec.getFullUniqueExtension(bulgePath[left].first->rc().truncSeq().Subseq(0, 1), 2,
-                                            1).RC().getAlignment();
+                                            1).RC().unpack();
         path2 = vrec.getFullUniqueExtension(bulgePath[left].second->rc().truncSeq().Subseq(0, 1), 2,
-                                            1).RC().getAlignment();
+                                            1).RC().unpack();
     }
     Sequence s;
     for(size_t i = left + 1; i < bulgePath.size(); i++) {
@@ -42,7 +42,7 @@ std::vector<DBGGraphPath> ResolveBulgePath(const BulgePath &bulgePath, const Rec
             size_t n12 = vrec.countStartsWith(s12);
             size_t n21 = vrec.countStartsWith(s21);
             size_t n22 = vrec.countStartsWith(s22);
-            DBGGraphPath repeat = dbg::CompactPath(path1.finish(), s).getAlignment();
+            dbg::GraphPath repeat = dbg::CompactPath(path1.finish(), s).unpack();
             s = {};
             path1 += repeat;
             path2 += repeat;
@@ -68,21 +68,21 @@ std::vector<DBGGraphPath> ResolveBulgePath(const BulgePath &bulgePath, const Rec
         VERIFY(sv == path2.back().contig().getStart());
         const VertexRecord &vrec = reads.getRecord(sv);
         path1 += vrec.getFullUniqueExtension(path1.back().contig().truncSeq().Subseq(0, 1), 2,
-                                             1).getAlignment().subPath(1);
+                                             1).unpack().subPath(1);
         path2 += vrec.getFullUniqueExtension(path2.back().contig().truncSeq().Subseq(0, 1), 2,
-                                             1).getAlignment().subPath(1);
+                                             1).unpack().subPath(1);
         res.emplace_back(std::move(path1));
         res.emplace_back(std::move(path2));
     }
     return std::move(res);
 }
 
-std::vector<DBGGraphPath> PartialRR(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, const RecordStorage &reads) {
+std::vector<dbg::GraphPath> PartialRR(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, const RecordStorage &reads) {
     logger.info() << "Performing partial repeat resolution" << std::endl;
     BulgePathFinder bulges(dbg, 1);
-    std::vector<DBGGraphPath> res;
+    std::vector<dbg::GraphPath> res;
     for(BulgePath &bulgePath : bulges.paths) {
-        std::vector<DBGGraphPath> resolved = ResolveBulgePath(bulgePath, reads);
+        std::vector<dbg::GraphPath> resolved = ResolveBulgePath(bulgePath, reads);
         res.insert(res.end(), resolved.begin(), resolved.end());
     }
     logger.info() << "Finished partial repeat resolution. Generated " << res.size() << " pseudoreads" << std::endl;

@@ -8,6 +8,7 @@
 #include "manyk_correction.hpp"
 #include <dbg/dbg_construction.hpp>
 #include <dbg/graph_printing.hpp>
+#include <dbg/graph_stats.hpp>
 
 std::unordered_map<std::string, std::experimental::filesystem::path>
 CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &dir,
@@ -24,13 +25,14 @@ CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     io::Library construction_lib = reads_lib + pseudo_reads_lib;
     dbg::SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
-    dbg.fillAnchors(w, logger, threads);
+    KmerIndex index(dbg);
+    index.fillAnchors(logger, threads, dbg, w);
     size_t extension_size = std::max<size_t>(k * 2, 1000);
     ReadLogger readLogger(threads, dir/"read_log.txt");
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
     RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
     io::SeqReader reader(reads_lib);
-    readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+    readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
     printDot(dir / "initial_dbg.dot", Component(dbg));
     coverageStats(logger, dbg);
     if(debug) {
@@ -60,7 +62,7 @@ CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
     if(diploid)
         ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
-    std::vector<DBGGraphPath> pseudo_reads = PartialRR(logger, threads, dbg, readStorage);
+    std::vector<dbg::GraphPath> pseudo_reads = PartialRR(logger, threads, dbg, readStorage);
     printGraphAlignments(dir / "pseudo_reads.fasta", pseudo_reads);
     RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
     coverageStats(logger, dbg);

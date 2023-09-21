@@ -63,7 +63,7 @@ Sequence EdgeSegment::ToSequence() const {
 
 double EdgeSegment::Cov() const {
     VERIFY(edge!=nullptr);
-    return edge->getData().getCoverage();
+    return edge->getCoverage();
 }
 
 bool EdgeSegment::operator==(const EdgeSegment &rhs) const {
@@ -93,7 +93,7 @@ void MDBGSeq::Swap(MDBGSeq &lhs, MDBGSeq &rhs) {
 MDBGSeq::MDBGSeq(const dbg::Edge *edge,
                  const uint64_t start,
                  const uint64_t end) :
-        cov{edge->getData().getCoverage() * (end - start)}, size{end - start} {
+        cov{edge->getCoverage() * (end - start)}, size{end - start} {
     segms.emplace_back(edge, start, end);
 }
 

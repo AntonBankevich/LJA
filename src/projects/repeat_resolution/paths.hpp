@@ -5,8 +5,9 @@
 #pragma once
 
 #include "mdbg_topology.hpp"
-#include <cctype>
 #include <dbg/graph_alignment_storage.hpp>
+#include "dbg/multi_graph.hpp"
+#include <cctype>
 #include <list>
 #include <string>
 #include <unordered_map>
@@ -112,7 +113,7 @@ class PathsBuilder {
 
     static RRPaths
     FromStorages(const std::vector<RecordStorage *> &storages,
-                 const std::unordered_map<std::string, size_t> &edgeid2ind);
+                 const std::unordered_map<multigraph::MGEdge::id_type, size_t> &edgeid2ind);
 
     static RRPaths FromDBGStorages(dbg::SparseDBG &dbg,
                                    const std::vector<RecordStorage *> &storages);

@@ -1,5 +1,6 @@
 #include "visualization.hpp"
 #include "graph_alignment_storage.hpp"
+#include "graph_printing.hpp"
 
 size_t stage_num = 0;
 
@@ -12,7 +13,7 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     ensure_dir_existance(dir);
     ensure_dir_existance(dir / "paths");
     printDot(dir / (stage_name + ".dot"), dbg::Component(dbg), readStorage.labeler());
-    dbg.printFastaOld(dir / (stage_name + ".fasta"));
+    dbg::printFasta(dir / (stage_name + ".fasta"), dbg);
     if(!small)
         readStorage.printFullAlignments(logger, dir / (stage_name + ".als"));
     std::vector<Contig> paths;
@@ -29,11 +30,16 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     for(Contig &contig : paths) {
         storage.addContig(contig);
     }
-    storage.Fill(threads);
+    if(paths.empty())
+        return;
+    dbg::KmerIndex index(dbg);
+    index.fillAnchors(logger, threads, dbg, 500);
+    storage.Fill(threads, index);
     for(Contig &contig : paths) {
         ensure_dir_existance(dir / "paths" / contig.getInnerId());
-        dbg::Component comp = small ? dbg::Component::neighbourhood(dbg, contig, dbg.hasher().getK() + 500) :
-                              dbg::Component::longEdgeNeighbourhood(dbg, contig, 20000);
+        const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
+        dbg::Component comp = small ? dbg::Component::neighbourhood(dbg, contig_al, 1000) :
+                              dbg::Component::longEdgeNeighbourhood(dbg, contig_al, 20000);
         std::function<std::string(dbg::Edge &)> labeler = readStorage.labeler() + storage.labeler();
         printDot(dir / "paths" / contig.getInnerId() / (stage_name + ".dot"), comp, labeler);
     }

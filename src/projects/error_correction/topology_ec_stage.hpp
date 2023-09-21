@@ -23,13 +23,16 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
                                (dir/"disjointigs.fasta").string(),
                                (dir/"vertices.save").string())
                  : DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
-    dbg.fillAnchors(w, logger, threads);
     size_t extension_size = 10000000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
     RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
     io::SeqReader reader(reads_lib);
-    readStorage.fill(reader.begin(), reader.end(), dbg, w + k - 1, logger, threads);
+    {
+        KmerIndex index(dbg);
+        index.fillAnchors(logger, threads, dbg, w);
+        readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
+    }
     printDot(dir / "initial_dbg.dot", Component(dbg));
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
@@ -64,7 +67,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
         PrintPaths(logger, threads, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
         DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
     }
-    dbg.printFastaOld(dir / "final_dbg.fasta");
+    printFasta(dir / "final_dbg.fasta", dbg);
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     printGFA(dir / "final_dbg.gfa", Component(dbg), true);
     SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});

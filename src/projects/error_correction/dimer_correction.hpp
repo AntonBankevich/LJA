@@ -14,5 +14,5 @@ public:
     DimerCorrector(logging::Logger &logger, dbg::SparseDBG &sdbg, RecordStorage &reads_storage, size_t max_at) :
             AbstractCorrectionAlgorithm("DimerCorrector"), logger(logger), sdbg(sdbg), reads_storage(reads_storage), max_at(max_at) {}
 
-    std::string correctRead(DBGGraphPath &path) override;
+    std::string correctRead(dbg::GraphPath &path) override;
 };
