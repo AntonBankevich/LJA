@@ -21,7 +21,7 @@ std::ostream& operator<<(std::ostream& out, const std::pair<U, V>& item) {
 template<class T>
 std::ostream& operator<<(std::ostream& out, const std::vector<T>& tree) {
     if(tree.size() == 0) {
-        return out << "[]" << std::endl;
+        return out << "[]";
     }
     out << "[";
     for(size_t i = 0; i + 1 < tree.size(); i += 1) {

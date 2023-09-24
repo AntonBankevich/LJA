@@ -81,7 +81,7 @@ dbg::GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) co
     if (kmers.front().pos > 0) {
         dbg::Vertex &rcstart = prestart->rc();
         if (!rcstart.hasOutgoing(seq[kmers.front().pos - 1] ^ 3)) {
-            std::cout << "No outgoing for getStart" << std::endl << seq << std::endl <<
+            std::cout << "No incoming for start vertex" << std::endl << seq << std::endl <<
                       kmers.front().pos << " " << seq[kmers.front().pos - 1] << std::endl
                       << kmers.front().getSeq() << std::endl;
             VERIFY(false);
@@ -94,10 +94,13 @@ dbg::GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) co
     }
     size_t cpos = kmers.front().pos + k;
     while(cpos < seq.size()) {
-        if(!prestart->hasOutgoing(seq[cpos])) {
+        if(seq.Subseq(cpos -k, cpos) != prestart->getSeq() || !prestart->hasOutgoing(seq[cpos])) {
             std::cout << "No outgoing for middle\n" << seq << "\n" << cpos << " " << prestart->getInnerId() <<
                       " " << prestart->outDeg() << "\n" << seq.Subseq(cpos -k, cpos) << "\n" << prestart->getSeq() << "\n" <<
                       size_t(seq[cpos]) << std::endl;
+            std::cout << (seq.Subseq(cpos -k, cpos) != prestart->getSeq()) << " " <<  !prestart->hasOutgoing(seq[cpos]) << std::endl;
+            std::cout << hashing::KWH(hasher(), seq.Subseq(cpos -k, cpos), 0).hash() << " " <<
+                        hashing::KWH(hasher(), prestart->getSeq(), 0).hash() << std::endl;
             for(dbg::Edge &tmp : *prestart) {
                 std::cout << tmp.getInnerId() << " " << tmp.truncSize() << std::endl;
             }
@@ -296,7 +299,7 @@ std::vector<PerfectAlignment<Contig, dbg::Edge>> KmerIndex::sparseAlign(Contig &
 Vertex &KmerIndex::getVertex(const hashing::KWH &kwh) const {
     auto it = v.find(kwh.hash());
     VERIFY(it != v.end());
-    if (kwh.isCanonical()) {
+    if (kwh.getSeq() <= !kwh.getSeq()) {
         return *it->second;
     } else {
         return it->second->rc();
@@ -312,14 +315,6 @@ Vertex &KmerIndex::getVertex(const Vertex &other_graph_vertex) const {
         return *v.find(hashing::KWH(hasher_, other_graph_vertex.getSeq(), 0).hash())->second;
     else
         return v.find(hashing::KWH(hasher_, other_graph_vertex.getSeq(), 0).hash())->second->rc();
-}
-
-std::array<Vertex *, 2> KmerIndex::getVertices(hashing::htype hash) const {
-    Vertex &res = *v.find(hash)->second;
-    if(res != res.rc())
-        return {&res, &res.rc()};
-    else
-        return {&res};
 }
 
 void KmerIndex::fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t _w) {
@@ -386,4 +381,13 @@ EdgePosition KmerIndex::getAnchor(const hashing::KWH &kwh) const {
         return anchors.find(kwh.hash())->second;
     else
         return anchors.find(kwh.hash())->second.RC();
+}
+
+KmerIndex::KmerIndex(SparseDBG &dbg) : hasher_(dbg.hasher()) {
+    for(Vertex &vertex : dbg.verticesUnique()) {
+        VERIFY(vertex.isCanonical());
+        VERIFY(v.find(vertex.getHash()) == v.end());
+        VERIFY(vertex.getSeq().empty() || hashing::KWH(hasher(), vertex.getSeq(), 0).hash() == vertex.getHash());
+        v[vertex.getHash()] = &vertex;
+    }
 }

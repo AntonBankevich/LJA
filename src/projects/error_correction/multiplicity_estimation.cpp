@@ -166,10 +166,10 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         if(debug)
             printDot(dir / (std::to_string(component_cnt) + ".dot"), component, reads_storage.labeler());
         //TODO make parallel trace
-        logger.trace() << "Component parameters: size=" << component.size() << " border=" << component.countBorderEdges() <<
+        logger.trace() << "Component parameters: size=" << component.uniqueSize() << " border=" << component.countBorderEdges() <<
                       " tips=" << component.countTips() <<
                       " subcomponents=" << component.realCC() << " acyclic=" << component.isAcyclic() <<std::endl;
-        if(component.size() > 2 && component.countBorderEdges() == 2 &&component.countTips() == 0 &&
+        if(component.uniqueSize() > 2 && component.countBorderEdges() == 2 &&component.countTips() == 0 &&
            component.realCC() == 2 && component.isAcyclic()) {
             processSimpleComponent(logger, component);
         }
@@ -188,7 +188,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     split = ConditionSplitter(mult2).splitGraph(dbg);
     cnt = 0;
     for(Component &component : split) {
-        if(component.size() != 4 || !component.isAcyclic() || component.realCC() != 2 || component.borderVertices().size() != 2) {
+        if(component.uniqueSize() != 4 || !component.isAcyclic() || component.realCC() != 2 || component.borderVertices().size() != 2) {
             continue;
         }
         logger.trace() << "Found suspicious repeat of multiplicity 2: ";
@@ -421,7 +421,7 @@ std::vector<Vertex *> topSort(const Component &component) {
 void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const Component &component) const {
     logger.trace() << "Collapsing acyclic component" << std::endl;
     std::vector<Vertex *> order = topSort(component);
-    if(order.size() != component.size()) {
+    if(order.size() != component.uniqueSize()) {
         logger.trace() << "Failed to collapse acyclic component" << std::endl;
         return;
     }
@@ -507,7 +507,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
 }
 
 std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
-    if(component.size() != 2)
+    if(component.uniqueSize() != 2)
         return {nullptr, nullptr};
     Vertex *vit = &*component.vertices().begin();
     if(vit->inDeg() != 2)

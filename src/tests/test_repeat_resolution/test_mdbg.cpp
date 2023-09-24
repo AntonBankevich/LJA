@@ -20,13 +20,11 @@ GetEdgeInfo(std::map<RRVertexType, dbg::Vertex> &vertexes,
     for (const auto &[st, en, str] : raw_edge_info) {
         Sequence seq(str);
         if(vertexes.find(st) == vertexes.end())
-            vertexes.emplace(std::piecewise_construct, std::forward_as_tuple(st), std::forward_as_tuple(st, st));
+            vertexes.emplace(std::piecewise_construct, std::forward_as_tuple(st), std::forward_as_tuple(st, seq.Prefix(k), st));
         if(vertexes.find(en) == vertexes.end())
-            vertexes.emplace(std::piecewise_construct, std::forward_as_tuple(en), std::forward_as_tuple(en, en));
+            vertexes.emplace(std::piecewise_construct, std::forward_as_tuple(en), std::forward_as_tuple(en, seq.Suffix(k), en));
         dbg::Vertex &st_v = vertexes.at(st);
         dbg::Vertex &en_v = vertexes.at(en);
-        st_v.setSeq(seq.Prefix(k));
-        en_v.setSeq(seq.Suffix(k));
         edges.emplace_back(dbg::DBGEdge::id_type(st_v.getInnerId(), cnt++), st_v, en_v, seq.Subseq(k), dbg::DBGEdgeData());
     }
 

@@ -27,9 +27,9 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
     if(debug) {
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
     }
-    printFasta(dir / "final_dbg.fasta", dbg);
+    printFasta(dir / "final_dbg.fasta", dbg, &SaveEdgeName);
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
-    printGFA(dir / "final_dbg.gfa", Component(dbg), true);
+    printGFA(dir / "final_dbg.gfa", Component(dbg), true, &SaveEdgeName);
     SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
     readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     return {{"corrected_reads", dir/"corrected_reads.fasta"}, {"final_dbg", dir / "final_dbg.gfa"}, {"final_aln", dir / "final_dbg.aln"}};

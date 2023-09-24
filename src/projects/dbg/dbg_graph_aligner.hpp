@@ -44,19 +44,15 @@ namespace dbg {
         explicit KmerIndex(hashing::RollingHash _hasher) : hasher_(_hasher) {
         }
 
-        explicit KmerIndex(SparseDBG &dbg) : hasher_(dbg.hasher()) {
-            for(Vertex &vertex : dbg.verticesUnique()) {
-                VERIFY(vertex.isCanonical());
-                v[vertex.getHash()] = &vertex;
-            }
-        }
+        explicit KmerIndex(SparseDBG &dbg);
 
-        const hashing::RollingHash &hasher() const {
-            return hasher_;
-        }
+        const hashing::RollingHash &hasher() const {return hasher_;}
 
-        void addVertex(hashing::htype &hash, Vertex &vert) {
-            v[hash] = &vert;
+        void addVertex(Vertex &vert) {
+            if(vert.isCanonical())
+                v[vert.getHash()] = &vert;
+            else
+                v[vert.getHash()] = &vert.rc();
         }
 
         bool containsVertex(const hashing::htype &hash) const {return v.find(hash) != v.end();}
@@ -64,12 +60,10 @@ namespace dbg {
         Vertex &getVertex(const Sequence &seq) const;
         Vertex &getVertex(hashing::htype hash, bool canonical = true) const {return canonical ? *v.find(hash)->second : v.find(hash)->second->rc();}
         Vertex &getVertex(const Vertex &other_graph_vertex) const;
-        std::array<Vertex *, 2> getVertices(hashing::htype hash) const;
-//        const Vertex &getVertex(const hashing::KWH &kwh) const;
         bool isAnchor(hashing::htype hash) const {return anchors.find(hash) != anchors.end();}
         EdgePosition getAnchor(const hashing::KWH &kwh) const;
         bool alignmentReady() const {return anchors_filled;}
-        bool minReadLen() const {
+        size_t minReadLen() const {
             if(anchors_filled)
                 return w + hasher().getK() - 1;
             else
@@ -119,6 +113,6 @@ namespace dbg {
 namespace std {
     template<class U, class V>
     std::ostream &operator<<(std::ostream &os, const dbg::PerfectAlignment<U, V> &al) {
-        return os << al.seg_from << "->" << al.seg_to << std::endl;
+        return os << al.seg_from << "->" << al.seg_to;
     }
 }

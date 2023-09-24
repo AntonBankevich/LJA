@@ -25,33 +25,38 @@ namespace dbg {
         logger.trace() << "Vertex sequence check success" << std::endl;
     }
 
-    SparseDBG DbgConstructionHelper::Subgraph(std::vector<Segment<Edge>> &pieces) const{
+    SparseDBG DbgConstructionHelper::Subgraph(std::vector<Segment<Edge>> &pieces) const {
         SparseDBG res(hasher());
+        std::unordered_map<VertexId, VertexId> vmap;
         for(Segment<Edge> &seg : pieces) {
-            if (seg.left == 0) {
-                res.addKmerVertex(seg.contig().getStart().getSeq());
+            VERIFY(seg.contig().isCanonical());
+            if (seg.left == 0 && vmap.find(seg.contig().getStart().getId()) == vmap.end()) {
+                Vertex &newv = res.addKmerVertex(seg.contig().getStart().getSeq());
+                vmap[seg.contig().getStart().getId()] = newv.getId();
+                vmap[seg.contig().getStart().rc().getId()] = newv.rc().getId();
             }
             Segment<Edge> rcSeg = seg.RC();
-            if (rcSeg.left == 0) {
-                res.addKmerVertex(rcSeg.contig().getStart().getSeq());
+            if (rcSeg.left == 0 && vmap.find(seg.RC().contig().getStart().getId()) == vmap.end()) {
+                Vertex &newv = res.addKmerVertex(rcSeg.contig().getStart().getSeq());
+                vmap[seg.RC().contig().getStart().getId()] = newv.getId();
+                vmap[seg.RC().contig().getStart().rc().getId()] = newv.rc().getId();
             }
         }
-        KmerIndex index(res);
         for(Segment<Edge> &seg : pieces) {
-            Vertex *left;
-            Vertex *right;
+            VertexId left;
+            VertexId right;
             if (seg.left == 0) {
-                left = &index.getVertex(seg.contig().getStart().getSeq());
+                left = vmap[seg.contig().getStart().getId()]->getId();
             } else {
-                left = &res.addKmerVertex(seg.contig().kmerSeq(seg.left));
+                left = res.addKmerVertex(seg.contig().kmerSeq(seg.left)).getId();
             }
             Segment<Edge> rcSeg = seg.RC();
             if (rcSeg.left == 0) {
-                right = &index.getVertex(rcSeg.contig().getStart().getSeq());
+                right = vmap[rcSeg.contig().getStart().getId()]->getId();
             } else if(seg == rcSeg) {
                 right = left;
             } else {
-                right = &res.addKmerVertex(rcSeg.contig().kmerSeq(rcSeg.left));
+                right = res.addKmerVertex(rcSeg.contig().kmerSeq(rcSeg.left)).getId();
             }
             left->addEdge(right->rc(), seg.fullSeq());
         }
@@ -204,7 +209,6 @@ namespace dbg {
     }
 
     void DbgConstructionHelper::processRead(SparseDBG &dbg, KmerIndex &index, const Sequence &seq) const {
-        VERIFY(index.alignmentReady());
         std::vector<hashing::KWH> kmers = index.extractVertexPositions(seq);
         if (kmers.size() == 0) {
             std::cout << seq << std::endl;
@@ -226,20 +230,17 @@ namespace dbg {
                 kmers[i + 1].pos - kmers[i].pos < k) {
                 continue;
             }
-            vertices[i]->addEdge(*vertices[i + 1], Sequence(seq.Subseq(kmers[i].pos,
-                                                                       kmers[i + 1].pos +
-                                                                       k).str()));
+            vertices[i]->addEdge(*vertices[i + 1], seq.Subseq(kmers[i].pos, kmers[i + 1].pos + k));
         }
         if (kmers.front().pos > 0) {
-            vertices.front()->rc().addOutgoingSequence(vertices.front()->rc(), !(seq.Subseq(0, kmers[0].pos)));
+            vertices.front()->rc().addOutgoingSequence( !(seq.Subseq(0, kmers[0].pos)));
         }
         if (kmers.back().pos + k < seq.size()) {
-            vertices.back()->addOutgoingSequence(*vertices.back(), seq.Subseq(kmers.back().pos + k, seq.size()));
+            vertices.back()->addOutgoingSequence(seq.Subseq(kmers.back().pos + k, seq.size()));
         }
     }
 
     void DbgConstructionHelper::processFullEdgeSequence(SparseDBG &dbg, KmerIndex &index, const Sequence &full_seq) const {
-        VERIFY(index.alignmentReady());
         std::vector<hashing::KWH> kmers = index.extractVertexPositions(full_seq);
         VERIFY(kmers.front().pos == 0 && kmers.back().pos == full_seq.size() - hasher().getK());
         std::vector<Vertex *> vertices;
@@ -314,8 +315,9 @@ namespace dbg {
                         new_minimizers.emplace_back(seq);
                     }
                     for (const Edge &ext: vertex) {
-                        if(ext.isCanonical())
+                        if(ext.isCanonical()) {
                             new_edges.emplace_back(&vertex, ext.truncSeq());
+                        }
                     }
                 };
         processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, task);
@@ -326,13 +328,18 @@ namespace dbg {
                 };
         processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, clear_task);
         logger.info() << "Added " << new_minimizers.size() << " artificial minimizers from tips." << std::endl;
-        for (Sequence & kwh : new_minimizers) {
-            sdbg.addKmerVertex(kwh);
+        KmerIndex index(sdbg);
+        for (Sequence & seq : new_minimizers) {
+            KWH kmer(sdbg.hasher(), seq, 0);
+            if(!index.containsVertex(kmer.hash())) {
+                Vertex &new_vertex = sdbg.addKmerVertex(kmer);
+                index.addVertex(new_vertex);
+            }
         }
         new_minimizers.clear();
         logger.info() << "New minimizers added to sparse graph." << std::endl;
         logger.info() << "Refilling graph edges." << std::endl;
-        RefillSparseDBGEdges(sdbg, new_edges.begin(), new_edges.end(), logger, threads);
+        RefillSparseDBGEdges(logger, threads, sdbg, new_edges.begin(), new_edges.end(), index);
         logger.info() << "Finished fixing sparse de Bruijn graph to include all hanging vertices." << std::endl;
     }
 
@@ -487,24 +494,44 @@ namespace dbg {
         return alignments_file;
     }
 
-    SparseDBG                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            LoadDBGFromEdgeSequences(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
+    SparseDBG LoadDBGFromEdgeSequences(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
         logger.info() << "Loading graph from fasta" << std::endl;
         io::SeqReader reader(lib);
-        ParallelRecordCollector<Sequence> sequences(threads);
-        ParallelRecordCollector<htype> vertices(threads);
-        std::function<void(size_t, StringContig &)> collect_task = [&sequences, &vertices, hasher](size_t pos,
-                                                                                                   StringContig &contig) {
+        ParallelRecordCollector<std::tuple<Sequence, Edge::id_type, Edge::id_type>> edges(threads);
+        ParallelRecordCollector<std::pair<Sequence, Vertex::id_type>> vertices(threads);
+        std::function<void(size_t, StringContig &)> collect_task = [&edges, &vertices, hasher](size_t pos,
+                                                                                               StringContig &contig) {
             Sequence seq = contig.makeSequence();
-            KWH start(hasher, seq, 0);
-            KWH end(hasher, !seq, 0);
-            vertices.add(start.hash());
-            vertices.add(end.hash());
-            sequences.add(seq);
+            Sequence start = seq.Prefix(hasher.getK());
+            Sequence end = (!seq).Prefix(hasher.getK());
+            std::vector<std::string> ids = split(contig.id, "_");
+            VERIFY_OMP(ids.size() == 2, "Incorrect format of edge id in fasta file: " + contig.id);
+            Edge::id_type eid = Parse<Edge::id_type>(ids[0]);
+            Edge::id_type rceid = Parse<Edge::id_type>(ids[1]);
+            if(eid.vid < 0)
+                vertices.emplace_back(!start, -eid.vid);
+            else
+                vertices.emplace_back(start, eid.vid);
+            if(rceid.vid < 0)
+                vertices.emplace_back(!end, -rceid.vid);
+            else
+                vertices.emplace_back(end, rceid.vid);
+            edges.emplace_back(seq, eid, rceid);
         };
         processRecords(reader.begin(), reader.end(), logger, threads, collect_task);
-        SparseDBG res(vertices.begin(), vertices.end(), hasher);
-        reader.reset();
-        FillSparseDBGEdges(res, sequences.begin(), sequences.end(), logger, threads, hasher.getK() + 1);
+        SparseDBG res(hasher);
+        std::vector<std::pair<Sequence, Vertex::id_type>> vertices_list = vertices.collectUnique();
+        for(std::pair<Sequence, Vertex::id_type> &v : vertices_list) {
+            res.addKmerVertex(v.first, v.second);
+        }
+        IdIndex<Vertex> index(res.vertices().begin(), res.vertices().end());
+        for(std::tuple<Sequence, Edge::id_type, Edge::id_type> edge : edges) {
+            Edge::id_type eid = std::get<1>(edge);
+            Edge::id_type rceid = std::get<2>(edge);
+            Vertex &start = index.getById(eid.vid);
+            Vertex &rcend = index.getById(rceid.vid);
+            start.addEdge(rcend.rc(), std::get<0>(edge), {}, eid, rceid);
+        }
         logger.info() << "Finished loading graph" << std::endl;
         return std::move(res);
     }

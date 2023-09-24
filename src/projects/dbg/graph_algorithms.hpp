@@ -38,20 +38,21 @@ namespace dbg {
         KmerIndex index(sdbg);
         std::function<void(size_t, ContigType &)> task = [&sdbg, min_read_size, &index](size_t pos, ContigType &contig) {
             Sequence seq = contig.makeSequence();
-            if (seq.size() >= min_read_size)
+            if (seq.size() >= min_read_size) {
                 DbgConstructionHelper(sdbg.hasher()).processRead(sdbg, index, seq);
+            }
         };
         processRecords(begin, end, logger, threads, task);
         logger.trace() << "Sparse graph edges filled." << std::endl;
     }
 
     template<class Iterator>
-    void RefillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging::Logger &logger, size_t threads) {
+    void RefillSparseDBGEdges(logging::Logger &logger, size_t threads, SparseDBG &sdbg, Iterator begin, Iterator end, KmerIndex &index) {
         logger.trace() << "Starting to fill edges" << std::endl;
-        KmerIndex index(sdbg);
         std::function<void(size_t, std::pair<Vertex *, Sequence> &)> task = [&sdbg, &index](size_t pos,
                                                                                     std::pair<Vertex *, Sequence> &contig) {
-            DbgConstructionHelper(sdbg.hasher()).processFullEdgeSequence(sdbg, index, contig.first->getSeq() + contig.second);
+            Sequence seq = contig.first->getSeq() + contig.second;
+            DbgConstructionHelper(sdbg.hasher()).processFullEdgeSequence(sdbg, index, seq);
         };
         processObjects(begin, end, logger, threads, task);
         logger.trace() << "Sparse graph edges filled." << std::endl;
@@ -106,7 +107,7 @@ namespace ag {
     }
 
     template<class Traits>
-    void processLoop(ParallelRecordCollector<CompactPath<Traits>> &result, typename Traits::Vertex &start) {
+    void processLoop(ParallelRecordCollector<GraphPath<Traits>> &result, typename Traits::Vertex &start) {
         GraphPath<Traits> to_merge = GraphPath<Traits>::WalkForward(start.front());
         GraphPath<Traits> second_part;
         VERIFY(to_merge.finish() == start || to_merge.finish() == start.rc());
@@ -127,8 +128,9 @@ namespace ag {
             }
         }
         if(ok) {
-            result.emplace_back(to_merge);
-            if (!second_part.empty())
+            if(to_merge.size() > 1)
+                result.emplace_back(to_merge);
+            if (!second_part.empty() && second_part.size() > 1)
                 result.emplace_back(second_part);
         }
     }
@@ -150,13 +152,15 @@ std::vector<CompactPath<Traits>> ConstructUnbranchingLoops(logging::Logger &logg
 
 
     template<class Traits>
-    std::vector<CompactPath<Traits>> AllUnbranchingPaths(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) {
-        ParallelRecordCollector<CompactPath<Traits>> result(threads);
+    std::vector<GraphPath<Traits>> AllUnbranchingPaths(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) {
+        ParallelRecordCollector<GraphPath<Traits>> result(threads);
         std::function<void(size_t, typename Traits::Edge &)> pathTask =
                 [&result](size_t pos, typename Traits::Edge &start) {
                     if (!start.getStart().isJunction())
                         return;
                     GraphPath<Traits> to_merge = GraphPath<Traits>::WalkForward(start);
+                    if(to_merge.size() == 1)
+                        return;
                     for(size_t i = 1; i < to_merge.size() + 1; i++) {
                         to_merge.getVertex(i).mark();
                     }
@@ -190,7 +194,7 @@ typename Traits::Edge &CompressPath(const GraphPath<Traits> &path) {
     }
     ag::Locker<typename Traits::Vertex> locker({&path.start(), &path.finish()});
     for(size_t i = 1; i + 1 < path.size(); i++) {
-        VERIFY(!path.getVertex(i).isCanonical());
+        VERIFY(!path.getVertex(i).marked());
     }
     VERIFY(path.start() == path.finish() || path.start() == path.finish().rc() || (path.start().isJunction() && path.finish().isJunction()));
     SequenceBuilder sb;
@@ -231,7 +235,14 @@ template<class Traits>
                 CompressPath(path);
             };
         ParallelProcessor<const CompactPath<Traits>>(task, logger, threads).processObjects(paths.begin(), paths.end());
-//        processObjects<typename std::vector<CompactPath<Traits>>::const_iterator>(paths.begin(), paths.end(), logger, threads, task);
+    }
+    template<class Traits>
+    void MergePaths(logging::Logger &logger, size_t threads, const std::vector<GraphPath<Traits>> &paths) {
+        std::function<void(size_t, const GraphPath<Traits> &)> task =
+                [](size_t pos, const GraphPath<Traits> &path) {
+                    CompressPath(path);
+                };
+        ParallelProcessor<const GraphPath<Traits>>(task, logger, threads).processObjects(paths.begin(), paths.end());
     }
 
 template<class Traits>

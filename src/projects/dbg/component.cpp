@@ -111,16 +111,14 @@ IterableStorage<ApplyingIterator<dbg::Component::iterator, dbg::Edge, 16>> dbg::
         std::array<Edge*, 16> res = {};
         size_t cur = 0;
         for (Edge &edge : *vid) {
-            bool isInner = contains(edge.getFinish());
-            if(inner && !isInner)
-                continue;
-            if(!isInner || edge <= edge.rc()) {
+            bool endInner = contains(edge.getFinish());
+            if(!inner && !endInner && !edge.isCanonical()) {
+                res[cur] = &edge.rc();
+                cur++;
+            }
+            if((!inner || endInner) && (edge.isCanonical() || !unique)) {
                 res[cur] = &edge;
                 cur++;
-                if(!unique && edge != edge.rc()) {
-                    res[cur] = &edge.rc();
-                    cur++;
-                }
             }
         }
         return res;
@@ -155,8 +153,8 @@ bool dbg::Component::covers(dbg::Vertex &vert) const {
 }
 
 dbg::Component::Component(dbg::SparseDBG &_graph) : _graph(&_graph) {
-    for (auto &vert : graph().vertices())
-        v.emplace(vert.getId());
+    for (auto &vert : graph().verticesUnique())
+        addVertex(vert.getId());
 }
 
 dbg::Component dbg::Component::neighbourhood(dbg::SparseDBG &graph, const std::vector<PerfectAlignment<Contig, Edge>> &als1, size_t radius) {
@@ -225,26 +223,26 @@ std::vector<dbg::Component> dbg::ConditionSplitter::split(const dbg::Component &
         if (visited.find(v.getId()) != visited.end())
             continue;
         queue.push_back(v.getId());
+        queue.push_back(v.rc().getId());
         std::vector<VertexId> component;
         while (!queue.empty()) {
-            VertexId val = queue.back();
+            VertexId vert = queue.back();
             queue.pop_back();
-            if (visited.find(val) != visited.end())
+            if (visited.find(vert) != visited.end())
                 continue;
-            visited.insert(val);
-            component.emplace_back(val);
-            for(VertexId vert : {val, val->rc().getId()}) {
-                for (Edge &edge : *vert) {
-                    if (!splitEdge(edge) && comp.contains(edge.getFinish())) {
-                        queue.emplace_back(edge.getFinish().getId());
-                    }
+            visited.insert(vert);
+            component.emplace_back(vert);
+            for (Edge &edge : *vert) {
+                if (!splitEdge(edge) && comp.contains(edge.getFinish())) {
+                    queue.emplace_back(edge.getFinish().getId());
+                    queue.emplace_back(edge.getFinish().rc().getId());
                 }
             }
         }
         res.emplace_back(dbg, component.begin(), component.end());
-        size += res.back().size();
+        size += res.back().uniqueSize();
     }
-    VERIFY(size == comp.size());
+    VERIFY(size == comp.uniqueSize());
     return std::move(res);
 }
 
@@ -289,4 +287,13 @@ std::vector<dbg::Vertex *> dbg::Component::topSort() const {
         }
     }
     return std::move(res);
+}
+
+void dbg::Component::addVertex(dbg::VertexId vid) {
+    size_t old_size = v.size();
+    v.insert(vid);
+    v.insert(vid->rc().getId());
+    if(v.size() > old_size) {
+        sz++;
+    }
 }

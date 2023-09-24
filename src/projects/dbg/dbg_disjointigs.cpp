@@ -96,8 +96,12 @@ namespace dbg {
                 [&res](size_t pos, Vertex &vertex) {
                     if (vertex.isJunction() || vertex.marked())
                         return;
-                    Edge &edge = *vertex.begin();
+                    Edge &edge = vertex.front();
                     dbg::GraphPath path = dbg::GraphPath::WalkForward(edge);
+                    if(path.finish() != vertex) {
+                        VERIFY(path.finish() == vertex.rc());
+                        path += dbg::GraphPath::WalkForward(vertex.rc().front());
+                    }
                     if (path.finish() != vertex) {
                         std::cout << path.start().getInnerId() << " " << path.finish().getInnerId() << " "
                                   << path.size() <<

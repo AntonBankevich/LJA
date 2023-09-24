@@ -21,7 +21,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     std::unordered_set<dbg::Edge const *> bad_edges;
     size_t cnt = 0;
     for(const dbg::Component &component : dbg::CCSplitter().splitGraph(dbg)) {
-        if(component.size() > 100)
+        if(component.uniqueSize() > 100)
             continue;
         bool ok = true;
         std::vector<double> covs;

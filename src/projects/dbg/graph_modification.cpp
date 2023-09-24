@@ -168,7 +168,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             size_t len = 0;
             for (Segment<dbg::Edge> seg : rec.path.unpack()) {
                 len += seg.size();
-                if (seg.contig() < seg.contig().rc())
+                if (!seg.contig().isCanonical())
                     seg = seg.RC();
                 if(seg.size() < seg.contig().truncSize()) {
                     segmentStorage.emplace_back(seg);
@@ -184,9 +184,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
                 lenStorage.emplace_back(len);
         }
     }
-    for(Edge &edge : dbg.edges()) {
-        if(edge < edge.rc())
-            continue;
+    for(Edge &edge : dbg.edgesUnique()) {
         if(edge.getMarker() == ag::EdgeMarker::correct || (edge.getCoverage() > 2 && edge.truncSize() > edge.getStartSize() * 2 + 5000)) {
             segmentStorage.emplace_back(edge, 0, edge.truncSize());
         }
@@ -242,6 +240,10 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     }
     for(Edge &edge : dbg.edges()) {
         if(edge.intCov() > 0) {
+            if(embedding.find(&edge) == embedding.end()) {
+                std::cout << edge.getId() << " " << edge.isCanonical() << " " << edge.rc().getId() << " " << edge.rc().isCanonical()
+                        << edge.getFinish().getId() << " " << edge.truncSize() << " " << edge.getCoverage() << " " << edge.rc().getCoverage()<< std::endl;
+            }
             VERIFY(embedding.find(&edge) != embedding.end());
         }
     }

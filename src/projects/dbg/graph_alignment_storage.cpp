@@ -439,6 +439,7 @@ void RecordStorage::removeSubpath(const CompactPath &cpath) {
 bool RecordStorage::apply(AlignedRead &alignedRead) {
     if(!alignedRead.checkCorrected())
         return false;
+    GraphPath path = alignedRead.path.unpack();
     this->removeSubpath(alignedRead.path);
     this->removeSubpath(alignedRead.path.RC());
     alignedRead.applyCorrection();

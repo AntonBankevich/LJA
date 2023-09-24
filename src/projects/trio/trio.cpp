@@ -46,9 +46,8 @@ void HaplotypeRemover::deleteEdgeHaplo(EdgeId eid) {
 
 void HaplotypeRemover::compressAllVertices() {
     size_t all_count = 0;
-    std::vector<CompactPath> paths = ag::AllUnbranchingPaths<MGTraits>(logger_, threads, mg);
-    for (CompactPath &cpath: paths) {
-        GraphPath path = cpath.unpack();
+    std::vector<GraphPath> paths = ag::AllUnbranchingPaths<MGTraits>(logger_, threads, mg);
+    for (GraphPath &path: paths) {
         std::vector<Edge::id_type> ids;
         std::vector<Edge::id_type> rcids;
         for(Edge &edge : path.edges()) {

@@ -7,6 +7,7 @@
 #include "component.hpp"
 #include "dbg_graph_aligner.hpp"
 
+//TODO rewrite for AssemblyGraph
 class GraphPathStorage {
 private:
     std::unordered_map<const dbg::Edge *, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>> alignments;
@@ -122,7 +123,7 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
                const std::string &color = "black") {
     dbg:: Vertex &end = edge.getFinish();
     os << "\"" << edge.getStart().getShortId() << "\" -> \"" << end.getShortId() <<
-       "\" [label=\"" << "ACGT"[edge.truncSeq()[0]] << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
+       "\" [label=\"" << edge.getInnerId() << " " << "ACGT"[edge.truncSeq()[0]] << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;

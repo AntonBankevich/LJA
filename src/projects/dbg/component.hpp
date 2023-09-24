@@ -11,15 +11,13 @@ namespace dbg {
     private:
         SparseDBG *_graph;
         std::unordered_set<VertexId> v;
+        size_t sz = 0;
+        void addVertex(VertexId vid);
     public:
         template<class I>
-        Component(SparseDBG &_graph, I begin, I end) : _graph(&_graph) {
-            for(;begin != end; ++begin) {
-                v.insert(*begin);
-                v.insert((*begin)->rc().getId());
-            }
-        }
+        Component(SparseDBG &_graph, I begin, I end);
         explicit Component(SparseDBG &_graph);
+
         template<class I>
         static Component neighbourhood(SparseDBG &graph, I begin, I end, size_t radius, size_t min_coverage = 0);
         static Component neighbourhood(dbg::SparseDBG &graph, const std::vector<PerfectAlignment<Contig, Edge>> &als1, size_t radius);
@@ -28,7 +26,7 @@ namespace dbg {
         SparseDBG &graph() const {return *_graph;}
         bool contains(Vertex &vert) const {return v.find(vert.getId()) != v.end();}
         bool covers(Vertex &vert) const;
-        size_t size() const {return v.size();}
+        size_t uniqueSize() const {return sz;}
 
         typedef std::unordered_set<VertexId>::const_iterator iterator;
         IterableStorage<TransformingIterator<iterator, Vertex>> vertices() const;
@@ -102,6 +100,13 @@ namespace dbg {
             }
         }
         return {graph, v.begin(), v.end()};
+    }
+
+    template<class I>
+    Component::Component(SparseDBG &_graph, I begin, I end) : _graph(&_graph) {
+        for(;begin != end; ++begin) {
+            addVertex(*begin);
+        }
     }
 
 }

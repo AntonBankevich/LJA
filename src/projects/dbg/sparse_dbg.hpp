@@ -75,35 +75,39 @@ namespace dbg {
         DBGEdge(id_type id, Vertex &_start, Vertex &_end, Sequence _seq, DBGEdgeData data) :
                 BaseEdge<DBGTraits>(id, _start, _end, std::move(_seq)), DBGEdgeData(std::move(data)) {}
         bool is_reliable = false;
-        void incCov(int delta) {cov += delta;}
+        void incCov(int delta) {
+#pragma omp atomic
+            cov += delta;
+        }
         size_t intCov() const {return cov;}
         double getCoverage() const {return double(cov) / truncSize();}
     };
 
     class DBGVertex : public ag::BaseVertex<DBGTraits>, public DBGVertexData {
     public:
-        DBGVertex(id_type id, DBGVertexData data) : BaseVertex<DBGTraits>(id), DBGVertexData(std::move(data)) {}
+        DBGVertex(id_type id, bool canonical, DBGVertexData data) : BaseVertex<DBGTraits>(id, canonical), DBGVertexData(std::move(data)) {}
+        DBGVertex(id_type id, Sequence seq, DBGVertexData data) : BaseVertex<DBGTraits>(id, std::move(seq)), DBGVertexData(std::move(data)) {}
         const std::list<Sequence> &getHanging() const {return hanging;}
-        void addOutgoingSequence(Vertex &vertex, const Sequence &new_seq) {
-            vertex.lock();
-            for (Edge &edge : vertex) {
+        void addOutgoingSequence(const Sequence &new_seq) {
+            lock();
+            for (Edge &edge : *this) {
                 if (new_seq.size() < edge.truncSize() && edge.truncSeq().Subseq(new_seq.size()) == new_seq) {
-                    vertex.unlock();
+                    unlock();
                     return;
                 }
             }
             for (Sequence &out : hanging) {
                 if (new_seq.size() > out.size() && new_seq.Subseq(0, out.size())== out) {
                     out = new_seq;
-                    vertex.unlock();
+                    unlock();
                     return;
                 } else if(new_seq.size() <= out.size() && out.Subseq(0, new_seq.size())== new_seq) {
-                    vertex.unlock();
+                    unlock();
                     return;
                 }
             }
             hanging.emplace_back(new_seq);
-            vertex.unlock();
+            unlock();
         }
 
         virtual void fireAddEdge(Edge &edge) override {
@@ -139,20 +143,26 @@ namespace dbg {
         SparseDBG(const SparseDBG &other) noexcept = delete;
         template <class I>
         SparseDBG(I begin, I end, const hashing::RollingHash &_hasher) : hasher_(_hasher) {
-            for(;begin != end; ++begin) {
-                addKmerVertex(*begin);
+            std::vector<hashing::htype> all(begin, end);
+            std::sort(all.begin(), all.end());
+            all.erase(std::unique(all.begin(), all.end()), all.end());
+            for(hashing::htype hash : all) {
+                addKmerVertex(hash);
             }
         }
 
         const hashing::RollingHash &hasher() const {return hasher_;}
 
-        void addKmerVertex(hashing::htype h) {addVertexPair({h});}
-        Vertex &addKmerVertex(const Sequence &kmer) {
-            return AssemblyGraph<DBGTraits>::addVertex(kmer, DBGVertexData(hashing::KWH(hasher_, kmer, 0).hash()));
+        Vertex &addKmerVertex(const Sequence &kmer, Vertex::id_type id = 0) {
+            return AssemblyGraph<DBGTraits>::addVertex(kmer, DBGVertexData(hashing::KWH(hasher_, kmer, 0).hash()), id);
         }
 
-        Vertex &addKmerVertex(const hashing::KWH &kwh) {
-            return AssemblyGraph<DBGTraits>::addVertex(kwh.getSeq(), VertexData(kwh.hash()));
+        Vertex &addKmerVertex(const hashing::KWH &kwh, Vertex::id_type id = 0) {
+            return AssemblyGraph<DBGTraits>::addVertex(kwh.getSeq(), VertexData(kwh.hash()), id);
+        }
+
+        Vertex &addKmerVertex(hashing::htype hash, Vertex::id_type id = 0) {
+            return AssemblyGraph<DBGTraits>::addVertexPair(VertexData(hash), id);
         }
     };
 

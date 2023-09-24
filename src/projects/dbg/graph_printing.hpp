@@ -3,9 +3,18 @@
 #include "component.hpp"
 #include "sparse_dbg.hpp"
 namespace dbg {
-    inline void printFasta(std::ostream &out, const Component &component, bool mask = false) {
+    inline std::string DefaultEdgeName(Edge &edge) {
+        return edge.getInnerId().str();
+    }
+
+    inline std::string SaveEdgeName(Edge &edge) {
+        return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
+    }
+
+    inline void printFasta(std::ostream &out, const Component &component,
+                           const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         for(Edge &edge : component.edges()) {
-            out << ">" << edge.getInnerId() << "\n" << edge.getSeq() << "\n";
+            out << ">" << name(edge) << "\n" << edge.getSeq() << "\n";
         }
 //        size_t cnt = 0;
 //        size_t masked_cnt = 1;
@@ -30,13 +39,13 @@ namespace dbg {
 //        }
     }
 
-    inline void printAssembly(std::ostream &out, const Component &component) {
+    inline void printAssembly(std::ostream &out, const Component &component,
+                              const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         size_t cnt = 0;
         for (Edge &edge : component.edgesUnique()) {
             Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
             Vertex &end = edge.getFinish();
-            out << ">" << cnt << "_" << edge.getStart().getInnerId() <<
-                "_" << end.getInnerId() << "_" << edge.truncSize()
+            out << ">" << cnt << "_" << name(edge) << "_" << edge.truncSize()
                 << "_" << edge.getCoverage() << "\n";
             out << edge_seq << "\n";
             cnt++;
@@ -50,55 +59,59 @@ namespace dbg {
         return seq.Subseq(pos, seq.size());
     }
 
-    inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component, bool mask = false) {
+    inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component,
+                           const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         std::ofstream out;
         out.open(outf);
-        printFasta(out, component, mask);
+        printFasta(out, component, name);
         out.close();
     }
 
-    inline void printAssembly(const std::experimental::filesystem::path &outf, const Component &component) {
+    inline void printAssembly(const std::experimental::filesystem::path &outf, const Component &component,
+                              const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         std::ofstream out;
         out.open(outf);
-        printAssembly(out, component);
+        printAssembly(out, component, name);
         out.close();
     }
 
-    inline void printFasta(const std::experimental::filesystem::path &outf, SparseDBG &dbg) {
+    inline void printFasta(const std::experimental::filesystem::path &outf, SparseDBG &dbg,
+                           const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         std::ofstream out;
         out.open(outf);
-        printFasta(out, Component(dbg));
+        printFasta(out, Component(dbg), name);
         out.close();
     }
 
-    inline void printAssembly(const std::experimental::filesystem::path &outf, SparseDBG &dbg) {
+    inline void printAssembly(const std::experimental::filesystem::path &outf, SparseDBG &dbg,
+                              const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         std::ofstream out;
         out.open(outf);
-        printAssembly(out, Component(dbg));
+        printAssembly(out, Component(dbg), name);
         out.close();
     }
 
-    inline void printGFA(std::ostream &out, const Component &component, bool calculate_coverage) {
+    inline void printGFA(std::ostream &out, const Component &component, bool calculate_coverage,
+                         const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
-        std::unordered_map<const Edge *, Edge::id_type> eids;
-        for (Edge &edge : component.edges()) {
-            if (edge.isCanonical()) {
-                eids[&edge] = edge.getInnerId();
-                eids[&edge.rc()] = edge.getInnerId();
-                if (calculate_coverage)
-                    out << "S\t" << edge.getInnerId() << "\t" << edge.getStart().getSeq() << edge.truncSeq()
-                        << "\tKC:i:" << edge.intCov() << "\n";
-                else
-                    out << "S\t" << edge.getInnerId() << "\t" << edge.getStart().getSeq() << edge.truncSeq() << "\n";
-            }
+        std::unordered_map<const Edge *, std::string> eids;
+        for (Edge &edge : component.edgesUnique()) {
+            VERIFY(edge.isCanonical());
+            eids[&edge] = name(edge);
+            eids[&edge.rc()] = name(edge);
+            if (calculate_coverage)
+                out << "S\t" << name(edge) << "\t" << edge.getStart().getSeq() << edge.truncSeq()
+                    << "\tKC:i:" << edge.intCov() << "\n";
+            else
+                out << "S\t" << name(edge) << "\t" << edge.getStart().getSeq() << edge.truncSeq() << "\n";
         }
         for (Vertex &vertex : component.verticesUnique()) {
             for (const Edge &out_edge : vertex) {
-                Edge::id_type outid = eids[&out_edge];
+                std::string outid = eids[&out_edge];
                 bool outsign = out_edge.isCanonical();
                 for (const Edge &inc_edge : vertex.rc()) {
-                    Edge::id_type incid = eids[&inc_edge];
+                    std::string incid = eids[&inc_edge];
                     bool incsign = inc_edge.isCanonical();
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
                         << (outsign ? "+" : "-") << "\t" << vertex.size() << "M" << "\n";
@@ -107,10 +120,11 @@ namespace dbg {
         }
     }
 
-    inline void printGFA(const std::experimental::filesystem::path &outf, const Component &component, bool calculate_coverage) {
+    inline void printGFA(const std::experimental::filesystem::path &outf, const Component &component, bool calculate_coverage,
+                         const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
         std::ofstream out;
         out.open(outf);
-        printGFA(out, component, calculate_coverage);
+        printGFA(out, component, calculate_coverage, name);
         out.close();
     }
 

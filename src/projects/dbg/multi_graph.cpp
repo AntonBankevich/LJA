@@ -368,4 +368,62 @@ namespace multigraph {
         is.close();
         return std::move(res);
     }
+
+    MultiGraph MultiGraphHelper::LoadEdgeGFA(const std::experimental::filesystem::path &gfa_file, size_t K) {
+        std::ifstream is;
+        is.open(gfa_file);
+        std::unordered_map<Vertex::id_type, Sequence> vseq;
+        std::vector<std::tuple<Sequence, Edge::id_type, Edge::id_type>> edges;
+        for(std::string line; getline(is, line); ) {
+            std::vector<std::string> tokens = ::split(line);
+            if(tokens[0] == "S") {
+                std::string name = tokens[1];
+                Sequence edgeseq = Sequence(tokens[2]);
+                std::vector<std::string> ids = ::split(name, "_");
+                VERIFY_OMP(ids.size() == 2, "Incorrect format of edge id in fasta file: " + name);
+                Edge::id_type eid = Parse<Edge::id_type>(ids[0]);
+                Edge::id_type rceid = Parse<Edge::id_type>(ids[1]);
+                edges.emplace_back(edgeseq, eid, rceid);
+                vseq[eid.vid] = edgeseq.Subseq(0, std::min(edgeseq.size() - 1, K));
+                vseq[rceid.vid] = (!edgeseq).Subseq(0, std::min(edgeseq.size() - 1, K));
+            } else if(tokens[0] == "L") {
+                size_t overlap = std::stoull(tokens[5].substr(0, tokens[5].size() - 1));
+                Vertex::id_type vid1, vid2;
+                if(tokens[2] == "-")
+                    vid1 = -Parse<Edge::id_type>(::split(tokens[1], "_")[0]).vid;
+                else
+                    vid1 = Parse<Edge::id_type>(::split(tokens[1], "_")[1]).vid;
+                if(tokens[4] == "-")
+                    vid2 = -Parse<Edge::id_type>(::split(tokens[3], "_")[1]).vid;
+                else
+                    vid2 = Parse<Edge::id_type>(::split(tokens[3], "_")[0]).vid;
+                VERIFY_MSG(vid1 == vid2, line);
+                if(vseq.find(vid1) != vseq.end()) {
+                    vseq[vid1] = vseq[vid1].Subseq(0, overlap);
+                    vseq[-vid1] = !vseq[vid1];
+                }
+                if(vseq.find(-vid1) != vseq.end()) {
+                    vseq[-vid1] = vseq[-vid1].Subseq(0, overlap);
+                    vseq[vid1] = !vseq[-vid1];
+                }
+            }
+        }
+        is.close();
+        MultiGraph res;
+        for(auto it : vseq) {
+            if(it.first > 0 || vseq.find(-it.first) == vseq.end()) {
+                res.addVertex(it.second, MGVertexData(itos(it.first)), it.first);
+            }
+        }
+        IdIndex<Vertex> index(res.vertices().begin(), res.vertices().end());
+        for(std::tuple<Sequence, Edge::id_type, Edge::id_type> edge : edges) {
+            Edge::id_type eid = std::get<1>(edge);
+            Edge::id_type rceid = std::get<2>(edge);
+            Vertex &start = index.getById(eid.vid);
+            Vertex &rcend = index.getById(rceid.vid);
+            start.addEdge(rcend.rc(), std::get<0>(edge), {eid.str()}, eid, rceid);
+        }
+        return std::move(res);
+    }
+
 }

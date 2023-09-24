@@ -15,6 +15,11 @@ namespace ag {
         BaseEdgeId(int vid, int eid) : vid(vid), eid(eid) {
         }
 
+        bool valid() const {
+            VERIFY((vid != 0) == (eid != 0));
+            return vid != 0;
+        }
+
         bool operator==(const BaseEdgeId &other) const {return vid == other.vid && eid == other.eid;}
         bool operator!=(const BaseEdgeId &other) const {return vid != other.vid || eid != other.eid;}
         bool operator<(const BaseEdgeId &other) const {return vid < other.vid || (vid == other.vid && eid < other.eid);}
@@ -31,7 +36,7 @@ namespace ag {
 template<>
 inline ag::BaseEdgeId Parse<ag::BaseEdgeId>(const std::string &s) {
     int vid = ParseInt(s, 0);
-    int eid = ParseInt(s, s.find('.'));
+    int eid = ParseInt(s, s.find('.') + 1);
     return {vid, eid};
 }
 
@@ -224,7 +229,7 @@ namespace ag {
         }
 
         std::string getShortId() const {
-            return start->getShortId() + "ACGT"[truncSeq()[0]];
+            return start->getShortId() + "." + itos(id.eid) + "ACGT"[truncSeq()[0]];
         }
 
         Sequence firstNucl() const {
@@ -285,19 +290,16 @@ namespace ag {
         friend class BaseEdge<Traits>;
 
         id_type id;
-        Sequence seq;
+        Sequence seq = {};
         mutable std::list<Edge> outgoing_{};
         size_t _outDeg = 0;
         Vertex *rc_;
         omp_lock_t writelock = {};
-        bool canonical = false;
+        bool canonical;
         bool mark_ = false;
         int max_out_id = 0;
 
-        explicit BaseVertex(id_type id, Vertex *_rc) : id(id), rc_(_rc) {
-            omp_init_lock(&writelock);
-        }
-        Edge &innerAddEdge(Vertex &end, const Sequence &full_sequence, EdgeData data);
+        Edge &innerAddEdge(Vertex &end, const Sequence &full_sequence, EdgeData data, BaseEdgeId eid = {});
         void setRC(Vertex &other) {
             rc_ = &other;
             rc_->rc_ = dynamic_cast<Vertex *>(this);
@@ -307,7 +309,11 @@ namespace ag {
         virtual void fireAddEdge(Edge &edge) {}
 
     public:
-        explicit BaseVertex(id_type id, Sequence seq = {}) : id(id), seq(std::move(seq)), rc_(nullptr) {
+        explicit BaseVertex(id_type id, Sequence seq) : id(id), seq(std::move(seq)), rc_(nullptr) {
+            canonical = this->seq <= !this->seq;
+            omp_init_lock(&writelock);
+        }
+        explicit BaseVertex(id_type id, bool canonical) : id(id), seq(), canonical(canonical), rc_(nullptr) {
             omp_init_lock(&writelock);
         }
         BaseVertex(const BaseVertex &) = delete;
@@ -354,12 +360,12 @@ namespace ag {
 
 //        This method should only be invoked if no graph modification is performed in parallel or if both start and
 //        rc end vertices are locked by this process or otherwise prevented from modification by other processes
-        Edge &addEdgeLockFree(Vertex &end, const Sequence &full_sequence, EdgeData data = {});
+        Edge &addEdgeLockFree(Vertex &end, const Sequence &full_sequence, EdgeData data = {}, BaseEdgeId eid = {}, BaseEdgeId rcid = {});
         bool removeEdgeLockFree(Edge &edge);
 
-        Edge &addEdge(Vertex &end, const Sequence &full_sequence, EdgeData data = {}) {
+        Edge &addEdge(Vertex &end, const Sequence &full_sequence, EdgeData data = {}, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
             Locker<BaseVertex<Traits>> locker({this, &end.rc()});
-            return addEdgeLockFree(end, full_sequence, data);
+            return addEdgeLockFree(end, full_sequence, data, eid, rcid);
         }
 
         bool removeEdge(Edge &edge) {
@@ -394,7 +400,7 @@ namespace ag {
         bool operator!=(const BaseVertex &other) const {return this != &other;}
 
         bool operator<(const BaseVertex &other) const {
-            return (std::abs(id) << 1) + (id & 1) < (std::abs(other.id) << 1) + (other.id & 1);
+            return (std::abs(id) << 1) + (id > 0) < (std::abs(other.id) << 1) + (other.id > 0);
         }
 
         bool operator<=(const BaseVertex &other) const {
@@ -402,7 +408,7 @@ namespace ag {
         }
 
         bool operator>(const BaseVertex &other) const {
-            return (std::abs(id) << 1) + (id & 1) > (std::abs(other.id) << 1) + (other.id & 1);
+            return (std::abs(id) << 1) + (id > 0) > (std::abs(other.id) << 1) + (other.id > 0);
         }
 
         bool operator>=(const BaseVertex &other) const {
@@ -444,9 +450,15 @@ namespace ag {
         int maxVId = 0;
 
 //    Be careful since hash does not define vertex. Rc vertices share the same hash
-        Vertex &innerAddVertex(typename Vertex::id_type id, VertexData data) {
+        Vertex &innerAddVertex(typename Vertex::id_type id, bool canonical, VertexData data) {
             maxVId = std::max(std::abs(id), maxVId);
-            vertex_list.emplace_back(id, std::move(data));
+            vertex_list.emplace_back(id, canonical, std::move(data));
+            return vertex_list.back();
+        }
+
+        Vertex &innerAddVertex(typename Vertex::id_type id, Sequence seq, VertexData data) {
+            maxVId = std::max(std::abs(id), maxVId);
+            vertex_list.emplace_back(id, std::move(seq), std::move(data));
             return vertex_list.back();
         }
 
@@ -465,7 +477,7 @@ namespace ag {
         void removeMarked();
         void resetMarkers();
 
-        Vertex &addVertexPair(const VertexData &data);
+        Vertex &addVertexPair(const VertexData &data, typename Vertex::id_type id = 0);
         Vertex &addSelfRCVertex(VertexData data);
         Vertex &addVertex(const Sequence &seq, const VertexData &data = {}, typename Vertex::id_type id = 0);
         Vertex &addVertex(const Sequence &seq, typename Vertex::id_type id);
@@ -492,15 +504,17 @@ namespace ag {
     template<class Traits>
     typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addSelfRCVertex(VertexData data) {
         typename Vertex::id_type id = maxVId + 1;
-        Vertex &res = innerAddVertex(id, std::move(data));
+        Vertex &res = innerAddVertex(id, true, std::move(data));
         res.setRC(res);
         return res;
     }
     template<class Traits>
-    typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addVertexPair(const VertexData &data) {
-        typename Vertex::id_type id = maxVId + 1;
-        Vertex &res = innerAddVertex(id, data);
-        Vertex &rc = innerAddVertex(-id, data.RC());
+    typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addVertexPair(const VertexData &data, typename Vertex::id_type id) {
+        VERIFY(id >= 0);
+        if(id == 0)
+            id = maxVId + 1;
+        Vertex &rc = innerAddVertex(-id, false, data.RC());
+        Vertex &res = innerAddVertex(id, true, std::move(data));
         res.setRC(rc);
         return res;
     }
@@ -517,7 +531,7 @@ namespace ag {
                     return !unique || vertex.isCanonical();
                 };
         SkippingIterator<vertex_iterator_type> begin(vertex_list.begin(), vertex_list.end(), use);
-        SkippingIterator<vertex_iterator_type> end(vertex_list.begin(), vertex_list.end(), use);
+        SkippingIterator<vertex_iterator_type> end(vertex_list.end(), vertex_list.end(), use);
         return {begin, end};
     }
 
@@ -528,7 +542,7 @@ namespace ag {
                     return !unique || vertex.isCanonical();
                 };
         SkippingIterator<const_vertex_iterator_type> begin(vertex_list.begin(), vertex_list.end(), use);
-        SkippingIterator<const_vertex_iterator_type> end(vertex_list.begin(), vertex_list.end(), use);
+        SkippingIterator<const_vertex_iterator_type> end(vertex_list.end(), vertex_list.end(), use);
         return {begin, end};
     }
 
@@ -545,15 +559,10 @@ namespace ag {
     template<class Traits>
     IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::vertex_iterator_type, typename Traits::Edge, 4>> AssemblyGraph<Traits>::edges(bool unique) & {
         std::function<std::array<Edge*, 4>(Vertex &)> apply = [unique](Vertex &vertex) {
+            VERIFY(vertex.outDeg() <= 4);
             std::array<Edge*, 4> res = {};
             size_t cur = 0;
             for(Edge &edge : vertex) {
-                if(!unique || edge <= edge.rc()) {
-                    res[cur] = &edge;
-                    cur++;
-                }
-            }
-            for(Edge &edge : vertex.rc()) {
                 if(!unique || edge <= edge.rc()) {
                     res[cur] = &edge;
                     cur++;
@@ -572,12 +581,6 @@ namespace ag {
             std::array<Edge*, 4> res = {};
             size_t cur = 0;
             for(Edge &edge : vertex) {
-                if(!unique || edge <= edge.rc()) {
-                    res[cur] = &edge;
-                    cur++;
-                }
-            }
-            for(Edge &edge : vertex.rc()) {
                 if(!unique || edge <= edge.rc()) {
                     res[cur] = &edge;
                     cur++;
@@ -625,10 +628,10 @@ namespace ag {
 
     template<class Traits>
     void AssemblyGraph<Traits>::resetMarkers() {
-        for(Edge &edge: edges()) {
-            edge.mark(EdgeMarker::common);
-        }
         for(Vertex &vertex : vertices()) {
+            for(Edge &edge : vertex) {
+                edge.mark(EdgeMarker::common);
+            }
             vertex.unmark();
         }
     }
@@ -645,11 +648,11 @@ namespace ag {
         Vertex *res = nullptr;
         Vertex *rc = nullptr;
         if(seq == !seq) {
-            res = &innerAddVertex(id, data);
+            res = &innerAddVertex(id, seq, data);
             rc = res;
         } else {
-            res = &innerAddVertex(id, data);;
-            rc = &innerAddVertex(-id, data.RC());
+            res = &innerAddVertex(id, seq, data);;
+            rc = &innerAddVertex(-id, !seq, data.RC());
         }
         res->setRC(*rc);
         res->setSeq(seq);
@@ -696,17 +699,20 @@ namespace ag {
 
     template<class Traits>
     void BaseVertex<Traits>::checkConsistency() const {
+        VERIFY(isCanonical() || rc().isCanonical());
+        VERIFY(*this == rc() || isCanonical() != rc().isCanonical());
         for (const Edge &edge : outgoing_) {
+            VERIFY(edge.isCanonical() || edge.rc().isCanonical());
+            VERIFY(edge == edge.rc() || (edge.isCanonical() != edge.rc().isCanonical()));
             VERIFY(edge.rc().getFinish() == this->rc());
             VERIFY(std::find(edge.getFinish().rc().begin(), edge.getFinish().rc().end(), edge.rc()) != edge.getFinish().rc().end());
+            VERIFY(edge.intCov() == edge.rc().intCov());
         }
     }
 
     template<class Traits>
     std::string BaseVertex<Traits>::getShortId() const {
         std::stringstream ss;
-        if(!isCanonical())
-            ss << "-";
         ss << getInnerId() % 1000000000;
         return ss.str();
     }
@@ -736,10 +742,14 @@ namespace ag {
 //    }
 
     template<class Traits>
-    typename Traits::Edge &BaseVertex<Traits>::innerAddEdge(Vertex &end, const Sequence &full_sequence, EdgeData data) {
-        max_out_id++;
-        int eid = max_out_id;
-        outgoing_.emplace_back(typename Edge::id_type(id, eid), *dynamic_cast<Vertex*>(this), end, full_sequence.Subseq(size()), std::move(data));
+    typename Traits::Edge &BaseVertex<Traits>::innerAddEdge(Vertex &end, const Sequence &full_sequence, EdgeData data, BaseEdgeId eid) {
+        if (!eid.valid()) {
+            max_out_id++;
+            eid = {id, max_out_id};
+        } else {
+            max_out_id = std::max(max_out_id, eid.eid);
+        }
+        outgoing_.emplace_back(eid, *dynamic_cast<Vertex*>(this), end, full_sequence.Subseq(size()), std::move(data));
         Edge &edge = outgoing_.back();
         _outDeg++;
         fireAddEdge(edge);
@@ -808,28 +818,28 @@ namespace ag {
     }
 
     template<class Traits>
-    typename Traits::Edge &BaseVertex<Traits>::addEdgeLockFree(Vertex &end, const Sequence &full_sequence, EdgeData data) {
+    typename Traits::Edge &BaseVertex<Traits>::addEdgeLockFree(Vertex &end, const Sequence &full_sequence, EdgeData data, BaseEdgeId eid, BaseEdgeId rcid) {
         for(Edge &edge: outgoing_) {
             if(edge.getFinish() == end && edge.truncSeq() == full_sequence.Subseq(size())) {
                 return edge;
             }
         }
-        Edge &res = innerAddEdge(end, full_sequence, data);
+        Edge &res = innerAddEdge(end, full_sequence, data, eid);
         if(end.rc() != *this || full_sequence != !full_sequence) {
-            Edge &rc_edge = end.rc().innerAddEdge(rc(), !full_sequence, data.RC());
+            Edge &rc_edge = end.rc().innerAddEdge(rc(), !full_sequence, data.RC(), rcid);
             res._rc = &rc_edge;
             rc_edge._rc = &res;
         } else {
             res._rc = &res;
         }
-        VERIFY(res.truncSize() == res.rc().truncSize());
+        VERIFY(res.fullSize() == res.rc().fullSize());
         return res;
     }
 
     template<class Traits>
     bool BaseVertex<Traits>::removeEdgeLockFree(Edge &edge) {
         if(edge != edge.rc()) {
-            innerRemoveEdge(edge.rc());
+            edge.rc().getStart().innerRemoveEdge(edge.rc());
         }
         return innerRemoveEdge(edge);
     }

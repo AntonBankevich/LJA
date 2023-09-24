@@ -39,7 +39,10 @@ namespace multigraph {
         std::string label;
     public:
         MGEdgeData(std::string label) : label(std::move(label)) {}
-        void incCov(int delta) {cov += delta;}
+        void incCov(int delta) {
+#pragma omp atomic
+            cov += delta;
+        }
         size_t intCov() const {return cov;}
         double getCoverage() const;
         MGEdgeData RC() const {return {getReverseLabel()};}
@@ -80,7 +83,7 @@ namespace multigraph {
     class MGVertex : public ag::BaseVertex<MGTraits>, public MGVertexData {
     public:
         explicit MGVertex(id_type id, Sequence seq, VertexData data) : ag::BaseVertex<MGTraits>(id, std::move(seq)), MGVertexData(std::move(data)) {}
-        explicit MGVertex(id_type id, VertexData data) : ag::BaseVertex<MGTraits>(id), MGVertexData(std::move(data)) {}
+        explicit MGVertex(id_type id, bool canonical, VertexData data) : ag::BaseVertex<MGTraits>(id, canonical), MGVertexData(std::move(data)) {}
 //        MGVertex(): seq(""), id(0), label("") {VERIFY(false);}
         MGVertex(const MGVertex &) = delete;
 
@@ -135,6 +138,7 @@ namespace multigraph {
         MultiGraphHelper() = default;
 
         static MultiGraph LoadGFA(const std::experimental::filesystem::path &gfa_file, bool int_ids);
+        MultiGraph LoadEdgeGFA(const std::experimental::filesystem::path &gfa_file, size_t K);
         static MultiGraph TransformToEdgeGraph(const MultiGraph &mg, size_t tip_size = 4001);
         static MultiGraph Delete(const MultiGraph &mg, const std::unordered_set<ConstEdgeId> &to_delete, const std::unordered_set<ConstVertexId> &to_delete_vertices = {});
 
