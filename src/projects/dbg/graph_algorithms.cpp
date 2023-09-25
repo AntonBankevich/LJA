@@ -91,19 +91,21 @@ namespace dbg {
     }
 
     std::vector<dbg::GraphPath> DbgConstructionHelper::AddNewSequences(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const {
-        SparseDBG res(hasher());
-        for(Vertex &it : dbg.verticesUnique()) {
-            res.addVertex(it);
-        }
-        KmerIndex index(res);
-        addAllKmers(res, new_seqs, index);
-        std::function<void(size_t, Edge &)> task = [&res, this, &index](size_t num, Edge &edge) {
-            processFullEdgeSequence(res, index, edge.getSeq());
+        KmerIndex index(dbg);
+        addAllKmers(dbg, new_seqs, index);
+        std::function<void(size_t, Edge &)> task = [&dbg, this, &index](size_t num, Edge &edge) {
+            std::vector<hashing::KWH> kmers = index.extractVertexPositions(edge.getSeq());
+            if(kmers.size() == 2) {
+                VERIFY(kmers.front().pos == 0 && kmers.back().pos == edge.truncSize());
+            } else {
+                VERIFY(kmers.size() > 2);
+                processFullEdgeSequence(dbg, index, edge.getSeq());
+            }
         };
         omp_set_num_threads(threads);
         processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task);
-        std::function<void(size_t, const Sequence &)> task1 = [&res, this, &index](size_t num, const Sequence &seq) {
-            processFullEdgeSequence(res, index, seq);
+        std::function<void(size_t, const Sequence &)> task1 = [&dbg, this, &index](size_t num, const Sequence &seq) {
+            processFullEdgeSequence(dbg, index, seq);
         };
         ParallelProcessor<const Sequence>(task1, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
         std::vector<dbg::GraphPath> paths(new_seqs.size());
@@ -113,7 +115,6 @@ namespace dbg {
         };
         ParallelProcessor<const Sequence>(task2, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
 //    processObjects<std::vector<Sequence>::const_iterator>(new_seqs.begin(), new_seqs.end(), logger, threads, task1);
-        dbg = std::move(res);
         return std::move(paths);
     }
 

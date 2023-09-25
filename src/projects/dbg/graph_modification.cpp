@@ -280,19 +280,21 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
                const std::vector<Connection> &connections) {
     logger.info() << "Adding new connections to the graph" << std::endl;
     logger.trace() << "Adding all kmers from new sequences" << std::endl;
+    SparseDBG res(dbg.hasher());
+    res.fillFrom(dbg);
     std::vector<Sequence> seqs;
     for(const Connection &connection : connections)
         seqs.emplace_back(connection.connection);
     DbgConstructionHelper helper(dbg.hasher());
-    helper.AddNewSequences(logger, threads, dbg, seqs);
-    MergeAll(logger, threads, dbg);
-    KmerIndex index(dbg);
+    helper.AddNewSequences(logger, threads, res, seqs);
+    MergeAll(logger, threads, res);
+    KmerIndex index(res);
     index.fillAnchors(logger, threads, dbg, 500);
-    helper.checkConsistency(threads, logger, dbg);
+    helper.checkConsistency(threads, logger, res);
     std::function<void(size_t, Edge &)> task = [&index](size_t num, Edge &edge) {
         dbg::GraphPath al = index.align(edge.getSeq());
         VERIFY(al.truncLen() == edge.truncSize());
-        if(al.size() == 1 && al[0].left == 0 && al[0].right == al[0].contig().truncSize()) {
+        if(al.size() == 1 && al.len() == al[0].size()) {
             edge.is_reliable = true;
             edge.rc().is_reliable = true;
         }
@@ -301,7 +303,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     logger.trace() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {
         RecordStorage &storage = *sit;
-        RecordStorage new_storage(dbg, storage.getMinLen(), storage.getMaxLen(), threads, storage.getLogger(),
+        RecordStorage new_storage(res, storage.getMinLen(), storage.getMaxLen(), threads, storage.getLogger(),
                                   storage.isTrackingCov(), false);
         for(AlignedRead &al : storage) {
             new_storage.addRead(AlignedRead(al.id));
@@ -335,7 +337,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
         new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);
     }
-    dbg = std::move(dbg);
+    dbg = std::move(res);
 }
 
 Connection::Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence connection) :

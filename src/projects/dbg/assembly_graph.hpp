@@ -468,6 +468,7 @@ namespace ag {
         AssemblyGraph(AssemblyGraph &&other) = default;
         AssemblyGraph &operator=(AssemblyGraph &&other) = default;
         AssemblyGraph(const AssemblyGraph &other) noexcept = delete;
+        void fillFrom(AssemblyGraph<Traits> &other);
 
         size_t size() const {return vertex_list.size();}
         size_t edgeCount() const;
@@ -670,6 +671,16 @@ namespace ag {
         for(auto &v : vertices())
             res += v.outDeg();
         return res;
+    }
+
+    template<class Traits>
+    void AssemblyGraph<Traits>::fillFrom(AssemblyGraph<Traits> &other) {
+        for(Vertex &v : other.verticesUnique()) {
+            addVertex(v);
+        }
+        for(Edge &e : other.edgesUnique()) {
+            e.getStart().addEdgeLockFree(e.getFinish(), e.getSeq(), e, e.getInnerId(), e.rc().getInnerId());
+        }
     }
 
     template<class Traits>
