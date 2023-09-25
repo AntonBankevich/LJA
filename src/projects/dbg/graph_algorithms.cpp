@@ -95,15 +95,15 @@ namespace dbg {
         for(Vertex &it : dbg.verticesUnique()) {
             res.addVertex(it);
         }
-        addAllKmers(res, new_seqs);
         KmerIndex index(res);
+        addAllKmers(res, new_seqs, index);
         std::function<void(size_t, Edge &)> task = [&res, this, &index](size_t num, Edge &edge) {
             processFullEdgeSequence(res, index, edge.getSeq());
         };
         omp_set_num_threads(threads);
         processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task);
         std::function<void(size_t, const Sequence &)> task1 = [&res, this, &index](size_t num, const Sequence &seq) {
-            processRead(res, index, seq);
+            processFullEdgeSequence(res, index, seq);
         };
         ParallelProcessor<const Sequence>(task1, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
         std::vector<dbg::GraphPath> paths(new_seqs.size());
@@ -117,13 +117,13 @@ namespace dbg {
         return std::move(paths);
     }
 
-    void DbgConstructionHelper::addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const {
-        KmerIndex index(dbg);
+    void DbgConstructionHelper::addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs, KmerIndex &index) const {
         for(const Sequence &seq: new_seqs) {
             KWH kwh(hasher(), seq, 0);
             while(true) {
                 if(!index.containsVertex(kwh.hash())) {
-                    dbg.addVertexPair({kwh.hash()});
+                    Vertex &v = dbg.addKmerVertex(kwh);
+                    index.addVertex(v);
                 }
                 if(!kwh.hasNext())
                     break;

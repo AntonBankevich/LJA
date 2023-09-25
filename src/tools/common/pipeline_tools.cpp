@@ -187,8 +187,9 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
         std::cerr << restart_from + " is not a name of any of the pipeline stages" << std::endl;
         std::cerr << "Here is the list of all stage names in the pipeline:" << std::endl;
         for(const std::string& sname: stage_order) {
-            std::cerr << sname << std::endl;
+            std::cerr << sname << " ";
         }
+        std::cerr << std::endl;
     }
     VERIFY(restart_from == "none" || stages.find(restart_from) != stages.end());
     verifyReady();

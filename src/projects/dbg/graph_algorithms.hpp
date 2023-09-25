@@ -25,7 +25,7 @@ namespace dbg {
         SparseDBG SplitGraph(SparseDBG &dbg, const std::vector<EdgePosition> &breaks) const;
         std::vector<dbg::GraphPath> AddNewSequences(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const;
 
-        void addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const;
+        void addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs, KmerIndex &index) const;
 
         void checkIndexConsistency(logging::Logger &logger, size_t threads, SparseDBG &dbg, KmerIndex& index) const;
     };
