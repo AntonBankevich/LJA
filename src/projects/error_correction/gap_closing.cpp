@@ -93,7 +93,6 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
             Sequence new_seq = edgeFrom.getSeq();
             new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(edgeTo.getSeq());
             new_seq = edgeFrom.getStart().getSeq() + new_seq.Subseq(edgeFrom.getStartSize());
-            new_seq = StringContig(new_seq.str(), "new").makeSequence();
             if(!new_seq.endsWith(!edgeTo.getStart().getSeq()) || !new_seq.startsWith(edgeFrom.getStart().getSeq())
                     || HasInnerDuplications(new_seq, std::min(edgeFrom.getStartSize(), edgeTo.getStartSize())))
                 continue;
@@ -107,7 +106,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
                 right_match++;
             dbg::EdgePosition p1(edgeFrom, left_match);
             dbg::EdgePosition p2(edgeTo, right_match);
-            VERIFY(left_match + right_match + edgeFrom.getStartSize() + edgeTo.getStartSize() <= new_seq.size());
+            VERIFY(left_match + right_match + std::min(edgeFrom.getStartSize(), edgeTo.getStartSize()) <= new_seq.size());
             Connection gap(p1, p2.RC(), new_seq.Subseq(left_match, new_seq.size() - right_match));
             gap = gap.shrink();
             res.emplace_back(gap);
