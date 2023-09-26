@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest ]
-        gcc: [ 9, 10 ]
+        gcc: [ 9, 10, 11, 12 ]
         
     env:
       # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -30,8 +30,8 @@ jobs:
 
     - name: Build
       # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} && make -j4 -C ${{github.workspace}}/build run_tests
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} && make -j4 -C ${{github.workspace}}/build tests
     
     - name: Test
-      run: ${{github.workspace}}/build/bin/run_tests
+      run: ${{github.workspace}}/build/bin/tests
       
