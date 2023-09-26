@@ -342,8 +342,8 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     dbg = std::move(res);
 }
 
-Connection::Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence connection) :
-        pos1(pos1), pos2(pos2), connection(std::move(connection)) {
+Connection::Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence _connection) :
+        pos1(pos1), pos2(pos2), connection(std::move(_connection)) {
     VERIFY(connection.startsWith(pos1.kmerSeq()));
     VERIFY(!connection.startsWith(pos2.RC().kmerSeq()));
 }
