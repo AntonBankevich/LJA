@@ -291,7 +291,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     helper.checkConsistency(threads, logger, res);
     MergeAll(logger, threads, res);
     KmerIndex index(res);
-    index.fillAnchors(logger, threads, dbg, 500);
+    index.fillAnchors(logger, threads, res, 500);
     helper.checkConsistency(threads, logger, res);
     std::function<void(size_t, Edge &)> task = [&index](size_t num, Edge &edge) {
         dbg::GraphPath al = index.align(edge.getSeq());
@@ -343,7 +343,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
 }
 
 Connection::Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence connection) :
-        pos1(pos1), pos2(pos2), connection(connection) {
+        pos1(pos1), pos2(pos2), connection(std::move(connection)) {
     VERIFY(connection.startsWith(pos1.kmerSeq()));
     VERIFY(!connection.startsWith(pos2.RC().kmerSeq()));
 }
