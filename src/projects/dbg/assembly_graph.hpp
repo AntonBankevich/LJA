@@ -2,6 +2,7 @@
 #include "sequences/sequence.hpp"
 #include "common/iterator_utils.hpp"
 #include "common/object_id.hpp"
+#include "id_index.hpp"
 #include <list>
 #include <vector>
 #include <functional>
@@ -678,8 +679,9 @@ namespace ag {
         for(Vertex &v : other.verticesUnique()) {
             addVertex(v);
         }
+        IdIndex<Vertex> index(vertices().begin(), vertices().end());
         for(Edge &e : other.edgesUnique()) {
-            e.getStart().addEdgeLockFree(e.getFinish(), e.getSeq(), e, e.getInnerId(), e.rc().getInnerId());
+            index.getById(e.getStart().getInnerId()).addEdgeLockFree(index.getById(e.getFinish().getInnerId()), e.getSeq(), e, e.getInnerId(), e.rc().getInnerId());
         }
     }
 

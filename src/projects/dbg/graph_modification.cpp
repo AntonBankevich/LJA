@@ -279,14 +279,16 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
 void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<RecordStorage *> &storages,
                const std::vector<Connection> &connections) {
     logger.info() << "Adding new connections to the graph" << std::endl;
-    logger.trace() << "Adding all kmers from new sequences" << std::endl;
+    logger.trace() << "Creating a copy of the graph" << std::endl;
     SparseDBG res(dbg.hasher());
     res.fillFrom(dbg);
     std::vector<Sequence> seqs;
     for(const Connection &connection : connections)
         seqs.emplace_back(connection.connection);
     DbgConstructionHelper helper(dbg.hasher());
+    logger.trace() << "Adding all kmers from new sequences" << std::endl;
     helper.AddNewSequences(logger, threads, res, seqs);
+    helper.checkConsistency(threads, logger, res);
     MergeAll(logger, threads, res);
     KmerIndex index(res);
     index.fillAnchors(logger, threads, dbg, 500);

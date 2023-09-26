@@ -44,7 +44,6 @@ namespace multigraph {
             cov += delta;
         }
         size_t intCov() const {return cov;}
-        double getCoverage() const;
         MGEdgeData RC() const {return {getReverseLabel()};}
         std::string getReverseLabel() const {
             if(label.empty())
@@ -104,6 +103,7 @@ namespace multigraph {
 //        MGEdge() : MGEdgeData(*this) {VERIFY(false);}
 
         const std::string &getLabel() const {return label;}
+        double getCoverage() const {return double(cov) / truncSize();}
 //        TODO: create reasonable coverage for multiplex graph
 
 //        bool isSimpleBridge();
