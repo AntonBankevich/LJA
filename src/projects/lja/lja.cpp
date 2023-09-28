@@ -143,7 +143,7 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
         constructionStage.bindInput("reads", "", "reads");
         constructionStage.bindInput("pseudo_reads", "", "pseudo_reads");
         constructionStage.bindInput("paths", "", "paths");
-        corrected_reads = {"Construction", "reads"};
+        corrected_reads = {"", "reads"};
     } else {
         SubstageRun &correctionStage1 = lja.addStage(CoverageCorrectionStage(), "CoverageBasedCorrection");
         correctionStage1.bindInput("reads", "", "reads");

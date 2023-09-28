@@ -71,7 +71,9 @@ public:
     const ComplexStage &getSuperStage() const {return *super_stage;}
     AlgorithmParameterValues readParameterValues(const AlgorithmParameterValues &other);
     void bindInput(const std::string &input_name, const std::string &other_stage_name, const std::string &output_name);
+
     std::experimental::filesystem::path getResult(const std::string &output_name) const;
+    bool hasResult(const std::string &output_name) const {return stage->getExpectedOutput().find(output_name) != stage->getExpectedOutput().end();}
     bool isFinished() const {return finished;}
     std::string verifyBinding() const;
     std::string verifyOutput() const;
@@ -115,8 +117,8 @@ public:
     }
     const SubstageRun &getStage(const std::string &name) const;
     io::Library getOutput(const std::string &stage_name, const std::string &parameter_name) const;
-    std::string verifyBinding() const;
-    void verifyReady() const;
+    bool hasOutput(const std::string &stage_name, const std::string &parameter_name) const;
+    std::string verifyCompleteBinding() const;
     void verifyResult() const;
     std::unordered_map<std::string, std::experimental::filesystem::path> innerRun(logging::Logger &logger, size_t threads,
                       const std::experimental::filesystem::path &dir, bool debug,

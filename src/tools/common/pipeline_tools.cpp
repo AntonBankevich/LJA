@@ -11,9 +11,6 @@ SubstageRun::runSubstage(logging::Logger &logger, size_t threads, const std::exp
     logger.stage() << "Starting stage " << name << std::endl;
     timespec start{};
     clock_gettime(CLOCK_MONOTONIC, &start);
-    std::string message;
-    message = verifyBinding();
-    VERIFY_MSG(message.empty(), message);
     std::unordered_map<std::string, io::Library> input;
     for(const auto &it : inputBindings) {
         for(const std::pair<std::string, std::string> &link : it.second) {
@@ -22,7 +19,7 @@ SubstageRun::runSubstage(logging::Logger &logger, size_t threads, const std::exp
         }
     }
     output = stage->run(logger, threads, dir, debug, parameterValues, input);
-    message = verifyOutput();
+    std::string message = verifyOutput();
     VERIFY_MSG(message.empty(), message);
     timespec finish{};
     finished = true;
@@ -40,6 +37,8 @@ SubstageRun::runSubstage(logging::Logger &logger, size_t threads, const std::exp
 
 void SubstageRun::bindInput(const string &input_name, const string &other_stage_name, const string &output_name) {
     VERIFY(!finished);
+    VERIFY_MSG(super_stage->hasOutput(other_stage_name, output_name),
+               "Error: attempt to bind input to non-existant output: " + other_stage_name + ":" + output_name);
     inputBindings[input_name].emplace_back(other_stage_name, output_name);
 }
 
@@ -55,7 +54,7 @@ std::string SubstageRun::verifyBinding() const {
     std::stringstream result;
     std::unordered_set<std::string> names;
     for(const std::string &input_name : stage->getExpectedInput()) {
-        if(inputBindings.find(input_name) == inputBindings.end())
+        if(inputBindings.find(input_name) == inputBindings.end() || inputBindings.find(input_name)->second.empty())
             result <<  "Stage " + name + " error: input parameter " + input_name + " was not properly bound\n";
         names.emplace(input_name);
     }
@@ -147,11 +146,11 @@ io::Library ComplexStage::getOutput(const std::string &stage_name, const std::st
     }
 }
 
-void ComplexStage::verifyReady() const {
-    std::string message;
-    for(auto &it : stages) {
-        message = it.second.verifyBinding();
-        VERIFY_MSG(message.empty(), message);
+bool ComplexStage::hasOutput(const std::string &stage_name, const std::string &parameter_name) const {
+    if(stage_name.empty()) {
+        return getExpectedInput().find(parameter_name) != getExpectedInput().end();
+    } else {
+        return stages.find(stage_name) != stages.end() && stages.find(stage_name)->second.hasResult(parameter_name);
     }
 }
 
@@ -167,7 +166,7 @@ std::unordered_map<std::string, std::experimental::filesystem::path>
 ComplexStage::innerRun(logging::Logger &logger, size_t threads,
                        const std::experimental::filesystem::path &dir, bool debug,
                        const AlgorithmParameterValues &parameterValues, const std::unordered_map<std::string, io::Library> &input) {
-    VERIFY_ERROR_MSG(verifyBinding());
+    VERIFY_ERROR_MSG(verifyCompleteBinding());
     for(const std::string &iname : Stage::expected_input) {
         input_values[iname] = {};
     }
@@ -192,7 +191,7 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
         std::cerr << std::endl;
     }
     VERIFY(restart_from == "none" || stages.find(restart_from) != stages.end());
-    verifyReady();
+    VERIFY_ERROR_MSG(verifyCompleteBinding());
     size_t cnt = -1;
     for(const std::string& sname: stage_order) {
         cnt++;
@@ -222,10 +221,11 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
     return {};
 }
 
-std::string ComplexStage::verifyBinding() const {
+std::string ComplexStage::verifyCompleteBinding() const {
     std::stringstream ss;
-    for(const auto &p : stages) {
-        ss << p.second.verifyBinding();
+    for(const auto &stage : stages) {
+        const SubstageRun &run = stage.second;
+        ss << run.verifyBinding();
     }
     return ss.str();
 }
