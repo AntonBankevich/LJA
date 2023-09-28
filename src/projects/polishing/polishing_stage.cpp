@@ -29,7 +29,7 @@ std::unordered_map<std::string, std::experimental::filesystem::path>
 PolishingPhase::innerRun(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
                          bool debug, const AlgorithmParameterValues &parameterValues,
                          const std::unordered_map<std::string, io::Library> &input) {
-    logger.info() << "Started kmer counting phase for trio binning\n";
+    logger.info() << "Started homopolymer uncompression and polishing phase\n";
     size_t min_alignment = std::stoull(parameterValues.getValue("min_alignment"));
     return RunPolishing(logger, threads, dir, input.find("graph")->second.front(), input.find("corrected_reads")->second,
                         input.find("reads")->second, min_alignment, debug);
