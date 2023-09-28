@@ -136,7 +136,7 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
     StringContig::SetDimerParameters(input_values.getValue("dimer-compress"));
     bool noec = input_values.getCheck("noec");
     bool trio = !input_values.getListValue("parental").empty();
-    ComplexStage lja(input_types);
+    ComplexStage lja(input_types, {"noec", "dimer-compress=32,32,1"});
     std::pair<std::string, std::string> corrected_reads;
     if(noec) {
         SubstageRun &constructionStage = lja.addStage(NoCorrectionStage(), "Construction");
@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
     ComplexStage lja = ConstructLJApipeline(command_line);
     CLParser parser(lja.getStandaloneParameters(), {"o=output-dir", "t=threads"},
                     {"diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid", "diploid=MDBG.diploid",
-                     "load=CoverageBasedCorrection.load", "load=TopologyBasedCorrection.load", "load=noec.load"});
+                     "load=CoverageBasedCorrection.load", "load=TopologyBasedCorrection.load", "load=Construction.load"});
     LoggedProgram lja_program("lja", std::move(lja), std::move(parser),
                               "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads.",
                               "LJA pipeline finished.",

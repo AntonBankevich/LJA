@@ -143,7 +143,8 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     std::unordered_map<EdgeId , Sequence> uncompression_results;
     IdIndex<MGEdge> index(graph.edges().begin(), graph.edges().end());
     for(const Contig &contig : uncompressed) {
-        EdgeId eid = index.getById(Parse<MGEdge::id_type>(contig.getInnerId())).getId();
+        VERIFY(contig.getInnerId()[0] == 'E');
+        EdgeId eid = index.getById(Parse<MGEdge::id_type>(contig.getInnerId().substr(1))).getId();
         uncompression_results[eid] = contig.getSeq();
         uncompression_results[eid->rc().getId()] = !contig.getSeq();
     }

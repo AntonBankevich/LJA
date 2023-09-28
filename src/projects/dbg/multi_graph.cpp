@@ -170,7 +170,7 @@ namespace multigraph {
                 if(cut_left + cut_right >= edge.fullSize()) {
                     continue;
                 }
-                res.emplace_back(edge.getSeq().Subseq(cut_left, edge.fullSize() - cut_right), edge.getId().innerId().str());
+                res.emplace_back(edge.getSeq().Subseq(cut_left, edge.fullSize() - cut_right), "E" + edge.getId().innerId().str());
                 cnt++;
             }
         }

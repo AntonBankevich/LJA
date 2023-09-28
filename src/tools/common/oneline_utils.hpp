@@ -8,6 +8,13 @@
 #include <algorithm>
 
 namespace oneline {
+    template<class T>
+    std::vector<T> Concat(const std::vector<T> &v1, const std::vector<T> &v2) {
+        std::vector<T> res = v1;
+        res.insert(res.end(), v2.begin(), v2.end());
+        return std::move(res);
+    }
+
     template<class U, class V, class I>
     std::vector<V> map(I begin, I end, const std::function<V(U &)> &f) {
         std::vector<V> result;

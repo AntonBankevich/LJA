@@ -37,7 +37,7 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
 
 class NoCorrectionStage : public Stage {
 public:
-    NoCorrectionStage() : Stage(AlgorithmParameters({"k-mer-size=", "window=", "load"}, {}, ""),
+    NoCorrectionStage() : Stage(AlgorithmParameters({"k-mer-size=5001", "window=500", "load"}, {}, ""),
                                 {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "final_dbg", "final_aln"}) {
     }
 protected:

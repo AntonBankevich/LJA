@@ -87,8 +87,8 @@ private:
     std::unordered_map<std::string, SubstageRun> stages = {};
     std::unordered_map<std::string, io::Library> input_values = {};
 public:
-    explicit ComplexStage(const std::vector<std::string>& expected_input) :
-                        Stage(AlgorithmParameters({"continue", "restart-from=none"}, {},
+    explicit ComplexStage(const std::vector<std::string>& expected_input, const std::vector<std::string> &pipeline_params = {}) :
+                        Stage(AlgorithmParameters(oneline::Concat(pipeline_params, {"continue", "restart-from=none"}), {},
                       "Pipeline parameters:\n  --continue Continue program from the last save point.\n  --restart-from <stage name>  Restart program from stage (see stage names in log).\n"),
                               expected_input, {}) {
     }
