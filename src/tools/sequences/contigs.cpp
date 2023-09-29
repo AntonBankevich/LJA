@@ -28,8 +28,12 @@ void StringContig::compress() {
         } else {
             if(at_len > min_dimer_to_compress) {
                 if(at_len > max_dimer_size) {
-                    cur -= (at_len - max_dimer_size + 1) / 2 * 2;
-                    at_len -= (at_len - max_dimer_size + 1) / 2 * 2;
+                    size_t d = 0;
+                    if(i == seq.size() || at_len == i)
+                        d = 2;
+                    cur -= (at_len - max_dimer_size + 1) / 2 * 2 + d;
+                    at_len -= (at_len - max_dimer_size + 1) / 2 * 2 + d;
+
                 }
                 size_t corr_at_len = at_len / dimer_step * dimer_step;
                 VERIFY(corr_at_len == at_len);
