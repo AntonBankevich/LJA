@@ -153,6 +153,7 @@ std::vector<CompactPath<Traits>> ConstructUnbranchingLoops(logging::Logger &logg
 
     template<class Traits>
     std::vector<GraphPath<Traits>> AllUnbranchingPaths(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) {
+        logger.trace() << "Collecting linear unbranching paths" << std::endl;
         ParallelRecordCollector<GraphPath<Traits>> result(threads);
         std::function<void(size_t, typename Traits::Edge &)> pathTask =
                 [&result](size_t pos, typename Traits::Edge &start) {
@@ -170,6 +171,7 @@ std::vector<CompactPath<Traits>> ConstructUnbranchingLoops(logging::Logger &logg
                     }
                 };
         processObjects(graph.edges().begin(), graph.edges().end(), logger, threads, pathTask);
+        logger.trace() << "Collecting circular unbranching paths" << std::endl;
         std::function<void(size_t, typename Traits::Vertex &)> loopTask =
                 [&result](size_t pos, typename Traits::Vertex &start) {
                     if (start.isJunction() || start.marked()) {
@@ -247,9 +249,10 @@ template<class Traits>
 
 template<class Traits>
 void MergeAll(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) {
-    logger.trace() << "Merging unbranching paths" << std::endl;
+    logger.trace() << "Collecting unbranching paths" << std::endl;
     graph.resetMarkers();
     auto linear_paths = AllUnbranchingPaths(logger, threads, graph);
+    logger.trace() << "Merging unbranching paths" << std::endl;
     MergePaths(logger, threads, linear_paths);
     logger.trace() << "Removing isolated vertices" << std::endl;
     graph.removeMarked();

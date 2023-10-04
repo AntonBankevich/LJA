@@ -197,7 +197,7 @@ size_t ag::GraphPath<Graph>::truncLen() const {
 template<class Graph>
 IterableStorage<typename ag::GraphPath<Graph>::vertex_iterator> ag::GraphPath<Graph>::vertices() const & {
     std::function<Vertex &(size_t)> transformer = [this](size_t ind)->Vertex &{return getVertex(ind);};
-    CountingIterator<size_t> end_it = CountingIterator<size_t>(size() + 1);
+    CountingIterator<size_t> end_it = CountingIterator<size_t>(valid()? size() + 1 : 0);
     vertex_iterator vbegin (CountingIterator<size_t>(0), end_it, transformer);
     vertex_iterator vend(end_it, end_it, transformer);
     return {vbegin, vend};
