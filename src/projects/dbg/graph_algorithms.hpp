@@ -116,13 +116,13 @@ namespace ag {
         }
         bool ok = true;
         for(typename Traits::Vertex &v : to_merge.vertices()) {
-            if(v < start) {
+            if(v < start || v.rc() < start) {
                 ok = false;
                 break;
             }
         }
         for(typename Traits::Vertex &v : second_part.vertices()) {
-            if(v < start) {
+            if(v < start || v.rc() < start) {
                 ok = false;
                 break;
             }
@@ -240,6 +240,7 @@ template<class Traits>
     }
     template<class Traits>
     void MergePaths(logging::Logger &logger, size_t threads, const std::vector<GraphPath<Traits>> &paths) {
+        logger.trace() << "Merging unbranching paths" << std::endl;
         std::function<void(size_t, const GraphPath<Traits> &)> task =
                 [](size_t pos, const GraphPath<Traits> &path) {
                     CompressPath(path);
@@ -249,10 +250,8 @@ template<class Traits>
 
 template<class Traits>
 void MergeAll(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) {
-    logger.trace() << "Collecting unbranching paths" << std::endl;
     graph.resetMarkers();
     auto linear_paths = AllUnbranchingPaths(logger, threads, graph);
-    logger.trace() << "Merging unbranching paths" << std::endl;
     MergePaths(logger, threads, linear_paths);
     logger.trace() << "Removing isolated vertices" << std::endl;
     graph.removeMarked();

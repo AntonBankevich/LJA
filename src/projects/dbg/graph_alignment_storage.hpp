@@ -192,6 +192,8 @@ public:
     ReadLogger &getLogger() {return *readLogger;}
     void flush() {readLogger->flush();}
 
+    void checkCoverage(const dbg::SparseDBG &dbg) const;
+
     void Save(std::ostream &os) const;
 
     void Load(std::istream &is, IdIndex<dbg::Vertex> &index);

@@ -683,6 +683,9 @@ namespace ag {
         for(const Edge &e : other.edgesUnique()) {
             index.getById(e.getStart().getInnerId()).addEdgeLockFree(index.getById(e.getFinish().getInnerId()), e.getSeq(), e, e.getInnerId(), e.rc().getInnerId());
         }
+        for(Edge &edge : edges()) {
+            edge.incCov(-edge.intCov());
+        }
     }
 
     template<class Traits>

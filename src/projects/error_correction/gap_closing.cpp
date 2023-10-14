@@ -155,9 +155,15 @@ void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &
     if(patches.empty()) {
         return;
     }
-    AddConnections(logger, threads, dbg, storges, patches);
+    std::cout << "Checking unpacking" << std::endl;
+    for(size_t i = 0; i < storges.front()->size(); i++) {
+        if(storges.front()->operator[](i).valid()) {dbg::GraphPath al = storges.front()->operator[](i).path.unpack();}
+    }
+    std::cout << "Check passed" << std::endl;
+    dbg = AddConnections(logger, threads, dbg, storges, patches);
     MarkUnreliableTips(dbg, patches);
     CorrectTips(logger, threads, dbg, storges);
     printStats(logger, dbg);
+    storges.front()->checkCoverage(dbg);
     RemoveUncovered(logger, threads, dbg, storges);
 }

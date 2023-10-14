@@ -206,7 +206,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
             if(seg.right > covered_segments.back().right)
                 covered_segments.back() = covered_segments.back().unite(seg);
         } else {
-            if(seg.contig() != seg.contig().rc() || seg.left * 2 < seg.contig().truncSize())
+            if(seg.contig() != seg.contig().rc() || seg.left <= seg.RC().left)
                 covered_segments.emplace_back(seg);
         }
     }
@@ -241,8 +241,8 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     for(Edge &edge : dbg.edges()) {
         if(edge.intCov() > 0) {
             if(embedding.find(&edge) == embedding.end()) {
-                std::cout << edge.getId() << " " << edge.isCanonical() << " " << edge.rc().getId() << " " << edge.rc().isCanonical()
-                        << edge.getFinish().getId() << " " << edge.truncSize() << " " << edge.getCoverage() << " " << edge.rc().getCoverage()<< std::endl;
+                std::cout << edge.getId() << " " << edge.isCanonical() << " " << edge.rc().getId() << " " << edge.rc().isCanonical() << " "
+                        << edge.getFinish().getId() << " " << edge.truncSize() << " " << edge.getCoverage() << " " << edge.rc().getCoverage() << std::endl;
             }
             VERIFY(embedding.find(&edge) != embedding.end());
         }
@@ -276,7 +276,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     dbg = std::move(subgraph);
 }
 
-void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<RecordStorage *> &storages,
+dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const SparseDBG &dbg, const std::vector<RecordStorage *> &storages,
                const std::vector<Connection> &connections) {
     logger.info() << "Adding new connections to the graph" << std::endl;
     logger.trace() << "Creating a copy of the graph" << std::endl;
@@ -293,10 +293,13 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
     KmerIndex index(res);
     index.fillAnchors(logger, threads, res, 500);
     helper.checkConsistency(threads, logger, res);
+    for(Edge &e : dbg.edges()) {
+        e.is_reliable = false;
+    }
     std::function<void(size_t, Edge &)> task = [&index](size_t num, Edge &edge) {
         dbg::GraphPath al = index.align(edge.getSeq());
         VERIFY(al.truncLen() == edge.truncSize());
-        if(al.size() == 1 && al.len() == al[0].size()) {
+        if(al.size() == 1 && al.truncLen() == al.frontEdge().truncSize()) {
             edge.is_reliable = true;
             edge.rc().is_reliable = true;
         }
@@ -339,7 +342,7 @@ void AddConnections(logging::Logger &logger, size_t threads, SparseDBG &dbg, con
         new_storage.log_changes = storage.log_changes;
         storage = std::move(new_storage);
     }
-    dbg = std::move(res);
+    return std::move(res);
 }
 
 Connection::Connection(dbg::EdgePosition pos1, dbg::EdgePosition pos2, Sequence _connection) :

@@ -30,19 +30,26 @@ namespace dbg {
         std::unordered_map<VertexId, VertexId> vmap;
         for(Segment<Edge> &seg : pieces) {
             VERIFY(seg.contig().isCanonical());
-            if (seg.left == 0 && vmap.find(seg.contig().getStart().getId()) == vmap.end()) {
-                Vertex &newv = res.addKmerVertex(seg.contig().getStart().getSeq());
-                vmap[seg.contig().getStart().getId()] = newv.getId();
-                vmap[seg.contig().getStart().rc().getId()] = newv.rc().getId();
+            Vertex &oldv = seg.contig().getStart();
+            if (seg.left == 0 && vmap.find(oldv.getId()) == vmap.end()) {
+                Vertex &newv = res.addVertex(oldv);
+                vmap[oldv.getId()] = newv.getId();
+                vmap[oldv.rc().getId()] = newv.rc().getId();
             }
             Segment<Edge> rcSeg = seg.RC();
-            if (rcSeg.left == 0 && vmap.find(seg.RC().contig().getStart().getId()) == vmap.end()) {
-                Vertex &newv = res.addKmerVertex(rcSeg.contig().getStart().getSeq());
-                vmap[seg.RC().contig().getStart().getId()] = newv.getId();
-                vmap[seg.RC().contig().getStart().rc().getId()] = newv.rc().getId();
+            Vertex &rc_oldv = rcSeg.contig().getStart();
+            if (rcSeg.left == 0 && vmap.find(rc_oldv.getId()) == vmap.end()) {
+                Vertex &newv = res.addVertex(rc_oldv);
+                vmap[rc_oldv.getId()] = newv.getId();
+                vmap[rc_oldv.rc().getId()] = newv.rc().getId();
             }
+            if(seg.left == 0 && rcSeg.left == 0)
+                vmap[seg.contig().getStart().getId()]->addEdge(*vmap[seg.contig().getFinish().getId()], seg.fullSeq(),
+                                                               DBGEdgeData(), seg.contig().getInnerId(), rcSeg.contig().getInnerId());
+
         }
         for(Segment<Edge> &seg : pieces) {
+            if(seg.left == 0 && seg.RC().left == 0) continue;
             VertexId left;
             VertexId right;
             if (seg.left == 0) {

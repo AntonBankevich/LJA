@@ -208,7 +208,7 @@ namespace hashing {
     public:
         MinimizerCalculator(const Sequence &_seq, const RollingHash &_hasher, size_t _w) :
                 seq(_seq), w(_w), kwh(_hasher, seq, 0), pos(-1) {
-            VERIFY(w >= 2); //This code does not work for w = 1
+            VERIFY(w >= 1);
             VERIFY(seq.size() >= _hasher.getK() + w - 1)
             queue.push(kwh);
             for (size_t i = 1; i < w; i++) {

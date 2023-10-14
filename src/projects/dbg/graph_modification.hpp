@@ -18,5 +18,5 @@ public:
     Connection shrink() const;
 };
 
-void AddConnections(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
+dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const dbg::SparseDBG &dbg,
                     const std::vector<RecordStorage*> &storages, const std::vector<Connection> &connections);

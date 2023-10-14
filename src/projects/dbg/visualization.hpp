@@ -154,7 +154,11 @@ inline void printDot(std::ostream &os, const dbg::Component &component, const st
     for(dbg::VertexId vid : extended) {
         dbg::Vertex &vert = *vid;
         std::string color = component.covers(vert) ? "white" : "yellow";
-        os << vert.getShortId() << " [style=filled fillcolor=\"" + color + "\"]\n";
+        os << vert.getShortId();
+        os << " [style=filled fillcolor=\"" + color + "\"";
+        if(vert.size() < 10)
+            os << " label=" << vert.getSeq();
+        os << "]\n";
     }
     for(dbg::Edge &edge : component.edges()) {
         printEdge(os, edge, labeler(edge), edge_colorer(edge));

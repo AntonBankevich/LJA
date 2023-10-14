@@ -588,6 +588,26 @@ void RecordStorage::Load(std::istream &is, IdIndex<Vertex> &index) {
     }
 }
 
+void RecordStorage::checkCoverage(const SparseDBG &dbg) const {
+    VERIFY_MSG(track_cov, "Error: checking coverage using read storage that does not contribute to coverage");
+    std::unordered_map<dbg::EdgeId, size_t> map;
+    for(dbg::Edge &edge : dbg.edges()) {
+        map[edge.getId()] = 0;
+    }
+    for(const AlignedRead &read: *this) {
+        if(!read.valid())
+            continue;
+        dbg::GraphPath path = read.path.unpack();
+        for(auto seg : path) {
+            map[seg.contig().getId()] += seg.size();
+            map[seg.contig().rc().getId()] += seg.size();
+        }
+    }
+    for(dbg::Edge &edge : dbg.edges()) {
+        VERIFY_MSG(edge.intCov() == map[edge.getId()], "Coverage calculation failed");
+    }
+}
+
 void SaveAllReads(const std::experimental::filesystem::path &fname, const std::vector<RecordStorage *> &recs) {
     std::ofstream os;
     os.open(fname);
