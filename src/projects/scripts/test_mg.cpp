@@ -1,4 +1,3 @@
-#include "../lja/subdataset_processing.hpp"
 #include "dbg/multi_graph.hpp"
 #include "dbg/id_index.hpp"
 #include "sequences/seqio.hpp"
@@ -12,8 +11,8 @@ int main(int argc, char **argv) {
     //multigraph::MultiGraph mg = mmg.DBG();
 
     multigraph::MGVertex &v = mg.addVertex(Sequence("AT"), multigraph::MGVertexData("getVertex"), 23);
-    auto &e1 = v.addEdge(v, Sequence("ATATAT"), {"e1"});
-    auto &e2 = v.addEdge(v, Sequence("ATCAT"), {"e2"});
+    auto &e1 = v.addEdge(v, Sequence("ATATAT"), multigraph::MGEdgeData("e1"));
+    auto &e2 = v.addEdge(v, Sequence("ATCAT"), multigraph::MGEdgeData("e2"));
     IdIndex<multigraph::Vertex> index(mg.vertices().begin(), mg.vertices().end());
     std::cerr <<v.getId() << " "<< index.getById(23).getId() <<std::endl;
     std::cerr << index.getById(23).getId() <<std::endl;

@@ -57,27 +57,27 @@ public:
         size_t new_rel = 0;
         if(component.countBorderEdges() != 4 || component.realCC() != 2 || !component.isAcyclic())
             return 0;
-        std::unordered_set<dbg::Edge *> used;
+        std::unordered_set<dbg::EdgeId> used;
         size_t found = 0;
         for(size_t cnt = 0; cnt < 2; cnt++) {
-            for(dbg::Edge &edge : component.edges()) {
-                if(component.contains(edge.getStart()) || used.find(&edge) != used.end())
+            for(dbg::Edge &startEdge : component.edges()) {
+                if(component.contains(startEdge.getStart()) || used.find(startEdge.getId()) != used.end())
                     continue;
-                std::unordered_map<dbg::Vertex *, std::pair<size_t, dbg::Edge *>> prev;
+                std::unordered_map<dbg::VertexId, std::pair<size_t, dbg::EdgeId>> prev;
                 std::vector<dbg::Vertex *> order = component.topSort();
                 for(dbg::Vertex * vit : order) {
                     size_t best_score = 0;
-                    dbg::Edge *p = nullptr;
-                    for(dbg::Edge &edge : vit->rc()) {
+                    dbg::EdgeId p;
+                    for(dbg::Edge &edge : vit->incoming()) {
                         size_t score = 0;
-                        if(!component.contains(edge.getFinish())) {
+                        if(!component.contains(edge.getStart())) {
                             VERIFY(edge.getMarker() == ag::EdgeMarker::unique);
-                            if(used.find(&edge) == used.end())
+                            if(used.find(edge.getId()) == used.end())
                                 score = 1000000;
                             else
                                 score = 0;
-                        } else {
-                            if(used.find(&edge) == used.end())
+                        } else if(prev[edge.getStart().getId()].second.valid()){
+                            if(used.find(edge.getId()) == used.end())
                                 score = edge.intCov() - std::min(edge.intCov(), edge.truncSize());
                             else if(edge.getCoverage() < 8) {
                                 score = 0;
@@ -85,23 +85,23 @@ public:
                                 score = edge.truncSize() * 2;
                             }
                         }
-                        score += prev[&edge.getFinish().rc()].first;
+                        score += prev[edge.getStart().getId()].first;
                         if(score > best_score) {
                             best_score = score;
-                            p = &edge.rc();
+                            p = edge.getId();
                         }
                     }
                     if(best_score == 0) {
-                        prev.emplace(vit, std::make_pair(best_score, p));
+                        prev.emplace(vit->getId(), std::make_pair(best_score, p));
                     } else {
-                        VERIFY(p != nullptr);
-                        prev.emplace(vit, std::make_pair(best_score, p));
+                        VERIFY(p.valid());
+                        prev.emplace(vit->getId(), std::make_pair(best_score, p));
                     }
                 }
                 dbg::Edge *best = nullptr;
                 for(dbg::Edge &edge : component.edges()) {
-                    if(!component.contains(edge.getFinish()) && used.find(&edge) == used.end()) {
-                        if(best == nullptr || prev[&edge.getStart()].first > prev[&best->getStart()].first) {
+                    if(!component.contains(edge.getFinish()) && used.find(edge.getId()) == used.end() && prev[edge.getStart().getId()].second.valid()) {
+                        if(best == nullptr || prev[edge.getStart().getId()].first > prev[best->getStart().getId()].first) {
                             best = &edge;
                         }
                     }
@@ -111,29 +111,30 @@ public:
                 found++;
                 dbg::GraphPath res(best->rc());
                 while(component.contains(res.finish())) {
-                    res += prev[&res.finish().rc()].second->rc();
+                    res += prev[res.finish().rc().getId()].second->rc();
                 }
                 VERIFY(!component.contains(res.finish()));
-                VERIFY(used.find(&res.backEdge()) == used.end());
+                VERIFY(used.find(res.backEdge().getId()) == used.end());
                 for(dbg::Edge &edge : res.edges()) {
-                    used.emplace(&edge);
-                    used.emplace(&edge.rc());
+                    used.emplace(edge.getId());
+                    used.emplace(edge.rc().getId());
                 }
             }
         }
         if(found != 2)
             return 0;
         for(dbg::Edge &edge : component.edgesInner()) {
-            if(edge.getMarker() == ag::EdgeMarker::common)
-                if(used.find(&edge) == used.end()) {
+            if(edge.getMarker() == ag::EdgeMarker::common) {
+                if (used.find(edge.getId()) == used.end()) {
                     edge.mark(ag::EdgeMarker::incorrect);
                 } else {
-                    if(!edge.is_reliable) {
+                    if (!edge.is_reliable) {
                         edge.is_reliable = true;
                         new_rel++;
                     }
                     edge.mark(ag::EdgeMarker::correct);
                 }
+            }
         }
         return new_rel;
     }

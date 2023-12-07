@@ -74,7 +74,7 @@ namespace dbg {
     public:
         DBGEdge(id_type id, Vertex &_start, Vertex &_end, Sequence _seq, DBGEdgeData data) :
                 BaseEdge<DBGTraits>(id, _start, _end, std::move(_seq)), DBGEdgeData(std::move(data)) {}
-        bool is_reliable = false;
+        mutable bool is_reliable = false;
         void incCov(int delta) {
 #pragma omp atomic
             cov += delta;

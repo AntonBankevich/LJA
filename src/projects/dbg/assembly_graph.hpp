@@ -144,6 +144,11 @@ namespace ag {
         ConstEdgeId getId() const {return {getInnerId(), dynamic_cast<const Edge *>(this)};}
 
         const Sequence &truncSeq() const { return seq; }
+        const Sequence nuclLabel() const {
+            if(truncSeq().empty())
+                return {};
+            return truncSeq().Subseq(0, 1);
+        }
         Sequence kmerSeq(size_t pos) const {return fullSubseq(pos, pos);}
 
 
@@ -230,7 +235,7 @@ namespace ag {
         }
 
         std::string getShortId() const {
-            return start->getShortId() + "." + itos(id.eid) + "ACGT"[truncSeq()[0]];
+            return start->getShortId() + "." + itos(id.eid) + nuclLabel().str();
         }
 
         Sequence firstNucl() const {
@@ -300,7 +305,7 @@ namespace ag {
         bool mark_ = false;
         int max_out_id = 0;
 
-        Edge &innerAddEdge(Vertex &end, const Sequence &full_sequence, EdgeData data, BaseEdgeId eid = {});
+        Edge &innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, BaseEdgeId eid = {});
         void setRC(Vertex &other) {
             rc_ = &other;
             rc_->rc_ = dynamic_cast<Vertex *>(this);
@@ -341,11 +346,26 @@ namespace ag {
         void setSeq(Sequence _seq);
 
         size_t size() const { return seq.size(); }
+        size_t getStartSize() const {return 0;};
+        size_t truncSize() const {return seq.size();}
 
-        const Sequence &getSeq() const { return seq; }
+        virtual Sequence getSeq() const { return seq; }
+        Sequence truncSeq() const {return seq;}
 
         typename std::list<Edge>::iterator begin() const { return outgoing_.begin(); }
         typename std::list<Edge>::iterator end() const { return outgoing_.end(); }
+        IterableStorage<TransformingIterator<typename std::list<Edge>::iterator, Edge>> incoming() {
+            std::function<Edge &(Edge &)> transform = [](Edge &edge) -> Edge & {
+                return edge.rc();
+            };
+            return {{rc().begin(), rc().end(), transform}, {rc().end(), rc().end(), transform}};
+        }
+        IterableStorage<TransformingIterator<typename std::list<Edge>::const_iterator, const Edge>> incoming() const {
+            std::function<const Edge &(const Edge &)> transform = [](const Edge &edge) -> const Edge & {
+                return edge.rc();
+            };
+            return {{rc().begin(), rc().end(), transform}, {rc().end(), rc().end(), transform}};
+        }
         Edge &front() const { return outgoing_.front(); }
         Edge &back() const { return outgoing_.back(); }
         void sortOutgoing();
@@ -362,11 +382,17 @@ namespace ag {
 //        This method should only be invoked if no graph modification is performed in parallel or if both start and
 //        rc end vertices are locked by this process or otherwise prevented from modification by other processes
         Edge &addEdgeLockFree(Vertex &end, const Sequence &full_sequence, EdgeData data = {}, BaseEdgeId eid = {}, BaseEdgeId rcid = {});
+        Edge &addEdgeLockFree(Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data = {}, BaseEdgeId eid = {}, BaseEdgeId rcid = {});
         bool removeEdgeLockFree(Edge &edge);
 
-        Edge &addEdge(Vertex &end, const Sequence &full_sequence, EdgeData data = {}, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
+        Edge &addEdge(Vertex &end, const Sequence &full_seq, EdgeData data = {}, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
             Locker<BaseVertex<Traits>> locker({this, &end.rc()});
-            return addEdgeLockFree(end, full_sequence, data, eid, rcid);
+            return addEdgeLockFree(end, full_seq, std::move(data), eid, rcid);
+        }
+
+        Edge &addEdge(Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data = {}, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
+            Locker<BaseVertex<Traits>> locker({this, &end.rc()});
+            return addEdgeLockFree(end, tseq, rctseq, std::move(data), eid, rcid);
         }
 
         bool removeEdge(Edge &edge) {
@@ -440,6 +466,8 @@ namespace ag {
     public:
         typedef typename Traits::Vertex Vertex;
         typedef typename Traits::Edge Edge;
+        typedef typename Vertex::VertexId VertexId;
+        typedef typename Edge::EdgeId EdgeId;
         typedef typename Traits::VertexData VertexData;
         typedef typename Traits::EdgeData EdgeData;
         typedef std::list<Vertex> vertex_storage_type;
@@ -495,12 +523,12 @@ namespace ag {
         IterableStorage<SkippingIterator<AssemblyGraph::const_vertex_iterator_type>> verticesUnique() const && = delete;
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 4>> edges(bool unique = false) &;
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 4>> edges(bool unique = false) && = delete;
-        IterableStorage<ApplyingIterator<const_vertex_iterator_type, Edge, 4>> edges(bool unique = false) const &;
-        IterableStorage<ApplyingIterator<const_vertex_iterator_type, Edge, 4>> edges(bool unique = false) const && = delete;
+        IterableStorage<ApplyingIterator<const_vertex_iterator_type, const Edge, 4>> edges(bool unique = false) const &;
+        IterableStorage<ApplyingIterator<const_vertex_iterator_type, const Edge, 4>> edges(bool unique = false) const && = delete;
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 4>> edgesUnique() &;
         IterableStorage<ApplyingIterator<vertex_iterator_type, Edge, 4>> edgesUnique() && = delete;
-        IterableStorage<ApplyingIterator<const_vertex_iterator_type, Edge, 4>> edgesUnique() const &;
-        IterableStorage<ApplyingIterator<const_vertex_iterator_type, Edge, 4>> edgesUnique() const && = delete;
+        IterableStorage<ApplyingIterator<const_vertex_iterator_type, const Edge, 4>> edgesUnique() const &;
+        IterableStorage<ApplyingIterator<const_vertex_iterator_type, const Edge, 4>> edgesUnique() const && = delete;
     };
 
     template<class Traits>
@@ -561,6 +589,12 @@ namespace ag {
     template<class Traits>
     IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::vertex_iterator_type, typename Traits::Edge, 4>> AssemblyGraph<Traits>::edges(bool unique) & {
         std::function<std::array<Edge*, 4>(Vertex &)> apply = [unique](Vertex &vertex) {
+            if(vertex.outDeg() > 4) {
+                std::cout << vertex.getSeq() << std::endl;
+                for(Edge &e : vertex) {
+                    std::cout << e.truncSeq() << std::endl;
+                }
+            }
             VERIFY(vertex.outDeg() <= 4);
             std::array<Edge*, 4> res = {};
             size_t cur = 0;
@@ -578,11 +612,11 @@ namespace ag {
     }
 
     template<class Traits>
-    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type, typename Traits::Edge, 4>> AssemblyGraph<Traits>::edges(bool unique) const & {
-        std::function<std::array<Edge*, 4>(const Vertex &)> apply = [unique](const Vertex &vertex) {
-            std::array<Edge*, 4> res = {};
+    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type, const typename Traits::Edge, 4>> AssemblyGraph<Traits>::edges(bool unique) const & {
+        std::function<std::array<const Edge*, 4>(const Vertex &)> apply = [unique](const Vertex &vertex) {
+            std::array<const Edge*, 4> res = {};
             size_t cur = 0;
-            for(Edge &edge : vertex) {
+            for(const Edge &edge : vertex) {
                 if(!unique || edge <= edge.rc()) {
                     res[cur] = &edge;
                     cur++;
@@ -590,8 +624,8 @@ namespace ag {
             }
             return res;
         };
-        ApplyingIterator<const_vertex_iterator_type, Edge, 4> begin(vertex_list.begin(), vertex_list.end(), apply);
-        ApplyingIterator<const_vertex_iterator_type, Edge, 4> end(vertex_list.end(), vertex_list.end(), apply);
+        ApplyingIterator<const_vertex_iterator_type, const Edge, 4> begin(vertex_list.begin(), vertex_list.end(), apply);
+        ApplyingIterator<const_vertex_iterator_type, const Edge, 4> end(vertex_list.end(), vertex_list.end(), apply);
         return {begin, end};
     }
 
@@ -601,7 +635,7 @@ namespace ag {
     }
 
     template<class Traits>
-    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type, typename Traits::Edge, 4>> AssemblyGraph<Traits>::edgesUnique() const &{
+    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type, const typename Traits::Edge, 4>> AssemblyGraph<Traits>::edgesUnique() const &{
         return edges(true);
     }
 
@@ -717,8 +751,10 @@ namespace ag {
     void BaseVertex<Traits>::checkConsistency() const {
         VERIFY(isCanonical() || rc().isCanonical());
         VERIFY(*this == rc() || isCanonical() != rc().isCanonical());
+        VERIFY(isCanonical() == seq <= !seq);
         for (const Edge &edge : outgoing_) {
             VERIFY(edge.isCanonical() || edge.rc().isCanonical());
+//            VERIFY(edge.isCanonical() == edge.getSeq() <= !edge.getSeq());
             VERIFY(edge == edge.rc() || (edge.isCanonical() != edge.rc().isCanonical()));
             VERIFY(edge.rc().getFinish() == this->rc());
             VERIFY(std::find(edge.getFinish().rc().begin(), edge.getFinish().rc().end(), edge.rc()) != edge.getFinish().rc().end());
@@ -758,14 +794,14 @@ namespace ag {
 //    }
 
     template<class Traits>
-    typename Traits::Edge &BaseVertex<Traits>::innerAddEdge(Vertex &end, const Sequence &full_sequence, EdgeData data, BaseEdgeId eid) {
+    typename Traits::Edge &BaseVertex<Traits>::innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, BaseEdgeId eid) {
         if (!eid.valid()) {
             max_out_id++;
             eid = {id, max_out_id};
         } else {
             max_out_id = std::max(max_out_id, eid.eid);
         }
-        outgoing_.emplace_back(eid, *dynamic_cast<Vertex*>(this), end, full_sequence.Subseq(size()), std::move(data));
+        outgoing_.emplace_back(eid, *dynamic_cast<Vertex*>(this), end, tseq, std::move(data));
         Edge &edge = outgoing_.back();
         _outDeg++;
         fireAddEdge(edge);
@@ -840,9 +876,28 @@ namespace ag {
                 return edge;
             }
         }
-        Edge &res = innerAddEdge(end, full_sequence, data, eid);
+        Edge &res = innerAddEdge(end, full_sequence.Subseq(size()), data, eid);
         if(end.rc() != *this || full_sequence != !full_sequence) {
-            Edge &rc_edge = end.rc().innerAddEdge(rc(), !full_sequence, data.RC(), rcid);
+            Edge &rc_edge = end.rc().innerAddEdge(rc(), full_sequence.rc().Subseq(end.size()), data.RC(), rcid);
+            res._rc = &rc_edge;
+            rc_edge._rc = &res;
+        } else {
+            res._rc = &res;
+        }
+        VERIFY(res.fullSize() == res.rc().fullSize());
+        return res;
+    }
+
+    template<class Traits>
+    typename Traits::Edge &BaseVertex<Traits>::addEdgeLockFree(Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data, BaseEdgeId eid, BaseEdgeId rcid) {
+        for(Edge &edge: outgoing_) {
+            if(edge.getFinish() == end && edge.truncSeq() == tseq) {
+                return edge;
+            }
+        }
+        Edge &res = innerAddEdge(end, tseq, data, eid);
+        if(end.rc() != *this || (tseq.size() > size() && tseq.rc().Subseq(size()) != rctseq.rc().Subseq(size()))) {
+            Edge &rc_edge = end.rc().innerAddEdge(rc(),rctseq, data.RC(), rcid);
             res._rc = &rc_edge;
             rc_edge._rc = &res;
         } else {

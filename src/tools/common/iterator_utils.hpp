@@ -215,6 +215,17 @@ public:
         return other;
     }
 
+    TransformingIterator& operator--() {
+        --iterator;
+        return *this;
+    }
+
+    TransformingIterator operator--(int) const {
+        TransformingIterator other = *this;
+        --other;
+        return other;
+    }
+
     bool operator==(const TransformingIterator &other) const {
         return iterator== other.iterator && end == other.end;
     }

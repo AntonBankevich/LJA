@@ -362,7 +362,7 @@ namespace multigraph {
                     v1 = v1->rc().getId();
                 }
                 VERIFY(v1->getSeq().Subseq(v1->getSeq().size() - overlap) == v2->getSeq().Subseq(0, overlap));
-                v1->addEdge(*v2, v1->getSeq() + v2->getSeq().Subseq(overlap), {""});
+                v1->addEdge(*v2, v1->getSeq() + v2->getSeq().Subseq(overlap), MGEdgeData(""));
             }
         }
         is.close();
@@ -380,7 +380,7 @@ namespace multigraph {
                 std::string name = tokens[1];
                 Sequence edgeseq = Sequence(tokens[2]);
                 std::vector<std::string> ids = ::split(name, "_");
-                VERIFY_OMP(ids.size() == 2, "Incorrect format of edge id in fasta file: " + name);
+                VERIFY_OMP(ids.size() == 2, "Incorrect format of edge id in gfa file: " + name);
                 Edge::id_type eid = Parse<Edge::id_type>(ids[0]);
                 Edge::id_type rceid = Parse<Edge::id_type>(ids[1]);
                 edges.emplace_back(edgeseq, eid, rceid);

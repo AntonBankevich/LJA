@@ -21,7 +21,7 @@ dbg::GraphPath realignRead(const dbg::GraphPath &al,
         }
     }
     if(new_start_edge == nullptr) {
-        std::cout << al.str() << std::endl;
+        std::cout << al.covStr() << std::endl;
         std::cout << it->second << std::endl;
     }
     VERIFY_OMP(new_start_edge != nullptr, "Could not find getStart edge for alignment");
@@ -293,10 +293,10 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
     KmerIndex index(res);
     index.fillAnchors(logger, threads, res, 500);
     helper.checkConsistency(threads, logger, res);
-    for(Edge &e : dbg.edges()) {
+    for(const Edge &e : dbg.edges()) {
         e.is_reliable = false;
     }
-    std::function<void(size_t, Edge &)> task = [&index](size_t num, Edge &edge) {
+    std::function<void(size_t, const Edge &)> task = [&index](size_t num, const Edge &edge) {
         dbg::GraphPath al = index.align(edge.getSeq());
         VERIFY(al.truncLen() == edge.truncSize());
         if(al.size() == 1 && al.truncLen() == al.frontEdge().truncSize()) {

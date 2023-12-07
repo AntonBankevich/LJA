@@ -165,6 +165,9 @@ public:
         InitFromNucls(s, rc);
     }
 
+    explicit Sequence(char c) : Sequence(std::vector<char>({c})){
+    }
+
     explicit Sequence(const std::vector<unsigned char> &s, bool rc = false)
             : Sequence(s.size(), 0) {
         InitFromNucls(s, rc);
@@ -268,8 +271,16 @@ public:
         return false;
     }
 
+    bool operator>(const Sequence &other) const {
+        return other < *this;
+    }
+
     bool operator<=(const Sequence &other) const {
         return !(other < *this);
+    }
+
+    bool operator>=(const Sequence &other) const {
+        return !(other > *this);
     }
 
     bool operator!=(const Sequence &that) const {
@@ -348,8 +359,12 @@ public:
         return true;
     }
 
-    Sequence operator!() const {
+    Sequence rc() const {
         return Sequence(*this, from_, size_, !rtl_);
+    }
+
+    Sequence operator!() const {
+        return rc();
     }
 
     size_t commonPrefix(const Sequence & other) const {

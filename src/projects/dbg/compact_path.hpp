@@ -26,19 +26,19 @@ namespace ag {
 
         explicit CompactPath(const GraphPath<Traits> &path) :
                 _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
-            std::vector<char> edges;
+            SequenceBuilder sb;
             for (Edge &edge: path.edges()) {
-                edges.push_back(edge.truncSeq()[0]);
+                sb.append(edge.nuclLabel());
             }
-            _edges = Sequence(edges);
+            _edges = sb.BuildSequence();
         }
 
         static CompactPath Subpath(const GraphPath<Traits> &path, size_t left, size_t right) {
-            std::vector<char> edges;
+            SequenceBuilder sb;
             for (size_t i = left; i < right; i++) {
-                edges.push_back(path[i].contig().truncSeq()[0]);
+                sb.append(path[i].contig().nuclLabel());
             }
-            return {path.getVertex(left), Sequence(edges), path[left].left, path[right - 1].RC().left};
+            return {path.getVertex(left), sb.BuildSequence(), path[left].left, path[right - 1].RC().left};
         }
 
         bool valid() const {

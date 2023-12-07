@@ -94,10 +94,10 @@ std::string BulgePath::str() const {
     ss << start().getShortId();
     for(const auto &p : path) {
         if(p.first == p.second) {
-            ss << "-" << p.first->truncSize() << "ACGT"[p.first->truncSeq()[0]] << "-" << p.first->getFinish().getShortId();
+            ss << "-" << p.first->truncSize() << p.first->nuclLabel() << "-" << p.first->getFinish().getShortId();
         } else {
-            ss << "-(" << p.first->truncSize() << "ACGT"[p.first->truncSeq()[0]] << "," <<
-               p.second->truncSize() << "ACGT"[p.second->truncSeq()[0]] << ")-" << p.first->getFinish().getShortId();
+            ss << "-(" << p.first->truncSize() << p.first->nuclLabel() << "," <<
+               p.second->truncSize() << p.second->nuclLabel() << ")-" << p.first->getFinish().getShortId();
         }
     }
     return ss.str();

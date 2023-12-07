@@ -68,7 +68,7 @@ namespace dbg {
     class LengthSplitter : public ConditionSplitter {
     public:
         explicit LengthSplitter(size_t min_len) :
-                    ConditionSplitter([min_len](const Edge& edge){return edge.truncSize() > min_len;}){
+                    ConditionSplitter([min_len](const Edge& edge){return edge.fullSize() > min_len;}){
         }
     };
 

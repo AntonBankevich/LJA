@@ -105,7 +105,7 @@ namespace dbg {
                     if (path.finish() != vertex) {
                         std::cout << path.start().getInnerId() << " " << path.finish().getInnerId() << " "
                                   << path.size() <<
-                                  " " << path.finish().isJunction() << " " << "ACGT"[path.backEdge().rc().truncSeq()[0]]
+                                  " " << path.finish().isJunction() << " " << path.backEdge().rc().nuclLabel()
                                   << std::endl;
                     }
                     VERIFY(path.finish() == vertex);

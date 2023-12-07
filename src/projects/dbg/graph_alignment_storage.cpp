@@ -74,7 +74,7 @@ bool VertexRecord::isDisconnected(const Edge &edge) const {
     if(edge.getFinish().outDeg() == 0)
         return false;
     for(const std::pair<Sequence, size_t> &rec : paths) { // NOLINT(readability-use-anyofallof)
-        if(rec.second > 0 && rec.first[0] == edge.truncSeq()[0] && rec.first.size() > 1)
+        if(rec.second > 0 && rec.first.startsWith(edge.nuclLabel()) && rec.first.size() > 1)
             return false;
     }
     return true;
@@ -241,7 +241,7 @@ ReadLogger::~ReadLogger() {
 
 void ReadLogger::logRead(AlignedRead &alignedRead) {
     CountingSS &ss = logs[omp_get_thread_num()];
-    ss << alignedRead.id << " initial " << alignedRead.path.unpack().str(true) << "\n";
+    ss << alignedRead.id << " initial " << alignedRead.path.unpack().covStr(true) << "\n";
     if(ss.size() > 100000) {
         dump(ss);
     }
@@ -267,8 +267,8 @@ void ReadLogger::logRerouting(AlignedRead &alignedRead, const dbg::GraphPath &in
         right++;
     }
     ss << alignedRead.id << " " << message  << " " << left << "(" << left_len << ") " << right << "(" << right_len << ")\n";
-    ss << alignedRead.id << "  initial  " << initial.subPath(left, initial.size() - right).str(true) << "\n";
-    ss << alignedRead.id << " corrected " << corrected.subPath(left, corrected.size() - right).str(true) << "\n";
+    ss << alignedRead.id << "  initial  " << initial.subPath(left, initial.size() - right).covStr(true) << "\n";
+    ss << alignedRead.id << " corrected " << corrected.subPath(left, corrected.size() - right).covStr(true) << "\n";
 //        ss << alignedRead.id << " rc  initial  " << initial.RC().str(true) << "\n";
 //        ss << alignedRead.id << " rc corrected " << corrected.RC().str(true) << "\n";
     if(ss.size() > 100000) {
@@ -286,12 +286,14 @@ void RecordStorage::processPath(const CompactPath &cpath, const std::function<vo
     size_t clen = al[0].contig().truncSize();
     for (size_t i = 1; i <= al.size(); i++) {
         clen -= al[i - 1].contig().truncSize();
-        while (j < al.size() && clen < max_len) {
+        VERIFY(j >= i);
+        while (j < al.size() && (clen < max_len || clen == 0)) {
             clen += al[j].contig().truncSize();
             j++;
         }
-        if (clen >= min_len)
+        if (clen >= min_len) {
             task(al.getVertex(i - 1), cpath.cpath().Subseq(i - 1, j));
+        }
     }
 }
 
@@ -312,7 +314,7 @@ std::function<std::string(Edge &)> RecordStorage::labeler() const {
             std::stringstream ss;
             size_t cnt = 0;
             for (const auto &ext : rec) {
-                if (ext.first[0] == edge.truncSeq()[0]) {
+                if (ext.first.startsWith(edge.nuclLabel())) {
                     if(cnt < 30)
                         ss << ext.first << "(" << ext.second << ")\\n";
                     cnt++;
@@ -519,8 +521,8 @@ void RecordStorage::printFullAlignments(logging::Logger &logger, const std::expe
         const CompactPath &al = read.path;
         if(!al.valid())
             continue;
-        os << read.id << " " << read.path.unpack().str(true) << "\n";
-        os << "-" << read.id << " " << read.path.unpack().RC().str(true) << "\n";
+        os << read.id << " " << read.path.unpack().covStr(true) << "\n";
+        os << "-" << read.id << " " << read.path.unpack().RC().covStr(true) << "\n";
     }
     os.close();
 }
@@ -590,8 +592,8 @@ void RecordStorage::Load(std::istream &is, IdIndex<Vertex> &index) {
 
 void RecordStorage::checkCoverage(const SparseDBG &dbg) const {
     VERIFY_MSG(track_cov, "Error: checking coverage using read storage that does not contribute to coverage");
-    std::unordered_map<dbg::EdgeId, size_t> map;
-    for(dbg::Edge &edge : dbg.edges()) {
+    std::unordered_map<dbg::ConstEdgeId, size_t> map;
+    for(const dbg::Edge &edge : dbg.edges()) {
         map[edge.getId()] = 0;
     }
     for(const AlignedRead &read: *this) {
@@ -603,7 +605,7 @@ void RecordStorage::checkCoverage(const SparseDBG &dbg) const {
             map[seg.contig().rc().getId()] += seg.size();
         }
     }
-    for(dbg::Edge &edge : dbg.edges()) {
+    for(const dbg::Edge &edge : dbg.edges()) {
         VERIFY_MSG(edge.intCov() == map[edge.getId()], "Coverage calculation failed");
     }
 }

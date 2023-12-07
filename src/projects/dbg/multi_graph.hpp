@@ -138,7 +138,7 @@ namespace multigraph {
         MultiGraphHelper() = default;
 
         static MultiGraph LoadGFA(const std::experimental::filesystem::path &gfa_file, bool int_ids);
-        MultiGraph LoadEdgeGFA(const std::experimental::filesystem::path &gfa_file, size_t K);
+        static MultiGraph LoadEdgeGFA(const std::experimental::filesystem::path &gfa_file, size_t K);
         static MultiGraph TransformToEdgeGraph(const MultiGraph &mg, size_t tip_size = 4001);
         static MultiGraph Delete(const MultiGraph &mg, const std::unordered_set<ConstEdgeId> &to_delete, const std::unordered_set<ConstVertexId> &to_delete_vertices = {});
 

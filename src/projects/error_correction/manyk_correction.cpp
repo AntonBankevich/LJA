@@ -143,7 +143,8 @@ std::string ManyKCorrector::correctRead(dbg::GraphPath &read_path) {
     message = join("_", messages);
     if(corrected.truncLen() < 100) {
 #pragma omp critical
-            std::cout << corrected.truncLen() << " " << message << "\n " << read_path.str(true) << "\n " << corrected.str(true) << std::endl;
+            std::cout << corrected.truncLen() << " " << message << "\n " << read_path.covStr(true) << "\n " << corrected.covStr(
+                    true) << std::endl;
     }
     read_path = corrected;
     return message;

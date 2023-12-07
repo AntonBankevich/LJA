@@ -117,7 +117,7 @@ public:
     void logInvalidate(AlignedRead &alignedRead, const std::string &message) {
         CountingSS &ss = logs[omp_get_thread_num()];
         ss << alignedRead.id << " invalidated " << message << ")\n";
-        ss << alignedRead.id << "    final    " << alignedRead.path.unpack().str(true) << "\n";
+        ss << alignedRead.id << "    final    " << alignedRead.path.unpack().covStr(true) << "\n";
         if(ss.size() > 100000) {
             dump(ss);
         }
@@ -205,6 +205,7 @@ void LoadAllReads(const std::experimental::filesystem::path &fname, const std::v
 
 template<class I>
 void RecordStorage::fill(logging::Logger &logger, size_t threads, I begin, I end, dbg::SparseDBG &dbg, dbg::KmerIndex &index) {
+    VERIFY(index.alignmentReady());
     if (track_cov) {
         logger.info() << "Cleaning edge coverages" << std::endl;
         for(dbg::Edge & edge: dbg.edges()) {
@@ -215,9 +216,10 @@ void RecordStorage::fill(logging::Logger &logger, size_t threads, I begin, I end
     if(track_suffixes) {
         logger.info() << "Storing suffixes of read paths of length up to " << this->max_len << std::endl;
     }
+    threads = 1;
     ParallelRecordCollector<std::tuple<size_t, std::string, dbg::CompactPath>> tmpReads(threads);
     ParallelCounter cnt(threads);
-    std::function<void(size_t, StringContig &)> read_task = [this, &tmpReads, &cnt, &index](size_t pos, StringContig & scontig) {
+    std::function<void(size_t, StringContig &)> read_task = [this, &tmpReads, &cnt, &index](size_t pos, StringContig &scontig) {
         Contig contig = scontig.makeContig();
         if(contig.truncSize() < index.minReadLen()) {
             tmpReads.emplace_back(pos, contig.getInnerId(), dbg::CompactPath());

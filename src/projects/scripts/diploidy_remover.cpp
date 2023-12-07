@@ -358,7 +358,7 @@ private:
                 if(to_remove.find(b1.getId()) != to_remove.end()|| to_remove.find(b2.getId()) != to_remove.end())
                     continue;
                 Sequence seq = in1.getSeq() + b1.getSeq().Subseq(v.size()) + in2.rc().getSeq().Subseq(v.size());
-                in1.getStart().addEdge(in2.getFinish().rc(), seq, {""});
+                in1.getStart().addEdge(in2.getFinish().rc(), seq, MGEdgeData(""));
                 to_remove.insert(in1.getId());
                 to_remove.insert(in2.getId());
                 to_remove.insert(b1.getId());

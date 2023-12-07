@@ -300,8 +300,8 @@ size_t collapseBulges(logging::Logger &logger, RecordStorage &reads_storage, Rec
             }
             collapsable_cnt.emplace_back(&edge);
             collapsable_cnt.emplace_back(&rcEdge);
-            bool edge_supp = rec.countStartsWith(Sequence(std::vector<char>({char(edge.truncSeq()[0])}))) > 0;
-            bool alt_supp = rec.countStartsWith(Sequence(std::vector<char>({char(alt.truncSeq()[0])}))) > 0;
+            bool edge_supp = rec.countStartsWith(edge.nuclLabel()) > 0;
+            bool alt_supp = rec.countStartsWith(alt.nuclLabel()) > 0;
             if(edge_supp != alt_supp) {
                 genome_cnt.emplace_back(&edge);
                 genome_cnt.emplace_back(&rcEdge);

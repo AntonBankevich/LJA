@@ -157,13 +157,14 @@ namespace dbg {
             sz += edge.truncSize();
         }
         for(Vertex &vertex: dbg.vertices()) {
-            std::vector<char> out;
+            std::vector<Sequence> out;
             for(Edge &edge : vertex) {
-                out.emplace_back(edge.truncSeq()[0]);
+                out.emplace_back(edge.nuclLabel());
             }
             std::sort(out.begin(), out.end());
             for(size_t i = 0; i + 1 < out.size(); i++) {
-                VERIFY(out[i] != out[i + 1]);
+                VERIFY(!out[i].startsWith(out[i + 1]));
+                VERIFY(!out[i + 1].startsWith(out[i]));
             }
         }
         if(sz > 10000000)
@@ -453,10 +454,10 @@ namespace dbg {
         for (Vertex &v: dbg.verticesUnique()) {
             os << v.getInnerId() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
             for (const Edge &edge: v) {
-                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
+                os << edge.nuclLabel() << " " << edge.intCov() << std::endl;
             }
             for (const Edge &edge: v.rc()) {
-                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
+                os << edge.nuclLabel() << " " << edge.intCov() << std::endl;
             }
         }
 //    dbg.printCoverageStats(logger);
@@ -478,15 +479,15 @@ namespace dbg {
             std::stringstream ss;
             ss << read.getInnerId() << " " << path.start().getInnerId() << " ";
             for (Edge &edge : path.edges()) {
-                ss << acgt[edge.truncSeq()[0]];
+                ss << edge.nuclLabel();
             }
             alignment_results.emplace_back(ss.str());
             Contig rc_read = read.RC();
             dbg::GraphPath rc_path = index.align(rc_read.getSeq());
             std::stringstream rc_ss;
             rc_ss << rc_read.getInnerId() << " " << rc_path.start().getInnerId() << " ";
-            for (size_t i = 0; i < rc_path.size(); i++) {
-                rc_ss << acgt[rc_path[i].truncSeq()[0]];
+            for (Edge &edge : rc_path.edges()) {
+                rc_ss << edge.nuclLabel();
             }
             alignment_results.emplace_back(rc_ss.str());
         };
