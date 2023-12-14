@@ -114,7 +114,7 @@ namespace dbg {
         logger.trace() << "Kmer coverage statistics:\n";
         std::vector<size_t> hist(max_cov + 1);
         for (dbg::Edge &edge: dbg.edgesUnique()) {
-            hist[std::min<size_t>(edge.getCoverage(), max_cov)] += edge.truncSize();
+            hist[std::min<size_t>(size_t(edge.getCoverage()), max_cov)] += edge.truncSize();
         }
         for (size_t i = 0; i < hist.size(); i++) {
             logger << i << " " << hist[i] << std::endl;

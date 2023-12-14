@@ -62,7 +62,13 @@ namespace io {
     };
 
     template<class Reader>
-    class SeqIterator : public std::iterator<std::forward_iterator_tag, Sequence, size_t, Sequence *, Sequence&> {
+    class SeqIterator {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = Sequence;
+        using difference_type = size_t;
+        using pointer = Sequence*;
+        using reference = Sequence&;
     private:
         Reader &reader;
         bool isend;

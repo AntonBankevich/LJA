@@ -7,6 +7,7 @@
 #include <vector>
 #include <functional>
 #include <algorithm>
+#include <array>
 namespace ag {
     class BaseEdgeId {
     public:
@@ -32,6 +33,10 @@ namespace ag {
             return itos(vid) + "." +itos(eid);
         }
     };
+
+    inline std::ostream &operator<<(std::ostream &os, ag::BaseEdgeId val) {
+        return os << val.vid << "." << val.eid;
+    }
 }
 
 template<>
@@ -49,10 +54,6 @@ namespace std {
             return std::hash<int>()(x.vid * 12343251) ^ std::hash<int>()(x.eid * 1294835);
         }
     };
-}
-
-inline std::ostream &operator<<(std::ostream &os, ag::BaseEdgeId val) {
-    return os << val.vid << "." << val.eid;
 }
 
 

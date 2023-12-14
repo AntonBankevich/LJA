@@ -33,7 +33,7 @@ AlgorithmParameterValues CLParser::parseCL(const std::vector <std::string> &args
                 name = s.substr(2, s.size() - 2);
             } else {
                 VERIFY_MSG(s.size() == 2, "Long command line parameters should getStart with --");
-                VERIFY_MSG(!strict || short_param_map.find(s[1]) != short_param_map.end(), "Unknown command line parameter: " + s);
+                VERIFY_MSG(!strict || short_param_map.find(s[1]) != short_param_map.end(), "Unknown short command line parameter: " + s);
                 if(short_param_map.find(s[1]) == short_param_map.end()) {
                     name = "";
                     continue;

@@ -110,7 +110,7 @@ namespace dbg {
             unlock();
         }
 
-        virtual void fireAddEdge(Edge &edge) override {
+        void fireAddEdge(Edge &edge) override {
             for(auto it = hanging.begin(); it != hanging.end(); ++it) {
                 if(it->size() <= edge.truncSize() && edge.truncSeq().Subseq(0, it->size()) == *it) {
                     hanging.erase(it);

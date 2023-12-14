@@ -39,7 +39,13 @@ class ParallelRecordCollector {
     std::vector<std::vector<T>> recs;
 public:
     friend class Iterator;
-    class Iterator : public std::iterator<std::forward_iterator_tag, T, size_t,  T*, T&>{
+    class Iterator {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using difference_type = size_t;
+        using pointer = T*;
+        using reference = T&;
     private:
         ParallelRecordCollector<T> &data;
         size_t row;

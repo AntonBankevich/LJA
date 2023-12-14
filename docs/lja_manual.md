@@ -8,7 +8,7 @@ Requirements
 * CMake version 3.1 or above
 * C++ compiler with C++17 support (GCC-7+)
 * GNU make
-* zlib
+* zlib (package zlib-dev)
 
 
 Downloading and compiling from source code

@@ -64,13 +64,13 @@ static bool startsWith(const std::string& str, const std::string& prefix)
 }
 
 static inline void ltrim_inplace(std::string &s) {
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(),
-                                    std::not1(std::ptr_fun<int, int>(std::isspace))));
+    s.erase(s.begin(), std::find_if_not(s.begin(), s.end(),
+                                    [](auto c){return std::isspace(c);}));
 }
 
 static inline void rtrim_inplace(std::string &s) {
-    s.erase(std::find_if(s.rbegin(), s.rend(),
-                         std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
+    s.erase(std::find_if_not(s.rbegin(), s.rend(),
+                         [](auto c){return std::isspace(c);}).base(), s.end());
 }
 
 static inline std::string trim(std::string s) {
