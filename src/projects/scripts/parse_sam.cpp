@@ -43,7 +43,7 @@ struct LocalAlignment {
     std::string str() const {
         std::stringstream ss;
         ss << seg_from.size() << " " << seg_from << "->" << seg_to << ":" << rc << ":" << percentIdentity() << "\n";
-        ss << al.toShortRec(seg_from.fullSeq(), seg_to.fullSeq());
+        ss << al.toShortRec(rc? seg_from.fullSeq().rc() : seg_from.fullSeq(), seg_to.fullSeq());
         return ss.str();
     }
 };
