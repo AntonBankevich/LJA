@@ -11,7 +11,7 @@
 #include <iostream>
 #include <array>
 #include <spoa/spoa.hpp>
-#include <ksw2/ksw_wrapper.hpp>
+#include <alignment/ksw_wrapper.hpp>
 
 using std::vector;
 using std::pair;

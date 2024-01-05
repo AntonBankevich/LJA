@@ -3,7 +3,7 @@
 #include <sequences/edit_distance.hpp>
 #include <common/logging.hpp>
 #include <common/omp_utils.hpp>
-#include <ksw2/ksw_wrapper.hpp>
+#include <alignment/ksw_wrapper.hpp>
 #include <utility>
 #include "dbg/multi_graph.hpp"
 #include "alignment/ksw_aligner.hpp"

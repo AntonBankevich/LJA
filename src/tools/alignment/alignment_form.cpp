@@ -154,6 +154,30 @@ AlignmentForm::AlignmentColumnIterator::AlignmentColumnIterator(AlignmentForm &f
     }
 }
 
+AlignmentForm::ConstAlignmentColumnIterator::ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos)
+        :
+        alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(0), tpos(0) {
+    for(size_t i = 0; i < cigar_pos; i++) {
+        CigarPair p = form.cigar[i];
+        if(p.type != CigarEvent::D) {
+            qpos += p.length;
+        }
+        if(p.type != CigarEvent::I) {
+            tpos += p.length;
+        }
+    }
+    if(block_pos > 0) {
+        VERIFY(cigar_pos < form.cigar.size());
+        CigarPair p = form.cigar[cigar_pos];
+        if(p.type != CigarEvent::D) {
+            qpos += p.length;
+        }
+        if(p.type != CigarEvent::I) {
+            tpos += p.length;
+        }
+    }
+}
+
 AlignmentForm::AlignmentColumnIterator &AlignmentForm::AlignmentColumnIterator::operator++() {
     this->qpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
     this->tpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
@@ -184,6 +208,40 @@ AlignmentForm::AlignmentColumnIterator &AlignmentForm::AlignmentColumnIterator::
 
 AlignmentForm::AlignmentColumnIterator AlignmentForm::AlignmentColumnIterator::operator--(int) const {
     AlignmentColumnIterator res = *this;
+    --res;
+    return res;
+}
+
+AlignmentForm::ConstAlignmentColumnIterator &AlignmentForm::ConstAlignmentColumnIterator::operator++() {
+    this->qpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
+    this->tpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
+    block_pos++;
+    if(alignmentForm->cigar[cigar_pos].length == block_pos) {
+        cigar_pos++;
+        block_pos = 0;
+    }
+    return *this;
+}
+
+AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::ConstAlignmentColumnIterator::operator++(int) const {
+    ConstAlignmentColumnIterator res = *this;
+    ++res;
+    return res;
+}
+
+AlignmentForm::ConstAlignmentColumnIterator &AlignmentForm::ConstAlignmentColumnIterator::operator--() {
+    if(block_pos == 0) {
+        cigar_pos--;
+        block_pos = alignmentForm->cigar[cigar_pos].length;
+    }
+    block_pos--;
+    this->qpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
+    this->tpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
+    return *this;
+}
+
+AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::ConstAlignmentColumnIterator::operator--(int) const {
+    ConstAlignmentColumnIterator res = *this;
     --res;
     return res;
 }

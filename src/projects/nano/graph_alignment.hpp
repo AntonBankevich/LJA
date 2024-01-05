@@ -2,7 +2,7 @@
 
 #include <dbg/paths.hpp>
 #include <alignment/alignment_form.hpp>
-#include <ksw2/ksw_wrapper.hpp>
+#include <alignment/ksw_wrapper.hpp>
 
 
 template<class Traits>

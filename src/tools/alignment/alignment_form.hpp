@@ -1,9 +1,108 @@
 #pragma once
 
 #include "common/iterator_utils.hpp"
-#include <ksw2/ksw_wrapper.hpp>
 #include "sequences/nucl.hpp"
+#include <vector>
 #include <string>
+#include <sstream>
+
+enum CigarEvent : char {
+    I = 'I', D = 'D', M = 'M',
+};
+
+inline CigarEvent CigarEventFromChar(char c) {
+    if(c == 'I')
+        return I;
+    else if (c == 'D')
+        return D;
+    else
+        return M;
+}
+
+struct CigarPair {
+    CigarEvent type;
+    size_t length;
+    CigarPair(CigarEvent type, size_t len) : type(type), length(len) {}
+    CigarPair(char type, size_t len) : type(CigarEventFromChar(type)), length(len) {}
+    CigarPair Reverse() const {
+        switch(type) {
+            case M:
+                return *this;
+            case I:
+                return {D, length};
+            case D:
+                return {I, length};
+            default:
+                VERIFY(false);
+        }
+    }
+    size_t qlen() const {
+        if(type == D)
+            return 0;
+        return length;
+    }
+    size_t tlen() const {
+        if(type == I)
+            return 0;
+        return length;
+    }
+};
+
+inline std::vector<CigarPair> RcCigar(const std::vector<CigarPair> &cigar) {
+    return {cigar.rbegin(), cigar.rend()};
+}
+
+inline std::string CigarToString(const std::vector<CigarPair> &cigar) {
+    std::stringstream ss;
+    for(const CigarPair &p : cigar) {
+        if(p.length != 1)
+            ss << p.length;
+        ss << p.type;
+    }
+    return ss.str();
+}
+
+inline std::vector<CigarPair> StringToCigar(const std::string& s) {
+    std::vector<CigarPair> cigar;
+    size_t n = 0;
+    for(char c : s) {
+        if(c >= '0' && c <= '9')
+            n = n * 10 + c - '0';
+        else {
+            if(n == 0)
+                n = 1;
+            if(c == CigarEvent::M || c == CigarEvent::I || c == CigarEvent::D) {
+                cigar.emplace_back(c, n);
+            }
+            n = 0;
+        }
+    }
+    return std::move(cigar);
+}
+
+inline std::pair<size_t, size_t> LRskip(const std::string &s) {
+    size_t lskip = 0;
+    size_t rskip = 0;
+    size_t n = 0;
+    for(size_t i = 0; i < s.size(); i++) {
+        char c = s[i];
+        if(c >= '0' && c <= '9')
+            n = n * 10 + c - '0';
+        else {
+            if(n == 0)
+                n = 1;
+            if(c == 'S' || c == 'H') {
+                if(i == s.size() - 1)
+                    rskip = n;
+                else
+                    lskip = n;
+            }
+            n = 0;
+        }
+    }
+    return {lskip, rskip};
+}
+
 
 class AlignmentForm {
 private:
@@ -44,6 +143,29 @@ public:
         bool operator!=(const AlignmentColumnIterator &other) const {return !(*this == other);}
     };
 
+    class ConstAlignmentColumnIterator {
+        const AlignmentForm *alignmentForm;
+        size_t cigar_pos;
+        size_t block_pos;
+        size_t qpos;
+        size_t tpos;
+    public:
+        ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos, size_t qpos, size_t tpos) :
+                alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(qpos), tpos(tpos) {
+        }
+        ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos);
+
+        ConstAlignmentColumnIterator &operator++();
+        ConstAlignmentColumnIterator operator++(int) const;
+        ConstAlignmentColumnIterator &operator--();
+        ConstAlignmentColumnIterator operator--(int) const;
+
+        AlignmentColumn operator*() const {return {qpos, tpos, alignmentForm->cigar[cigar_pos].type};}
+
+        bool operator==(const ConstAlignmentColumnIterator &other) const {return cigar_pos == other.cigar_pos && block_pos == other.block_pos;}
+        bool operator!=(const ConstAlignmentColumnIterator &other) const {return !(*this == other);}
+    };
+
     AlignmentForm() : qlen(0), tlen(0) {}
     AlignmentForm(std::vector<CigarPair> _cigar) : cigar(std::move(_cigar)), qlen(0), tlen(0) {calculateLens();}
     AlignmentForm(const std::string &s);
@@ -64,6 +186,9 @@ public:
     const CigarPair &operator[](size_t ind) const {return cigar[ind];}
 
     IterableStorage<AlignmentColumnIterator> columns() {
+        return {{*this, 0, 0, 0, 0}, {*this, cigar.size(), 0, qlen, tlen}};
+    }
+    IterableStorage<ConstAlignmentColumnIterator> columns() const {
         return {{*this, 0, 0, 0, 0}, {*this, cigar.size(), 0, qlen, tlen}};
     }
     AlignmentColumnIterator columnByQpos(size_t qpos);
@@ -118,6 +243,50 @@ public:
         }
         std::vector<std::string> res = {std::string(s1.begin(), s1.end()), std::string(m.begin(), m.end()), std::string(s2.begin(), s2.end())};
         return res;
+    }
+    template<class U, class V>
+    std::string toShortRec(const U &from_seq, const V &to_seq) const {
+        std::vector<char> res;
+        size_t m= 0;
+        size_t mm = 0;
+        size_t i = 0;
+        size_t d = 0;
+        size_t cnt = 0;
+        for(const AlignmentColumn it : columns()) {
+            if(it.event == CigarEvent::M) {
+                if(from_seq[it.qpos] == to_seq[it.tpos])
+                    m++;
+                else
+                    mm++;
+            } else if(it.event == CigarEvent::I)
+                i++;
+            else
+                d++;
+            cnt++;
+            if(cnt % 1000 == 0) {
+               if(mm + i + d < 10) {
+                   res.emplace_back(char('0' + mm + i + d));
+               } else if (i >= 30 && d + mm <= 15) {
+                   res.emplace_back('I');
+               } else if(d >= 30 && i + mm <= 15) {
+                   res.emplace_back('D');
+               } else
+                   res.emplace_back('*');
+               m = 0;
+               mm = 0;
+               i = 0;
+               d = 0;
+            }
+        }
+        if(mm + i + d < 10) {
+            res.emplace_back(char('0' + mm + i + d));
+        } else if (i >= 30 && d + mm <= 15) {
+            res.emplace_back('I');
+        } else if(d >= 30 && i + mm <= 15) {
+            res.emplace_back('D');
+        } else
+            res.emplace_back('*');
+        return {res.begin(), res.end()};
     }
 };
 

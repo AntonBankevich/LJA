@@ -1,54 +1,10 @@
 #pragma once
-#include "ksw2.h"
+#include "alignment_form.hpp"
 #include "common/verify.hpp"
+#include "ksw2/ksw2.h"
 #include <vector>
 #include <cstring>
 
-enum CigarEvent : char {
-    I = 'I', D = 'D', M = 'M',
-};
-
-inline CigarEvent CigarEventFromChar(char c) {
-    if(c == 'I')
-        return I;
-    else if (c == 'D')
-        return D;
-    else
-        return M;
-}
-
-struct CigarPair {
-    CigarEvent type;
-    size_t length;
-    CigarPair(CigarEvent type, size_t len) : type(type), length(len) {}
-    CigarPair(char type, size_t len) : type(CigarEventFromChar(type)), length(len) {}
-    CigarPair Reverse() const {
-        switch(type) {
-            case M:
-                return *this;
-            case I:
-                return {D, length};
-            case D:
-                return {I, length};
-            default:
-                VERIFY(false);
-        }
-    }
-    size_t qlen() const {
-        if(type == D)
-            return 0;
-        return length;
-    }
-    size_t tlen() const {
-        if(type == I)
-            return 0;
-        return length;
-    }
-};
-
-inline std::vector<CigarPair> RcCigar(const std::vector<CigarPair> &cigar) {
-    return {cigar.rbegin(), cigar.rend()};
-}
 
 inline size_t MaxAlignmentShift(std::vector<CigarPair> &cigars) {
     int shift = 0;

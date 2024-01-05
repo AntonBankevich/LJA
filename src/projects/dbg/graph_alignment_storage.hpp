@@ -3,6 +3,21 @@
 #include "compact_path.hpp"
 #include "dbg_graph_aligner.hpp"
 
+//TODO: get rid of read names entirely and replace with integer ids
+inline std::string encodeReadId(const std::string &str) {
+    std::string res = str;
+    std::replace(res.begin(), res.end(), ' ', '^');
+    std::replace(res.begin(), res.end(), '\t', '$');
+    return std::move(res);
+}
+
+inline std::string decodeReadId(const std::string &str) {
+    std::string res = str;
+    std::replace(res.begin(), res.end(), '^', ' ');
+    std::replace(res.begin(), res.end(), '$', '\t');
+    return std::move(res);
+}
+
 class AlignedRead {
 private:
     ag::CompactPath<dbg::DBGTraits> corrected_path;
@@ -31,12 +46,14 @@ public:
     static AlignedRead Load(std::istream &is, IdIndex<dbg::Vertex> &index) {
         std::string id;
         is >> id;
+        id = decodeReadId(id);
         return {id, CompactPath::Load(is, index)};
     }
 };
 
+
 inline std::ostream& operator<<(std::ostream  &os, const AlignedRead &alignedRead) {
-    return os << alignedRead.id << " " << alignedRead.path;
+    return os << encodeReadId(alignedRead.id) << " " << alignedRead.path;
 }
 
 class RecordStorage;

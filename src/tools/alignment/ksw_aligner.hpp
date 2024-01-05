@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ksw2/ksw_wrapper.hpp>
+#include <alignment/ksw_wrapper.hpp>
 #include "alignment_form.hpp"
 #include <vector>
 #include <cctype>

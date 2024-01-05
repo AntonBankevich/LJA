@@ -7,7 +7,7 @@
 #include <common/logging.hpp>
 #include <common/cl_parser.hpp>
 #include <sequences/seqio.hpp>
-#include <ksw2/ksw_wrapper.hpp>
+#include <alignment/ksw_wrapper.hpp>
 #include <utility>
 #include <queue>
 #include <alignment/ksw_aligner.hpp>
@@ -145,18 +145,6 @@ std::pair<size_t, size_t> Score2(const Sequence &read, const Sequence &p1, const
         return {0, 0};
     return {Score(cigar1, read, p1, to_ignore), Score(cigar2, read, p2, to_ignore)};
 }
-
-std::string CigarToString(const std::vector<CigarPair> &cigar) {
-    std::stringstream ss;
-    for(const CigarPair &p : cigar) {
-        if(p.length != 1)
-            ss << p.length;
-        ss << p.type;
-    }
-    return ss.str();
-}
-
-
 
 multigraph::GraphPath ContigToPath(const nano::GraphContig &al, MultiGraph &graph) {
     size_t skip_left = al.gStart;
