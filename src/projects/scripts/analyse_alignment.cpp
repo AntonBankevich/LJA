@@ -121,8 +121,8 @@ int main(int argc, char **argv) {
         if(res.percentIdentity() >= 99.9) {
             covered_all_to[res.seg_to.contig().getInnerId()].emplace_back(res.seg_to);
             covered_all_from[res.seg_from.contig().getInnerId()].emplace_back(res.seg_from);
-            if((res.seg_from.left > 300 && res.seg_to.left > 300) ||
-                    (res.seg_to.right + 300 < res.seg_to.contig().fullSize() && res.seg_from.right + 300 < res.seg_from.contig().fullSize())) {
+            if(!((res.seg_from.left > 300 && res.seg_to.left > 300) ||
+                    (res.seg_to.right + 300 < res.seg_to.contig().fullSize() && res.seg_from.right + 300 < res.seg_from.contig().fullSize()))) {
                 covered_noncontradicting_from[res.seg_from.contig().getInnerId()].emplace_back(res.seg_from);
                 covered_noncontradicting_to[res.seg_to.contig().getInnerId()].emplace_back(res.seg_to);
             }
