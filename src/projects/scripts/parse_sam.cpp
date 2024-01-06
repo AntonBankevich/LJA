@@ -74,6 +74,10 @@ int main(int argc, char **argv) {
         size_t qstart = qbounds.first;
         size_t qend = query.fullSize() - qbounds.second;
         bool rc = std::stoull(parsed[1]) &(1ull<<4);
+        if(rc) {
+            qstart = qbounds.second;
+            qend = query.fullSize() - qbounds.first;
+        }
         AlignmentForm al(StringToCigar(cigar_string));
         size_t tend = tstart + al.targetLength();
         LocalAlignment res({query, qstart, qend}, {ref, tstart, tend}, rc, al);
