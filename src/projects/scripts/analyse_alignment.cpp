@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
     std::unordered_map<std::string, Contig> refs = ReadCollection(ref_file);
     std::cout << "Reading queries" << std::endl;
     std::unordered_map<std::string, Contig> queries = ReadCollection(query_file);
-    std::cout << "Reading and printing alignments" << std::endl;
+    std::cout << "Reading and analyzing alignments" << std::endl;
     std::ifstream input;
     input.open(sam_file);
     std::string line;
@@ -123,12 +123,14 @@ int main(int argc, char **argv) {
             covered_all_from[res.seg_from.contig().getInnerId()].emplace_back(res.seg_from);
             if((res.seg_from.left > 300 && res.seg_to.left > 300) ||
                     (res.seg_to.right + 300 < res.seg_to.contig().fullSize() && res.seg_from.right + 300 < res.seg_from.contig().fullSize())) {
-                covered_noncontradicting_from[res.seg_to.contig().getInnerId()].emplace_back(res.seg_from);
+                covered_noncontradicting_from[res.seg_from.contig().getInnerId()].emplace_back(res.seg_from);
+                covered_noncontradicting_to[res.seg_to.contig().getInnerId()].emplace_back(res.seg_to);
             }
         }
     }
     input.close();
 
+    std::cout << "Printing coverage results to disk" << std::endl;
     printResults(dir, refs, covered_all_to, "all_to.txt");
     printResults(dir, refs, covered_noncontradicting_to, "noncon_to.txt");
     printResults(dir, queries, covered_all_from, "all_from.txt");
