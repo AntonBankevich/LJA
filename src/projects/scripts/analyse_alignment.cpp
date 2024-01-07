@@ -71,11 +71,19 @@ void printResults(const std::experimental::filesystem::path &dir, std::unordered
                   const string &name) {
     std::ofstream os;
     os.open(dir / name);
+    size_t cnt_all = 0;
+    size_t cnt_bad = 0;
     for(auto &pair : queries) {
         Contig &contig = pair.second;
         std::vector<Segment<Contig>> &segs = covered_all_to[contig.getInnerId()];
-        os << contig.fullSize() << " " << Uncovered(contig, segs) << "\n";
+        size_t uncovered = Uncovered(contig, segs);
+        os << contig.getInnerId() << " " << contig.fullSize() << " " << uncovered << "\n";
+        os << "\n";
+        cnt_all++;
+        if(uncovered < contig.fullSize() * 0.8 && uncovered + 20000 < contig.fullSize())
+            cnt_bad++;
     }
+    std::cout << name << ": " << cnt_bad << " " << cnt_all << std::endl;
     os.close();
 }
 
@@ -118,7 +126,7 @@ int main(int argc, char **argv) {
         AlignmentForm al(StringToCigar(cigar_string));
         size_t tend = tstart + al.targetLength();
         LocalAlignment res({query, qstart, qend}, {ref, tstart, tend}, rc, al);
-        if(res.percentIdentity() >= 99.9) {
+        if(res.percentIdentity() >= 99) {
             covered_all_to[res.seg_to.contig().getInnerId()].emplace_back(res.seg_to);
             covered_all_from[res.seg_from.contig().getInnerId()].emplace_back(res.seg_from);
             if(!((res.seg_from.left > 300 && res.seg_to.left > 300) ||
