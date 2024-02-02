@@ -9,6 +9,8 @@
 void
 SubstageRun::runSubstage(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, bool debug, const AlgorithmParameterValues &parameterValues) {
     logger.stage() << "Starting stage " << name << std::endl;
+    logger.trace() << "Stage parameters" << std::endl;
+    logger << parameterValues.str() << std::endl;
     timespec start{};
     clock_gettime(CLOCK_MONOTONIC, &start);
     std::unordered_map<std::string, io::Library> input;

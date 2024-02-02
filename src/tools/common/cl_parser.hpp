@@ -57,6 +57,18 @@ public:
     bool getCheck(const std::string &s) const;
     std::vector<std::string> getListValue(const std::string &s) const {return split(getValue(s), delim);}
     std::string checkMissingValues() const;
+    std::string str() const {
+        std::stringstream ss;
+        ss << "Values:\n";
+        for(auto &it : values) {
+            ss << it.first << " " << it.second << "\n";
+        }
+        ss << " Checks:";
+        for(auto &it : checks) {
+            ss << it.first << " " << it.second << "\n";
+        }
+        return ss.str();
+    }
 };
 
 class CLParser {
