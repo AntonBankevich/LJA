@@ -8,6 +8,11 @@ std::unordered_map<std::string, std::experimental::filesystem::path> MDBGConstru
         const std::experimental::filesystem::path &graph_gfa,
         const std::experimental::filesystem::path &read_paths, bool debug) {
     logger.info() << "Performing repeat resolution by transforming de Bruijn graph into Multiplex de Bruijn graph" << std::endl;
+    if (k%2==0) {
+        logger.info() << "Adjusted k from " << k << " to " << (k + 1)
+                      << " to make it odd" << std::endl;
+        k += 1;
+    }
     hashing::RollingHash hasher(k);
     SparseDBG dbg = dbg::LoadDBGFromEdgeSequences({graph_gfa}, hasher, logger, threads);
     IdIndex<Vertex> index(dbg.vertices().begin(), dbg.vertices().end());

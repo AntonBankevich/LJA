@@ -1,5 +1,6 @@
 #pragma once
 #include <unordered_map>
+#include <common/verify.hpp>
 
 template<class T>
 class IdIndex {
@@ -27,6 +28,7 @@ public:
     }
 
     void add(T& obj) {
+        VERIFY(mapping.find(obj.getInnerId()) == mapping.end());
         mapping[obj.getInnerId()] = &obj;
     }
 };

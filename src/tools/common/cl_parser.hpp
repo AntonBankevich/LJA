@@ -63,7 +63,7 @@ public:
         for(auto &it : values) {
             ss << it.first << " " << it.second << "\n";
         }
-        ss << " Checks:";
+        ss << "Checks:\n";
         for(auto &it : checks) {
             ss << it.first << " " << it.second << "\n";
         }

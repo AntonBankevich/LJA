@@ -507,7 +507,7 @@ namespace dbg {
         logger.info() << "Loading graph from fasta" << std::endl;
         io::SeqReader reader(lib);
         ParallelRecordCollector<std::tuple<Sequence, Edge::id_type, Edge::id_type>> edges(threads);
-        ParallelRecordCollector<std::pair<Sequence, Vertex::id_type>> vertices(threads);
+        ParallelRecordCollector<std::pair<Vertex::id_type, Sequence>> vertices(threads);
         std::function<void(size_t, StringContig &)> collect_task = [&edges, &vertices, hasher](size_t pos,
                                                                                                StringContig &contig) {
             Sequence seq = contig.makeSequence();
@@ -518,20 +518,20 @@ namespace dbg {
             Edge::id_type eid = Parse<Edge::id_type>(ids[0]);
             Edge::id_type rceid = Parse<Edge::id_type>(ids[1]);
             if(eid.vid < 0)
-                vertices.emplace_back(!start, -eid.vid);
+                vertices.emplace_back(-eid.vid, !start);
             else
-                vertices.emplace_back(start, eid.vid);
+                vertices.emplace_back(eid.vid, start);
             if(rceid.vid < 0)
-                vertices.emplace_back(!end, -rceid.vid);
+                vertices.emplace_back(-rceid.vid, !end);
             else
-                vertices.emplace_back(end, rceid.vid);
+                vertices.emplace_back(rceid.vid, end);
             edges.emplace_back(seq, eid, rceid);
         };
         processRecords(reader.begin(), reader.end(), logger, threads, collect_task);
         SparseDBG res(hasher);
-        std::vector<std::pair<Sequence, Vertex::id_type>> vertices_list = vertices.collectUnique();
-        for(std::pair<Sequence, Vertex::id_type> &v : vertices_list) {
-            res.addKmerVertex(v.first, v.second);
+        std::vector<std::pair<Vertex::id_type, Sequence>> vertices_list = vertices.collectUnique();
+        for(std::pair<Vertex::id_type, Sequence> &v : vertices_list) {
+            res.addKmerVertex(v.second, v.first);
         }
         IdIndex<Vertex> index(res.vertices().begin(), res.vertices().end());
         for(std::tuple<Sequence, Edge::id_type, Edge::id_type> edge : edges) {
