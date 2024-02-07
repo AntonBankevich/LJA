@@ -136,6 +136,7 @@ namespace ag {
                 id(std::move(id)), start(&_start), finish(&_end), seq(std::move(_seq)), _rc(nullptr) {
         }
 //        BaseEdge() : id(), start(nullptr), finish(nullptr), seq() {}
+        BaseEdge(const BaseEdge &other) = delete;
 
         virtual ~BaseEdge() = default;
 

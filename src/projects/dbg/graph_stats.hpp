@@ -70,7 +70,7 @@ namespace dbg {
             }
             if (tmp.inDeg() + tmp.outDeg() == 1) {
                 n01 += 1;
-                dbg::Edge tip_edge = tmp.outDeg() == 1 ? tmp.front() : tmp.rc().front();
+                dbg::Edge &tip_edge = tmp.outDeg() == 1 ? tmp.front() : tmp.rc().front();
                 if (tip_edge.getFinish().outDeg() > 1) {
                     ltips += tip_edge.truncSize();
                     ntips += 1;

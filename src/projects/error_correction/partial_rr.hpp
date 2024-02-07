@@ -80,6 +80,7 @@ std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath &bulgePath, const R
 std::vector<dbg::GraphPath> PartialRR(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, const RecordStorage &reads) {
     logger.info() << "Performing partial repeat resolution" << std::endl;
     BulgePathFinder bulges(dbg, 1);
+    logger.trace() << "Bulge collection finished" << std::endl;
     std::vector<dbg::GraphPath> res;
     for(BulgePath &bulgePath : bulges.paths) {
         std::vector<dbg::GraphPath> resolved = ResolveBulgePath(bulgePath, reads);
