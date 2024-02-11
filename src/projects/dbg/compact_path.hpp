@@ -49,7 +49,7 @@ namespace ag {
         GraphPath<Traits> unpack() const {
             if (!valid())
                 return {};
-            GraphPath<Traits> res(_start);
+            GraphPath<Traits> res(*_start);
             Vertex *cur = _start;
             for (size_t i = 0; i < _edges.size(); i++) {
                 VERIFY(cur->hasOutgoing(_edges[i]));
