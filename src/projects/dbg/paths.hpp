@@ -654,6 +654,8 @@ typename ag::GraphPath<Graph>::segment_iterator ag::GraphPath<Graph>::end() cons
 
 template<class Graph>
 size_t ag::GraphPath<Graph>::len() const {
+    if(!valid())
+        return 0;
     size_t res = start().size();
     for(Edge &edge : edges()) {
         res += edge.truncSize();

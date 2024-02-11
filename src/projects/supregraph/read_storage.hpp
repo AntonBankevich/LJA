@@ -107,10 +107,8 @@ namespace spg {
         }
 
         std::vector<std::pair<size_t, std::list<EdgeId>::iterator>> processIncoming(const EdgeId &eid) {
-            std::cout << "Process incoming " << eid << std::endl;
             std::vector<std::pair<size_t, std::list<EdgeId>::iterator>> res;
             for(auto &p : read_index[eid]) {
-                std::cout << "processing " << reads[p.first].name << std::endl;
                 ReadRecord &rec = reads[p.first];
                 auto it = p.second;
                 VERIFY(rec.path.valid());
@@ -133,21 +131,10 @@ namespace spg {
 
         void reroute(const std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> &mapping,
                      const std::vector<std::pair<size_t , std::list<EdgeId>::iterator>> &positions) {
-            std::cout << "Rerouting " << std::endl;
-            for(auto it1 : mapping)
-                for(auto it2 : it1.second) {
-                    std::cout << std::make_pair(it1.first, it2.first) << " ";
-                }
-            std::cout << std::endl;
             for(auto &p : positions) {
                 ReadRecord &rec = reads[p.first];
-                std::cout << rec.name << std::endl;
                 auto it = p.second;
                 VERIFY(rec.path.valid());
-                for(EdgeId e : rec.path.path) {
-                    std::cout << e << " ";
-                }
-                std::cout << std::endl;
                 ListPath &path = rec.path;
                 auto nit = it;
                 ++nit;
@@ -161,9 +148,7 @@ namespace spg {
             }
         }
         void processOutgoing(const EdgeId &eid) {
-            std::cout << "Process outgoing " << eid << std::endl;
             for(auto &p : read_index[eid]) {
-                std::cout << "processing " << reads[p.first].name << std::endl;
                 ReadRecord &rec = reads[p.first];
                 auto it = p.second;
                 VERIFY(rec.path.valid());
@@ -244,23 +229,14 @@ namespace spg {
 
         size_t getDiveSize(Edge &edge) {
             size_t res = 0;
-            std::cout << "goppa1" << std::endl;
             for(auto &it : storage.getReadPositions(edge)) {
-                std::cout << "goppa2" << std::endl;
                 auto pos = it.second;
                 auto &path = storage[it.first].path;
                 auto next = pos;
                 ++next;
-                std::cout << "goppa3 " << *(it.second) << std::endl;
-                for(EdgeId eid : path.path) {
-                    std::cout << eid << " ";
-                }
-                std::cout << std::endl;
                 if(next != path.path.end())
                     continue;
-                std::cout << "goppa4" << std::endl;
                 if(path.skip_right < edge.getFinish().size()) {
-                    std::cout << "goppa5" << std::endl;
                     res = std::max(res, edge.getFinish().size() - path.skip_right);
                 }
             }
@@ -288,8 +264,6 @@ namespace spg {
                 segs.emplace_back(it.second.skip_right, v.size() - it.second.skip_left);
             }
             std::sort(segs.begin(), segs.end());
-            std::cout << segs << std::endl;
-            std::cout << "gopa " << v.getId() << std::endl;
             bool has_covering = false;
             bool has_unpassable = false;
             for(Edge &inc : v.incoming()) {
@@ -302,7 +276,6 @@ namespace spg {
                     if(next == path.path.end()) {
                         continue;
                     }
-                    std::cout << "gopa1 " << inc.getId() << " " << (**next).getId() << std::endl;
                     res.emplace_back(inc.getId(), (**next).getId());
                     res.emplace_back((**next).rc().getId(), inc.rc().getId());
                     has_covering = true;
@@ -314,24 +287,19 @@ namespace spg {
                         continue;
                     auto next = pos;
                     --next;
-                    std::cout << "gopa1 " << inc.getId() << " " << (**next).rc().getId() << std::endl;
                     res.emplace_back(inc.getId(), (**next).rc().getId());
                     res.emplace_back((**next).getId(), inc.rc().getId());
                     has_covering = true;
                 }
                 size_t max = getDiveSize(inc);
-                std::cout << "Divesize " << max << std::endl;
                 for(std::pair<size_t, size_t> &p : segs) {
                     if(max >= p.first + k) {
                         max = std::max(max, p.second + k);
                     }
                 }
-                std::cout << "Final divesize " << max << std::endl;
                 for(Edge &out : v) {
                     size_t min = v.size() - getDiveSize(out.rc());
-                    std::cout << "Min " << min << " " << v.size() << std::endl;
                     if(min + k <= max) {
-                        std::cout << inc.getId() << " " << out.getId() << std::endl;
                         res.emplace_back(inc.getId(), out.getId());
                         res.emplace_back(out.rc().getId(), inc.rc().getId());
                     } else {
@@ -341,7 +309,6 @@ namespace spg {
             }
             std::sort(res.begin(), res.end());
             res.erase(std::unique(res.begin(), res.end()), res.end());
-            std::cout << "Final result: " << has_covering << " " << has_unpassable << std::endl;
             if(has_covering || has_unpassable)
                 return std::move(res);
             else

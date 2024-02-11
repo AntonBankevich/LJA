@@ -36,10 +36,8 @@ namespace spg {
     public:
         Multiplexer(SupreGraph &graph, DecisionRule &rule) : graph(graph), rule(rule) {
             for(Vertex &v : graph.verticesUnique()) {
-                std::cout << v.getId() << " " << v.inDeg() << " " << v.outDeg() << std::endl;
                 if(v.isCanonical() && v.isCore() && v.outDeg() > 0 && v.inDeg() > 0) {
                     core_queue.insert(v.getId());
-                    std::cout << "Queue " << v.getId() << std::endl;
                 }
             }
         }
@@ -49,12 +47,8 @@ namespace spg {
         std::vector<VertexId> multiplex(Vertex &vertex) {
 //            VERIFY(vertex.inDeg() > 1 && vertex.outDeg() > 1);
             core_queue.erase(vertex.getId());
-            std::cout << "oppa1" << std::endl;
             std::vector<std::pair<EdgeId, EdgeId>> rr = rule.judge(vertex);
-            std::cout << "oppa2" << std::endl;
-            std::cout << "oppa2 " << rr << std::endl;
             if(!rr.empty()) {
-                std::cout << "oppa3" << std::endl;
                 std::vector<VertexId> res = graph.resolveVertex(vertex, rr);
                 std::vector<VertexId> candidates;
                 for(VertexId vid : res) {
@@ -64,12 +58,10 @@ namespace spg {
                         candidates.emplace_back(edge.getFinish().rc().getId());
                     }
                 }
-                std::cout << "oppa4" << std::endl;
                 for(VertexId vid : candidates) {
                     if(vid->isCanonical() && vid->isCore() && vid->outDeg() > 0 && vid->inDeg() > 0)
                         core_queue.insert(vid);
                 }
-                std::cout << "oppa5" << std::endl;
                 return res;
             } else
                 return {};
