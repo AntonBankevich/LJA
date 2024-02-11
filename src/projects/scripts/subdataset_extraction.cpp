@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
     AlgorithmParameters params({"vertices=none", "unique=none", "dbg=none", "output-dir=",
                                "threads=16", "k-mer-size=", "window=2000", "debug", "disjointigs=none",
                                "reference=none", "compress", "dimer-compress=1000000000,1000000000,1",
-                               "unique-threshold=40000", "radius=1000", "bad-cov=7", "track-paths"},
+                               "unique-threshold=40000", "radius=1000", "bad-cov=7", "track-paths", "add-paths"},
                                {"paths", "reads"}, "");
     CLParser parser(params,
                     {"o=output-dir", "t=threads", "k=k-mer-size", "w=window"},
@@ -43,9 +43,13 @@ int main(int argc, char **argv) {
     const size_t w = std::stoi(parameterValues.getValue("window"));
     double bad_cov = std::stod(parameterValues.getValue("bad-cov"));
     bool track_paths = parameterValues.getCheck("track-paths");
+    bool add_paths = parameterValues.getCheck("add-paths");
     size_t unique_threshold = std::stoi(parameterValues.getValue("unique-threshold"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("reads"));
+    io::Library construction_lib = reads_lib;
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("paths"));
+    if(add_paths)
+        construction_lib = construction_lib + paths_lib;
     io::Library ref_lib;
     if(parameterValues.getValue("reference") != "none")
         ref_lib =  oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("reference"));
@@ -55,7 +59,7 @@ int main(int argc, char **argv) {
     hashing::RollingHash hasher(k);
     size_t threads = std::stoi(parameterValues.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
-                    DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
+                    DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
                          dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger,
                                                        threads); //Create dbg
     size_t extension_size = 100000;
@@ -102,6 +106,7 @@ int main(int argc, char **argv) {
     storage.Fill(threads, index);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
+    printDot(dir / "graph.dot", dbg::Component(dbg), storage.labeler() + readStorage.labeler());
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
         logger.info() << "Printing subdataset " << cnt << " " << subdataset.id << ":";
         for(dbg::Vertex &v : subdataset.component.verticesUnique()) {
@@ -114,5 +119,6 @@ int main(int argc, char **argv) {
         subdataset.Save(subdir / name, storage.labeler() + readStorage.labeler());
         cnt++;
     }
+    logger.info() << "Finished extracting subdatasets" << std::endl;
     return 0;
 }

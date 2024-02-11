@@ -10,9 +10,9 @@
 //TODO rewrite for AssemblyGraph
 class GraphPathStorage {
 private:
-    std::unordered_map<const dbg::Edge *, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>> alignments;
+    std::unordered_map<dbg::ConstEdgeId, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>> alignments;
     std::vector<Contig*> stored_contigs;
-    dbg::SparseDBG & dbg;
+    const dbg::SparseDBG * dbg;
 
     void printEdge(std::ostream &os, dbg::Vertex & start, dbg::Edge &edge) {
         dbg::Vertex &end = edge.getFinish();
@@ -22,7 +22,7 @@ private:
         if (!end.isCanonical())
             os << "-";
         os << end.getInnerId() % 100000 << "\n";
-        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments[&edge];
+        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments[edge.getId()];
         for(auto & al : als) {
             os << "\n" << al.seg_from << "->" << al.seg_to;
         }
@@ -30,15 +30,12 @@ private:
     }
 
 public:
-    explicit GraphPathStorage(dbg::SparseDBG & dbg_) : dbg(dbg_) {
+    explicit GraphPathStorage(dbg::SparseDBG & dbg_) : dbg(&dbg_) {
     }
 
     GraphPathStorage(const GraphPathStorage &) = delete;
 
-    GraphPathStorage(GraphPathStorage &&other)  noexcept : dbg(other.dbg) {
-        std::swap(other.alignments, alignments);
-        std::swap(other.stored_contigs, stored_contigs);
-    }
+    GraphPathStorage(GraphPathStorage &&other)  noexcept = default;
 
     ~GraphPathStorage() {
         for(Contig * contig : stored_contigs) {
@@ -63,19 +60,17 @@ public:
         }
         std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> rec_list = records.collect();
         __gnu_parallel::sort(rec_list.begin(), rec_list.end());
-        std::vector<std::pair<const dbg::Edge *, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>>> res;
+        std::vector<std::pair<dbg::ConstEdgeId , std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>>> res;
         std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> next;
         for(dbg::PerfectAlignment<Contig, dbg::Edge> rec : rec_list) {
             if(!next.empty() && next[0].seg_to.contig() != rec.seg_to.contig()) {
-                dbg::Edge *nedge = &next[0].seg_to.contig();
-                res.emplace_back(nedge, std::move(next));
+                res.emplace_back(next[0].seg_to.contig().getId(), std::move(next));
                 next.clear();
             }
             next.emplace_back(rec);
         }
         if(!next.empty()) {
-            dbg::Edge *nedge = &next[0].seg_to.contig();
-            res.emplace_back(nedge, std::move(next));
+            res.emplace_back(next[0].seg_to.contig().getId(), std::move(next));
         }
         alignments = {res.begin(), res.end()};
     }
@@ -84,9 +79,9 @@ public:
         for(auto &it : alignments) {
             const dbg::Edge &edge = *it.first;
             os << edge.getInnerId() << "\n";
-            if (alignments.find(&edge) == alignments.end())
+            if (alignments.find(edge.getId()) == alignments.end())
                 return;
-            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(&edge)->second;
+            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(edge.getId())->second;
             if (als.empty()) {
                 return;
             }
@@ -100,10 +95,10 @@ public:
 
     std::function<std::string(dbg::Edge &edge)> labeler() const {
         std::function<std::string(const dbg::Edge &edge)> res = [this](const dbg::Edge &edge) {
-            if (alignments.find(&edge) == alignments.end())
+            if (alignments.find(edge.getId()) == alignments.end())
                 return std::string("");
             std::stringstream ss;
-            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(&edge)->second;
+            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(edge.getId())->second;
             if (als.empty()) {
                 return std::string("");
             }

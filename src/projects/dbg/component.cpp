@@ -112,7 +112,7 @@ IterableStorage<ApplyingIterator<dbg::Component::iterator, dbg::Edge, 16>> dbg::
         size_t cur = 0;
         for (Edge &edge : *vid) {
             bool endInner = contains(edge.getFinish());
-            if(!inner && !endInner && !edge.isCanonical()) {
+            if(!inner && !endInner) {
                 res[cur] = &edge.rc();
                 cur++;
             }
