@@ -281,22 +281,39 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
     logger.info() << "Adding new connections to the graph" << std::endl;
     logger.trace() << "Creating a copy of the graph" << std::endl;
     SparseDBG res(dbg.hasher());
-    res.fillFrom(dbg);
-    std::vector<Sequence> seqs;
-    for(const Connection &connection : connections)
-        seqs.emplace_back(connection.connection);
+    for(const Vertex &v : dbg.verticesUnique()) {
+        res.addVertex(v);
+    }
     DbgConstructionHelper helper(dbg.hasher());
+    KmerIndex index(res);
     logger.trace() << "Adding all kmers from new sequences" << std::endl;
-    helper.AddNewSequences(logger, threads, res, seqs);
+    for(const Connection &connection : connections)
+        helper.addAllKmers(res, {connection.connection}, index);
+    res.fillFrom(dbg);
+    std::function<void(size_t, const Edge &)> task = [&res, &helper, &index](size_t num, const Edge &edge) {
+        std::vector<hashing::KWH> kmers = index.extractVertexPositions(edge.getSeq());
+        if(kmers.size() == 2) {
+            VERIFY(kmers.front().pos == 0 && kmers.back().pos == edge.truncSize());
+            index.getVertex(kmers.front()).addEdge(index.getVertex(kmers.back()), edge.truncSeq(), edge.rc().truncSeq(), edge, edge.getInnerId(), edge.rc().getInnerId());
+        } else {
+            VERIFY(kmers.size() > 2);
+            helper.processFullEdgeSequence(res, index, edge.getSeq());
+        }
+    };
+    omp_set_num_threads(threads);
+    ParallelProcessor<const typename dbg::Edge>(task, logger, threads).processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end());
+    std::function<void(size_t, const Connection &)> task1 = [&res, &helper, &index](size_t num, const Connection &connection) {
+        helper.processFullEdgeSequence(res, index, connection.connection);
+    };
+    ParallelProcessor<const Connection>(task1, logger, threads).processObjects(connections.begin(), connections.end());
     helper.checkConsistency(threads, logger, res);
     MergeAll(logger, threads, res);
-    KmerIndex index(res);
     index.fillAnchors(logger, threads, res, 500);
     helper.checkConsistency(threads, logger, res);
     for(const Edge &e : dbg.edges()) {
         e.is_reliable = false;
     }
-    std::function<void(size_t, const Edge &)> task = [&index](size_t num, const Edge &edge) {
+    std::function<void(size_t, const Edge &)> task3 = [&index](size_t num, const Edge &edge) {
         dbg::GraphPath al = index.align(edge.getSeq());
         VERIFY(al.truncLen() == edge.truncSize());
         if(al.size() == 1 && al.truncLen() == al.frontEdge().truncSize()) {
@@ -304,7 +321,7 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
             edge.rc().is_reliable = true;
         }
     };
-    processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task);
+    processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task3);
     logger.trace() << "Realigning reads to the new graph" << std::endl;
     for(RecordStorage* sit : storages) {
         RecordStorage &storage = *sit;

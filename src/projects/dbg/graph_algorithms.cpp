@@ -97,34 +97,6 @@ namespace dbg {
         return std::move(res);
     }
 
-    std::vector<dbg::GraphPath> DbgConstructionHelper::AddNewSequences(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const {
-        KmerIndex index(dbg);
-        addAllKmers(dbg, new_seqs, index);
-        std::function<void(size_t, Edge &)> task = [&dbg, this, &index](size_t num, Edge &edge) {
-            std::vector<hashing::KWH> kmers = index.extractVertexPositions(edge.getSeq());
-            if(kmers.size() == 2) {
-                VERIFY(kmers.front().pos == 0 && kmers.back().pos == edge.truncSize());
-            } else {
-                VERIFY(kmers.size() > 2);
-                processFullEdgeSequence(dbg, index, edge.getSeq());
-            }
-        };
-        omp_set_num_threads(threads);
-        processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task);
-        std::function<void(size_t, const Sequence &)> task1 = [&dbg, this, &index](size_t num, const Sequence &seq) {
-            processFullEdgeSequence(dbg, index, seq);
-        };
-        ParallelProcessor<const Sequence>(task1, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
-        std::vector<dbg::GraphPath> paths(new_seqs.size());
-        index.noAnchors();
-        std::function<void(size_t, const Sequence &)> task2 = [&index, &paths](size_t num, const Sequence &seq) {
-            paths[num] = index.align(seq);
-        };
-        ParallelProcessor<const Sequence>(task2, logger, threads).processObjects(new_seqs.begin(), new_seqs.end(), 1024);
-//    processObjects<std::vector<Sequence>::const_iterator>(new_seqs.begin(), new_seqs.end(), logger, threads, task1);
-        return std::move(paths);
-    }
-
     void DbgConstructionHelper::addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs, KmerIndex &index) const {
         for(const Sequence &seq: new_seqs) {
             KWH kwh(hasher(), seq, 0);

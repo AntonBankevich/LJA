@@ -233,7 +233,6 @@ void RecordStorage::fill(logging::Logger &logger, size_t threads, I begin, I end
     if(track_suffixes) {
         logger.info() << "Storing suffixes of read paths of length up to " << this->max_len << std::endl;
     }
-    threads = 1;
     ParallelRecordCollector<std::tuple<size_t, std::string, dbg::CompactPath>> tmpReads(threads);
     ParallelCounter cnt(threads);
     std::function<void(size_t, StringContig &)> read_task = [this, &tmpReads, &cnt, &index](size_t pos, StringContig &scontig) {

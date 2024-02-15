@@ -23,7 +23,6 @@ namespace dbg {
 
         SparseDBG Subgraph(std::vector<Segment<Edge>> &pieces) const;
         SparseDBG SplitGraph(SparseDBG &dbg, const std::vector<EdgePosition> &breaks) const;
-        std::vector<dbg::GraphPath> AddNewSequences(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::vector<Sequence> &new_seqs) const;
 
         void addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs, KmerIndex &index) const;
 
