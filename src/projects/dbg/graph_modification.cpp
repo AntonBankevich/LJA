@@ -307,8 +307,12 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
     };
     ParallelProcessor<const Connection>(task1, logger, threads).processObjects(connections.begin(), connections.end());
     helper.checkConsistency(threads, logger, res);
+    std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> to_add;
+    for(const Vertex &v : res.verticesUnique()) {
+        to_add.emplace(v.getHash());
+    }
     MergeAll(logger, threads, res);
-    index.fillAnchors(logger, threads, res, 500);
+    index.fillAnchors(logger, threads, res, 500, to_add);
     helper.checkConsistency(threads, logger, res);
     for(const Edge &e : dbg.edges()) {
         e.is_reliable = false;
