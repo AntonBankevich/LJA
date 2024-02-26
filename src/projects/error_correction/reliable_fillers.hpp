@@ -20,7 +20,7 @@ public:
     std::string name() const override {return _name;}
     size_t Fill(dbg::SparseDBG &dbg) override;
     virtual size_t LoggedFill(logging::Logger &logger, dbg::SparseDBG &dbg) {
-        logger.info() << "Running multiple algorithms for reliable getEdge marking" << std::endl;
+        logger.info() << "Running multiple algorithms for reliable edge marking" << std::endl;
         size_t res = 0;
         for(AbstractReliableFillingAlgorithm *alg : algorithms) {
             size_t tmp = alg->Fill(dbg);

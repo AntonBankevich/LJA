@@ -110,7 +110,7 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
 }
 
 void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Logger &logger, SparseDBG &dbg) {
-    logger.info() << "Loading getEdge coverages." << std::endl;
+    logger.info() << "Loading edge coverages." << std::endl;
     std::ifstream is;
     is.open(fname);
     size_t n;
@@ -134,7 +134,7 @@ void LoadCoverage(const std::experimental::filesystem::path &fname, logging::Log
         }
     }
     is.close();
-    logger.info() << "Finished loading getEdge coverages." << std::endl;
+    logger.info() << "Finished loading edge coverages." << std::endl;
 }
 
 std::string constructMessage() {
@@ -143,14 +143,14 @@ std::string constructMessage() {
     ss << "Usage: dbg [options] -o <output-dir> -k <int> --reads <reads_file> [--reads <reads_file2> ...]\n\n";
     ss << "Basic options:\n";
     ss << "  -o <file_name> (or --output-dir <file_name>)  Name of output folder. Resulting graph will be stored there.\n";
-    ss << "  -k <int>                                      Value of k (getVertex size) to be used for de Bruijn graph construction. k should be odd (otherwise k + 1 is used instead).\n";
+    ss << "  -k <int>                                      Value of k (vertex size) to be used for de Bruijn graph construction. k should be odd (otherwise k + 1 is used instead).\n";
     ss << "  --reads <file_name>                           Name of file that contains reads in fasta or fastq format. This option can be used any number of times in the same command line. In this case reads from all specified files will be used as an input.\n";
     ss << "  -h (or --help)                                Print this help message.\n";
     ss << "\nAdvanced options:\n";
     ss << "  -t <int> (or --threads <int>)                 Number of threads. The default value is 16.\n";
     ss << "  -w <int> (or --window <int>`)                 The window size to be used for sparse de Bruijn graph construction. The default value is 2000. Note that all reads of length less than k + w are ignored during graph construction.\n";
     ss << "  --compress                                    Compress all homolopymers in reads.\n";
-    ss << "  --coverage                                    Calculate getEdge coverage of edges in the constructed de Bruijn graph.\n";
+    ss << "  --coverage                                    Calculate edge coverage of edges in the constructed de Bruijn graph.\n";
     return ss.str();
 }
 

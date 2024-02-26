@@ -606,7 +606,7 @@ void RecordStorage::checkCoverage(const SparseDBG &dbg) const {
         }
     }
     for(const dbg::Edge &edge : dbg.edges()) {
-        VERIFY_MSG(edge.intCov() == map[edge.getId()], "Coverage calculation failed");
+        VERIFY_MSG(edge.intCov() == map[edge.getId()], "Coverage check failed");
     }
 }
 

@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
     std::cout << "dbg " << mg.size() << " " << mg.edgeCount() << std::endl;
     for(MGVertex & v: mg.vertices()) {
         if(v.inDeg() == 1 && v.outDeg() == 1 && v.front() != v.rc().front().rc()) {
-            std::cout << "1-in-1-out getVertex " << v.getId() << " " << v.front().getId() << v.rc().front().rc().getId() << std::endl;
+            std::cout << "1-in-1-out vertex " << v.getId() << " " << v.front().getId() << v.rc().front().rc().getId() << std::endl;
         }
     }
     return 0;

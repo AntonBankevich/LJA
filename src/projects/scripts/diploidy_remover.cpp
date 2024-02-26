@@ -19,7 +19,7 @@ private:
     void addGoodVertex(MGVertex &v, std::unordered_set<VertexId> &good, std::vector<EdgeId> &candidates) {
         if(good.find(v.getId()) != good.end())
             return;
-        std::cout << "Good getVertex " << v.getId() << std::endl;
+        std::cout << "Good vertex " << v.getId() << std::endl;
         good.insert(v.getId());
         good.insert(v.rc().getId());
         for(MGEdge &e : v) {
@@ -114,7 +114,7 @@ private:
             if(e->getStart().outDeg() > 2 || e->getFinish().inDeg() > 2) {
                 continue;
             }
-            std::cout << "Checking getEdge " << e->getId() << std::endl;
+            std::cout << "Checking edge " << e->getId() << std::endl;
             std::vector<EdgeId> comp = component(*e);
             size_t size = 0;
             for(EdgeId e1: comp) {
@@ -124,7 +124,7 @@ private:
             std::cout << elen << " " << comp.size() << " " << size << std::endl;
             if((comp.size() == 1 && e->getStart().outDeg() == 2 && e->getFinish().inDeg() == 2 && size <= elen) || size < elen * 1.5 + 100000) {
                 for(EdgeId e1 : comp) {
-                    std::cout << "Deleting edges " << e1->getId() << " and " << e1->rc().getId() << " based on analysis of getEdge " << e->getId() << std::endl;
+                    std::cout << "Deleting edges " << e1->getId() << " and " << e1->rc().getId() << " based on analysis of edge " << e->getId() << std::endl;
                     to_remove.emplace(e1->getId());
                     to_remove.emplace(e1->rc().getId());
                 }

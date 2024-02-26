@@ -215,7 +215,7 @@ void HaplotypeRemover::removeHaplotype() {
             if (haplotype_info[edge.getInnerId()].haplotype == haplotype_) {
                 if (isSimpleBridge(edge) && edge.fullSize() < saved_bridge_cutoff) {
                     bridges ++;
-                    logger_.info() << "Skipping getEdge " << edge.getId() << " as bridge\n";
+                    logger_.info() << "Skipping edge " << edge.getId() << " as bridge\n";
                     continue;
                 }
                 removed_len += edge.fullSize();

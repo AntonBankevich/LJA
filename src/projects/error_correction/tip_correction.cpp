@@ -118,7 +118,7 @@ inline dbg::GraphPath CorrectSuffix(const dbg::GraphPath &al) {
 
 void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
                         const std::vector<RecordStorage *> &storages) {
-    logger.info() << "Correcting tips using reliable getEdge marks" << std::endl;
+    logger.info() << "Correcting tips using reliable edge marks" << std::endl;
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
     for(RecordStorage *storageIt : storages) {

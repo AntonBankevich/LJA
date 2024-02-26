@@ -21,6 +21,11 @@ std::unordered_map<std::string, std::experimental::filesystem::path> MDBGConstru
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
     RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, debug);
     LoadAllReads(read_paths, {&readStorage, &extra_reads}, index);
+    for(Vertex &v : dbg.verticesUnique()) {
+        if(v.inDeg() == 1 && v.outDeg() == 1) {
+            VERIFY(v.back() == v.rc().back().rc() || (v.back() == v.back().rc() && v.rc().back() == v.rc().back().rc()));
+        }
+    }
     repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
                                          k, kmdbg, dir, unique_threshold,
                                          diploid, debug, logger);

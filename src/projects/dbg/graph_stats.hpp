@@ -26,7 +26,7 @@ namespace dbg {
             }
         }
         logger << "Unique edges: " << e_cnt / 2 << std::endl;
-        logger << "Unique getEdge total length: " << elen / 2 << std::endl;
+        logger << "Unique edge total length: " << elen / 2 << std::endl;
     }
 
     inline void printStats(logging::Logger &logger, dbg::SparseDBG &dbg) {

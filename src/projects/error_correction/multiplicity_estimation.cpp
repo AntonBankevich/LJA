@@ -148,7 +148,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         if(back_unique.size() >= path.size()) {
             extra_unique.emplace_back(&edge);
             cnt++;
-            logger.trace() << "Found extra unique getEdge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getCoverage() << std::endl;
+            logger.trace() << "Found extra unique edge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getCoverage() << std::endl;
         }
     }
     for(Edge *eit : extra_unique) {
@@ -199,7 +199,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         bool success = processSimpleRepeat(component);
         if(success) {
             cnt++;
-            logger.trace() << "Found erroneous getEdge" << std::endl;
+            logger.trace() << "Found erroneous edge" << std::endl;
         }
     }
     logger.info() << "Finished processing of repeats of multiplicity 2. Found " << cnt << " erroneous edges." << std::endl;
@@ -302,7 +302,7 @@ size_t UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
         logger.trace() << "Failed to use coverage for multiplicity estimation" << std::endl;
     }
     if(!res && rel_coverage == 0) {
-        logger.trace() << "Attempting to adjust reliable getEdge threshold from " << rel_coverage << " to " <<
+        logger.trace() << "Attempting to adjust reliable edge threshold from " << rel_coverage << " to " <<
                            adjusted_rel_coverage << std::endl;
         rel_coverage = adjusted_rel_coverage;
         MappedNetwork net3(subcomponent, is_unique, rel_coverage, threshold);

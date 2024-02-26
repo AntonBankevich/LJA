@@ -261,7 +261,7 @@ dbg::GraphPath correctRead(std::unordered_map<const Edge *, CompactPath> &unique
 void correctReads(logging::Logger &logger, size_t threads, RecordStorage &reads_storage,
                   std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     omp_set_num_threads(threads);
-    logger.info() << "Correcting reads using unique getEdge extensions" << std::endl;
+    logger.info() << "Correcting reads using unique edge extensions" << std::endl;
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, unique_extensions)
     for(size_t i = 0; i < reads_storage.size(); i++) {
         AlignedRead &alignedRead = reads_storage[i];
@@ -334,7 +334,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
                         }
                     }
                     res.addUnique(edge);
-                    logger.trace() << "Found extra unique getEdge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getCoverage() << std::endl;
+                    logger.trace() << "Found extra unique edge " << edge.getInnerId() << " " << edge.truncSize() << " " << edge.getCoverage() << std::endl;
                     break;
                 }
             }

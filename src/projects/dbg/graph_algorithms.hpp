@@ -161,11 +161,11 @@ std::vector<CompactPath<Traits>> ConstructUnbranchingLoops(logging::Logger &logg
                     GraphPath<Traits> to_merge = GraphPath<Traits>::WalkForward(start);
                     if(to_merge.size() == 1)
                         return;
-                    for(size_t i = 1; i < to_merge.size() + 1; i++) {
+                    for(size_t i = 1; i < to_merge.size(); i++) {
                         to_merge.getVertex(i).mark();
                     }
                     if(to_merge.start() < to_merge.finish().rc() || (to_merge.start() == to_merge.finish().rc()) &&
-                                                                    to_merge.frontEdge().truncSeq() < to_merge.backEdge().rc().truncSeq()) {
+                                                                    to_merge.frontEdge().truncSeq() <= to_merge.backEdge().rc().truncSeq()) {
                         result.emplace_back(to_merge);
                     }
                 };

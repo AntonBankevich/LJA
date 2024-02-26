@@ -354,11 +354,12 @@ void KmerIndex::fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &
     std::function<void(size_t, Edge &)> task = [&res, this, &to_add](size_t pos, Edge &edge) {
         Vertex &vertex = edge.getStart();
         if (edge.truncSize() > w || !to_add.empty()) {
-            Sequence seq = vertex.getSeq() + edge.truncSeq();
+            Sequence seq = edge.getSeq();
 //                    Does not run for the first and last kmers.
             for (hashing::KWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
                 if (kmer.pos % w == 0 || to_add.find(kmer.hash()) != to_add.end()) {
                     EdgePosition ep(edge, kmer.pos);
+                    VERIFY_MSG(!containsVertex(kmer.hash()), "Kmer is present both as vertex and as edge anchor");
                     if (kmer.isCanonical())
                         res.emplace_back(kmer.hash(), ep);
                     else {

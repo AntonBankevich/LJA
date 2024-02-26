@@ -289,12 +289,13 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
     logger.trace() << "Adding all kmers from new sequences" << std::endl;
     for(const Connection &connection : connections)
         helper.addAllKmers(res, {connection.connection}, index);
-    res.fillFrom(dbg);
     std::function<void(size_t, const Edge &)> task = [&res, &helper, &index](size_t num, const Edge &edge) {
         std::vector<hashing::KWH> kmers = index.extractVertexPositions(edge.getSeq());
         if(kmers.size() == 2) {
             VERIFY(kmers.front().pos == 0 && kmers.back().pos == edge.truncSize());
-            index.getVertex(kmers.front()).addEdge(index.getVertex(kmers.back()), edge.truncSeq(), edge.rc().truncSeq(), edge, edge.getInnerId(), edge.rc().getInnerId());
+            Edge &new_edge = index.getVertex(kmers.front()).addEdge(index.getVertex(kmers.back()), edge.truncSeq(), edge.rc().truncSeq(), edge, edge.getInnerId(), edge.rc().getInnerId());
+            new_edge.incCov(-new_edge.intCov());
+            new_edge.rc().incCov(-new_edge.rc().intCov());
         } else {
             VERIFY(kmers.size() > 2);
             helper.processFullEdgeSequence(res, index, edge.getSeq());
@@ -306,21 +307,26 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
         helper.processFullEdgeSequence(res, index, connection.connection);
     };
     ParallelProcessor<const Connection>(task1, logger, threads).processObjects(connections.begin(), connections.end());
+    for(const Edge &edge : res.edges()) {
+        VERIFY(edge.getCoverage() == 0);
+    }
     helper.checkConsistency(threads, logger, res);
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> to_add;
     for(const Vertex &v : res.verticesUnique()) {
         to_add.emplace(v.getHash());
     }
     MergeAll(logger, threads, res);
-    index.fillAnchors(logger, threads, res, 500, to_add);
+    index = KmerIndex(res);
+    index.fillAnchors(logger, threads, res, size_t(-1) / 2, to_add);
     helper.checkConsistency(threads, logger, res);
     for(const Edge &e : dbg.edges()) {
         e.is_reliable = false;
     }
     std::function<void(size_t, const Edge &)> task3 = [&index](size_t num, const Edge &edge) {
+        VERIFY_MSG(index.containsVertex(edge.getStart().getHash()) xor index.isAnchor(edge.getStart().getHash()), edge.getStart().getId());
         dbg::GraphPath al = index.align(edge.getSeq());
         VERIFY(al.truncLen() == edge.truncSize());
-        if(al.size() == 1 && al.truncLen() == al.frontEdge().truncSize()) {
+        if(al.size() == 1 && al.startClosed() && al.endClosed()) {
             edge.is_reliable = true;
             edge.rc().is_reliable = true;
         }

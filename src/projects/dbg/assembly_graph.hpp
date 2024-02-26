@@ -350,6 +350,7 @@ namespace ag {
         size_t size() const { return seq.size(); }
         size_t getStartSize() const {return 0;};
         size_t truncSize() const {return seq.size();}
+        int getMaxOutId() const {return max_out_id;}
 
         virtual Sequence getSeq() const { return seq; }
         Sequence truncSeq() const {return seq;}
@@ -396,6 +397,8 @@ namespace ag {
             Locker<BaseVertex<Traits>> locker({this, &end.rc()});
             return addEdgeLockFree(end, tseq, rctseq, std::move(data), eid, rcid);
         }
+
+        void updateMaxOutId(int value) {max_out_id = std::max(max_out_id, value);}
 
         bool removeEdge(Edge &edge) {
             VERIFY(edge.getStart() == *this);
@@ -553,7 +556,10 @@ namespace ag {
 
     template<class Traits>
     typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addVertex(const Vertex &other_graph_vertex) {
-        return addVertex(other_graph_vertex.getSeq(), other_graph_vertex, other_graph_vertex.getInnerId());
+        typename AssemblyGraph<Traits>::Vertex &res = addVertex(other_graph_vertex.getSeq(), other_graph_vertex, other_graph_vertex.getInnerId());
+        res.updateMaxOutId(other_graph_vertex.getMaxOutId());
+        res.rc().updateMaxOutId(other_graph_vertex.rc().getMaxOutId());
+        return res;
     }
 
     template<class Traits>
@@ -798,11 +804,9 @@ namespace ag {
     template<class Traits>
     typename Traits::Edge &BaseVertex<Traits>::innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, BaseEdgeId eid) {
         if (!eid.valid()) {
-            max_out_id++;
-            eid = {id, max_out_id};
-        } else {
-            max_out_id = std::max(max_out_id, eid.eid);
+            eid = {id, max_out_id + 1};
         }
+        updateMaxOutId(eid.eid);
         outgoing_.emplace_back(eid, *dynamic_cast<Vertex*>(this), end, tseq, std::move(data));
         Edge &edge = outgoing_.back();
         _outDeg++;

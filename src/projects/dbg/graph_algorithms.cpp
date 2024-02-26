@@ -5,7 +5,7 @@ using namespace hashing;
 namespace dbg {
 
     void DbgConstructionHelper::checkSeqFilled(size_t threads, logging::Logger &logger, SparseDBG &dbg) const {
-        logger.trace() << "Checking getVertex sequences" << std::endl;
+        logger.trace() << "Checking vertex sequences" << std::endl;
         std::function<void(size_t, Vertex &)> task =
                 [&logger](size_t pos, Vertex &vert) {
                     if (vert.getSeq().empty() || vert.rc().getSeq().empty()) {
@@ -13,11 +13,11 @@ namespace dbg {
                         VERIFY(false);
                     }
                     if (!vert.isCanonical()) {
-                        logger.trace() << "Canonical getVertex marked not canonical " << vert.getInnerId() << std::endl;
+                        logger.trace() << "Canonical vertex marked not canonical " << vert.getInnerId() << std::endl;
                         VERIFY(false);
                     }
                     if (vert.rc().isCanonical()) {
-                        logger.trace() << "Noncanonical getVertex marked canonical " << vert.getInnerId() << std::endl;
+                        logger.trace() << "Noncanonical vertex marked canonical " << vert.getInnerId() << std::endl;
                         VERIFY(false);
                     }
                 };
@@ -114,6 +114,17 @@ namespace dbg {
 
     void DbgConstructionHelper::checkConsistency(size_t threads, logging::Logger &logger, SparseDBG &dbg) const {
         logger.trace() << "Checking consistency" << std::endl;
+        std::unordered_set<Vertex::id_type> indices;
+        for(Vertex &v : dbg.vertices()) {
+            auto it = indices.find(v.getInnerId());
+            VERIFY_MSG(it == indices.end(), v.getId());
+            indices.emplace(v.getInnerId());
+            std::unordered_set<Edge::id_type> edgeids;
+            for(Edge &edge : v) {
+                VERIFY_MSG(edgeids.find(edge.getInnerId()) == edgeids.end(), edge.getId());
+                edgeids.emplace(edge.getInnerId());
+            }
+        }
         std::function<void(size_t,  Vertex &)> task =
                 [this](size_t pos, Vertex &vert) {
                     vert.checkConsistency();

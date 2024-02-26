@@ -13,7 +13,7 @@ namespace dbg {
 
     inline void printFasta(std::ostream &out, const Component &component,
                            const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
-        for(Edge &edge : component.edges()) {
+        for(Edge &edge : component.edgesUnique()) {
             out << ">" << name(edge) << "\n" << edge.getSeq() << "\n";
         }
 //        size_t cnt = 0;

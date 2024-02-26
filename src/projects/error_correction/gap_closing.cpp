@@ -93,6 +93,9 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
             Sequence new_seq = edgeFrom.getSeq();
             new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(edgeTo.getSeq());
             new_seq = edgeFrom.getStart().getSeq() + new_seq.Subseq(edgeFrom.getStartSize());
+            StringContig tmp(new_seq.str(), "tmp");
+            tmp.compress();
+            new_seq = tmp.makeSequence();
             if(!new_seq.endsWith(!edgeTo.getStart().getSeq()) || !new_seq.startsWith(edgeFrom.getStart().getSeq())
                     || HasInnerDuplications(new_seq, std::min(edgeFrom.getStartSize(), edgeTo.getStartSize())))
                 continue;
@@ -156,6 +159,7 @@ void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &
         return;
     }
     dbg = AddConnections(logger, threads, dbg, storges, patches);
+    storges.front()->checkCoverage(dbg);
     MarkUnreliableTips(dbg, patches);
     CorrectTips(logger, threads, dbg, storges);
     printStats(logger, dbg);
