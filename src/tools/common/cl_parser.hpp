@@ -53,7 +53,7 @@ public:
 
     void addValue(const std::string &name, const std::string &val, bool strict = true);
     void addCheck(const std::string &name, bool strict = true);
-    const std::string &getValue(const std::string &s) const;
+    const std::string &getValue(const std::string &parameter_name) const;
     bool getCheck(const std::string &s) const;
     std::vector<std::string> getListValue(const std::string &s) const {return split(getValue(s), delim);}
     std::string checkMissingValues() const;
