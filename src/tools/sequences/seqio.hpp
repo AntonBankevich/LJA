@@ -9,306 +9,92 @@
 #include <utility>
 #include <vector>
 #include <functional>
-#include <utility>
 
-namespace io {
-
-
+namespace io{
     typedef std::vector<std::experimental::filesystem::path> Library;
 
-    inline bool CheckLibrary(const Library &lib) {
-        bool res = true;
-        for(const std::experimental::filesystem::path &path : lib) {
-            if(!std::experimental::filesystem::is_regular_file(path)) {
-                std::cerr << "Input file not found: " << path << std::endl;
-                res = false;
-            }
-        }
-        return res;
-    }
+    class IContigReader;
 
-    template<class Reader>
-    class ContigIterator {
+
+    class ContigIterator{
     private:
-        Reader &reader;
+        IContigReader &reader;
         bool isend;
     public:
         typedef StringContig value_type;
-
-        ContigIterator(Reader &_reader, bool _isend) : reader(_reader), isend(_isend) {
-            if(reader.eof()) {
-                isend = true;
-            }
-        }
-
-        void operator++() {
-            reader.inner_read();
-            if(reader.eof()) {
-                isend = true;
-            }
-        }
-
-        StringContig operator*() {
-            return reader.get();
-        }
-
-        bool operator==(const ContigIterator &other) const {
-            return isend == other.isend;
-        }
-
-        bool operator!=(const ContigIterator &other) const {
-            return isend != other.isend;
-        }
+        typedef const StringContig& reference;
+        ContigIterator(IContigReader &_reader, bool _isend);
+        void operator++();
+        StringContig operator*();
+        bool operator==(const ContigIterator &other) const;
+        bool operator!=(const ContigIterator &other) const;
     };
 
-    template<class Reader>
-    class SeqIterator {
+
+    class IContigReader {
+    protected:
+        StringContig next{};
     public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = Sequence;
-        using difference_type = size_t;
-        using pointer = Sequence*;
-        using reference = Sequence&;
-    private:
-        Reader &reader;
-        bool isend;
-    public:
-        SeqIterator(Reader &_reader, bool _isend) :reader(_reader), isend(_isend) {
-            if(reader.eof()) {
-                isend = true;
-            }
-        }
-
-        void operator++() {
-            reader.inner_read();
-            if(reader.eof()) {
-                isend = true;
-            }
-        }
-
-        const Sequence &operator*() {
-            return reader.get().truncSubseq();
-        }
-
-        bool operator==(const SeqIterator &other) const {
-            return isend == other.isend;
-        }
-        bool operator!=(const SeqIterator &other) const {
-            return isend != other.isend;
-        }
+        virtual ~IContigReader();
+        const StringContig& get();
+        bool eof();
+        virtual void inner_read() = 0;
+        ContigIterator begin();
+        ContigIterator end();
+        virtual void reset() = 0;
+        StringContig read();
     };
 
-    //    TODO: Deal with corrupted files, comments in read names
-    class SeqReader {
+    class IContigFromFileReader: public IContigReader {
+    protected:
+        std::istream* stream = nullptr;
     public:
-        typedef ContigIterator<SeqReader> Iterator;
+        explicit IContigFromFileReader(const std::experimental::filesystem::path& _file_name);
+        ~IContigFromFileReader() override;
+        void reset() override;
+    };
+
+    class SeqReader final: public IContigReader{
     private:
-
-        void choose_next_pos(size_t start) {
-            cur_start = start;
-            if(next.size() > start + 2 * min_read_size - overlap) {
-                cur_end = start + min_read_size;
-            } else {
-                cur_end = next.size();
-            }
-        }
-
-        void inner_read() {
-            if(cur_end > 0 && cur_end < next.size()) {
-                choose_next_pos(cur_end - overlap);
-                return;
-            }
-            while (stream != nullptr){
-                if(gfa) {
-                    while(stream->peek() != EOF) {
-                        std::string line;
-                        std::getline(*stream, line);
-                        if(line.empty()) {
-                            break;
-                        }
-                        trim(line);
-                        if (!line.empty() && line[0] != 'L') {
-                            if(line[0] == 'S') {
-                                size_t pos = line.find('\t', 2);
-                                size_t pos2 = line.find('\t', pos + 1);
-                                if(pos2 == size_t(-1))
-                                    pos2 = line.size();
-                                next = {line.substr(pos + 1, pos2 - pos - 1), line.substr(2, pos - 2)};
-                                choose_next_pos(0);
-                                cur_start = 0;
-                                return;
-                            }
-                        }
-                    }
-                    nextFile();
-                    continue;
-                }
-                std::string id, seq;
-                std::getline(*stream, id);
-                std::getline(*stream, seq);
-                trim(seq);
-                if (!id.empty() and !seq.empty()) {
-                    std::stringstream ss;
-                    ss << seq;
-                    size_t cnt = 0;
-                    while(stream->peek() != EOF && stream->peek() != '>' && stream->peek() != '+') {
-                        std::getline(*stream, seq);
-                        trim(seq);
-                        if (seq.empty()) {
-                            next = {};
-                            break;
-                        }
-                        ss << seq;
-                        cnt += 1;
-                    }
-                    next = {ss.str(), std::move(trim(id.substr(1, id.size() - 1)))};
-                    choose_next_pos(0);
-                    cur_start = 0;
-                    if(fastq) {
-                        std::getline(*stream, id);
-                        size_t qlen= 0;
-                        while(!stream->eof() && qlen < next.size()) {
-                            std::getline(*stream, seq);
-                            trim(seq);
-                            qlen += seq.size();
-                            if (seq.empty())
-                                break;
-                        }
-                    }
-                    return;
-                }
-                nextFile();
-            }
-            next = StringContig();
-            cur_start = 0;
-        }
-
-        void nextFile() {
-            delete stream;
-            if (file_it == lib.end()) {
-                stream = nullptr;
-            } else {
-                std::experimental::filesystem::path file_name = *file_it;
-                if(!std::experimental::filesystem::is_regular_file(file_name)) {
-                    std::cerr << "Error: file does not exist " << file_name << std::endl;
-                }
-                VERIFY_MSG(std::experimental::filesystem::is_regular_file(file_name), std::experimental::filesystem::absolute(file_name));
-                gfa = endsWith(file_name, "gfa");
-                if(gfa) {
-                    stream = new std::ifstream(file_name);
-                    fastq = false;
-                } else {
-                    if (endsWith(file_name, ".gz")) {
-                        stream = new gzstream::igzstream(file_name.c_str());
-                        fastq = endsWith(file_name, "fastq.gz") or endsWith(file_name, "fq.gz");
-                    } else {
-                        stream = new std::ifstream(file_name);
-                        fastq = endsWith(file_name, "fastq") or endsWith(file_name, "fq");
-                    }
-                }
-                ++file_it;
-            }
-        }
-
         const Library lib;
         Library::const_iterator file_it;
-        std::istream * stream{};
-        bool fastq{};
-        bool gfa{};
+        size_t max_subread_size;
         size_t min_read_size;
         size_t overlap;
-        StringContig next{};
         size_t cur_start = 0;
         size_t cur_end = 0;
+        IContigReader* subreader = nullptr;
+
+        void nextFile();
+
     public:
-        friend class ContigIterator<SeqReader>;
-        friend class SeqIterator<SeqReader>;
-
-        explicit SeqReader(Library _lib, size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8) :
-                lib(std::move(_lib)), file_it(lib.begin()), min_read_size(_min_read_size), overlap(_overlap) {
-            VERIFY(min_read_size >= overlap * 2);
-            reset();
-        }
-
+        explicit SeqReader(Library _lib, size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8);
         explicit SeqReader(const std::experimental::filesystem::path & file_name,
-                           size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8) :
-                           SeqReader(Library({file_name}), _min_read_size, _overlap) {
-        }
-
-        void reset() {
-            file_it = lib.begin();
-            nextFile();
-            cur_start = 0;
-            cur_end = 0;
-            inner_read();
-        }
-
-        SeqReader(SeqReader &&other) = default;
-
-//        static SeqReader CompressingReader(const std::string &file_name) {
-//            return SeqReader(file_name, [](std::string &s) {compress_inplace(s);});
-//        }
-//
-//        static SeqReader CompressingReader(const Library &lib_) {
-//            return SeqReader(lib_, [](std::string &s) {compress_inplace(s);});
-//        }
-
-        ContigIterator<SeqReader> begin() {
-            return {*this, false};
-        }
-
-        ContigIterator<SeqReader> end() {
-            return {*this, true};
-        }
-
-        SeqIterator<SeqReader> seqbegin() {
-            return {*this, false};
-        }
-
-        SeqIterator<SeqReader> seqend() {
-            return {*this, true};
-        }
-
-        StringContig get() {
-            StringContig tmp;
-            if(cur_start != 0 || cur_end != next.size()) {
-                return StringContig(next.seq.substr(cur_start, cur_end - cur_start), next.id + "_" + std::to_string(cur_start));
-            } else {
-                return std::move(next);
-            }
-        }
-
-        StringContig read() {
-            StringContig tmp = get();
-            inner_read();
-            return std::move(tmp);
-        }
-
-        std::vector<StringContig> readAll() {
-            std::vector<StringContig> res;
-            while(!eof()) {
-                res.emplace_back(read());
-            }
-            return std::move(res);
-        }
-
-        std::vector<Contig> readAllContigs() {
-            std::vector<Contig> res;
-            while(!eof()) {
-                res.emplace_back(read().makeContig());
-            }
-            return std::move(res);
-        }
-
-        bool eof() {
-            return next.isNull();
-        }
-
-        ~SeqReader() {
-            delete stream;
-        }
+                           size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8);
+        void inner_read() override;
+        void reset() override;
     };
 
+
+    class FASTQReader final: public IContigFromFileReader{
+    public:
+        explicit FASTQReader(const std::experimental::filesystem::path& _file_name);
+        void inner_read() override;
+    };
+
+
+    class FASTAReader final : public IContigFromFileReader{
+    public:
+        explicit FASTAReader(const std::experimental::filesystem::path &_file_name);
+        void inner_read() override;
+    };
+
+
+    class GFAReader final: public IContigFromFileReader{
+    public:
+        explicit GFAReader(const std::experimental::filesystem::path& _file_name);
+        void inner_read() override;
+    };
 }
 
 inline io::Library operator+(const io::Library &lib1, const io::Library &lib2) {
@@ -316,4 +102,3 @@ inline io::Library operator+(const io::Library &lib1, const io::Library &lib2) {
     res.insert(res.end(), lib2.begin(), lib2.end());
     return std::move(res);
 }
-
