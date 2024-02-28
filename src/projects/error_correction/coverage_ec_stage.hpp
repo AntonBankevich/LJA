@@ -9,6 +9,7 @@
 #include <dbg/dbg_construction.hpp>
 #include <dbg/graph_printing.hpp>
 #include <dbg/graph_stats.hpp>
+#include <sequences/seqio.hpp>
 
 namespace dbg {
     std::unordered_map<std::string, std::experimental::filesystem::path>

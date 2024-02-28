@@ -386,7 +386,7 @@ public:
     StringContig() : id(""), comment(""), seq("") {
     }
 
-    StringContig(std::string && _seq, std::string &&_id) : id(extractId(_id)), comment(extractComment(_id)), seq(makeUpperCase(std::move(_seq))) {
+    StringContig(std::string _seq, std::string _id) : id(extractId(_id)), comment(extractComment(_id)), seq(makeUpperCase(std::move(_seq))) {
     }
 
     StringContig(StringContig && other) = default;
