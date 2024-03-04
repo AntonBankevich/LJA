@@ -66,11 +66,11 @@ std::vector<AlignmentRecord> RealignReads(logging::Logger &logger, size_t thread
         if(read.fullSize() < hasher.getK())
             return;
         std::vector<std::pair<Contig *, int>> res;
-        hashing::KWH kwh(hasher, read.getSeq(), 0);
+        hashing::MovingKWH kwh(hasher, read.getSeq(), 0);
         while (true) {
             if (position_map.find(kwh.fHash()) != position_map.end()) {
                 for(std::pair<Contig *, size_t> &pos : position_map[kwh.fHash()]) {
-                    int start_pos = int(pos.second) - int(kwh.pos);
+                    int start_pos = int(pos.second) - int(kwh.getPos());
                     res.emplace_back(pos.first, start_pos);
                 }
             }

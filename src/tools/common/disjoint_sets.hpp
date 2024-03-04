@@ -19,6 +19,11 @@ public:
         }
     }
 
+    void add(T obj) {
+        if(parent.find(obj) == parent.end())
+            parent[obj] = obj;
+    }
+
     void link(T obj1, T obj2) {
         if(obj1 == obj2)
             return;

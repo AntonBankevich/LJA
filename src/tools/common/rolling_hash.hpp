@@ -6,6 +6,7 @@
 #include "common/hash_utils.hpp"
 #include "sequences/sequence.hpp"
 #include <deque>
+#include <utility>
 
 namespace hashing {
     template<typename T, typename U>
@@ -50,11 +51,11 @@ namespace hashing {
             return hash;
         }
 
-        htype extendRight(const Sequence &seq, size_t pos, htype hash, unsigned char c) const {
+        htype extendRight(const Sequence &seq, htype hash, unsigned char c) const {
             return hash * hbase + c;
         }
 
-        htype extendLeft(const Sequence &seq, size_t pos, htype hash, unsigned char c) const {
+        htype extendLeft(const Sequence &seq, htype hash, unsigned char c) const {
             return hash + c * kpow * hbase;
         }
 
@@ -84,81 +85,46 @@ namespace hashing {
     };
 
     class KWH {
-    private:
-        KWH(const RollingHash &_hasher, const Sequence &_seq, size_t _pos, htype _fhash, htype _rhash) :
-                hasher(_hasher), seq(_seq), pos(_pos), fhash(_fhash), rhash(_rhash) {
-        }
-
+    protected:
         htype fhash;
         htype rhash;
         Sequence seq;
-    public:
-        const RollingHash &hasher;
         size_t pos;
+    public:
+        KWH(Sequence _seq, size_t _pos, htype _fhash, htype _rhash) :
+                seq(std::move(_seq)), pos(_pos), fhash(_fhash), rhash(_rhash) {
+        }
+        size_t getPos() const {return pos;}
+        htype hash() const {return std::min(fhash, rhash);}
+        htype fHash() const {return fhash;}
+        htype rHash() const {return rhash;}
+        Sequence getSeq(size_t k) const {return seq.Subseq(getPos(), getPos() + k);}
 
-        KWH(const RollingHash &_hasher, const Sequence &_seq, size_t _pos) :
-                hasher(_hasher), seq(_seq), pos(_pos), fhash(_hasher.hash(_seq, _pos)),
-                rhash(_hasher.hash(!_seq, _seq.size() - _pos - _hasher.getK())) {
+        bool operator==(const KWH &other) const {
+            return fhash == other.fhash && rhash == other.rhash;
         }
 
-        KWH(const KWH &other) = default;
-
-        Sequence getSeq() const {
-            return seq.Subseq(pos, pos + hasher.getK());
+        bool operator<(const KWH &other) const {
+            if(hash() != other.hash()) {return hash() < other.hash();}
+            if(fhash != other.fhash) {return fhash < other.fhash;}
+            return rhash < other.hash();
         }
 
-        KWH operator!() const {
-            return KWH(hasher, !seq, seq.size() - pos - hasher.getK(), rhash, fhash);
+        bool operator>(const KWH &other) const {
+            if(hash() != other.hash()) {return hash() > other.hash();}
+            if(fhash != other.fhash) {return fhash > other.fhash;}
+            return rhash > other.hash();
         }
 
-        htype hash() const {
-            return std::min(fhash, rhash);
+        bool operator<=(const KWH &other) const {
+            if(hash() != other.hash()) {return hash() < other.hash();}
+            if(fhash != other.fhash) {return fhash < other.fhash;}
+            return rhash <= other.hash();
         }
-
-        htype fHash() const {
-            return fhash;
-        }
-
-        htype rHash() const {
-            return rhash;
-        }
-
-        htype extendRight(unsigned char c) const {
-            return std::min(hasher.extendRight(seq, pos, fhash, c),
-                            hasher.extendLeft(!seq, seq.size() - pos - hasher.getK(), rhash, c ^ 3u));
-        }
-
-        htype extendLeft(unsigned char c) const {
-            return std::min(hasher.extendLeft(seq, pos, fhash, c),
-                            hasher.extendRight(!seq, seq.size() - pos - hasher.getK(), rhash, c ^ 3u));
-        }
-
-        KWH next() const {
-            return {hasher, seq, pos + 1, hasher.next(seq, pos, fhash),
-                    hasher.prev(!seq, seq.size() - pos - hasher.getK(), rhash)};
-        }
-
-        KWH prev() const {
-            return {hasher, seq, pos - 1, hasher.prev(seq, pos, fhash),
-                    hasher.next(!seq, seq.size() - pos - hasher.getK(), rhash)};
-        }
-
-        bool hasNext() const {
-            return hasher.hasNext(seq, pos);
-        }
-
-        bool hasPrev() const {
-            return hasher.hasPrev(seq, pos);
-        }
-
-        KWH &operator=(const KWH &other) {
-            if (this == &other)
-                return *this;
-            seq = other.seq;
-            pos = other.pos;
-            fhash = other.fhash;
-            rhash = other.rhash;
-            return *this;
+        bool operator>=(const KWH &other) const {
+            if(hash() != other.hash()) {return hash() > other.hash();}
+            if(fhash != other.fhash) {return fhash > other.fhash;}
+            return rhash >= other.hash();
         }
 
         bool isCanonical() const {
@@ -167,12 +133,63 @@ namespace hashing {
     };
 
 
+    class MovingKWH : public KWH {
+    private:
+        const RollingHash *hasher;
+        MovingKWH(const RollingHash &_hasher, Sequence _seq, size_t _pos, htype _fhash, htype _rhash) :
+                hasher(&_hasher), KWH(std::move(_seq), _pos, _fhash, _rhash) {
+        }
+
+    public:
+        MovingKWH(const RollingHash &_hasher, const Sequence &_seq, size_t _pos) :
+                hasher(&_hasher), KWH(_seq, _pos, _hasher.hash(_seq, _pos), _hasher.hash(!_seq, _seq.size() - _pos - _hasher.getK())) {
+        }
+
+        MovingKWH(const MovingKWH &other) = default;
+        MovingKWH &operator=(const MovingKWH &other) = default;
+        MovingKWH(MovingKWH &&other) = default;
+        MovingKWH &operator=(MovingKWH &&other) = default;
+
+
+        Sequence getSeq() const {return KWH::getSeq(hasher->getK());}
+        MovingKWH operator!() const {return {*hasher, !seq, seq.size() - getPos() - hasher->getK(), rhash, fhash};}
+
+        htype extendRight(unsigned char c) const {
+            return std::min(hasher->extendRight(seq, fhash, c),
+                            hasher->extendLeft(!seq, rhash, c ^ 3u));
+        }
+
+        htype extendLeft(unsigned char c) const {
+            return std::min(hasher->extendLeft(seq, fhash, c),
+                            hasher->extendRight(!seq, rhash, c ^ 3u));
+        }
+
+        MovingKWH next() const {
+            return {*hasher, seq, getPos() + 1, hasher->next(seq, getPos(), fhash),
+                    hasher->prev(!seq, seq.size() - getPos() - hasher->getK(), rhash)};
+        }
+
+        MovingKWH prev() const {
+            return {*hasher, seq, getPos() - 1, hasher->prev(seq, getPos(), fhash),
+                    hasher->next(!seq, seq.size() - getPos() - hasher->getK(), rhash)};
+        }
+
+        bool hasNext() const {
+            return hasher->hasNext(seq, getPos());
+        }
+
+        bool hasPrev() const {
+            return hasher->hasPrev(seq, getPos());
+        }
+    };
+
+
     class MinQueue {
-        std::deque<KWH> q;
+        std::deque<MovingKWH> q;
     public:
         MinQueue() = default;
 
-        void push(const KWH &kwh) {
+        void push(const MovingKWH &kwh) {
             while (!q.empty() && q.back().hash() > kwh.hash()) {
                 q.pop_back();
             }
@@ -180,7 +197,7 @@ namespace hashing {
         }
 
         void pop(size_t pos) {
-            if (!q.empty() && q.front().pos < pos) {
+            if (!q.empty() && q.front().getPos() < pos) {
                 q.pop_front();
             }
         }
@@ -189,7 +206,7 @@ namespace hashing {
             return q.empty();
         }
 
-        KWH get() const {
+        MovingKWH get() const {
             return q.front();
         }
 
@@ -202,12 +219,12 @@ namespace hashing {
     private:
         const Sequence seq;
         const size_t w;
-        KWH kwh;
+        MovingKWH kwh;
         size_t pos;
         MinQueue queue;
     public:
-        MinimizerCalculator(const Sequence &_seq, const RollingHash &_hasher, size_t _w) :
-                seq(_seq), w(_w), kwh(_hasher, seq, 0), pos(-1) {
+        MinimizerCalculator(Sequence _seq, const RollingHash &_hasher, size_t _w) :
+                seq(std::move(_seq)), w(_w), kwh(_hasher, seq, 0), pos(-1) {
             VERIFY(w >= 1);
             VERIFY(seq.size() >= _hasher.getK() + w - 1)
             queue.push(kwh);
@@ -217,7 +234,7 @@ namespace hashing {
             }
         }
 
-        KWH next() {
+        MovingKWH next() {
             pos += 1;
             queue.pop(pos);
             kwh = kwh.next();
@@ -246,7 +263,7 @@ namespace hashing {
             res.push_back(next());
             while (hasNext()) {
                 KWH val = next();
-                if (val.pos != res.back().pos) {
+                if (val.getPos() != res.back().getPos()) {
                     res.push_back(val);
                 }
             }

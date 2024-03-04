@@ -1,3 +1,4 @@
+#include <common/disjoint_sets.hpp>
 #include "multi_graph.hpp"
 
 namespace multigraph {
@@ -5,28 +6,28 @@ namespace multigraph {
     MultiGraph MultiGraphHelper::TransformToEdgeGraph(const MultiGraph &mg, size_t tip_size) {
         MultiGraph dbg;
         std::unordered_map<ConstEdgeId, VertexId> emap;
-        for(const MGVertex &v : mg.vertices()) {
-            if(v.outDeg() == 0 || emap.find(v.front().getId()) != emap.end()) {
+        for (const MGVertex &v: mg.vertices()) {
+            if (v.outDeg() == 0 || emap.find(v.front().getId()) != emap.end()) {
                 continue;
             }
             MGVertex &newv = dbg.addVertex(v.getSeq().Subseq(v.size() - v.front().overlapSize()), MGVertexData(""));
-            for(const MGEdge &edge : v) {
+            for (const MGEdge &edge: v) {
                 const MGVertex &right = edge.getFinish();
-                for(const MGEdge &edge1 : right.rc()) {
+                for (const MGEdge &edge1: right.rc()) {
                     emap[edge1.getId()] = newv.rc().getId();
                     emap[edge1.rc().getId()] = newv.getId();
                 }
             }
         }
-        for(const MGVertex &v : mg.verticesUnique()) {
+        for (const MGVertex &v: mg.verticesUnique()) {
             VertexId start;
             VertexId end;
-            if(v.inDeg() == 0) {
+            if (v.inDeg() == 0) {
                 start = dbg.addVertex(v.getSeq().Subseq(0, std::min(tip_size, v.size() - 1))).getId();
             } else {
                 start = emap[v.rc().begin()->getId()]->rc().getId();
             }
-            if(v.outDeg() == 0) {
+            if (v.outDeg() == 0) {
                 end = dbg.addVertex(v.getSeq().Subseq(v.size() - std::min(tip_size, v.size() - 1))).getId();
             } else {
                 end = emap[v.begin()->getId()];
@@ -37,21 +38,21 @@ namespace multigraph {
     }
 
     MultiGraph MultiGraphHelper::Delete(const MultiGraph &initial, const std::unordered_set<ConstEdgeId> &to_delete,
-                                  const std::unordered_set<ConstVertexId> &to_delete_vertices) {
+                                        const std::unordered_set<ConstVertexId> &to_delete_vertices) {
         MultiGraph res;
-        std::unordered_map<ConstVertexId , VertexId> vmap;
+        std::unordered_map<ConstVertexId, VertexId> vmap;
         std::unordered_set<ConstEdgeId> visited;
-        for(const MGVertex &v : initial.verticesUnique()) {
-            if(to_delete_vertices.find(v.getId()) != to_delete_vertices.end())
+        for (const MGVertex &v: initial.verticesUnique()) {
+            if (to_delete_vertices.find(v.getId()) != to_delete_vertices.end())
                 continue;
             vmap[v.getId()] = res.addVertex(v).getId();
             vmap[v.rc().getId()] = vmap[v.getId()]->rc().getId();
         }
-        for(const MGEdge &edge : initial.edgesUnique()) {
-            if(to_delete.find(edge.getId()) != to_delete.end())
+        for (const MGEdge &edge: initial.edgesUnique()) {
+            if (to_delete.find(edge.getId()) != to_delete.end())
                 continue;
-            if(to_delete_vertices.find(edge.getStart().getId()) == to_delete_vertices.end() ||
-               to_delete_vertices.find(edge.getFinish().getId()) == to_delete_vertices.end())
+            if (to_delete_vertices.find(edge.getStart().getId()) == to_delete_vertices.end() ||
+                to_delete_vertices.find(edge.getFinish().getId()) == to_delete_vertices.end())
                 vmap[edge.getStart().getId()]->addEdgeLockFree(*vmap[edge.getFinish().getId()], edge.getSeq(), edge);
         }
         return std::move(res);
@@ -60,7 +61,7 @@ namespace multigraph {
     std::vector<EdgeId> MultiGraphHelper::uniquePathForward(MGEdge &edge) {
         std::vector<EdgeId> res = {edge.getId()};
         VertexId cur = edge.getFinish().getId();
-        while(cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
+        while (cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
             res.emplace_back(cur->begin()->getId());
             cur = res.back()->getFinish().getId();
         }
@@ -70,7 +71,7 @@ namespace multigraph {
     std::vector<ConstEdgeId> MultiGraphHelper::uniquePathForward(const MGEdge &edge) {
         std::vector<ConstEdgeId> res = {edge.getId()};
         ConstVertexId cur = edge.getFinish().getId();
-        while(cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
+        while (cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
             res.emplace_back(cur->begin()->getId());
             cur = res.back()->getFinish().getId();
         }
@@ -147,9 +148,9 @@ namespace multigraph {
 
     std::vector<Contig> MultiGraphHelper::extractContigs(const MultiGraph &mg, bool cut_overlaps) {
         std::unordered_map<ConstVertexId, size_t> cut;
-        for(const MGVertex &v : mg.vertices()) {
-            if(v.isCanonical()) {
-                if(v.outDeg() == 1) {
+        for (const MGVertex &v: mg.vertices()) {
+            if (v.isCanonical()) {
+                if (v.outDeg() == 1) {
                     cut[v.getId()] = 0;
                 } else {
                     cut[v.getId()] = 1;
@@ -159,28 +160,30 @@ namespace multigraph {
         }
         std::vector<Contig> res;
         size_t cnt = 1;
-        for(const MGEdge &edge: mg.edges()) {
-            if(edge.isCanonical()) {
+        for (const MGEdge &edge: mg.edges()) {
+            if (edge.isCanonical()) {
                 size_t cut_left = edge.getStart().size() * cut[edge.getStart().getId()];
                 size_t cut_right = edge.getFinish().size() * (1 - cut[edge.getFinish().getId()]);
-                if(!cut_overlaps) {
+                if (!cut_overlaps) {
                     cut_left = 0;
                     cut_right = 0;
                 }
-                if(cut_left + cut_right >= edge.fullSize()) {
+                if (cut_left + cut_right >= edge.fullSize()) {
                     continue;
                 }
-                res.emplace_back(edge.getSeq().Subseq(cut_left, edge.fullSize() - cut_right), "E" + edge.getId().innerId().str());
+                res.emplace_back(edge.getSeq().Subseq(cut_left, edge.fullSize() - cut_right),
+                                 "E" + edge.getId().innerId().str());
                 cnt++;
             }
         }
         return std::move(res);
     }
 
-    void MultiGraphHelper::printExtractedContigs(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool cut_overlaps) {
+    void MultiGraphHelper::printExtractedContigs(const MultiGraph &mg, const std::experimental::filesystem::path &f,
+                                                 bool cut_overlaps) {
         std::ofstream os;
         os.open(f);
-        for(const Contig &contig : extractContigs(mg, cut_overlaps)) {
+        for (const Contig &contig: extractContigs(mg, cut_overlaps)) {
             os << ">" << contig.getInnerId() << "\n" << contig.getSeq() << "\n";
         }
         os.close();
@@ -191,13 +194,13 @@ namespace multigraph {
         os.open(f);
         os << "digraph {\nnodesep = 0.5;\n";
         std::unordered_map<const MGVertex *, int> vmap;
-        for(const MGVertex &vertex : mg.vertices()) {
+        for (const MGVertex &vertex: mg.vertices()) {
             os << vertex.getId() << " [label=\"" << vertex.size() << "\" style=filled fillcolor=\"white\"]\n";
         }
         std::unordered_map<EdgeId, std::string> eids;
-        for (const MGEdge &edge : mg.edges()) {
+        for (const MGEdge &edge: mg.edges()) {
             os << "\"" << edge.getStart().getId() << "\" -> \"" << edge.getFinish().getId() <<
-               "\" [label=\"" << edge.getId() << "(" << edge.fullSize() << ")\" color = \"black\"]\n" ;
+               "\" [label=\"" << edge.getId() << "(" << edge.fullSize() << ")\" color = \"black\"]\n";
 
         }
         os << "}\n";
@@ -205,14 +208,15 @@ namespace multigraph {
     }
 
     void
-    MultiGraphHelper::printEdgeGFA(const std::experimental::filesystem::path &f, const std::vector<ConstVertexId> &component,
-                             bool labels) {
+    MultiGraphHelper::printEdgeGFA(const std::experimental::filesystem::path &f,
+                                   const std::vector<ConstVertexId> &component,
+                                   bool labels) {
         std::ofstream os;
         os.open(f);
         os << "H\tVN:Z:1.0" << std::endl;
         std::unordered_map<ConstEdgeId, std::string> eids;
-        for(ConstVertexId v : component) {
-            for (const MGEdge &edge : *v) {
+        for (ConstVertexId v: component) {
+            for (const MGEdge &edge: *v) {
                 if (edge.isCanonical()) {
                     if (labels) {
                         eids[edge.getId()] = edge.getLabel();
@@ -225,13 +229,13 @@ namespace multigraph {
                 }
             }
         }
-        for (ConstVertexId vertex : component) {
-            if(!vertex->isCanonical())
+        for (ConstVertexId vertex: component) {
+            if (!vertex->isCanonical())
                 continue;
-            for (const MGEdge &out_edge : *vertex) {
+            for (const MGEdge &out_edge: *vertex) {
                 std::string outid = eids[out_edge.getId()];
                 bool outsign = out_edge.isCanonical();
-                for (const MGEdge &inc_edge : vertex->rc()) {
+                for (const MGEdge &inc_edge: vertex->rc()) {
                     std::string incid = eids[inc_edge.getId()];
                     bool incsign = inc_edge.rc().isCanonical();
                     os << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
@@ -242,7 +246,8 @@ namespace multigraph {
         os.close();
     }
 
-    void MultiGraphHelper::printEdgeGFA(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool labels) {
+    void
+    MultiGraphHelper::printEdgeGFA(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool labels) {
         std::vector<ConstVertexId> component;
         for (const MGVertex &vertex: mg.vertices()) {
             component.push_back(vertex.getId());
@@ -251,21 +256,21 @@ namespace multigraph {
     }
 
     void MultiGraphHelper::printVertexGFA(const std::experimental::filesystem::path &f,
-                                    const std::vector<ConstVertexId> &component) {
+                                          const std::vector<ConstVertexId> &component) {
         std::ofstream os;
         os.open(f);
         os << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 1;
-        std::unordered_map<ConstVertexId , std::string> vids;
-        for(ConstVertexId v : component)
-            if(v->isCanonical()) {
+        std::unordered_map<ConstVertexId, std::string> vids;
+        for (ConstVertexId v: component)
+            if (v->isCanonical()) {
                 vids[v] = itos(v.innerId());
                 vids[v->rc().getId()] = itos(v.innerId());
                 os << "S\t" << vids[v] << "\t" << v->getSeq() << "\n";
                 cnt++;
             }
-        for(ConstVertexId v : component)
-            for (const MGEdge &edge : *v) {
+        for (ConstVertexId v: component)
+            for (const MGEdge &edge: *v) {
                 if (edge.isCanonical()) {
                     VERIFY(edge.fullSize() < edge.getStart().size() + edge.getFinish().size());
                     bool incsign = v->isCanonical();
@@ -288,23 +293,23 @@ namespace multigraph {
     std::vector<std::vector<ConstVertexId>> MultiGraphHelper::split(const MultiGraph &mg) {
         std::vector<std::vector<ConstVertexId>> res;
         std::unordered_set<ConstVertexId> visited;
-        for(const MGVertex &start: mg.vertices()) {
-            if(visited.find(start.getId()) != visited.end())
+        for (const MGVertex &start: mg.vertices()) {
+            if (visited.find(start.getId()) != visited.end())
                 continue;
             std::vector<ConstVertexId> stack = {start.getId()};
             res.emplace_back(std::vector<ConstVertexId>());
-            while(!stack.empty()) {
+            while (!stack.empty()) {
                 ConstVertexId v = stack.back();
                 stack.pop_back();
-                if(visited.find(v) != visited.end())
+                if (visited.find(v) != visited.end())
                     continue;
                 visited.emplace(v);
                 visited.emplace(v->rc().getId());
                 res.back().emplace_back(v);
                 res.back().emplace_back(v->rc().getId());
-                for(const MGEdge &e : *v)
+                for (const MGEdge &e: *v)
                     stack.emplace_back(e.getFinish().getId());
-                for(const MGEdge &e : v->rc())
+                for (const MGEdge &e: v->rc())
                     stack.emplace_back(e.getFinish().getId());
             }
         }
@@ -342,23 +347,24 @@ namespace multigraph {
         std::ifstream is;
         is.open(gfa_file);
         std::unordered_map<std::string, VertexId> vmap;
-        for(std::string line; getline(is, line); ) {
+        for (std::string line; getline(is, line);) {
             std::vector<std::string> tokens = ::split(line);
-            if(tokens[0] == "S") {
+            if (tokens[0] == "S") {
                 std::string name = tokens[1];
-                MGVertex &newV = int_ids ? res.addVertex(Sequence(tokens[2]), {name}, std::stoi(name)) : res.addVertex(Sequence(tokens[2]));
+                MGVertex &newV = int_ids ? res.addVertex(Sequence(tokens[2]), {name}, std::stoi(name)) : res.addVertex(
+                        Sequence(tokens[2]));
 
                 VERIFY(vmap.find(name) == vmap.end());
                 vmap[name] = newV.getId();
-            } else if(tokens[0] == "L") {
+            } else if (tokens[0] == "L") {
                 VertexId v1 = vmap[tokens[1]];
                 VertexId v2 = vmap[tokens[3]];
-                if(tokens[2] == "-")
+                if (tokens[2] == "-")
                     v1 = v1->rc().getId();
-                if(tokens[4] == "-")
+                if (tokens[4] == "-")
                     v2 = v2->rc().getId();
                 size_t overlap = std::stoull(tokens[5].substr(0, tokens[5].size() - 1));
-                if(v1->getSeq().Subseq(v1->getSeq().size() - overlap) != v2->getSeq().Subseq(0, overlap)) {
+                if (v1->getSeq().Subseq(v1->getSeq().size() - overlap) != v2->getSeq().Subseq(0, overlap)) {
                     v1 = v1->rc().getId();
                 }
                 VERIFY(v1->getSeq().Subseq(v1->getSeq().size() - overlap) == v2->getSeq().Subseq(0, overlap));
@@ -369,59 +375,89 @@ namespace multigraph {
         return std::move(res);
     }
 
+    struct GFAVertexRecord {
+        std::string edgeId;
+        bool start;
+        bool rc;
+        GFAVertexRecord() : start(false), rc(false) {}
+        GFAVertexRecord(std::string edgeId, bool start, bool rc) : edgeId(std::move(edgeId)), start(start), rc(rc) {}
+        GFAVertexRecord RC() const {
+            return {edgeId, start, !rc};
+        }
+        GFAVertexRecord(const GFAVertexRecord &other) = default;
+        GFAVertexRecord(GFAVertexRecord &&other) = default;
+        GFAVertexRecord &operator=(const GFAVertexRecord &other) = default;
+        GFAVertexRecord &operator=(GFAVertexRecord &&other) = default;
+        bool operator==(const GFAVertexRecord &other) const {
+            return edgeId == other.edgeId && start == other.start && rc == other.rc;
+        }
+    };
+}
+template<>
+struct std::hash<multigraph::GFAVertexRecord> {
+    size_t operator()(const multigraph::GFAVertexRecord &rec) const {
+        return std::hash<std::string>()(rec.edgeId) + size_t(rec.rc) + (size_t(rec.start) << 16);
+    }
+};
+namespace multigraph {
     MultiGraph MultiGraphHelper::LoadEdgeGFA(const std::experimental::filesystem::path &gfa_file, size_t K) {
         std::ifstream is;
         is.open(gfa_file);
-        std::unordered_map<Vertex::id_type, Sequence> vseq;
-        std::vector<std::tuple<Sequence, Edge::id_type, Edge::id_type>> edges;
+        DisjointSet<GFAVertexRecord> vertices;
+        std::unordered_map<GFAVertexRecord, VertexId> vertexMap;
+        std::unordered_map<GFAVertexRecord, size_t> vertexLengths;
+        std::vector<std::tuple<Sequence, std::string, Edge::id_type, Edge::id_type>> edges;
+        size_t bad_ids = 0;
         for(std::string line; getline(is, line); ) {
             std::vector<std::string> tokens = ::split(line);
             if(tokens[0] == "S") {
                 std::string name = tokens[1];
                 Sequence edgeseq = Sequence(tokens[2]);
-                std::vector<std::string> ids = ::split(name, "_");
-                VERIFY_OMP(ids.size() == 2, "Incorrect format of edge id in gfa file: " + name);
-                Edge::id_type eid = Parse<Edge::id_type>(ids[0]);
-                Edge::id_type rceid = Parse<Edge::id_type>(ids[1]);
-                edges.emplace_back(edgeseq, eid, rceid);
-                vseq[eid.vid] = edgeseq.Subseq(0, std::min(edgeseq.size() - 1, K));
-                vseq[rceid.vid] = (!edgeseq).Subseq(0, std::min(edgeseq.size() - 1, K));
+                ag::EdgeSaveLabel eids = {{}, {}};
+                try {
+                    eids = Parse<ag::EdgeSaveLabel>(name, 0, name.size());
+                } catch (std::invalid_argument &e) {
+                    eids = {{}, {}};
+                    ++bad_ids;
+                }
+                Edge::id_type eid = eids.fId;
+                Edge::id_type rceid = eids.rcId;
+                edges.emplace_back(edgeseq, name, eid, rceid);
+                vertices.add({name, true, true});
+                vertices.add({name, true, false});
+                vertices.add({name, false, true});
+                vertices.add({name, false, false});
             } else if(tokens[0] == "L") {
                 size_t overlap = std::stoull(tokens[5].substr(0, tokens[5].size() - 1));
-                Vertex::id_type vid1, vid2;
-                if(tokens[2] == "-")
-                    vid1 = -Parse<Edge::id_type>(::split(tokens[1], "_")[0]).vid;
-                else
-                    vid1 = Parse<Edge::id_type>(::split(tokens[1], "_")[1]).vid;
-                if(tokens[4] == "-")
-                    vid2 = -Parse<Edge::id_type>(::split(tokens[3], "_")[1]).vid;
-                else
-                    vid2 = Parse<Edge::id_type>(::split(tokens[3], "_")[0]).vid;
-                VERIFY_MSG(vid1 == vid2, line);
-                if(vseq.find(vid1) != vseq.end()) {
-                    vseq[vid1] = vseq[vid1].Subseq(0, overlap);
-                    vseq[-vid1] = !vseq[vid1];
-                }
-                if(vseq.find(-vid1) != vseq.end()) {
-                    vseq[-vid1] = vseq[-vid1].Subseq(0, overlap);
-                    vseq[vid1] = !vseq[-vid1];
-                }
+                GFAVertexRecord vrec1(tokens[1], tokens[2] == "-", tokens[2] == "-");
+                GFAVertexRecord vrec2(tokens[3], tokens[4] != "-", tokens[4] == "-");
+                vertices.link(vrec1, vrec2);
+                vertices.link(vrec1.RC(), vrec2.RC());
+                vertexLengths[vrec1] = overlap;
+                vertexLengths[vrec2] = overlap;
+                vertexLengths[vrec1.RC()] = overlap;
+                vertexLengths[vrec2.RC()] = overlap;
             }
         }
         is.close();
         MultiGraph res;
-        for(auto it : vseq) {
-            if(it.first > 0 || vseq.find(-it.first) == vseq.end()) {
-                res.addVertex(it.second, MGVertexData(itos(it.first)), it.first);
-            }
-        }
-        IdIndex<Vertex> index(res.vertices().begin(), res.vertices().end());
-        for(std::tuple<Sequence, Edge::id_type, Edge::id_type> edge : edges) {
-            Edge::id_type eid = std::get<1>(edge);
-            Edge::id_type rceid = std::get<2>(edge);
-            Vertex &start = index.getById(eid.vid);
-            Vertex &rcend = index.getById(rceid.vid);
-            start.addEdge(rcend.rc(), std::get<0>(edge), {eid.str()}, eid, rceid);
+        for(std::tuple<Sequence, std::string, Edge::id_type, Edge::id_type> edge : edges) {
+            Sequence eseq = std::get<0>(edge);
+            Edge::id_type eid = bad_ids > 0 ? Edge::id_type() : std::get<2>(edge);
+            Edge::id_type rceid = bad_ids > 0 ? Edge::id_type() : std::get<3>(edge);
+            GFAVertexRecord srec(std::get<1>(edge), true, false);
+            srec = vertices.get(srec);
+            size_t slen = vertexLengths.find(srec) == vertexLengths.end() ? K : vertexLengths[srec];
+            if(vertexMap.find(srec) == vertexMap.end())
+                vertexMap[srec] = res.addVertex(eseq.Subseq(0, slen)).getId();
+            VertexId startId = vertexMap[srec];
+            GFAVertexRecord erec(std::get<1>(edge), false, false);
+            erec = vertices.get(erec);
+            size_t elen = vertexLengths.find(erec) == vertexLengths.end() ? K : vertexLengths[erec];
+            if(vertexMap.find(erec) == vertexMap.end())
+                vertexMap[erec] = res.addVertex(eseq.Subseq(eseq.size() - elen, eseq.size())).getId();
+            VertexId endId = vertexMap[erec];
+            startId->addEdge(endId->rc(), eseq, {eid.str()}, eid, rceid);
         }
         return std::move(res);
     }

@@ -215,7 +215,7 @@ int main(int argc, char **argv) {
     std::string dbg_file = params.getValue("dbg");
     SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
-                    LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+                    LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher);
 
     bool calculate_alignments = params.getCheck("initial-correct") ||
             params.getCheck("mult-correct") || params.getCheck("print-alignments") || params.getCheck("split");
@@ -526,7 +526,7 @@ int main(int argc, char **argv) {
         }
         FillSparseDBGEdges(simp_dbg, edges.begin(), edges.end(), logger, threads, 0);
         for(auto & vert : simp_dbg.verticesUnique()) {
-            Vertex &other = index.getVertex(hashing::KWH(hasher, vert.getSeq(), 0).hash());
+            Vertex &other = index.getVertex(hashing::MovingKWH(hasher, vert.getSeq(), 0).hash());
             for(Edge & edge : vert) {
                 edge.incCov(other.getOutgoing(edge.truncSeq()[0]).intCov());
             }

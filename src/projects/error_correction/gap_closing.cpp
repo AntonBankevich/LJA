@@ -6,7 +6,7 @@
 bool GapCloser::HasInnerDuplications(const Sequence &seq, size_t k) {
     hashing::RollingHash hasher(k);
     std::vector<hashing::htype> hashs;
-    for(hashing::KWH kwh(hasher, seq, 0);; kwh = kwh.next()) {
+    for(hashing::MovingKWH kwh(hasher, seq, 0);; kwh = kwh.next()) {
         hashs.emplace_back(kwh.hash());
         if(!kwh.hasNext())
             break;
@@ -31,7 +31,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
 #pragma omp parallel for default(none) shared(tips, candidates, dbg, smallHasher)
     for (size_t i = 0; i < tips.size(); i++) {
         size_t max_len = std::min(tips[i]->truncSize(), max_overlap);
-        hashing::KWH kwh(smallHasher, tips[i]->truncSeq(), tips[i]->truncSize() - max_len);
+        hashing::MovingKWH kwh(smallHasher, tips[i]->truncSeq(), tips[i]->truncSize() - max_len);
         while (true) {
             candidates.emplace_back(kwh.hash(), i);
             if (!kwh.hasNext())
@@ -125,7 +125,7 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
 
 void processVertex(dbg::SparseDBG &dbg, dbg::KmerIndex &index, const Sequence &seq) {
     size_t k = dbg.hasher().getK();
-    hashing::KWH kwh(dbg.hasher(), seq, 0);
+    hashing::MovingKWH kwh(dbg.hasher(), seq, 0);
     if(!index.containsVertex(kwh.hash()))
         return;
     dbg::Vertex &v1 = index.getVertex(kwh);

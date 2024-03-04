@@ -61,8 +61,7 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(parameterValues.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
-                         dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger,
-                                                       threads); //Create dbg
+                         dbg::LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher); //Create dbg
     size_t extension_size = 100000;
     ReadLogger readLogger(threads, dir/"read_log.txt");
     RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, track_paths);//Structure for read alignments

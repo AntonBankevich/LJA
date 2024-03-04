@@ -3,16 +3,9 @@
 #include "component.hpp"
 #include "sparse_dbg.hpp"
 namespace dbg {
-    inline std::string DefaultEdgeName(Edge &edge) {
-        return edge.getInnerId().str();
-    }
-
-    inline std::string SaveEdgeName(Edge &edge) {
-        return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
-    }
-
+//TODO: move to namespace ag and make it universal for all graphs
     inline void printFasta(std::ostream &out, const Component &component,
-                           const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                           const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         for(Edge &edge : component.edgesUnique()) {
             out << ">" << name(edge) << "\n" << edge.getSeq() << "\n";
         }
@@ -40,7 +33,7 @@ namespace dbg {
     }
 
     inline void printAssembly(std::ostream &out, const Component &component,
-                              const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                              const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         size_t cnt = 0;
         for (Edge &edge : component.edgesUnique()) {
             Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
@@ -60,7 +53,7 @@ namespace dbg {
     }
 
     inline void printFasta(const std::experimental::filesystem::path &outf, const Component &component,
-                           const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                           const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printFasta(out, component, name);
@@ -68,7 +61,7 @@ namespace dbg {
     }
 
     inline void printAssembly(const std::experimental::filesystem::path &outf, const Component &component,
-                              const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                              const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printAssembly(out, component, name);
@@ -76,7 +69,7 @@ namespace dbg {
     }
 
     inline void printFasta(const std::experimental::filesystem::path &outf, SparseDBG &dbg,
-                           const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                           const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printFasta(out, Component(dbg), name);
@@ -84,7 +77,7 @@ namespace dbg {
     }
 
     inline void printAssembly(const std::experimental::filesystem::path &outf, SparseDBG &dbg,
-                              const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                              const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printAssembly(out, Component(dbg), name);
@@ -92,7 +85,7 @@ namespace dbg {
     }
 
     inline void printGFA(std::ostream &out, const Component &component, bool calculate_coverage,
-                         const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                         const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
         std::unordered_map<const Edge *, std::string> eids;
@@ -121,7 +114,7 @@ namespace dbg {
     }
 
     inline void printGFA(const std::experimental::filesystem::path &outf, const Component &component, bool calculate_coverage,
-                         const std::function<std::string(Edge &)> &name = &DefaultEdgeName) {
+                         const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printGFA(out, component, calculate_coverage, name);

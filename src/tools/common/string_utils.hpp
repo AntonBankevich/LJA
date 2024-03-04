@@ -29,37 +29,43 @@ inline std::string itos(int val, size_t min_size = 0) {
     return res;
 }
 
+
 template<class T>
-inline T Parse(const std::string &s);
+inline T Parse(const std::string &s, size_t start, size_t end);
 
-template<>
-inline int Parse<int>(const std::string &s) {return std::stoi(s);}
-
-template<>
-inline std::string Parse<std::string>(const std::string &s) {return s;}
-
-inline int ParseInt(const std::string &s, size_t pos = 0) {
-    bool neg = false;
-    if(pos < s.size() && s[pos] == '-') {
-        neg = true;
-        pos++;
-    }
-    VERIFY_MSG(pos < s.size() && s[pos] >= '0' && s[pos] <= '9', itos(pos) + " " + itos(s.size()) + " " + (pos < s.size() ? s[pos] : ' '));
-    int res = 0;
-    while(pos < s.size() && s[pos] >= '0' && s[pos] <= '9') {
-        res = res * 10 + s[pos] - '0';
-        pos++;
-    }
-    return neg ? -res : res;
+template<class T>
+inline T Parse(const std::string &s) {
+    return Parse<T>(s, 0, s.size());
 }
 
-static bool endsWith(const std::string& str, const std::string& suffix)
-{
+template<>
+inline int Parse<int>(const std::string &s, size_t start, size_t end) {
+    return std::stoi(s.substr(start, end - start));
+}
+
+template<>
+inline std::string Parse<std::string>(const std::string &s, size_t start, size_t end) {return s.substr(start, end - start);}
+
+//inline int ParseInt(const std::string &s, size_t pos = 0) {
+//    bool neg = false;
+//    if(pos < s.size() && s[pos] == '-') {
+//        neg = true;
+//        pos++;
+//    }
+//    VERIFY_MSG(pos < s.size() && s[pos] >= '0' && s[pos] <= '9', itos(pos) + " " + itos(s.size()) + " " + (pos < s.size() ? s[pos] : ' '));
+//    int res = 0;
+//    while(pos < s.size() && s[pos] >= '0' && s[pos] <= '9') {
+//        res = res * 10 + s[pos] - '0';
+//        pos++;
+//    }
+//    return neg ? -res : res;
+//}
+
+static bool endsWith(const std::string& str, const std::string& suffix) {
     return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
 }
 
-static bool startsWith(const std::string& str, const std::string& prefix)
-{
+static bool startsWith(const std::string& str, const std::string& prefix) {
     return str.size() >= prefix.size() && 0 == str.compare(0, prefix.size(), prefix);
 }
 

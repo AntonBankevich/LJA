@@ -37,8 +37,8 @@ namespace dbg {
         size_t w = 0;
         bool anchors_filled = false;
 
-        PerfectAlignment<Contig, dbg::Edge> extendLeft(const hashing::KWH &kwh, Contig &contig) const;
-        PerfectAlignment<Contig, dbg::Edge> extendRight(const hashing::KWH &kwh, Contig &contig) const;
+        PerfectAlignment<Contig, dbg::Edge> extendLeft(const hashing::MovingKWH &kwh, Contig &contig) const;
+        PerfectAlignment<Contig, dbg::Edge> extendRight(const hashing::MovingKWH &kwh, Contig &contig) const;
 
     public:
         explicit KmerIndex(hashing::RollingHash _hasher) : hasher_(_hasher) {
@@ -56,9 +56,11 @@ namespace dbg {
         }
 
         bool containsVertex(const hashing::htype &hash) const {return v.find(hash) != v.end();}
+        Vertex &getVertex(hashing::htype hash, bool canonical = true) const {
+            return canonical ? *v.find(hash)->second : v.find(hash)->second->rc();
+        }
         Vertex &getVertex(const hashing::KWH &kwh) const;
         Vertex &getVertex(const Sequence &seq) const;
-        Vertex &getVertex(hashing::htype hash, bool canonical = true) const {return canonical ? *v.find(hash)->second : v.find(hash)->second->rc();}
         Vertex &getVertex(const Vertex &other_graph_vertex) const;
         bool isAnchor(hashing::htype hash) const {return anchors.find(hash) != anchors.end();}
         EdgePosition getAnchor(const hashing::KWH &kwh) const;
@@ -70,9 +72,9 @@ namespace dbg {
                 return size_t(-1);
         }
 
-        std::vector<hashing::KWH> extractVertexPositions(const Sequence &seq, size_t max = size_t(-1)) const {
-            std::vector<hashing::KWH> res;
-            hashing::KWH kwh(hasher(), seq, 0);
+        std::vector<hashing::MovingKWH> extractVertexPositions(const Sequence &seq, size_t max = size_t(-1)) const {
+            std::vector<hashing::MovingKWH> res;
+            hashing::MovingKWH kwh(hasher(), seq, 0);
             while (true) {
                 if (containsVertex(kwh.hash())) {
                     res.emplace_back(kwh);

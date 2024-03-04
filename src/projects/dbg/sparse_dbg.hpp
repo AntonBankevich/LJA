@@ -152,13 +152,14 @@ namespace dbg {
         }
 
         const hashing::RollingHash &hasher() const {return hasher_;}
-
-        Vertex &addKmerVertex(const Sequence &kmer, Vertex::id_type id = 0) {
-            return AssemblyGraph<DBGTraits>::addVertex(kmer, DBGVertexData(hashing::KWH(hasher_, kmer, 0).hash()), id);
-        }
+        size_t getK() const {return hasher().getK();}
 
         Vertex &addKmerVertex(const hashing::KWH &kwh, Vertex::id_type id = 0) {
-            return AssemblyGraph<DBGTraits>::addVertex(kwh.getSeq(), VertexData(kwh.hash()), id);
+            return AssemblyGraph<DBGTraits>::addVertex(kwh.getSeq(getK()), VertexData(kwh.hash()), id);
+        }
+
+        Vertex &addKmerVertex(const Sequence &kmer, Vertex::id_type id = 0) {
+            return addKmerVertex(hashing::MovingKWH(hasher_, kmer, 0), id);
         }
 
         Vertex &addKmerVertex(hashing::htype hash, Vertex::id_type id = 0) {

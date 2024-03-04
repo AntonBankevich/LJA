@@ -8,6 +8,7 @@
 #include <functional>
 #include <algorithm>
 #include <array>
+#include <stdexcept>
 namespace ag {
     class BaseEdgeId {
     public:
@@ -37,13 +38,33 @@ namespace ag {
     inline std::ostream &operator<<(std::ostream &os, ag::BaseEdgeId val) {
         return os << val.vid << "." << val.eid;
     }
+
+    struct EdgeSaveLabel {
+        ag::BaseEdgeId fId;
+        ag::BaseEdgeId rcId;
+        EdgeSaveLabel(ag::BaseEdgeId fId, ag::BaseEdgeId rcId) : fId(fId), rcId(rcId) {
+        }
+    };
+
+    inline std::ostream &operator<<(std::ostream &os, ag::EdgeSaveLabel val) {
+        return os << val.fId << "_" << val.rcId;
+    }
 }
 
 template<>
-inline ag::BaseEdgeId Parse<ag::BaseEdgeId>(const std::string &s) {
-    int vid = ParseInt(s, 0);
-    int eid = ParseInt(s, s.find('.') + 1);
+inline ag::BaseEdgeId Parse<ag::BaseEdgeId>(const std::string &s, size_t start, size_t end) {
+    size_t pos = s.find('.', start);
+    if(pos == size_t(-1) || pos >= end){ throw std::invalid_argument("Incorrect edge id record"); }
+    int vid = Parse<int>(s, start, pos);
+    int eid = Parse<int>(s, pos + 1, end);
     return {vid, eid};
+}
+
+template<>
+inline ag::EdgeSaveLabel Parse<ag::EdgeSaveLabel>(const std::string &s, size_t start, size_t end) {
+    size_t pos = s.find('_', start);
+    if (pos == size_t(-1) || pos >= end) { throw std::invalid_argument("Incorrect edge id pair record"); }
+    return {Parse<ag::BaseEdgeId>(s, start, pos), Parse<ag::BaseEdgeId>(s, pos + 1, end)};
 }
 
 namespace std {
@@ -283,6 +304,18 @@ namespace ag {
         }
     };
 
+    template<class T>
+    inline std::string DefaultEdgeName(BaseEdge<T> &edge) {
+        return edge.getInnerId().str();
+    }
+
+    template<class T>
+    inline std::string SaveEdgeName(BaseEdge<T> &edge) {
+        VERIFY((edge.getFinish().rc().getInnerId() > 0) == edge.getFinish().rc().isCanonical());
+        return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
+    }
+
+
     template<class Traits>
     class BaseVertex {
     public:
@@ -485,12 +518,14 @@ namespace ag {
 
 //    Be careful since hash does not define vertex. Rc vertices share the same hash
         Vertex &innerAddVertex(typename Vertex::id_type id, bool canonical, VertexData data) {
+            VERIFY(canonical == (id > 0));
             maxVId = std::max(std::abs(id), maxVId);
             vertex_list.emplace_back(id, canonical, std::move(data));
             return vertex_list.back();
         }
 
         Vertex &innerAddVertex(typename Vertex::id_type id, Sequence seq, VertexData data) {
+            VERIFY(seq.isCanonical() == (id > 0));
             maxVId = std::max(std::abs(id), maxVId);
             vertex_list.emplace_back(id, std::move(seq), std::move(data));
             return vertex_list.back();
@@ -689,18 +724,11 @@ namespace ag {
                 id = -maxVId - 1;
         }
         maxVId = std::max(std::abs(id), maxVId);
-        Vertex *res = nullptr;
-        Vertex *rc = nullptr;
-        if(seq == !seq) {
-            res = &innerAddVertex(id, seq, data);
-            rc = res;
-        } else {
-            res = &innerAddVertex(id, seq, data);;
-            rc = &innerAddVertex(-id, !seq, data.RC());
-        }
-        res->setRC(*rc);
-        res->setSeq(seq);
-        return *res;
+        Vertex & res = innerAddVertex(id, seq, data);
+        Vertex & rc = seq == !seq ? res : innerAddVertex(-id, !seq, data.RC());
+        res.setRC(rc);
+        res.setSeq(seq);
+        return res;
     }
 
     template<class Traits>
@@ -780,6 +808,7 @@ namespace ag {
     template<class Traits>
     void BaseVertex<Traits>::setSeq(Sequence _seq) {
         lock();
+        VERIFY(isCanonical() == _seq.isCanonical());
         if (getSeq().empty()) {
             seq = std::move(_seq);
             unlock();

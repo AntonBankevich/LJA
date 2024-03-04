@@ -14,7 +14,7 @@ std::unordered_map<std::string, std::experimental::filesystem::path> MDBGConstru
         k += 1;
     }
     hashing::RollingHash hasher(k);
-    SparseDBG dbg = dbg::LoadDBGFromEdgeSequences({graph_gfa}, hasher, logger, threads);
+    SparseDBG dbg = dbg::LoadDBGFromEdgeSequences(logger, threads, {graph_gfa}, hasher);
     IdIndex<Vertex> index(dbg.vertices().begin(), dbg.vertices().end());
     size_t extension_size = 10000000;
     ReadLogger readLogger(threads, dir/"read_log.txt");

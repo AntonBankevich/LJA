@@ -287,6 +287,10 @@ public:
         return !(operator==(that));
     }
 
+    bool isCanonical() const {
+        return *this <= this->rc();
+    }
+
     /**
      * @param from inclusive
      * @param to exclusive;

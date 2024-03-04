@@ -67,9 +67,9 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
         PrintPaths(logger, threads, dir / "state_dump", "gap2", dbg, readStorage, paths_lib, false);
         DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
     }
-    printFasta(dir / "final_dbg.fasta", dbg, &SaveEdgeName);
+    printFasta(dir / "final_dbg.fasta", dbg, &ag::SaveEdgeName<DBGTraits>);
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
-    printGFA(dir / "final_dbg.gfa", Component(dbg), true, &SaveEdgeName);
+    printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
     SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
     readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     extra_reads.printReadFasta(logger, dir / "pseudo_reads.fasta");

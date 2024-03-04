@@ -29,7 +29,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     std::function<void(size_t, const Sequence &)> task = [&filter, &ehasher](size_t pos, const Sequence & seq) {
         if(seq.size() < ehasher.getK())
             return;
-        hashing::KWH kmer(ehasher, seq, 0);
+        hashing::MovingKWH kmer(ehasher, seq, 0);
         while (true) {
             filter.insert(kmer.hash());
 //            filter.delayedInsert(kmer.hash());
@@ -50,7 +50,7 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     logger.info() << "Finished filling bloom filter. Selecting junctions." << std::endl;
     ParallelRecordCollector<hashing::htype> junctions(threads);
     std::function<void(size_t, const Sequence &)> junk_task = [&filter, &hasher, &junctions](size_t pos, const Sequence & seq) {
-        KWH kmer(hasher, seq, 0);
+        MovingKWH kmer(hasher, seq, 0);
         junctions.emplace_back(kmer.hash());
         if(!kmer.hasNext())
             return;

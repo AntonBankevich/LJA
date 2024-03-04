@@ -70,36 +70,9 @@ namespace dbg {
         return std::move(res);
     }
 
-    SparseDBG DbgConstructionHelper::SplitGraph(SparseDBG &dbg, const std::vector<EdgePosition> &breaks) const {
-        SparseDBG res(hasher());
-        for(Vertex &it : dbg.verticesUnique()) {
-            res.addVertex(it);
-        }
-        KmerIndex index(res);
-        std::unordered_set<Edge *> broken_edges;
-        for(const EdgePosition &epos : breaks) {
-            if(!epos.isBorder()) {
-                res.addKmerVertex(epos.kmerSeq());
-                broken_edges.emplace(epos.edge);
-                broken_edges.emplace(&epos.edge->rc());
-            }
-        }
-        for(Edge &edge : dbg.edgesUnique()) {
-            if(broken_edges.find(&edge) == broken_edges.end()) {
-                Vertex &start = index.getVertex(edge.getStart());
-                Vertex &end = index.getVertex(edge.getFinish());
-                start.addEdge(end, edge.getSeq());
-            } else {
-                Vertex &newVertex = index.getVertex(edge.getStart());
-                processFullEdgeSequence(res, index, edge.getSeq());
-            }
-        }
-        return std::move(res);
-    }
-
     void DbgConstructionHelper::addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs, KmerIndex &index) const {
         for(const Sequence &seq: new_seqs) {
-            KWH kwh(hasher(), seq, 0);
+            MovingKWH kwh(hasher(), seq, 0);
             while(true) {
                 if(!index.containsVertex(kwh.hash())) {
                     Vertex &v = dbg.addKmerVertex(kwh);
@@ -155,7 +128,7 @@ namespace dbg {
         ParallelRecordCollector<hashing::htype> hashs(threads);
         std::function<void(size_t, Edge &)> task1 =
                 [this, &hashs](size_t pos, Edge &edge) {
-                    hashing::KWH kwh(hasher(), edge.getSeq(), 1);
+                    hashing::MovingKWH kwh(hasher(), edge.getSeq(), 1);
                     for(size_t i = 1; i < edge.truncSize(); i++) {
                         hashs.emplace_back(kwh.hash());
                         kwh = kwh.next();
@@ -163,7 +136,7 @@ namespace dbg {
                 };
         processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task1);
         for(Vertex &vertex : dbg.verticesUnique()) {
-            hashs.emplace_back(hashing::KWH(hasher(), vertex.getSeq(), 0).hash());
+            hashs.emplace_back(hashing::MovingKWH(hasher(), vertex.getSeq(), 0).hash());
         }
         std::vector<hashing::htype> res = hashs.collect();
         __gnu_parallel::sort(res.begin(), res.end());
@@ -180,16 +153,16 @@ namespace dbg {
         logger.trace() << "Checking kmer index" << std::endl;
         std::function<void(size_t, Edge &)> task =
                 [this, &index](size_t pos, Edge &edge) {
-                    KWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 0);
+                    MovingKWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 0);
                     while (true) {
                         if(index.containsVertex(kwh.hash())) {
-                            VERIFY_OMP((kwh.pos == 0 && index.getVertex(kwh) == edge.getStart()) || (kwh.pos ==
-                                                                                                              edge.truncSize() && index.getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
+                            VERIFY_OMP((kwh.getPos() == 0 && index.getVertex(kwh) == edge.getStart()) || (kwh.getPos() ==
+                                                                                                        edge.truncSize() && index.getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
                         }
                         if(index.isAnchor(kwh.hash())) {
                             EdgePosition ep = index.getAnchor(kwh);
-                            VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.pos, "Anchor kmer index corruption " + itos(ep.pos) + " " +
-                                                                              itos(ep.edge->truncSize()));
+                            VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.getPos(), "Anchor kmer index corruption " + itos(ep.pos) + " " +
+                                                                                 itos(ep.edge->truncSize()));
                         }
                         if(!kwh.hasNext())
                             break;
@@ -201,7 +174,7 @@ namespace dbg {
     }
 
     void DbgConstructionHelper::processRead(SparseDBG &dbg, KmerIndex &index, const Sequence &seq) const {
-        std::vector<hashing::KWH> kmers = index.extractVertexPositions(seq);
+        std::vector<hashing::MovingKWH> kmers = index.extractVertexPositions(seq);
         if (kmers.size() == 0) {
             std::cout << seq << std::endl;
         }
@@ -216,42 +189,42 @@ namespace dbg {
         size_t k = hasher().getK();
         for (size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
-            VERIFY(kmers[i].pos + k <= seq.size())
+            VERIFY(kmers[i].getPos() + k <= seq.size())
             if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
-                (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
-                kmers[i + 1].pos - kmers[i].pos < k) {
+                (kmers[i].getPos() - kmers[i - 1].getPos() == kmers[i + 1].getPos() - kmers[i].getPos()) &&
+                kmers[i + 1].getPos() - kmers[i].getPos() < k) {
                 continue;
             }
-            vertices[i]->addEdge(*vertices[i + 1], seq.Subseq(kmers[i].pos, kmers[i + 1].pos + k));
+            vertices[i]->addEdge(*vertices[i + 1], seq.Subseq(kmers[i].getPos(), kmers[i + 1].getPos() + k));
         }
-        if (kmers.front().pos > 0) {
-            vertices.front()->rc().addOutgoingSequence( !(seq.Subseq(0, kmers[0].pos)));
+        if (kmers.front().getPos() > 0) {
+            vertices.front()->rc().addOutgoingSequence( !(seq.Subseq(0, kmers[0].getPos())));
         }
-        if (kmers.back().pos + k < seq.size()) {
-            vertices.back()->addOutgoingSequence(seq.Subseq(kmers.back().pos + k, seq.size()));
+        if (kmers.back().getPos() + k < seq.size()) {
+            vertices.back()->addOutgoingSequence(seq.Subseq(kmers.back().getPos() + k, seq.size()));
         }
     }
 
     void DbgConstructionHelper::processFullEdgeSequence(SparseDBG &dbg, KmerIndex &index, const Sequence &full_seq) const {
-        std::vector<hashing::KWH> kmers = index.extractVertexPositions(full_seq);
-        VERIFY(kmers.front().pos == 0 && kmers.back().pos == full_seq.size() - hasher().getK());
-        std::vector<Vertex *> vertices;
+        std::vector<hashing::MovingKWH> kmers = index.extractVertexPositions(full_seq);
+        VERIFY(kmers.front().getPos() == 0 && kmers.back().getPos() == full_seq.size() - hasher().getK());
+        std::vector<VertexId> vertices;
         for (auto & kmer : kmers) {
-            vertices.emplace_back(&index.getVertex(kmer));
+            vertices.emplace_back(index.getVertex(kmer).getId());
         }
         for(size_t i = 0; i < vertices.size(); i++) {
             if(i == 0 || vertices[i] != vertices[i-1]) {
-                vertices[i]->setSeq(full_seq.Subseq(kmers[i].pos, kmers[i].pos + hasher().getK()));
+                vertices[i]->setSeq(kmers[i].getSeq());
             }
         }
         for (size_t i = 0; i + 1 < vertices.size(); i++) {
 //            TODO: if too memory heavy save only some of the labels
             if (i > 0 && vertices[i] == vertices[i - 1] && vertices[i] == vertices[i + 1] &&
-                (kmers[i].pos - kmers[i - 1].pos == kmers[i + 1].pos - kmers[i].pos) &&
-                kmers[i + 1].pos - kmers[i].pos < hasher().getK()) {
+                (kmers[i].getPos() - kmers[i - 1].getPos() == kmers[i + 1].getPos() - kmers[i].getPos()) &&
+                kmers[i + 1].getPos() - kmers[i].getPos() < hasher().getK()) {
                 continue;
             }
-            vertices[i]->addEdge(*vertices[i + 1], full_seq.Subseq(kmers[i].pos, kmers[i + 1].pos + hasher().getK()));
+            vertices[i]->addEdge(*vertices[i + 1], full_seq.Subseq(kmers[i].getPos(), kmers[i + 1].getPos() + hasher().getK()));
         }
     }
 
@@ -322,7 +295,7 @@ namespace dbg {
         logger.info() << "Added " << new_minimizers.size() << " artificial minimizers from tips." << std::endl;
         KmerIndex index(sdbg);
         for (Sequence & seq : new_minimizers) {
-            KWH kmer(sdbg.hasher(), seq, 0);
+            MovingKWH kmer(sdbg.hasher(), seq, 0);
             if(!index.containsVertex(kmer.hash())) {
                 Vertex &new_vertex = sdbg.addKmerVertex(kmer);
                 index.addVertex(new_vertex);
@@ -486,42 +459,63 @@ namespace dbg {
         return alignments_file;
     }
 
-    SparseDBG LoadDBGFromEdgeSequences(const io::Library &lib, RollingHash &hasher, logging::Logger &logger, size_t threads) {
+    SparseDBG LoadDBGFromEdgeSequences(logging::Logger &logger, size_t threads, const io::Library &lib, RollingHash &hasher) {
         logger.info() << "Loading graph from fasta" << std::endl;
         io::SeqReader reader(lib);
-        ParallelRecordCollector<std::tuple<Sequence, Edge::id_type, Edge::id_type>> edges(threads);
-        ParallelRecordCollector<std::pair<Vertex::id_type, Sequence>> vertices(threads);
-        std::function<void(size_t, StringContig &)> collect_task = [&edges, &vertices, hasher](size_t pos,
+        ParallelRecordCollector<std::tuple<Sequence, Edge::id_type, Edge::id_type, KWH, KWH>> edges(threads);
+        ParallelRecordCollector<std::tuple<Vertex::id_type, KWH>> vertices(threads);
+        UniversalParallelCounter<size_t> bad_ids(threads);
+        std::function<void(size_t, StringContig &)> collect_task = [&edges, &vertices, &bad_ids, hasher](size_t pos,
                                                                                                StringContig &contig) {
             Sequence seq = contig.makeSequence();
             Sequence start = seq.Prefix(hasher.getK());
             Sequence end = (!seq).Prefix(hasher.getK());
-            std::vector<std::string> ids = split(contig.id, "_");
-            VERIFY_OMP(ids.size() == 2, "Incorrect format of edge id in fasta file: " + contig.id);
-            Edge::id_type eid = Parse<Edge::id_type>(ids[0]);
-            Edge::id_type rceid = Parse<Edge::id_type>(ids[1]);
+            ag::EdgeSaveLabel eids = {{}, {}};
+            try {
+                eids = Parse<ag::EdgeSaveLabel>(contig.id, 0, contig.id.size());
+            } catch (std::invalid_argument &e) {
+                eids = {{}, {}};
+                ++bad_ids;
+            }
+            Edge::id_type eid = eids.fId;
+            Edge::id_type rceid = eids.rcId;
+            MovingKWH start_kwh(hasher, start, 0);
+            MovingKWH end_kwh(hasher, end, 0);
+            VERIFY(start.isCanonical() == eid.vid > 0);
+            VERIFY(end.isCanonical() == rceid.vid > 0);
             if(eid.vid < 0)
-                vertices.emplace_back(-eid.vid, !start);
+                vertices.emplace_back(-eid.vid, !start_kwh);
             else
-                vertices.emplace_back(eid.vid, start);
+                vertices.emplace_back(eid.vid, start_kwh);
             if(rceid.vid < 0)
-                vertices.emplace_back(-rceid.vid, !end);
+                vertices.emplace_back(-rceid.vid, !end_kwh);
             else
-                vertices.emplace_back(rceid.vid, end);
-            edges.emplace_back(seq, eid, rceid);
+                vertices.emplace_back(rceid.vid, end_kwh);
+            edges.emplace_back(seq, eid, rceid, start_kwh, end_kwh);
         };
         processRecords(reader.begin(), reader.end(), logger, threads, collect_task);
-        SparseDBG res(hasher);
-        std::vector<std::pair<Vertex::id_type, Sequence>> vertices_list = vertices.collectUnique();
-        for(std::pair<Vertex::id_type, Sequence> &v : vertices_list) {
-            res.addKmerVertex(v.second, v.first);
+        bool discard_ids = bad_ids.get() > 0;
+        if(discard_ids > 0) {
+            logger.info() << "Found " << bad_ids.get() << " edge ids that do not match standard notation. Edge id preservation disabled." << std::endl;
+        } else {
+            logger.info() << "Successfully preserved all edge and vertex ids." << std::endl;
         }
-        IdIndex<Vertex> index(res.vertices().begin(), res.vertices().end());
-        for(std::tuple<Sequence, Edge::id_type, Edge::id_type> edge : edges) {
+        std::vector<std::tuple<Vertex::id_type, KWH>> vertices_list = vertices.collectUnique();
+        SparseDBG res(hasher);
+        KmerIndex index(res);
+        for(std::tuple<Vertex::id_type, KWH> &vrec : vertices_list) {
+            Vertex::id_type vid = discard_ids ? 0 : std::get<0>(vrec);
+            KWH kwh = std::get<1>(vrec);
+            if(!index.containsVertex(kwh.hash())) {
+                Vertex &newv = res.addKmerVertex(kwh, vid);
+                index.addVertex(newv);
+            }
+        }
+        for(std::tuple<Sequence, Edge::id_type, Edge::id_type, KWH, KWH> edge : edges) {
             Edge::id_type eid = std::get<1>(edge);
             Edge::id_type rceid = std::get<2>(edge);
-            Vertex &start = index.getById(eid.vid);
-            Vertex &rcend = index.getById(rceid.vid);
+            Vertex &start = index.getVertex(std::get<3>(edge));
+            Vertex &rcend = index.getVertex(std::get<4>(edge));
             start.addEdge(rcend.rc(), std::get<0>(edge), {}, eid, rceid);
         }
         logger.info() << "Finished loading graph" << std::endl;

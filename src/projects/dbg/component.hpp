@@ -7,6 +7,7 @@
 #include <utility>
 
 namespace dbg {
+    //TODO: move to namespace ag and make it universal for all graphs!!!
     class Component {
     private:
         SparseDBG *_graph;

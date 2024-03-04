@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     size_t threads = std::stoi(values.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
                          DBGPipeline(logger, hasher, w, reads_lib, dir, threads, disjointigs_file, vertices_file) :
-                         dbg::LoadDBGFromEdgeSequences({std::experimental::filesystem::path(dbg_file)}, hasher, logger, threads);
+                         dbg::LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher);
     logger.info() << "Constructing edge id mapping" << std::endl;
     std::unordered_map<dbg::Edge*, std::string> edge_mapping;
     dbg::KmerIndex aligner(dbg);

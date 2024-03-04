@@ -91,7 +91,7 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
     for (const auto &vit: subgraph.verticesUnique()) {
         if (!vit.isJunction()) {
-            anchors.emplace(hashing::KWH(dbg.hasher(), vit.getSeq(), 0).hash());
+            anchors.emplace(hashing::MovingKWH(dbg.hasher(), vit.getSeq(), 0).hash());
         }
     }
     MergeAll(logger, threads, subgraph);
@@ -218,7 +218,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
     for(Vertex & v : subgraph.verticesUnique()){
         if(!v.isJunction()) {
-            anchors.emplace(hashing::KWH(dbg.hasher(), v.getSeq(), 0).hash());
+            anchors.emplace(hashing::MovingKWH(dbg.hasher(), v.getSeq(), 0).hash());
         }
     }
     MergeAll(logger, threads, subgraph);
@@ -290,9 +290,9 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
     for(const Connection &connection : connections)
         helper.addAllKmers(res, {connection.connection}, index);
     std::function<void(size_t, const Edge &)> task = [&res, &helper, &index](size_t num, const Edge &edge) {
-        std::vector<hashing::KWH> kmers = index.extractVertexPositions(edge.getSeq());
+        std::vector<hashing::MovingKWH> kmers = index.extractVertexPositions(edge.getSeq());
         if(kmers.size() == 2) {
-            VERIFY(kmers.front().pos == 0 && kmers.back().pos == edge.truncSize());
+            VERIFY(kmers.front().getPos() == 0 && kmers.back().getPos() == edge.truncSize());
             Edge &new_edge = index.getVertex(kmers.front()).addEdge(index.getVertex(kmers.back()), edge.truncSeq(), edge.rc().truncSeq(), edge, edge.getInnerId(), edge.rc().getInnerId());
             new_edge.incCov(-new_edge.intCov());
             new_edge.rc().incCov(-new_edge.rc().intCov());
@@ -317,7 +317,8 @@ dbg::SparseDBG AddConnections(logging::Logger &logger, size_t threads, const Spa
     }
     MergeAll(logger, threads, res);
     index = KmerIndex(res);
-    index.fillAnchors(logger, threads, res, size_t(-1) / 2, to_add);
+//    TODO: Get rid of this magic constant!!! It should go away when all is processed through operations and listeners
+    index.fillAnchors(logger, threads, res, 500, to_add);
     helper.checkConsistency(threads, logger, res);
     for(const Edge &e : dbg.edges()) {
         e.is_reliable = false;

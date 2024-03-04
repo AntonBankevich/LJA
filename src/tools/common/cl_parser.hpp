@@ -65,7 +65,7 @@ public:
         }
         ss << "Checks:\n";
         for(auto &it : checks) {
-            ss << it.first << " " << it.second << "\n";
+            ss << it.first << " " << (it.second ? "true" : "false") << "\n";
         }
         return ss.str();
     }

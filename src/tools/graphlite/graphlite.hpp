@@ -1221,7 +1221,7 @@ namespace graph_lite {
                     // loop through this range to remove prop
                     for (auto it=src_remove_begin; it!=src_remove_end; ++it) {
                         ++num_edges_removed;
-                        this->edge_prop_list.erase(it->second.pos);
+                        this->edge_prop_list.erase(it->second.getPos());
                     }
                     // erase this range itself
                     src_neighbors.erase(src_remove_begin, src_remove_end);

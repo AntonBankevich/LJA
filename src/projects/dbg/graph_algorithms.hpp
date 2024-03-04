@@ -22,7 +22,6 @@ namespace dbg {
         void processFullEdgeSequence(SparseDBG &dbg, KmerIndex &index, const Sequence &old_seq) const;
 
         SparseDBG Subgraph(std::vector<Segment<Edge>> &pieces) const;
-        SparseDBG SplitGraph(SparseDBG &dbg, const std::vector<EdgePosition> &breaks) const;
 
         void addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs, KmerIndex &index) const;
 
@@ -58,7 +57,7 @@ namespace dbg {
     }
 
     SparseDBG
-    LoadDBGFromEdgeSequences(const io::Library &lib, hashing::RollingHash &hasher, logging::Logger &logger, size_t threads);
+    LoadDBGFromEdgeSequences(logging::Logger &logger, size_t threads, const io::Library &lib, hashing::RollingHash &hasher);
 
     template<class Iterator>
     void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
