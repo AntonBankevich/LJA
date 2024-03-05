@@ -156,7 +156,11 @@ namespace ag {
         BaseEdge(id_type id, Vertex &_start, Vertex &_end, Sequence _seq) :
                 id(std::move(id)), start(&_start), finish(&_end), seq(std::move(_seq)), _rc(nullptr) {
         }
+        BaseEdge() : id(0, 0), start(nullptr), finish(nullptr), seq(), _rc(nullptr) {
+//            TODO: Remove this!!! It exists only for Andreys code compilation but that code should be purged
+        }
 //        BaseEdge() : id(), start(nullptr), finish(nullptr), seq() {}
+        BaseEdge(BaseEdge &&other) = delete;
         BaseEdge(const BaseEdge &other) = delete;
 
         virtual ~BaseEdge() = default;
@@ -919,7 +923,7 @@ namespace ag {
         } else {
             res._rc = &res;
         }
-        VERIFY(res.fullSize() == res.rc().fullSize());
+        VERIFY_MSG(res.fullSize() == res.rc().fullSize(), full_sequence.size() << " " << res.fullSize() << " " << res.rc().fullSize() << " " << res.getStart().size() << " " << res.rc().getStart().size());
         return res;
     }
 

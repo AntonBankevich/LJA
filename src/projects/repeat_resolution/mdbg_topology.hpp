@@ -108,6 +108,9 @@ std::ostream &operator<<(std::ostream &os, const RREdgeProperty &edge_property);
 // ---------- SuccinctEdgeInfo ----------
 
 struct SuccinctEdgeInfo {
+    SuccinctEdgeInfo(RRVertexType startInd, RRVertexType endInd, const dbg::Edge *edge, bool unique) : start_ind(
+            startInd), end_ind(endInd), edge(edge), unique(unique) {}
+
     RRVertexType start_ind{0};
     RRVertexType end_ind{0};
     const dbg::Edge *edge{nullptr};

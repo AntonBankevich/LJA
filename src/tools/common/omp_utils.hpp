@@ -173,10 +173,11 @@ public:
     template<class I>
     void processRecords(I begin, I end, size_t bucket_length = 1024 * 1024) {
         omp_set_num_threads(threads);
-#pragma omp parallel default(none)
+#pragma omp parallel default(none) shared(std::cout)
         {
 #pragma omp single
             {
+                VERIFY_MSG(threads == omp_get_num_threads(), "Could not use " << threads << " threads.")
                 logger.trace() << "Starting parallel calculation using " << omp_get_num_threads() << " threads" << std::endl;
             }
         };

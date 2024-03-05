@@ -50,7 +50,7 @@ public:
 
     void Fill(size_t threads, dbg::KmerIndex &index) {
         ParallelRecordCollector<dbg::PerfectAlignment<Contig, dbg::Edge>> records(threads);
-#pragma omp parallel for default(none) shared(stored_contigs, records, index)
+#pragma omp parallel for schedule(dynamic, 10) default(none) shared(stored_contigs, records, index)
         for(size_t i = 0; i < stored_contigs.size(); i++) {
             Contig &contig = *stored_contigs[i];
             std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> path = index.carefulAlign(contig);

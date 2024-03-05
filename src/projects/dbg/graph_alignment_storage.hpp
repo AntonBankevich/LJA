@@ -251,10 +251,10 @@ void RecordStorage::fill(logging::Logger &logger, size_t threads, I begin, I end
         tmpReads.emplace_back(pos, contig.getInnerId(), cpath);
     };
     processRecords(begin, end, logger, threads, read_task);
-reads.resize(tmpReads.size());
+    reads.resize(tmpReads.size());
     for(auto &rec : tmpReads) {
         VERIFY(std::get<0>(rec) < reads.size());
-        reads[std::get<0>(rec)] = AlignedRead(std::get<1>(rec), std::move(std::get<2>(rec)));
+        reads[std::get<0>(rec)] = {std::get<1>(rec), std::move(std::get<2>(rec))};
     }
     logger.info() << "Alignment collection finished. Total length of alignments is " << cnt.get() << std::endl;
 }

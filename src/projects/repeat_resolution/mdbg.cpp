@@ -300,7 +300,6 @@ MultiplexDBG::MultiplexDBG(const std::vector<SuccinctEdgeInfo> &edges,
                                      edge->truncSize(),
                                      edge->truncSize() + start_k),
                              false));
-
         int64_t infix_size = ((int64_t) edge->truncSize()) - start_k;
         VERIFY(infix_size > 0 or -infix_size < start_k);
         MDBGSeq edge_seq;

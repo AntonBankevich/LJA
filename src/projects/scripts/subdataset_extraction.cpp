@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
                                "threads=16", "k-mer-size=", "window=2000", "debug", "disjointigs=none",
                                "reference=none", "compress", "dimer-compress=1000000000,1000000000,1",
                                "unique-threshold=40000", "radius=1000", "bad-cov=7", "track-paths", "add-paths"},
-                               {"paths", "reads", "pseudo-reads"}, "");
+                               {"paths", "reads", "pseudo-reads", "contigs"}, "");
     CLParser parser(params,
                     {"o=output-dir", "t=threads", "k=k-mer-size", "w=window"},
                     {});
@@ -47,6 +47,7 @@ int main(int argc, char **argv) {
     size_t unique_threshold = std::stoi(parameterValues.getValue("unique-threshold"));
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("reads"));
     io::Library pseudo_reads_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("pseudo-reads"));
+    io::Library contig_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("contigs"));
     io::Library construction_lib = reads_lib + pseudo_reads_lib;
     io::Library paths_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("paths"));
     if(add_paths)
@@ -102,6 +103,9 @@ int main(int argc, char **argv) {
             subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig_al, k + radius));
             subdatasets.back().id = contig.getInnerId();
         }
+    }
+    for(StringContig stringContig: io::SeqReader(contig_lib)) {
+        storage.addContig(stringContig.makeContig());
     }
     storage.Fill(threads, index);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
