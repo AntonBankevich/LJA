@@ -107,6 +107,7 @@ int main(int argc, char **argv) {
     for(StringContig stringContig: io::SeqReader(contig_lib)) {
         storage.addContig(stringContig.makeContig());
     }
+    logger.info() << "Filling path storage" << std::endl;
     storage.Fill(threads, index);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
