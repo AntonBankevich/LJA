@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "cert-err58-cpp"
 //
 // Created by Andrey Bzikadze on 1/13/21.
 //
@@ -192,21 +194,20 @@ TEST(DBSingleEdge2, Basic) {
     {
         RawVertexInfo
             vertex_info = {{0, {"ACG", frozen}}, {1, {"GCA", frozen}}};
-        std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info{
+        std::vector<std::tuple<uint64_t, uint64_t, std::string>> raw_edge_info_result{
             {0, 1, "ACGCA"}};
 
         auto[VertexIndexSetsEqual, VertexPropsEquals] =
         CompareVertexes(mdbg, vertex_info);
         ASSERT_TRUE(VertexIndexSetsEqual);
         ASSERT_TRUE(VertexPropsEquals);
-        ASSERT_TRUE(CompareEdges(mdbg, raw_edge_info));
+        ASSERT_TRUE(CompareEdges(mdbg, raw_edge_info_result));
     }
 }
 
 TEST(DBSingleEdge3, Basic) {
     const size_t k = 2;
 
-    const bool frozen = false;
     const bool unique = false;
     std::vector<std::tuple<RRVertexType, RRVertexType, std::string>>
         raw_edge_info{{0, 1, "ACGTGCA"}}; // 0
@@ -1202,3 +1203,4 @@ TEST(DBEmptyGraph, Basic) {
         ASSERT_TRUE(mdbg.IsFrozen());
     }
 }
+#pragma clang diagnostic pop

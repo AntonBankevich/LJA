@@ -7,10 +7,14 @@ Makefile
 **/*.a
 **/Makefile
 tests/run_tests
-**/*.cmake
 **/*.cbp
+**/cmake_install.cmake
 **/__pycache__
-src/tests/googletest-master/googletest/generated/*
+src/tests/googletest/.clang-format
+src/tests/googletest/googletest/generated/*
+src/tests/googletest/CTestTestfile.cmake
+src/tests/googletest/googlemock/CTestTestfile.cmake
+src/tests/googletest/googletest/CTestTestfile.cmake
 .idea
 bin
 install_manifest.txt
