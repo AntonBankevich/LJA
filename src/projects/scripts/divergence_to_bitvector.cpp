@@ -19,61 +19,69 @@ public:
         size_t k = std::stoull(parameterValues.getValue("kmer-size"));
         size_t w = std::stoull(parameterValues.getValue("window-size"));
         hashing::RollingHash hasher(k);
+        logger << "starting DBG build\n";
         dbg::SparseDBG dbg = DBGPipeline(logger, hasher, w, {contigs_path}, dir, threads);
-        std::cout << "graph built" << std::endl;
         printDot(dir / "graph.dot", dbg::Component(dbg));
+        logger << "graph built";
 //        dbg::printGFA()
         BulgePathFinder finder(dbg, -1.0);
         KSWAligner kswAligner(1, 5, 5, 3);
-        AlignmentForm diploAln;
         logger << "paths found: " << finder.paths.size() << std::endl;
-        for(BulgePath &path : finder.paths) {
+        std::ofstream outfile;
+        outfile.open(dir / "divergence.psmcfa");
+        int path_id = 1;
+        omp_set_num_threads(threads);
+        for(BulgePath &path : finder.paths){
             if(path.size() == 1)
                 continue;
-            for(auto &edge_pair : path) {
+            std::vector<std::vector<bool>> pathDivergence(path.size());
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(path, pathDivergence, kswAligner)
+            for(int i = 0; i < path.size(); ++i) {
+                const std::pair<dbg::Edge *, dbg::Edge *> &edge_pair = path[i];
                 dbg::Edge &edge1 = *edge_pair.first;
                 dbg::Edge &edge2 = *edge_pair.second;
                 if(edge1 == edge2) {
-                    diploAln += AlignmentForm({CigarPair('M', edge1.truncSize())});
+                    pathDivergence[i] = std::vector<bool>(edge1.truncSize(), false);
                 } else {
-                    diploAln += kswAligner.globalAlignment(edge1.truncSeq().str(), edge2.truncSeq().str());
+                    AlignmentForm alignment = kswAligner.globalAlignment(edge1.truncSeq().str(), edge2.truncSeq().str());
+                    pathDivergence[i] = alignmentToBitvector(alignment);
                 }
             }
+            pathDivergenceToFile(outfile, path_id, pathDivergence);
+            ++path_id;
         }
-        int i = 0;
-        bool windowDivergent = false;
-        std::vector<bool> divergence;
-        for(AlignmentForm::AlignmentColumn alnColumn : diploAln.columns()) {
-            if ((i % 100 == 0) && (i>0)) {
-                divergence.push_back(windowDivergent);
-                windowDivergent = false;
-            }
-            if (alnColumn.event != 'M') {
-                logger << "not match\n";
-                windowDivergent = true;}
-            ++i;
-        }
-        if (i % 100 != 0){divergence.push_back(windowDivergent);}
-
-        int T = 0;
-        int K = 0;
-        std::ofstream os;
-        os.open(dir / "divergence.psmcfa");
-        os << "> testseq\n";
-        for (auto window : divergence){
-            if (window){
-                os << 'T';
-                ++T;
-            } else {
-                os << 'K';
-                ++K;
-            }
-        }
-        os.close();
-        logger << "divergent: " << T << "\nsimilar: " << K << std::endl; 
+        outfile.close();
         std::unordered_map<std::string, std::experimental::filesystem::path> results;
         results["bitvector"] = dir / "divergence.psmcfa";
         return std::move(results);
+    }
+
+    void pathDivergenceToFile(std::ofstream &os, int path_id,
+                              std::vector<std::vector<bool>> pathDivergence){
+        os << ">path_" << path_id << std::endl;
+        for (const auto &edgeDivergence: pathDivergence){
+            for (auto window : edgeDivergence){
+                os << (window ? 'K' : 'T');
+            }
+        }
+        os << std::endl;
+    }
+
+    std::vector<bool> alignmentToBitvector(const AlignmentForm &alignment){
+        int i = 0;
+        std::vector<bool> result;
+        bool windowDivergent = false;
+        for(const AlignmentForm::AlignmentColumn &alnColumn : alignment.columns()){
+            if ((i % 100 == 0) && (i>0)) {
+                result.push_back(windowDivergent);
+                windowDivergent = false;
+            }
+            if (alnColumn.event != 'M') {
+                windowDivergent = true;}
+            ++i;
+        }
+        if (i % 100 != 0){result.push_back(windowDivergent);}
+        return result;
     }
 };
 
