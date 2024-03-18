@@ -18,7 +18,7 @@ inline bool is_dignucl(char c) {
  * @param char c
  * @return c ^ 3
  */
-inline char complement(char c) {
+inline unsigned char complement(unsigned char c) {
     return char(c ^ 3u);
 }
 

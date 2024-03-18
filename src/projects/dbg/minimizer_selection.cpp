@@ -16,7 +16,7 @@ constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size
         if(seq.size() >= min_read_size) {
             MinimizerCalculator calc(seq, hasher, w);
             std::vector<htype> minimizers(calc.minimizerHashs());
-            if (minimizers.size() > 10) {
+            if (minimizers.size() > 100) {
                 std::sort(minimizers.begin(), minimizers.end());
                 minimizers.erase(std::unique(minimizers.begin(), minimizers.end()), minimizers.end());
             }

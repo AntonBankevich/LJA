@@ -56,8 +56,7 @@ dbg::GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) co
     size_t k = hasher().getK();
     dbg::GraphPath res;
     if (kmers.empty()) {
-        hashing::MovingKWH kwh(hasher(), seq, 0);
-        while (true) {
+        for(const hashing::MovingKWH &kwh : hasher().kmers(seq)) {
             if (isAnchor(kwh.hash())) {
                 dbg::EdgePosition pos = getAnchor(kwh);
                 VERIFY(kwh.getPos() < pos.pos);
@@ -65,17 +64,14 @@ dbg::GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) co
                 Segment<dbg::Edge> seg(*pos.edge, pos.pos - kwh.getPos(), pos.pos + seq.size() - kwh.getPos() - k);
                 return {seg};
             }
-            if (!kwh.hasNext()) {
-#pragma omp critical
-                {
-                    std::cout << "Error: could not find alignment anchors in sequence " << name << " of size " << seq.size() << std::endl;
-                    std::cout << seq << std::endl;
-                    abort();
-                };
-                return {};
-            }
-            kwh = kwh.next();
         }
+#pragma omp critical
+        {
+            std::cout << "Error: could not find alignment anchors in sequence " << name << " of size " << seq.size() << std::endl;
+            std::cout << seq << std::endl;
+            abort();
+        };
+        return {};
     }
     dbg::Vertex *prestart = &getVertex(kmers.front());
     if (kmers.front().getPos() > 0) {
@@ -147,11 +143,8 @@ std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> KmerIndex::oldEdgeAlign
     VERIFY(alignmentReady());
     Sequence seq = contig.getSeq();
     std::vector<PerfectAlignment < dbg::Edge, dbg::Edge>> res;
-    hashing::MovingKWH kwh(hasher(), seq, 0);
     size_t k = hasher().getK();
-    while (true) {
-        if (!kwh.hasNext())
-            break;
+    for(const hashing::MovingKWH &kwh : hasher().kmers(seq, 0, seq.size() - hasher().getK())) {
         if (res.empty() || kwh.getPos() >= res.back().seg_from.right) {
             dbg::Edge *edge = nullptr;
             size_t pos = 0;
@@ -172,7 +165,6 @@ std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> KmerIndex::oldEdgeAlign
                 res.emplace_back(Segment<dbg::Edge>(contig, kwh.getPos(), kwh.getPos() + len), Segment<dbg::Edge>(*edge, pos, pos + len));
             }
         }
-        kwh = kwh.next();
     }
     return std::move(res);
 }
@@ -186,8 +178,7 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::KmerIndex::carefulAli
         return {};
     }
     std::vector<PerfectAlignment<Contig, Edge>> res;
-    hashing::MovingKWH kwh(hasher(), seq, 0);
-    while (true) {
+    for(const hashing::MovingKWH &kwh : hasher().kmers(seq)) {
         if (res.empty() || kwh.getPos() >= res.back().seg_from.right) {
             if (containsVertex(kwh.hash())) {
                 Vertex &vertex = getVertex(kwh);
@@ -235,9 +226,6 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::KmerIndex::carefulAli
                 }
             }
         }
-        if (!kwh.hasNext())
-            break;
-        kwh = kwh.next();
     }
     return std::move(res);
 }
@@ -317,7 +305,7 @@ void KmerIndex::fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &
         if (edge.truncSize() > w) {
             Sequence seq = vertex.getSeq() + edge.truncSeq();
 //                    Does not run for the first and last kmers.
-            for (hashing::MovingKWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+            for(const hashing::MovingKWH &kmer : hasher().innerKmers(seq)) {
                 if (kmer.getPos() % w == 0) {
                     EdgePosition ep(edge, kmer.getPos());
                     if (kmer.isCanonical())
@@ -347,7 +335,8 @@ void KmerIndex::fillAnchors(logging::Logger &logger, size_t threads, SparseDBG &
         if (edge.truncSize() > w || !to_add.empty()) {
             Sequence seq = edge.getSeq();
 //                    Does not run for the first and last kmers.
-            for (hashing::MovingKWH kmer(this->hasher_, seq, 1); kmer.hasNext(); kmer = kmer.next()) {
+            for(const hashing::MovingKWH &kmer : hasher().innerKmers(seq)) {
+                VERIFY_OMP(v.find(kmer.hash()) == v.end());
                 if (kmer.getPos() % w == 0 || to_add.find(kmer.hash()) != to_add.end()) {
                     EdgePosition ep(edge, kmer.getPos());
                     VERIFY_MSG(!containsVertex(kmer.hash()), "Kmer is present both as vertex and as edge anchor");

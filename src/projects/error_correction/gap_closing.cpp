@@ -6,10 +6,8 @@
 bool GapCloser::HasInnerDuplications(const Sequence &seq, size_t k) {
     hashing::RollingHash hasher(k);
     std::vector<hashing::htype> hashs;
-    for(hashing::MovingKWH kwh(hasher, seq, 0);; kwh = kwh.next()) {
+    for(const hashing::MovingKWH &kwh : hasher.kmers(seq)) {
         hashs.emplace_back(kwh.hash());
-        if(!kwh.hasNext())
-            break;
     }
     std::sort(hashs.begin(), hashs.end());
     return std::unique(hashs.begin(), hashs.end()) != hashs.end();
@@ -31,12 +29,8 @@ std::vector<Connection> GapCloser::GapPatches(logging::Logger &logger, dbg::Spar
 #pragma omp parallel for default(none) shared(tips, candidates, dbg, smallHasher)
     for (size_t i = 0; i < tips.size(); i++) {
         size_t max_len = std::min(tips[i]->truncSize(), max_overlap);
-        hashing::MovingKWH kwh(smallHasher, tips[i]->truncSeq(), tips[i]->truncSize() - max_len);
-        while (true) {
+        for(const hashing::KWH &kwh : smallHasher.kmers(tips[i]->truncSeq(), tips[i]->truncSize() - max_len)) {
             candidates.emplace_back(kwh.hash(), i);
-            if (!kwh.hasNext())
-                break;
-            kwh = kwh.next();
         }
     }
     logger.trace() << "Sorting k-mers from tips" << std::endl;

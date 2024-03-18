@@ -29,13 +29,8 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     std::function<void(size_t, const Sequence &)> task = [&filter, &ehasher](size_t pos, const Sequence & seq) {
         if(seq.size() < ehasher.getK())
             return;
-        hashing::MovingKWH kmer(ehasher, seq, 0);
-        while (true) {
+        for(const MovingKWH & kmer: ehasher.kmers(seq)) {
             filter.insert(kmer.hash());
-//            filter.delayedInsert(kmer.hash());
-            if (!kmer.hasNext())
-                break;
-            kmer = kmer.next();
         }
     };
     logger.info() << "Filling bloom filter with k+1-mers." << std::endl;
@@ -50,27 +45,21 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     logger.info() << "Finished filling bloom filter. Selecting junctions." << std::endl;
     ParallelRecordCollector<hashing::htype> junctions(threads);
     std::function<void(size_t, const Sequence &)> junk_task = [&filter, &hasher, &junctions](size_t pos, const Sequence & seq) {
-        MovingKWH kmer(hasher, seq, 0);
-        junctions.emplace_back(kmer.hash());
-        if(!kmer.hasNext())
-            return;
-        kmer = kmer.next();
-        while (true) {
-            if (!kmer.hasNext()) {
+        for(const MovingKWH &kmer : hasher.kmers(seq)) {
+            if (kmer.isFirst() || kmer.isLast()) {
                 junctions.emplace_back(kmer.hash());
-                break;
+            } else {
+                size_t cnt1 = 0;
+                size_t cnt2 = 0;
+                for (unsigned char c = 0; c < 4u; c++) {
+                    cnt1 += filter.contains(kmer.extendRight(c));
+                    cnt2 += filter.contains(kmer.extendLeft(c));
+                }
+                if (cnt1 != 1 || cnt2 != 1) {
+                    junctions.emplace_back(kmer.hash());
+                }
+                VERIFY(cnt1 <= 4 && cnt2 <= 4);
             }
-            size_t cnt1 = 0;
-            size_t cnt2 = 0;
-            for (unsigned char c = 0; c < 4u; c++) {
-                cnt1 += filter.contains(kmer.extendRight(c));
-                cnt2 += filter.contains(kmer.extendLeft(c));
-            }
-            if (cnt1 != 1 || cnt2 != 1) {
-                junctions.emplace_back(kmer.hash());
-            }
-            VERIFY(cnt1 <= 4 && cnt2 <= 4);
-            kmer = kmer.next();
         }
     };
     processRecords(split_disjointigs.begin(), split_disjointigs.end(), logger, threads, junk_task);

@@ -72,15 +72,11 @@ namespace dbg {
 
     void DbgConstructionHelper::addAllKmers(SparseDBG &dbg, const std::vector<Sequence> &new_seqs, KmerIndex &index) const {
         for(const Sequence &seq: new_seqs) {
-            MovingKWH kwh(hasher(), seq, 0);
-            while(true) {
+            for(const KWH &kwh : hasher().kmers(seq)) {
                 if(!index.containsVertex(kwh.hash())) {
                     Vertex &v = dbg.addKmerVertex(kwh);
                     index.addVertex(v);
                 }
-                if(!kwh.hasNext())
-                    break;
-                kwh = kwh.next();
             }
         }
     }
@@ -128,10 +124,8 @@ namespace dbg {
         ParallelRecordCollector<hashing::htype> hashs(threads);
         std::function<void(size_t, Edge &)> task1 =
                 [this, &hashs](size_t pos, Edge &edge) {
-                    hashing::MovingKWH kwh(hasher(), edge.getSeq(), 1);
-                    for(size_t i = 1; i < edge.truncSize(); i++) {
+                    for(const hashing::KWH &kwh : hasher().innerKmers(edge.getSeq())) {
                         hashs.emplace_back(kwh.hash());
-                        kwh = kwh.next();
                     }
                 };
         processObjects(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), logger, threads, task1);
@@ -153,20 +147,16 @@ namespace dbg {
         logger.trace() << "Checking kmer index" << std::endl;
         std::function<void(size_t, Edge &)> task =
                 [this, &index](size_t pos, Edge &edge) {
-                    MovingKWH kwh(hasher(), edge.getStart().getSeq() + edge.truncSeq(), 0);
-                    while (true) {
+                    for (const MovingKWH &kwh : hasher().kmers(edge.getSeq())) {
                         if(index.containsVertex(kwh.hash())) {
-                            VERIFY_OMP((kwh.getPos() == 0 && index.getVertex(kwh) == edge.getStart()) || (kwh.getPos() ==
-                                                                                                        edge.truncSize() && index.getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
+                            VERIFY_OMP((kwh.isFirst() && index.getVertex(kwh) == edge.getStart()) ||
+                                        (kwh.isLast() && index.getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
                         }
                         if(index.isAnchor(kwh.hash())) {
                             EdgePosition ep = index.getAnchor(kwh);
                             VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.getPos(), "Anchor kmer index corruption " + itos(ep.pos) + " " +
                                                                                  itos(ep.edge->truncSize()));
                         }
-                        if(!kwh.hasNext())
-                            break;
-                        kwh = kwh.next();
                     }
                 };
         processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);

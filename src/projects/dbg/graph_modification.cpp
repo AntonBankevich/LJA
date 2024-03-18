@@ -6,12 +6,12 @@
 
 using namespace dbg;
 dbg::GraphPath realignRead(const dbg::GraphPath &al,
-                         const std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
+                         const std::unordered_map<EdgeId, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
     Edge &old_start_edge = al[0].contig();
     size_t old_start_pos = al[0].left;
     Edge *new_start_edge = nullptr;
     size_t new_start_pos = 0;
-    auto it = embedding.find(&old_start_edge);
+    auto it = embedding.find(old_start_edge.getId());
     VERIFY(it != embedding.end());
     for(const PerfectAlignment<Edge, Edge> &pal : it->second) {
         if(pal.seg_from.left <= old_start_pos && old_start_pos < pal.seg_from.right) {
@@ -107,14 +107,14 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
         };
         processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
     }
-    std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
+    std::unordered_map<EdgeId, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
         if(!al.empty())
-            embedding[&al[0].seg_from.contig()] = std::move(al);
+            embedding[al[0].seg_from.contig().getId()] = std::move(al);
     }
     for(Edge &edge : dbg.edges()) {
         if(edge.intCov() > 0) {
-            VERIFY(embedding.find(&edge) != embedding.end());
+            VERIFY(embedding.find(edge.getId()) != embedding.end());
         }
     }
 
@@ -218,7 +218,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> anchors;
     for(Vertex & v : subgraph.verticesUnique()){
         if(!v.isJunction()) {
-            anchors.emplace(hashing::MovingKWH(dbg.hasher(), v.getSeq(), 0).hash());
+            anchors.emplace(v.getHash());
         }
     }
     MergeAll(logger, threads, subgraph);
@@ -226,7 +226,7 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     KmerIndex index(subgraph);
     index.fillAnchors(logger, threads, subgraph, min_len, anchors);
     logger.trace() << "Constructing embedding of old graph into new" << std::endl;
-    std::unordered_map<Edge *, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
+    std::unordered_map<EdgeId, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
     ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
     std::function<void(size_t, Edge &)> task = [&edgeAlsList, &index](size_t pos, Edge &edge) {
         std::vector<PerfectAlignment<Edge, Edge>> al = index.oldEdgeAlign(edge);
@@ -236,15 +236,25 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
     for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
         if(!al.empty())
-            embedding[&al[0].seg_from.contig()] = std::move(al);
+            embedding[al[0].seg_from.contig().getId()] = std::move(al);
     }
     for(Edge &edge : dbg.edges()) {
         if(edge.intCov() > 0) {
-            if(embedding.find(&edge) == embedding.end()) {
+            if(embedding.find(edge.getId()) == embedding.end()) {
                 std::cout << edge.getId() << " " << edge.isCanonical() << " " << edge.rc().getId() << " " << edge.rc().isCanonical() << " "
                         << edge.getFinish().getId() << " " << edge.truncSize() << " " << edge.getCoverage() << " " << edge.rc().getCoverage() << std::endl;
+                std::cout << edge.getStart().isJunction() << " " << edge.getFinish().isJunction() << " " <<
+                        index.isAnchor(edge.getStart().getHash()) << " " << index.isAnchor(edge.getFinish().getHash()) << std::endl;
+//                for(const auto &kmer : dbg.hasher().kmers(edge.getSeq())) {
+//                    std::cout << kmer.getPos() << " " << index.isVertex(kmer.hash()) << " " << index.isAnchor(kmer.hash()) << std::endl;
+//                }
+//                for(const auto &seg : covered_segments) {
+//                    if(seg.contig() == edge || seg.contig().rc() == edge) {
+//                        std::cout << seg << " " << seg.RC() << std::endl;
+//                    }
+//                }
             }
-            VERIFY(embedding.find(&edge) != embedding.end());
+            VERIFY(embedding.find(edge.getId()) != embedding.end());
         }
     }
 

@@ -63,6 +63,7 @@ namespace dbg {
         Vertex &getVertex(const Sequence &seq) const;
         Vertex &getVertex(const Vertex &other_graph_vertex) const;
         bool isAnchor(hashing::htype hash) const {return anchors.find(hash) != anchors.end();}
+        bool isVertex(hashing::htype hash) const {return v.find(hash) != v.end();}
         EdgePosition getAnchor(const hashing::KWH &kwh) const;
         bool alignmentReady() const {return anchors_filled;}
         size_t minReadLen() const {
@@ -74,14 +75,12 @@ namespace dbg {
 
         std::vector<hashing::MovingKWH> extractVertexPositions(const Sequence &seq, size_t max = size_t(-1)) const {
             std::vector<hashing::MovingKWH> res;
-            hashing::MovingKWH kwh(hasher(), seq, 0);
-            while (true) {
+            for(const hashing::MovingKWH &kwh: hasher().kmers(seq)) {
                 if (containsVertex(kwh.hash())) {
                     res.emplace_back(kwh);
                 }
                 if (!kwh.hasNext() || res.size() == max)
                     break;
-                kwh = kwh.next();
             }
             return std::move(res);
         }
