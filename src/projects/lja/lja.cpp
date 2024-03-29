@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
     CLParser parser(lja.getStandaloneParameters(),
                     {"o=output-dir", "t=threads", "k=CoverageBasedCorrection.k-mer-size", "K=K-mer-size"},
                     {"K-mer-size=TopologyBasedCorrection.k-mer-size", "K-mer-size=MDBG.k-mer-size",
-                     "diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid", "diploid=MDBG.diploid",
+                     "diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid",
                      "load=CoverageBasedCorrection.load", "load=TopologyBasedCorrection.load", "load=Construction.load"});
     LoggedProgram lja_program("lja", std::move(lja), std::move(parser),
                               "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads.",
