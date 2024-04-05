@@ -448,12 +448,13 @@ int main(int argc, char **argv) {
             printAssembly(dir / "assembly.fasta", Component(dbg));
         } else {
             logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
-            printAssembly(dir / "graph.fasta", Component(dbg));
+            printFasta(dir/"graph.fasta" , dbg, &ag::SaveEdgeName<DBGTraits>);
+//            printAssembly(dir / "graph.fasta", Component(dbg));
         }
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
-        printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage);
+        printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage, &ag::SaveEdgeName<DBGTraits>);
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
-        printDot(dir / "graph.dot", Component(dbg));
+        printDot(dir / "graph.dot", Component(dbg), &ag::SaveEdgeName<DBGTraits>);
     }
 
     if (params.getCheck("tip-correct")) {
