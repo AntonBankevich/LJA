@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 
+//TODO: add namespace
 template<typename T>
 class DisjointSet {
 private:

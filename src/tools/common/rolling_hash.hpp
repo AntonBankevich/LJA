@@ -3,6 +3,7 @@
 // Created by anton on 7/20/20.
 //
 
+#include "common/min_queue.hpp"
 #include "common/hash_utils.hpp"
 #include "sequences/sequence.hpp"
 #include "iterator_utils.hpp"
@@ -142,28 +143,14 @@ namespace hashing {
         bool operator!=(const KWHIterator &other) {return is_end != other.is_end || kwh.getPos() != other.kwh.getPos();}
     };
 
-
-    class MinQueue {
-        std::deque<std::pair<hashing::htype, size_t>> q;
-    public:
-        MinQueue() = default;
-
-        bool empty() const {return q.empty();}
-        const std::pair<hashing::htype, size_t> &get() const {return q.front();}
-        size_t size() const {return q.size();}
-
-        void push(const KWH &kwh);
-        void pop(size_t pos);
-    };
-
     class MinimizerCalculator {
     private:
         const size_t w;
         KWHIterator it;
-        MinQueue queue;
+        MinQueue<htype> queue;
     public:
         MinimizerCalculator(Sequence seq, const RollingHash &_hasher, size_t _w);
-        std::pair<hashing::htype, size_t> next();
+        hashing::htype next();
         bool hasNext() const {return !it.isEnd();}
         std::vector<htype> minimizerHashs();
     };

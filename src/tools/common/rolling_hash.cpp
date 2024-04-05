@@ -34,9 +34,9 @@ namespace hashing {
         return shiftLeft(hash, seq[pos - 1], seq[pos + k - 1]);
     }
 
-    std::pair<hashing::htype, size_t> MinimizerCalculator::next() {
+    hashing::htype MinimizerCalculator::next() {
         queue.pop((*it).getPos() - w + 1);
-        queue.push(*it);
+        queue.push(it->hash());
         ++it;
         return queue.get();
     }
@@ -46,16 +46,16 @@ namespace hashing {
         VERIFY(w >= 1);
         VERIFY(seq.size() >= _hasher.getK() + w - 1)
         for (size_t i = 0; i < w; i++) {
-            queue.push(*it);
+            queue.push(it->hash());
             ++it;
         }
     }
 
     std::vector<htype> MinimizerCalculator::minimizerHashs() {
         std::vector<htype> res;
-        res.push_back(queue.get().first);
+        res.push_back(queue.get());
         while (hasNext()) {
-            htype val = next().first;
+            htype val = next();
             if (val != res.back()) {
                 res.push_back(val);
             }
@@ -158,17 +158,5 @@ namespace hashing {
         return std::move(res);
     }
 
-    void MinQueue::push(const KWH &kwh) {
-        while (!q.empty() && q.back().first > kwh.hash()) {
-            q.pop_back();
-        }
-        q.emplace_back(kwh.hash(), kwh.getPos());
-    }
-
-    void MinQueue::pop(size_t pos) {
-        if (!q.empty() && q.front().second < pos) {
-            q.pop_front();
-        }
-    }
 }
 

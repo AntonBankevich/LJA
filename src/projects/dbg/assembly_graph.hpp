@@ -342,7 +342,7 @@ namespace ag {
         omp_lock_t writelock = {};
         bool canonical;
         bool mark_ = false;
-        int max_out_id = 0;
+        std::array<int, 4> max_out_id = {0,0,0,0};
 
         Edge &innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, BaseEdgeId eid = {});
         void setRC(Vertex &other) {
@@ -387,7 +387,7 @@ namespace ag {
         size_t size() const { return seq.size(); }
         size_t getStartSize() const {return 0;};
         size_t truncSize() const {return seq.size();}
-        int getMaxOutId() const {return max_out_id;}
+        std::array<int, 4> getMaxOutId() const {return max_out_id;}
 
         virtual Sequence getSeq() const { return seq; }
         Sequence truncSeq() const {return seq;}
@@ -435,7 +435,14 @@ namespace ag {
             return addEdgeLockFree(end, tseq, rctseq, std::move(data), eid, rcid);
         }
 
-        void updateMaxOutId(int value) {max_out_id = std::max(max_out_id, value);}
+        void updateMaxOutId(int value) {
+            max_out_id[value % 10] = std::max(max_out_id[value%10], value / 10);
+        }
+
+        void updateMaxOutId(const std::array<int, 4> other) {
+            for(size_t i = 0; i < max_out_id.size(); i++)
+                updateMaxOutId(i + other[i] * 10);
+        }
 
         bool removeEdge(Edge &edge) {
             VERIFY(edge.getStart() == *this);
@@ -837,7 +844,7 @@ namespace ag {
     template<class Traits>
     typename Traits::Edge &BaseVertex<Traits>::innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, BaseEdgeId eid) {
         if (!eid.valid()) {
-            eid = {id, max_out_id + 1};
+            eid = {id, (max_out_id[tseq[0]] + 1) * 10 + tseq[0]};
         }
         updateMaxOutId(eid.eid);
         outgoing_.emplace_back(eid, *dynamic_cast<Vertex*>(this), end, tseq, std::move(data));

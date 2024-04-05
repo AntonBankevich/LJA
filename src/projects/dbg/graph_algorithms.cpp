@@ -165,9 +165,6 @@ namespace dbg {
 
     void DbgConstructionHelper::processRead(SparseDBG &dbg, KmerIndex &index, const Sequence &seq) const {
         std::vector<hashing::MovingKWH> kmers = index.extractVertexPositions(seq);
-        if (kmers.size() == 0) {
-            std::cout << seq << std::endl;
-        }
         VERIFY(kmers.size() > 0);
         std::vector<Vertex *> vertices;
         for (size_t i = 0; i < kmers.size(); i++) {

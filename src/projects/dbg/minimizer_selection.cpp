@@ -1,4 +1,5 @@
 #include "minimizer_selection.hpp"
+#include "common/min_queue.hpp"
 
 using namespace hashing;
 std::vector<htype>
@@ -14,9 +15,23 @@ constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size
     std::function<void(size_t, StringContig &)> task = [min_read_size, w, &hasher, &hashs](size_t pos, StringContig & contig) {
         Sequence seq = contig.makeSequence();
         if(seq.size() >= min_read_size) {
-            MinimizerCalculator calc(seq, hasher, w);
-            std::vector<htype> minimizers(calc.minimizerHashs());
-            if (minimizers.size() > 100) {
+            size_t qsize = 0;
+            std::vector<htype> minimizers;
+            MinQueue<hashing::htype> queue;
+            for(const MovingKWH &kwh : hasher.kmers(seq)) {
+                if(qsize < w) {
+                    queue.push(kwh.hash());
+                    qsize++;
+                } else {
+                    queue.push((kwh.hash()));
+                    queue.pop(kwh.getPos() - w);
+                }
+                if(kwh.isFirst() || kwh.isLast())
+                    minimizers.emplace_back(kwh.hash());
+                else if(qsize == w &&  queue.get() != minimizers.back())
+                    minimizers.emplace_back(queue.get());
+            }
+            if (minimizers.size() > 50) {
                 std::sort(minimizers.begin(), minimizers.end());
                 minimizers.erase(std::unique(minimizers.begin(), minimizers.end()), minimizers.end());
             }
