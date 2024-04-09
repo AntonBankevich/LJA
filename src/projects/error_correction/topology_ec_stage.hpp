@@ -33,7 +33,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
         index.fillAnchors(logger, threads, dbg, w);
         readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
     }
-    printDot(dir / "initial_dbg.dot", Component(dbg));
+    printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, false);

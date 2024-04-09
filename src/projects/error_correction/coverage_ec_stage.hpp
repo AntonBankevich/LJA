@@ -33,7 +33,7 @@ CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
     io::SeqReader reader(reads_lib);
     readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
-    printDot(dir / "initial_dbg.dot", Component(dbg));
+    printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
     coverageStats(logger, dbg);
     if(debug) {
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);

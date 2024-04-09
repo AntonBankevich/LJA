@@ -56,14 +56,6 @@ int main(int argc, char **argv) {
     std::unordered_map<dbg::Edge*, std::string> edge_mapping;
     dbg::KmerIndex aligner(dbg);
     aligner.fillAnchors(logger, threads, dbg, w);
-    io::SeqReader graphReader(dbg_file);
-    for(StringContig s : graphReader) {
-        Contig rseq = s.makeContig();
-        dbg::GraphPath al = aligner.align(rseq.getSeq());
-        VERIFY(al.size() == 1);
-        edge_mapping[&al.front().contig()] = s.id;
-        edge_mapping[&al.front().contig().rc()] = "-" + s.id;
-    }
     std::ofstream os;
     logger.info() << "Performing alignments" << std::endl;
     os.open(dir / "alignments.txt");
@@ -73,7 +65,7 @@ int main(int argc, char **argv) {
         os << ">" << read.id << "\n";
         std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> al = aligner.carefulAlign(rseq);
         for(dbg::PerfectAlignment<Contig, dbg::Edge> &piece : al) {
-            os << edge_mapping[&piece.seg_to.contig()] << " ";
+            os << piece.seg_to.contig().getId() << " ";
         }
         os << "\n";
     }
