@@ -1,6 +1,6 @@
 #pragma once
 #include "dbg/sparse_dbg.hpp"
-#include "dbg/paths.hpp"
+#include "assembly_graph/paths.hpp"
 
 std::unordered_map<dbg::Vertex *, size_t> findReachable(dbg::Vertex &start, double min_cov, size_t max_dist);
 std::vector<dbg::GraphPath> FindPlausibleBulgeAlternatives(const dbg::GraphPath &path,

@@ -1,8 +1,8 @@
-#include <dbg/component.hpp>
+#include <assembly_graph/component.hpp>
 #include <dbg/visualization.hpp>
 #include "reliable_fillers.hpp"
 #include "correction_utils.hpp"
-#include <dbg/component.hpp>
+#include <assembly_graph/component.hpp>
 #include <dbg/visualization.hpp>
 
 size_t AbstractReliableFillingAlgorithm::ReFill(dbg::SparseDBG &dbg) {

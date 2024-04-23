@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compact_path.hpp"
+#include "assembly_graph/compact_path.hpp"
 #include "graph_alignment_storage.hpp"
 #include <common/logging.hpp>
 

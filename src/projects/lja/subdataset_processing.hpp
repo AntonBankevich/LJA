@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../dbg/component.hpp"
+#include "assembly_graph/component.hpp"
 #include "../dbg/subdatasets.hpp"
 #include "../dbg/sparse_dbg.hpp"
 #include "../dbg/graph_alignment_storage.hpp"

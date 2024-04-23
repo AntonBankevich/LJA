@@ -20,7 +20,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     logger.info() << "Attempting to rescue small circular highly covered components" << std::endl;
     std::unordered_set<dbg::Edge const *> bad_edges;
     size_t cnt = 0;
-    for(const dbg::Component &component : dbg::CCSplitter().splitGraph(dbg)) {
+    for(const dbg::Component &component : ag::CCSplitter<DBGTraits>().splitGraph(dbg)) {
         if(component.uniqueSize() > 100)
             continue;
         bool ok = true;

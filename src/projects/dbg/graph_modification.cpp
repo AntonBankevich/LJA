@@ -6,14 +6,14 @@
 
 using namespace dbg;
 dbg::GraphPath realignRead(const dbg::GraphPath &al,
-                         const std::unordered_map<EdgeId, std::vector<PerfectAlignment<Edge, Edge>>> &embedding) {
+                         const std::unordered_map<EdgeId, std::vector<ag::AlignmentChain<Edge, Edge>>> &embedding) {
     Edge &old_start_edge = al[0].contig();
     size_t old_start_pos = al[0].left;
     Edge *new_start_edge = nullptr;
     size_t new_start_pos = 0;
     auto it = embedding.find(old_start_edge.getId());
     VERIFY(it != embedding.end());
-    for(const PerfectAlignment<Edge, Edge> &pal : it->second) {
+    for(const ag::AlignmentChain<Edge, Edge> &pal : it->second) {
         if(pal.seg_from.left <= old_start_pos && old_start_pos < pal.seg_from.right) {
             new_start_edge = &pal.seg_to.contig();
             new_start_pos = pal.seg_to.left + old_start_pos - pal.seg_from.left;
@@ -96,19 +96,19 @@ void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &d
     }
     MergeAll(logger, threads, subgraph);
     printStats(logger, subgraph);
-    ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
+    ParallelRecordCollector<std::vector<ag::AlignmentChain<Edge, Edge>>> edgeAlsList(threads);
     {
         KmerIndex index(subgraph);
         index.fillAnchors(logger, threads, subgraph, min_len, anchors);
         logger.trace() << "Constructing embedding of old graph into new" << std::endl;
         std::function<void(size_t, Edge &)> task = [&edgeAlsList, &index](size_t pos, Edge &edge) {
-            std::vector<PerfectAlignment<Edge, Edge>> al = index.oldEdgeAlign(edge);
+            std::vector<ag::AlignmentChain<Edge, Edge>> al = index.oldEdgeAlign(edge);
             edgeAlsList.emplace_back(std::move(al));
         };
         processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
     }
-    std::unordered_map<EdgeId, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
-    for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
+    std::unordered_map<EdgeId, std::vector<ag::AlignmentChain<Edge, Edge>>> embedding;
+    for(std::vector<ag::AlignmentChain<Edge, Edge>> &al : edgeAlsList) {
         if(!al.empty())
             embedding[al[0].seg_from.contig().getId()] = std::move(al);
     }
@@ -226,15 +226,15 @@ void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg, co
     KmerIndex index(subgraph);
     index.fillAnchors(logger, threads, subgraph, min_len, anchors);
     logger.trace() << "Constructing embedding of old graph into new" << std::endl;
-    std::unordered_map<EdgeId, std::vector<PerfectAlignment<Edge, Edge>>> embedding;
-    ParallelRecordCollector<std::vector<PerfectAlignment<Edge, Edge>>> edgeAlsList(threads);
+    std::unordered_map<EdgeId, std::vector<ag::AlignmentChain<Edge, Edge>>> embedding;
+    ParallelRecordCollector<std::vector<ag::AlignmentChain<Edge, Edge>>> edgeAlsList(threads);
     std::function<void(size_t, Edge &)> task = [&edgeAlsList, &index](size_t pos, Edge &edge) {
-        std::vector<PerfectAlignment<Edge, Edge>> al = index.oldEdgeAlign(edge);
+        std::vector<ag::AlignmentChain<Edge, Edge>> al = index.oldEdgeAlign(edge);
 //        VERIFY_OMP(edge.intCov() == 0 || !al.empty(), edge.str());
         edgeAlsList.emplace_back(std::move(al));
     };
     processObjects(dbg.edges().begin(), dbg.edges().end(), logger, threads, task);
-    for(std::vector<PerfectAlignment<Edge, Edge>> &al : edgeAlsList) {
+    for(std::vector<ag::AlignmentChain<Edge, Edge>> &al : edgeAlsList) {
         if(!al.empty())
             embedding[al[0].seg_from.contig().getId()] = std::move(al);
     }

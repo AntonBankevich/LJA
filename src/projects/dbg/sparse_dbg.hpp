@@ -3,15 +3,16 @@
 //
 
 #pragma once
-#include "paths.hpp"
-#include "assembly_graph.hpp"
+#include "assembly_graph/component.hpp"
+#include "assembly_graph/paths.hpp"
+#include "assembly_graph/assembly_graph.hpp"
 #include "sequences/sequence.hpp"
 #include "sequences/seqio.hpp"
 #include "common/omp_utils.hpp"
 #include "common/logging.hpp"
 #include "common/rolling_hash.hpp"
 #include "common/hash_utils.hpp"
-#include "compact_path.hpp"
+#include "assembly_graph/compact_path.hpp"
 #include <common/oneline_utils.hpp>
 #include <common/iterator_utils.hpp>
 #include <common/object_id.hpp>
@@ -135,8 +136,9 @@ namespace dbg {
     typedef DBGVertex::VertexId VertexId;
     typedef DBGEdge::ConstEdgeId ConstEdgeId;
     typedef DBGVertex::ConstVertexId ConstVertexId;
-    typedef ag::GraphPath<dbg::DBGTraits> GraphPath;
-    typedef ag::CompactPath<dbg::DBGTraits> CompactPath;
+    typedef ag::GraphPath<DBGTraits> GraphPath;
+    typedef ag::Component<DBGTraits> Component;
+    typedef ag::CompactPath<DBGTraits> CompactPath;
 
     class SparseDBG : public ag::AssemblyGraph<DBGTraits> {
     private:

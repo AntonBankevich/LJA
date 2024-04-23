@@ -1,9 +1,9 @@
 #include "ReadsAligner.h"
 #include "graph_alignment.hpp"
 #include "alignment_correction.hpp"
-#include <dbg/paths.hpp>
+#include <assembly_graph/paths.hpp>
 #include <dbg/multi_graph.hpp>
-#include <dbg/id_index.hpp>
+#include <common/id_index.hpp>
 #include <common/logging.hpp>
 #include <common/cl_parser.hpp>
 #include <sequences/seqio.hpp>

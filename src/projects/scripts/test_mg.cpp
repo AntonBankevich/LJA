@@ -1,5 +1,5 @@
 #include "dbg/multi_graph.hpp"
-#include "dbg/id_index.hpp"
+#include "common/id_index.hpp"
 #include "sequences/seqio.hpp"
 #include <experimental/filesystem>
 #include <array>

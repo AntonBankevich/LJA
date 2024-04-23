@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     for(StringContig scontig : reader) {
         cnt += 1;
         Contig contig = scontig.makeContig();
-        std::vector<PerfectAlignment<Contig, Edge>> al = aligner.sparseAlign(contig);
+        std::vector<ag::AlignmentChain<Contig, Edge>> al = aligner.sparseAlign(contig);
         for(size_t i = 0; i + 1 < al.size(); i++) {
             if(al[i].seg_from.right != al[i + 1].seg_from.left)
                 cnt++;

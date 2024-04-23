@@ -1,4 +1,4 @@
-#include <dbg/paths.hpp>
+#include <assembly_graph/paths.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include "precorrection.hpp"
 #include "correction_utils.hpp"

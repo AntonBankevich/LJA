@@ -1,3 +1,4 @@
+add_subdirectory(assembly_graph)
 add_subdirectory(dbg)
 add_subdirectory(supregraph)
 #add_subdirectory(mosaic)

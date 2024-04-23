@@ -50,7 +50,7 @@ public:
         std::function<bool(const dbg::Edge &)> splitEdge = [this](const dbg::Edge &edge) {
             return edge.getMarker() == ag::EdgeMarker::unique;
         };
-        return dbg::ConditionSplitter(splitEdge).splitGraph(dbg);
+        return ag::ConditionSplitter<dbg::DBGTraits>(splitEdge).splitGraph(dbg);
     }
 
     size_t markAcyclicComponent(const dbg::Component &component) {

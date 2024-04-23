@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compact_path.hpp"
+#include "assembly_graph/compact_path.hpp"
 #include "dbg_graph_aligner.hpp"
 
 //TODO: get rid of read names entirely and replace with integer ids

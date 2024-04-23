@@ -8,7 +8,6 @@ size_t BoundRecord::inf = 1000000000000ul;
 
 MappedNetwork::MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique,
                              double rel_coverage, double unique_coverage, double double_coverage) {
-    dbg::SparseDBG &graphr = component.graph();
     for(dbg::Vertex &v : component.vertices()) {
         vertex_mapping[&v] = addVertex();
     }
@@ -185,7 +184,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     std::function<bool(const dbg::Edge &)> mult2 = [this](const dbg::Edge &edge) {
         return MultiplicityBounds::lowerBound(edge) == 2 && MultiplicityBounds::lowerBound(edge) == 2;
     };
-    split = ConditionSplitter(mult2).splitGraph(dbg);
+    split = ag::ConditionSplitter<DBGTraits>(mult2).splitGraph(dbg);
     cnt = 0;
     for(Component &component : split) {
         if(component.uniqueSize() != 4 || !component.isAcyclic() || component.realCC() != 2 || component.borderVertices().size() != 2) {
@@ -497,7 +496,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
         }
     }
     if(res) {
-        std::vector<Component> subsplit = ConditionSplitter(this->asFunction()).split(component);
+        std::vector<Component> subsplit = ag::ConditionSplitter<DBGTraits>(this->asFunction()).split(component);
         logger.trace() << "Component was split into " << subsplit.size() << " subcompenents" << std::endl;
         for(Component &subcomponent : subsplit) {
             ucnt += ProcessUsingCoverage(logger, subcomponent, this->asFunction(), rel_coverage);

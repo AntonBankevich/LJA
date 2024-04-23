@@ -2,8 +2,8 @@
 
 using namespace dbg;
 
-PerfectAlignment<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Segment<Contig> &seg) {
-    PerfectAlignment<Contig, dbg::Edge> best({seg.contig(), seg.left, seg.left}, {});
+ag::AlignmentChain<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Segment<Contig> &seg) {
+    ag::AlignmentChain<Contig, dbg::Edge> best({seg.contig(), seg.left, seg.left}, {});
     for (Edge &edge: vertex) {
         size_t len = 0;
         while (len < edge.truncSize() && seg.left + vertex.size() + len < seg.contig().truncSize()) {
@@ -23,7 +23,7 @@ PerfectAlignment<Contig, dbg::Edge> bestExtension(const Vertex &vertex, const Se
     return best;
 }
 
-PerfectAlignment<Contig, dbg::Edge> bestExtension(Edge &edge, const Segment<Contig> &seg) {
+ag::AlignmentChain<Contig, dbg::Edge> bestExtension(Edge &edge, const Segment<Contig> &seg) {
     size_t len = 0;
     while (len < edge.truncSize() && seg.left + edge.getStart().getSeq().size() + len < seg.contig().truncSize()) {
         if (seg.contig()[seg.left + edge.getStart().getSeq().size() + len] != edge.truncSeq()[len])
@@ -139,10 +139,10 @@ dbg::GraphPath KmerIndex::align(const dbg::EdgePosition &pos, const Sequence &se
     return std::move(res);
 }
 
-std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> KmerIndex::oldEdgeAlign(dbg::Edge &contig) const {
+std::vector<ag::AlignmentChain<dbg::Edge, dbg::Edge>> KmerIndex::oldEdgeAlign(dbg::Edge &contig) const {
     VERIFY(alignmentReady());
     Sequence seq = contig.getSeq();
-    std::vector<PerfectAlignment < dbg::Edge, dbg::Edge>> res;
+    std::vector<ag::AlignmentChain < dbg::Edge, dbg::Edge>> res;
     size_t k = hasher().getK();
     for(const hashing::MovingKWH &kwh : hasher().kmers(seq, 0, seq.size() - hasher().getK())) {
         if (res.empty() || kwh.getPos() >= res.back().seg_from.right) {
@@ -169,7 +169,7 @@ std::vector<dbg::PerfectAlignment<dbg::Edge, dbg::Edge>> KmerIndex::oldEdgeAlign
     return std::move(res);
 }
 
-std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::KmerIndex::carefulAlign(Contig &contig) const {
+std::vector<ag::AlignmentChain<Contig, dbg::Edge>> dbg::KmerIndex::carefulAlign(Contig &contig) const {
     VERIFY(alignmentReady());
     Sequence seq = contig.getSeq();
     size_t k = hasher().getK();
@@ -177,7 +177,7 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::KmerIndex::carefulAli
     if(contig.truncSize() < k) {
         return {};
     }
-    std::vector<PerfectAlignment<Contig, Edge>> res;
+    std::vector<ag::AlignmentChain<Contig, Edge>> res;
     for(const hashing::MovingKWH &kwh : hasher().kmers(seq)) {
         if (res.empty() || kwh.getPos() >= res.back().seg_from.right) {
             if (containsVertex(kwh.hash())) {
@@ -230,9 +230,9 @@ std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> dbg::KmerIndex::carefulAli
     return std::move(res);
 }
 
-PerfectAlignment<Contig, dbg::Edge> KmerIndex::extendLeft(const hashing::MovingKWH &kwh, Contig &contig) const {
+ag::AlignmentChain<Contig, dbg::Edge> KmerIndex::extendLeft(const hashing::MovingKWH &kwh, Contig &contig) const {
     size_t k = hasher().getK();
-    PerfectAlignment<Contig, dbg::Edge> best({contig, kwh.getPos(), kwh.getPos()}, {});
+    ag::AlignmentChain<Contig, dbg::Edge> best({contig, kwh.getPos(), kwh.getPos()}, {});
     if(kwh.getPos() == 0) {
         return best;
     }
@@ -241,16 +241,16 @@ PerfectAlignment<Contig, dbg::Edge> KmerIndex::extendLeft(const hashing::MovingK
     if(start.inDeg() == 0) {
         return best;
     }
-    PerfectAlignment<Contig, Edge> start_al = bestExtension(start.rc(), Segment<Contig>(rc_contig, contig.truncSize() - k - kwh.getPos(), contig.truncSize() - k));
+    ag::AlignmentChain<Contig, Edge> start_al = bestExtension(start.rc(), Segment<Contig>(rc_contig, contig.truncSize() - k - kwh.getPos(), contig.truncSize() - k));
     return {Segment<Contig>(contig, contig.truncSize() - k - start_al.seg_from.right, contig.truncSize() - k - start_al.seg_from.left),
             Segment<Edge>(start_al.seg_to.contig().rc(),
                           start_al.seg_to.contig().truncSize() - start_al.seg_to.right,
                           start_al.seg_to.contig().truncSize() - start_al.seg_to.left)};
 }
 
-PerfectAlignment<Contig, dbg::Edge> KmerIndex::extendRight(const hashing::MovingKWH &kwh, Contig &contig) const {
+ag::AlignmentChain<Contig, dbg::Edge> KmerIndex::extendRight(const hashing::MovingKWH &kwh, Contig &contig) const {
     size_t k = hasher().getK();
-    PerfectAlignment<Contig, dbg::Edge> best({contig, kwh.getPos(), kwh.getPos()}, {});
+    ag::AlignmentChain<Contig, dbg::Edge> best({contig, kwh.getPos(), kwh.getPos()}, {});
     if(kwh.getPos() + k == contig.truncSize()) {
         return best;
     }
@@ -261,21 +261,21 @@ PerfectAlignment<Contig, dbg::Edge> KmerIndex::extendRight(const hashing::Moving
     return bestExtension(start, Segment<Contig>(contig, kwh.getPos(), contig.truncSize() - k));
 }
 
-std::vector<PerfectAlignment<Contig, dbg::Edge>> KmerIndex::sparseAlign(Contig &contig) const {
+std::vector<ag::AlignmentChain<Contig, dbg::Edge>> KmerIndex::sparseAlign(Contig &contig) const {
     VERIFY(alignmentReady());
     std::vector<hashing::MovingKWH> vlist = extractVertexPositions(contig.getSeq());
-    std::vector<PerfectAlignment<Contig, dbg::Edge>> result;
+    std::vector<ag::AlignmentChain<Contig, dbg::Edge>> result;
     if(vlist.empty())
         return result;
     for(hashing::MovingKWH &kwh : vlist) {
         if(result.empty() || result.back().seg_from.right != kwh.getPos()) {
-            PerfectAlignment<Contig, Edge> new_al = extendLeft(kwh, contig);
+            ag::AlignmentChain<Contig, Edge> new_al = extendLeft(kwh, contig);
             if(new_al.size() > 0) {
                 result.emplace_back(new_al);
             }
         }
         {
-            PerfectAlignment<Contig, Edge> new_al = extendRight(kwh, contig);
+            ag::AlignmentChain<Contig, Edge> new_al = extendRight(kwh, contig);
             if(new_al.size() > 0) {
                 result.emplace_back(new_al);
             }

@@ -2,7 +2,7 @@
 
 #include "dbg/graph_modification.hpp"
 #include "dbg/sparse_dbg.hpp"
-#include "dbg/compact_path.hpp"
+#include "assembly_graph/compact_path.hpp"
 #include "error_correction/tip_correction.hpp"
 #include <sequences/sequence.hpp>
 #include <random>

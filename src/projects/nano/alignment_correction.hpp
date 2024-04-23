@@ -2,7 +2,7 @@
 
 #include "GraphContig.hpp"
 #include <dbg/multi_graph.hpp>
-#include <dbg/paths.hpp>
+#include <assembly_graph/paths.hpp>
 #include <common/logging.hpp>
 #include <sequences/seqio.hpp>
 

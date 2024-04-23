@@ -1,6 +1,6 @@
 #include "trio.hpp"
 #include <dbg/multi_graph.hpp>
-#include "dbg/assembly_graph.hpp"
+#include "assembly_graph/assembly_graph.hpp"
 #include <common/cl_parser.hpp>
 #include <common/logging.hpp>
 #include <unordered_set>

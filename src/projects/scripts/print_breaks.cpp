@@ -5,7 +5,7 @@
 #include <sequences/seqio.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
-#include <dbg/component.hpp>
+#include <assembly_graph/component.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
 #include "dbg/dbg_graph_aligner.hpp"
@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     aligner.fillAnchors(logger, threads, dbg, 100);
     for(StringContig sc : io::SeqReader(paths_lib)) {
         Contig contig = sc.makeContig();
-        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> al = aligner.carefulAlign(contig);
+        std::vector<ag::AlignmentChain<Contig, dbg::Edge>> al = aligner.carefulAlign(contig);
         for(size_t i = 0; i + 1 < al.size(); i++) {
             if(al[i].seg_to.contig() == al[i - 1].seg_to.contig() || al[i].seg_from.right + k + 5000 < al[i + 1].seg_from.left)
                 continue;

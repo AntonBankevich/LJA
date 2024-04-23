@@ -2,7 +2,7 @@
 #include "sequences/sequence.hpp"
 #include "common/iterator_utils.hpp"
 #include "common/object_id.hpp"
-#include "id_index.hpp"
+#include "common/id_index.hpp"
 #include <list>
 #include <vector>
 #include <functional>
@@ -138,7 +138,7 @@ namespace ag {
         typedef typename Traits::Vertex Vertex;
         typedef typename Traits::Edge Edge;
         typedef ObjectId<Edge, id_type> EdgeId;
-        typedef ObjectId<const Edge, id_type> ConstEdgeId;
+        typedef ConstObjectId<Edge, id_type> ConstEdgeId;
     private:
         id_type id;
         Vertex *start;
@@ -324,7 +324,7 @@ namespace ag {
         typedef typename Traits::Vertex Vertex;
         typedef typename Traits::Edge Edge;
         typedef ObjectId<Vertex, int> VertexId;
-        typedef ObjectId<const Vertex, int> ConstVertexId;
+        typedef ConstObjectId<Vertex, int> ConstVertexId;
         typedef int id_type;
     private:
         friend class AssemblyGraph<Traits>;

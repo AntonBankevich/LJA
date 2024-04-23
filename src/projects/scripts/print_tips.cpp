@@ -5,7 +5,7 @@
 #include <sequences/seqio.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
-#include <dbg/component.hpp>
+#include <assembly_graph/component.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
 

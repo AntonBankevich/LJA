@@ -37,7 +37,7 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     storage.Fill(threads, index);
     for(Contig &contig : paths) {
         ensure_dir_existance(dir / "paths" / contig.getInnerId());
-        const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
+        const std::vector<ag::AlignmentChain<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
         dbg::Component comp = small ? dbg::Component::neighbourhood(dbg, contig_al, 1000) :
                               dbg::Component::longEdgeNeighbourhood(dbg, contig_al, 20000);
         std::function<std::string(dbg::Edge &)> labeler = readStorage.labeler() + storage.labeler();

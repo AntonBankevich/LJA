@@ -27,7 +27,7 @@
 #include <omp.h>
 #include <unordered_set>
 #include <wait.h>
-#include <dbg/id_index.hpp>
+#include <common/id_index.hpp>
 
 using namespace dbg;
 
@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
             const std::experimental::filesystem::path seg_file = dir / fname;
             logger.info() << "Printing contig " << contig.getInnerId() << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
-            std::vector<PerfectAlignment<Contig, Edge>> contig_al = index.carefulAlign(contig);
+            std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(contig);
             Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
             printDot(coordinates_dot, Component(comp), storage.labeler());
@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
         size_t radius = std::stoull(params.getValue("subdataset-radius"));
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            std::vector<PerfectAlignment<Contig, Edge>> contig_al = index.carefulAlign(contig);
+            std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(contig);
             comps.emplace_back(Component::neighbourhood(dbg, contig_al, k + radius));
             os.emplace_back(new std::ofstream());
             os.back()->open(subdatasets_dir / (std::to_string(cnt) + ".fasta"));
@@ -407,7 +407,7 @@ int main(int argc, char **argv) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.getInnerId()) + ".dot");
             logger.info() << "Printing segment " << seg.getInnerId() << " to dot file " << (seg_file) << std::endl;
             std::ofstream coordinates_dot;
-            std::vector<PerfectAlignment<Contig, Edge>> contig_al = index.carefulAlign(seg);
+            std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(seg);
             Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
             printDot(coordinates_dot, Component(dbg), storage.labeler());

@@ -1,5 +1,6 @@
 #pragma once
 #include "multiplexer.hpp"
+#include "vertex_resolution.hpp"
 #include "supregraph.hpp"
 
 namespace spg {
@@ -52,7 +53,7 @@ namespace spg {
         std::unordered_map<VertexId, std::vector<std::pair<size_t, ListPath>>> vertex_index;
         std::vector<ReadRecord> reads;
     public:
-        PathStorage(SupreGraph &spg) : spg(&spg){
+        explicit PathStorage(SupreGraph &spg) : spg(&spg){
             for(Edge &edge : spg.edges()) {
                 read_index[edge.getId()];
             }
@@ -129,7 +130,7 @@ namespace spg {
             return std::move(res);
         }
 
-        void reroute(const std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> &mapping,
+        void reroute(const VertexResolutionResult &mapping,
                      const std::vector<std::pair<size_t , std::list<EdgeId>::iterator>> &positions) {
             for(auto &p : positions) {
                 ReadRecord &rec = reads[p.first];
@@ -138,11 +139,11 @@ namespace spg {
                 ListPath &path = rec.path;
                 auto nit = it;
                 ++nit;
-                VertexId v = mapping.at(*it).at(*nit);
-                VERIFY(v.valid());
-                EdgeId eid = v->rc().front().rc().getId();
+                VERIFY(mapping.contains(**it, **nit));
+                Vertex & v = mapping.get(**it, **nit);
+                EdgeId eid = v.rc().front().rc().getId();
                 path.path.insert(it, eid);
-                path.path.insert(it, v->front().getId());
+                path.path.insert(it, v.front().getId());
                 path.path.erase(it);
                 path.path.erase(nit);
             }
@@ -164,17 +165,13 @@ namespace spg {
             read_index.erase(eid);
         }
 
-        void remapVertexReads(const std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> &mapping) {
-            for(auto it : mapping) {
-                Vertex &core = it.first->getFinish();
-                for(auto it1 : it.second) {
-                    EdgeId efrom = it.first;
-                    EdgeId eto = it1.first;
-                    VertexId vres = it1.second;
-                    for (auto p: vertex_index[core.getId()]) {
-                        ListPath path(*vres, p.second.skip_left + efrom->rc().truncSize(), p.second.skip_right + eto->truncSize());
-                        vertex_index[vres].emplace_back(p.first, path);
-                    }
+        void remapVertexReads(const VertexResolutionResult &mapping) {
+            Vertex &core = mapping.getVertex();
+            for(Vertex &new_vertex : mapping.newVertices()) {
+                EdgePair edges = mapping.get(new_vertex);
+                for (const auto &p: vertex_index[core.getId()]) {
+                    ListPath path(new_vertex, p.second.skip_left + edges.first->rc().truncSize(), p.second.skip_right + edges.second->truncSize());
+                    vertex_index[new_vertex.getId()].emplace_back(p.first, path);
                 }
             }
         }
@@ -189,15 +186,14 @@ namespace spg {
             read_index[edge.rc().getId()] = {};
         }
 
-        virtual void fireResolveVertex(Vertex &core, const std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> &resolution) override {
-            for(auto it : resolution)
-                for(auto it1 : it.second) {
-                    fireAddVertex(*(it1.second));
-                    for(Edge &edge : *it1.second)
-                        fireAddEdge(edge);
-                    for(Edge &edge : it1.second->rc())
-                        fireAddEdge(edge);
-                }
+        void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override {
+            for(Vertex &new_vertex : resolution.newVertices()) {
+                fireAddVertex(new_vertex);
+                for(Edge &edge : new_vertex)
+                    fireAddEdge(edge);
+                for(Edge &edge : new_vertex.rc())
+                    fireAddEdge(edge);
+            }
             std::vector<std::pair<size_t, std::list<EdgeId>::iterator>> to_reroute;
             for(Edge &rce : core.rc()) {
                 EdgeId eid = rce.rc().getId();
@@ -254,8 +250,9 @@ namespace spg {
     public:
         ChainRule(const ChainRule &other) = delete;
         ChainRule(PathStorage &storage, size_t k) : storage(storage), k(k) {}
-        virtual std::vector<std::pair<EdgeId, EdgeId>> judge(Vertex &v) override {
-            std::vector<std::pair<EdgeId, EdgeId>> res;
+
+        virtual VertexResolutionPlan judge(Vertex &v) override {
+            VertexResolutionPlan res(v);
             std::vector<std::pair<size_t, size_t>> segs;
             for(auto &it : storage.getInnerReads(v)) {
                 segs.emplace_back(it.second.skip_left, v.size() - it.second.skip_right);
@@ -276,8 +273,7 @@ namespace spg {
                     if(next == path.path.end()) {
                         continue;
                     }
-                    res.emplace_back(inc.getId(), (**next).getId());
-                    res.emplace_back((**next).rc().getId(), inc.rc().getId());
+                    res.add(inc, **next);
                     has_covering = true;
                 }
                 for(auto &it : storage.getReadPositions(inc.rc())) {
@@ -287,8 +283,7 @@ namespace spg {
                         continue;
                     auto next = pos;
                     --next;
-                    res.emplace_back(inc.getId(), (**next).rc().getId());
-                    res.emplace_back((**next).getId(), inc.rc().getId());
+                    res.add(inc, (**next).rc());
                     has_covering = true;
                 }
                 size_t max = getDiveSize(inc);
@@ -300,19 +295,27 @@ namespace spg {
                 for(Edge &out : v) {
                     size_t min = v.size() - getDiveSize(out.rc());
                     if(min + k <= max) {
-                        res.emplace_back(inc.getId(), out.getId());
-                        res.emplace_back(out.rc().getId(), inc.rc().getId());
+                        res.add(inc, out);
                     } else {
                         has_unpassable = true;
                     }
                 }
             }
-            std::sort(res.begin(), res.end());
-            res.erase(std::unique(res.begin(), res.end()), res.end());
             if(has_covering || has_unpassable)
                 return std::move(res);
             else
-                return {};
+                return {v};
+        }
+    };
+
+    class AndreyRule: public DecisionRule {
+    private:
+        PathStorage &storage;
+    public:
+        AndreyRule(const AndreyRule &other) = delete;
+        AndreyRule(PathStorage &storage) : storage(storage) {}
+        VertexResolutionPlan judge(Vertex &v) override {
+            return {v};
         }
     };
 }

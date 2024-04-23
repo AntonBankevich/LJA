@@ -1,7 +1,7 @@
 #pragma once
 #include "error_correction.hpp"
 #include "dbg/graph_modification.hpp"
-#include "dbg/compact_path.hpp"
+#include "assembly_graph/compact_path.hpp"
 #include "common/logging.hpp"
 using namespace dbg;
 class DimerCorrector : public AbstractCorrectionAlgorithm {

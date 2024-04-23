@@ -1,6 +1,6 @@
 #pragma once
 
-#include <dbg/paths.hpp>
+#include <assembly_graph/paths.hpp>
 #include "dbg/sparse_dbg.hpp"
 
 class AbstractReliableFillingAlgorithm {

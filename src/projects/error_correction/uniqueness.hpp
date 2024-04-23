@@ -1,5 +1,6 @@
 #pragma once
-#include "dbg/component.hpp"
+#include "assembly_graph/component.hpp"
+#include "assembly_graph/splitters.hpp"
 #include "dbg/sparse_dbg.hpp"
 
 class AbstractUniquenessStorage {
@@ -42,7 +43,7 @@ public:
     }
 };
 
-class UniqueSplitter : public dbg::ConditionSplitter {
+class UniqueSplitter : public ag::ConditionSplitter<dbg::DBGTraits> {
 public:
     explicit UniqueSplitter(const AbstractUniquenessStorage &storage) :
             ConditionSplitter([&storage](const dbg::Edge& edge){return storage.isUnique(edge);}){

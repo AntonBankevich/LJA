@@ -347,7 +347,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
 
 void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &dbg, size_t unique_threshold,
               RecordStorage &reads_storage, AbstractUniquenessStorage &uniquenessStorage) {
-    std::vector<Component> split = LengthSplitter(unique_threshold).splitGraph(dbg);
+    std::vector<Component> split = ag::LengthSplitter<DBGTraits>(unique_threshold).splitGraph(dbg);
     recreate_dir(dir);
     const std::function<std::string(Edge &)> colorer = [&uniquenessStorage](Edge &edge) {
         if(uniquenessStorage.isUnique(edge))

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "paths.hpp"
-#include "assembly_graph.hpp"
-#include "compact_path.hpp"
+#include "assembly_graph/paths.hpp"
+#include "assembly_graph/assembly_graph.hpp"
+#include "assembly_graph/compact_path.hpp"
 #include <sequences/sequence.hpp>
 #include <sequences/contigs.hpp>
 #include <common/string_utils.hpp>

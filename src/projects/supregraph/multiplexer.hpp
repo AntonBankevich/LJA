@@ -1,32 +1,9 @@
 #pragma once
-#include "supregraph.hpp"
-namespace spg {
-    class DecisionRule {
-    public:
-        virtual std::vector<std::pair<EdgeId, EdgeId>> judge(Vertex &v) = 0;
-        virtual ~DecisionRule() = default;
-    };
 
-    class RandomDecisionRule : public DecisionRule {
-    public:
-        virtual std::vector<std::pair<EdgeId, EdgeId>> judge(Vertex &v) override {
-            std::vector<std::pair<EdgeId, EdgeId>> res;
-            auto out_it = v.begin();
-            auto inc = v.incoming();
-            auto in_it = inc.begin();
-            while(out_it != v.end() || in_it != inc.end()) {
-                if(out_it == v.end()) --out_it;
-                if(in_it == inc.end()) --in_it;
-                res.emplace_back(in_it->getId(), out_it->getId());
-                res.emplace_back(out_it->rc().getId(), in_it->rc().getId());
-                ++in_it;
-                ++out_it;
-            }
-            std::sort(res.begin(), res.end());
-            res.erase(std::unique(res.begin(), res.end()), res.end());
-            return std::move(res);
-        }
-    };
+#include "vertex_resolution.hpp"
+#include "supregraph.hpp"
+#include <unordered_set>
+namespace spg {
 
     class Multiplexer {
     private:
@@ -47,7 +24,7 @@ namespace spg {
         std::vector<VertexId> multiplex(Vertex &vertex) {
 //            VERIFY(vertex.inDeg() > 1 && vertex.outDeg() > 1);
             core_queue.erase(vertex.getId());
-            std::vector<std::pair<EdgeId, EdgeId>> rr = rule.judge(vertex);
+            VertexResolutionPlan rr = rule.judge(vertex);
             if(!rr.empty()) {
                 std::vector<VertexId> res = graph.resolveVertex(vertex, rr);
                 std::vector<VertexId> candidates;

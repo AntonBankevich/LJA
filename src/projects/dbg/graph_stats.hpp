@@ -1,7 +1,8 @@
 #pragma once
 
 #include <common/logging.hpp>
-#include "component.hpp"
+#include <assembly_graph/splitters.hpp>
+#include "assembly_graph/component.hpp"
 #include "sparse_dbg.hpp"
 
 namespace dbg {
@@ -89,7 +90,7 @@ namespace dbg {
         logger << "Total vertices: " << dbg.size() << std::endl;
         logger << "Number of end vertices: " << n01 << std::endl;
         logger << "Number of unbranching vertices: " << n11 << std::endl;
-        logger << "Number of connected components: " << dbg::CCSplitter().split(dbg::Component(dbg)).size()
+        logger << "Number of connected components: " << ag::CCSplitter<DBGTraits>().split(Component(dbg)).size()
                << std::endl;
         logger << "Number of isolated edges " << isolated / 2 << " " << isolatedSize / 2 << std::endl;
 //    logger << "Distribution of degrees:" << std::endl;

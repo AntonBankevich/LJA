@@ -1,7 +1,7 @@
 #pragma once
 #include "dbg_graph_aligner.hpp"
-#include "compact_path.hpp"
-#include "paths.hpp"
+#include "assembly_graph/compact_path.hpp"
+#include "assembly_graph/paths.hpp"
 #include "sparse_dbg.hpp"
 namespace dbg {
 

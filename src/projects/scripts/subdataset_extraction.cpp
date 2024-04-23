@@ -5,7 +5,7 @@
 #include <sequences/seqio.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
-#include <dbg/component.hpp>
+#include <assembly_graph/component.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
 #include "dbg/dbg_graph_aligner.hpp"
@@ -88,8 +88,8 @@ int main(int argc, char **argv) {
 //            }
 //            return true;
 //        };
-//        std::vector<dbg::Component> components = oneline::filter(dbg::LengthSplitter(unique_threshold).splitGraph(dbg), f);
-        std::vector<dbg::Component> components = dbg::LengthSplitter(unique_threshold).splitGraph(dbg); //Split graph into components
+//        std::vector<dbg::Component> components = oneline::filter(ag::LengthSplitter<DBGTraits>(unique_threshold).splitGraph(dbg), f);
+        std::vector<dbg::Component> components = ag::LengthSplitter<dbg::DBGTraits>(unique_threshold).splitGraph(dbg); //Split graph into components
         subdatasets = oneline::initialize<Subdataset>(components);//Create subdatasets corresponding to components
     } else {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             std::cout << contig.getInnerId() << " " << contig.truncSize() << " " << index.carefulAlign(contig).size() << std::endl;
             storage.addContig(contig);
-            std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
+            std::vector<ag::AlignmentChain<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
             subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig_al, k + radius));
             subdatasets.back().id = contig.getInnerId();
         }

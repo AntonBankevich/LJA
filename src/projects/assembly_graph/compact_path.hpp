@@ -1,6 +1,6 @@
 #pragma once
-#include "paths.hpp"
-#include "id_index.hpp"
+#include "assembly_graph/paths.hpp"
+#include "common/id_index.hpp"
 #include "sequences/sequence.hpp"
 #include <parallel/algorithm>
 #include <utility>

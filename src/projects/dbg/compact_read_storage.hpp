@@ -1,3 +1,3 @@
 #pragma once
 
-#include "compact_path.hpp"
+#include "assembly_graph/compact_path.hpp"

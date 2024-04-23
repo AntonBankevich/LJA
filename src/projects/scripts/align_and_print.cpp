@@ -9,7 +9,7 @@
 #include <sequences/seqio.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
-#include <dbg/component.hpp>
+#include <assembly_graph/component.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
 #include "dbg/dbg_graph_aligner.hpp"
@@ -63,8 +63,8 @@ int main(int argc, char **argv) {
     for(StringContig read : reader) {
         Contig rseq = read.makeContig();
         os << ">" << read.id << "\n";
-        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> al = aligner.carefulAlign(rseq);
-        for(dbg::PerfectAlignment<Contig, dbg::Edge> &piece : al) {
+        std::vector<ag::AlignmentChain<Contig, dbg::Edge>> al = aligner.carefulAlign(rseq);
+        for(ag::AlignmentChain<Contig, dbg::Edge> &piece : al) {
             os << piece.seg_to.contig().getId() << " ";
         }
         os << "\n";

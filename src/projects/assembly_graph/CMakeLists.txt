@@ -1,0 +1,1 @@
+project(assembly_graph)

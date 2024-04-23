@@ -1,28 +1,10 @@
 #pragma once
 
-#include "paths.hpp"
+#include "assembly_graph/paths.hpp"
+#include "assembly_graph/alignment_chain.hpp"
 #include "sparse_dbg.hpp"
 
 namespace dbg {
-    template<class U, class V>
-    class PerfectAlignment {
-    public:
-        Segment<U> seg_from;
-        Segment<V> seg_to;
-        PerfectAlignment(const Segment<U> &seg_from_, const Segment<V> &seg_to_) : seg_from(seg_from_), seg_to(seg_to_) {
-            VERIFY(seg_from_.size() == seg_to_.size());
-        }
-        size_t size() {return seg_from.size();}
-        PerfectAlignment RC() const {
-            return {seg_from.RC(), seg_to.RC()};
-        }
-        bool operator<(const PerfectAlignment<U, V> &other) const {
-            if(seg_to != other.seg_to)
-                return seg_to < other.seg_to;
-            else
-                return seg_from < other.seg_from;
-        }
-    };
 
     class KmerIndex {
     public:
@@ -37,8 +19,8 @@ namespace dbg {
         size_t w = 0;
         bool anchors_filled = false;
 
-        PerfectAlignment<Contig, dbg::Edge> extendLeft(const hashing::MovingKWH &kwh, Contig &contig) const;
-        PerfectAlignment<Contig, dbg::Edge> extendRight(const hashing::MovingKWH &kwh, Contig &contig) const;
+        ag::AlignmentChain<Contig, dbg::Edge> extendLeft(const hashing::MovingKWH &kwh, Contig &contig) const;
+        ag::AlignmentChain<Contig, dbg::Edge> extendRight(const hashing::MovingKWH &kwh, Contig &contig) const;
 
     public:
         explicit KmerIndex(hashing::RollingHash _hasher) : hasher_(_hasher) {
@@ -102,18 +84,18 @@ namespace dbg {
 
         dbg::GraphPath align(const Sequence &seq, const std::string &name = "") const;
 
-        std::vector<PerfectAlignment<Contig, dbg::Edge>> carefulAlign(Contig &contig) const;
+        std::vector<ag::AlignmentChain<Contig, dbg::Edge>> carefulAlign(Contig &contig) const;
 
-        std::vector<PerfectAlignment<dbg::Edge, dbg::Edge>> oldEdgeAlign(
+        std::vector<ag::AlignmentChain<dbg::Edge, dbg::Edge>> oldEdgeAlign(
                 dbg::Edge &contig) const;
 
-        std::vector<PerfectAlignment<Contig, dbg::Edge>> sparseAlign(Contig &contig) const;
+        std::vector<ag::AlignmentChain<Contig, dbg::Edge>> sparseAlign(Contig &contig) const;
     };
 }
 
 namespace std {
     template<class U, class V>
-    std::ostream &operator<<(std::ostream &os, const dbg::PerfectAlignment<U, V> &al) {
+    std::ostream &operator<<(std::ostream &os, const ag::AlignmentChain<U, V> &al) {
         return os << al.seg_from << "->" << al.seg_to;
     }
 }

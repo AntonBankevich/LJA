@@ -1,6 +1,6 @@
 #pragma once
 
-#include "component.hpp"
+#include "assembly_graph/component.hpp"
 #include "sparse_dbg.hpp"
 namespace dbg {
 //TODO: move to namespace ag and make it universal for all graphs
@@ -35,12 +35,17 @@ namespace dbg {
     inline void printAssembly(std::ostream &out, const Component &component,
                               const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         size_t cnt = 0;
+        std::unordered_map<VertexId, size_t> cuts;
+        for(Vertex &v : component.verticesUnique()) {
+            cuts[v.getId()] = v.outDeg() == 1 ? 0 : v.size();
+            cuts[v.rc().getId()] = v.size() - cuts[v.getId()];
+        }
         for (Edge &edge : component.edgesUnique()) {
-            Sequence edge_seq = edge.getStart().getSeq() + edge.truncSeq();
-            Vertex &end = edge.getFinish();
-            out << ">" << cnt << "_" << name(edge) << "_" << edge.truncSize()
-                << "_" << edge.getCoverage() << "\n";
-            out << edge_seq << "\n";
+            if(edge.fullSize() <= cuts[edge.getStart().getId()] + cuts[edge.getFinish().rc().getId()])
+                continue;
+            Sequence seq = edge.getSeq().Subseq(cuts[edge.getStart().getId()], edge.fullSize() - cuts[edge.getFinish().rc().getId()]);
+            out << ">contig_" << cnt << "_" << name(edge) << "\n";
+            out << seq << "\n";
             cnt++;
         }
     }

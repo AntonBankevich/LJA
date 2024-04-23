@@ -5,7 +5,7 @@
 #include "ff.hpp"
 #include "dbg/sparse_dbg.hpp"
 #include "dbg/visualization.hpp"
-#include "dbg/compact_path.hpp"
+#include "assembly_graph/compact_path.hpp"
 #include <utility>
 
 class MappedNetwork : public Network {

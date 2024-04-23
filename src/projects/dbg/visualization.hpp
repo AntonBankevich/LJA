@@ -4,13 +4,14 @@
 #include "graph_alignment_storage.hpp"
 #include <unordered_map>
 #include <utility>
-#include "component.hpp"
+#include <assembly_graph/splitters.hpp>
+#include "assembly_graph/component.hpp"
 #include "dbg_graph_aligner.hpp"
 
 //TODO rewrite for AssemblyGraph
 class GraphPathStorage {
 private:
-    std::unordered_map<dbg::ConstEdgeId, std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>> alignments;
+    std::unordered_map<dbg::ConstEdgeId, std::vector<ag::AlignmentChain<Contig, dbg::Edge>>> alignments;
     std::vector<Contig*> stored_contigs;
     const dbg::SparseDBG * dbg;
 
@@ -34,20 +35,20 @@ public:
     }
 
     void Fill(size_t threads, dbg::KmerIndex &index) {
-        ParallelRecordCollector<dbg::PerfectAlignment<Contig, dbg::Edge>> records(threads);
+        ParallelRecordCollector<ag::AlignmentChain<Contig, dbg::Edge>> records(threads);
 #pragma omp parallel for schedule(dynamic, 10) default(none) shared(stored_contigs, records, index)
         for(size_t i = 0; i < stored_contigs.size(); i++) {
             Contig &contig = *stored_contigs[i];
-            std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> path = index.carefulAlign(contig);
-            for(dbg::PerfectAlignment<Contig, dbg::Edge> &al : path) {
+            std::vector<ag::AlignmentChain<Contig, dbg::Edge>> path = index.carefulAlign(contig);
+            for(ag::AlignmentChain<Contig, dbg::Edge> &al : path) {
                 records.emplace_back(al);
             }
         }
-        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> rec_list = records.collect();
+        std::vector<ag::AlignmentChain<Contig, dbg::Edge>> rec_list = records.collect();
         __gnu_parallel::sort(rec_list.begin(), rec_list.end());
-        std::vector<std::pair<dbg::ConstEdgeId , std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>>>> res;
-        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> next;
-        for(dbg::PerfectAlignment<Contig, dbg::Edge> rec : rec_list) {
+        std::vector<std::pair<dbg::ConstEdgeId , std::vector<ag::AlignmentChain<Contig, dbg::Edge>>>> res;
+        std::vector<ag::AlignmentChain<Contig, dbg::Edge>> next;
+        for(ag::AlignmentChain<Contig, dbg::Edge> rec : rec_list) {
             if(!next.empty() && next[0].seg_to.contig() != rec.seg_to.contig()) {
                 res.emplace_back(next[0].seg_to.contig().getId(), std::move(next));
                 next.clear();
@@ -66,13 +67,13 @@ public:
             os << edge.getInnerId() << "\n";
             if (alignments.find(edge.getId()) == alignments.end())
                 return;
-            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(edge.getId())->second;
+            const std::vector<ag::AlignmentChain<Contig, dbg::Edge>> &als = alignments.find(edge.getId())->second;
             if (als.empty()) {
                 return;
             }
             os << als[0].seg_from << "->" << als[0].seg_to;
             for (size_t i = 1; i < als.size(); i++) {
-                const dbg::PerfectAlignment<Contig, dbg::Edge> &al = als[i];
+                const ag::AlignmentChain<Contig, dbg::Edge> &al = als[i];
                 os << "\n" << al.seg_from << "->" << al.seg_to;
             }
         }
@@ -83,14 +84,14 @@ public:
             if (alignments.find(edge.getId()) == alignments.end())
                 return std::string("");
             std::stringstream ss;
-            const std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments.find(edge.getId())->second;
+            const std::vector<ag::AlignmentChain<Contig, dbg::Edge>> &als = alignments.find(edge.getId())->second;
             if (als.empty()) {
                 return std::string("");
             }
             size_t num = std::min<size_t>(10, als.size());
             ss << als[0].seg_from << "->" << als[0].seg_to.coordinaresStr();
             for (size_t i = 1; i < num; i++) {
-                const dbg::PerfectAlignment<Contig, dbg::Edge> &al = als[i];
+                const ag::AlignmentChain<Contig, dbg::Edge> &al = als[i];
                 ss << "\\n" << al.seg_from << "->" << al.seg_to.coordinaresStr();
             }
             return ss.str();
@@ -186,7 +187,7 @@ inline void DrawSplit(const dbg::Component &component, const std::experimental::
                const std::function<std::string(dbg::Edge &)> &labeler, const std::function<std::string(dbg::Edge &)> &colorer,
                size_t len = 100000) {
     ensure_dir_existance(dir);
-    std::vector<dbg::Component> split = dbg::LengthSplitter(len).split(component);
+    std::vector<dbg::Component> split = ag::LengthSplitter<dbg::DBGTraits>(len).split(component);
     for(size_t i = 0; i < split.size(); i++) {
         std::experimental::filesystem::path f = dir / (std::to_string(i) + ".dot");
         std::ofstream os;
