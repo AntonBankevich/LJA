@@ -261,10 +261,6 @@ namespace ag {
             return id;
         }
 
-        std::string getShortId() const {
-            return start->getShortId() + "." + itos(id.eid) + nuclLabel().str();
-        }
-
         Sequence firstNucl() const {
             return truncSeq().Subseq(0, 1);
         }
@@ -368,7 +364,6 @@ namespace ag {
         id_type getInnerId() const {return id;};
         VertexId getId() {return {getInnerId(), dynamic_cast<Vertex *>(this)};}
         ConstVertexId getId() const {return {getInnerId(), dynamic_cast<const Vertex *>(this)};}
-        std::string getShortId() const;
 
         void lock() { omp_set_lock(&writelock); }
         void unlock() { omp_unset_lock(&writelock); }
@@ -785,7 +780,7 @@ namespace ag {
 
 
 //std::ostream &operator<<(std::ostream &os, const Edge &edge) {
-//    os << edge.getShortId();
+//    os << edge.getId();
 //    return os;
 //}
 
@@ -807,13 +802,6 @@ namespace ag {
             VERIFY(std::find(edge.getFinish().rc().begin(), edge.getFinish().rc().end(), edge.rc()) != edge.getFinish().rc().end());
             VERIFY(edge.intCov() == edge.rc().intCov());
         }
-    }
-
-    template<class Traits>
-    std::string BaseVertex<Traits>::getShortId() const {
-        std::stringstream ss;
-        ss << getInnerId() % 1000000000;
-        return ss.str();
     }
 
     template<class Traits>

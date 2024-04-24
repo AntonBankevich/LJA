@@ -14,21 +14,6 @@ private:
     std::vector<Contig*> stored_contigs;
     const dbg::SparseDBG * dbg;
 
-    void printEdge(std::ostream &os, dbg::Vertex & start, dbg::Edge &edge) {
-        dbg::Vertex &end = edge.getFinish();
-        if (!start.isCanonical())
-            os << "-";
-        os << start.getInnerId() % 100000 << " -> ";
-        if (!end.isCanonical())
-            os << "-";
-        os << end.getInnerId() % 100000 << "\n";
-        std::vector<dbg::PerfectAlignment<Contig, dbg::Edge>> &als = alignments[edge.getId()];
-        for(auto & al : als) {
-            os << "\n" << al.seg_from << "->" << al.seg_to;
-        }
-        os << "\n";
-    }
-
 public:
     explicit GraphPathStorage(dbg::SparseDBG & dbg_) : dbg(&dbg_) {
     }
@@ -117,7 +102,7 @@ public:
 inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extra_label = "",
                const std::string &color = "black") {
     dbg:: Vertex &end = edge.getFinish();
-    os << "\"" << edge.getStart().getShortId() << "\" -> \"" << end.getShortId() <<
+    os << "\"" << edge.getStart().getId() << "\" -> \"" << end.getId() <<
        "\" [label=\"" << edge.getInnerId() << " " << edge.nuclLabel() << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
@@ -150,7 +135,7 @@ inline void printDot(std::ostream &os, const dbg::Component &component, const st
     for(dbg::VertexId vid : extended) {
         dbg::Vertex &vert = *vid;
         std::string color = component.covers(vert) ? "white" : "yellow";
-        os << vert.getShortId();
+        os << vert.getId();
         os << " [style=filled fillcolor=\"" + color + "\"";
         if(vert.size() < 10)
             os << " label=" << vert.getSeq();

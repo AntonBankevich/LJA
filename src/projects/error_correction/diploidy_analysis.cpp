@@ -91,13 +91,13 @@ size_t BulgePath::conservativeLength() const {
 
 std::string BulgePath::str() const {
     std::stringstream ss;
-    ss << start().getShortId();
+    ss << start().getId();
     for(const auto &p : path) {
         if(p.first == p.second) {
-            ss << "-" << p.first->truncSize() << p.first->nuclLabel() << "-" << p.first->getFinish().getShortId();
+            ss << "-" << p.first->truncSize() << p.first->nuclLabel() << "-" << p.first->getFinish().getId();
         } else {
             ss << "-(" << p.first->truncSize() << p.first->nuclLabel() << "," <<
-               p.second->truncSize() << p.second->nuclLabel() << ")-" << p.first->getFinish().getShortId();
+               p.second->truncSize() << p.second->nuclLabel() << ")-" << p.first->getFinish().getId();
         }
     }
     return ss.str();

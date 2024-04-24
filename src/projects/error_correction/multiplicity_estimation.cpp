@@ -193,7 +193,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         }
         logger.trace() << "Found suspicious repeat of multiplicity 2: ";
         for(Vertex &vertex : component.verticesUnique()) {
-            logger << " " << vertex.getShortId();
+            logger << " " << vertex.getId();
         }
         logger << std::endl;
         bool success = processSimpleRepeat(component);
@@ -283,7 +283,7 @@ size_t UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
     double adjusted_rel_coverage = std::min(min_cov * 0.9, max_cov * 0.7);
     logger.trace() << "Processing component: ";
     for(Vertex &vertex : subcomponent.verticesUnique()) {
-        logger << " " << vertex.getShortId();
+        logger << " " << vertex.getId();
     }
     logger << std::endl;
     logger.trace() << "Attempting to use coverage for multiplicity estimation with coverage threshold " << threshold << std::endl;
@@ -465,7 +465,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
     size_t ucnt = 0;
     logger.trace() << "Component: ";
     for(Vertex &vertex : component.verticesUnique()) {
-        logger << " " << vertex.getShortId();
+        logger << " " << vertex.getId();
     }
     logger << std::endl;
     double rel_coverage = initial_rel_coverage;

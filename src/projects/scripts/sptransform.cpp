@@ -11,7 +11,7 @@ namespace ag {
     inline void printEdge(std::ostream &os, const typename Traits::Edge &edge, const std::string &extra_label = "",
                           const std::string &color = "black") {
         const typename Traits::Vertex &end = edge.getFinish();
-        os << "\"" << edge.getStart().getShortId() << "\" -> \"" << end.getShortId() <<
+        os << "\"" << edge.getStart().getId() << "\" -> \"" << end.getId() <<
            "\" [label=\"" << edge.getInnerId() << " " << edge.nuclLabel() << " " << edge.truncSize() << "\"";
         if (!extra_label.empty()) {
             os << " labeltooltip=\"" << extra_label << "\"";
@@ -26,12 +26,12 @@ namespace ag {
         std::unordered_set<dbg::VertexId> extended;
         for (const typename Traits::Vertex &vert: component.vertices()) {
             std::string color = "white";
-            os << vert.getShortId();
+            os << vert.getId();
             os << " [style=filled fillcolor=\"" + color + "\"";
             if (vert.size() < 10)
                 os << " label=" << vert.getSeq();
             else
-                os << " label=\"" << vert.getShortId() << " " << vert.size() << "\"";
+                os << " label=\"" << vert.getId() << " " << vert.size() << "\"";
             os << "]\n";
         }
         for (const typename Traits::Edge &edge: component.edges()) {

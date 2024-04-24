@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
         logger.info() << "Printing subdataset " << cnt << " " << subdataset.id << ":";
         for(dbg::Vertex &v : subdataset.component.verticesUnique()) {
-            logger << " " << v.getShortId();
+            logger << " " << v.getId();
         }
         logger << "\n";
         std::string name = itos(cnt);
