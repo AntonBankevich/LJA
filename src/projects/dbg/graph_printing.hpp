@@ -103,7 +103,7 @@ namespace dbg {
             for (const Edge &out_edge : vertex) {
                 std::string outid = eids[&out_edge];
                 bool outsign = out_edge.isCanonical();
-                for (const Edge &inc_edge : vertex.rc()) {
+                for (const Edge &inc_edge : vertex.incoming()) {
                     std::string incid = eids[&inc_edge];
                     bool incsign = inc_edge.isCanonical();
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"

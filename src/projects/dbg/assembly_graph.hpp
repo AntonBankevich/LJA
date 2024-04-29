@@ -834,6 +834,7 @@ namespace ag {
         if (!eid.valid()) {
             eid = {id, (max_out_id[tseq[0]] + 1) * 10 + tseq[0]};
         }
+        VERIFY(eid.vid == id);
         updateMaxOutId(eid.eid);
         outgoing_.emplace_back(eid, *dynamic_cast<Vertex*>(this), end, tseq, std::move(data));
         Edge &edge = outgoing_.back();
