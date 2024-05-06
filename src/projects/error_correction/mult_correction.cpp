@@ -25,7 +25,7 @@ struct UEdge {
     }
 };
 //std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
-//                                                                         const RecordStorage &reads_storage, const UniqueClassificator &classificator) {
+//                                                                         const dbg::ReadAlignmentStorage &reads_storage, const UniqueClassificator &classificator) {
 //    std::unordered_map<Edge *, std::vector<UEdge>> bg;
 //    for(Edge &edge : dbg.edges()) {
 //        if(!classificator.isUnique(edge))
@@ -58,7 +58,7 @@ struct UEdge {
 //    std::unordered_map<Edge *, UEdge> choice;
 //}
 
-inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const RecordStorage &reads_storage,
+inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const dbg::ReadAlignmentStorage &reads_storage,
                                const AbstractUniquenessStorage &classificator,
                                std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     VERIFY(uniqueEdges.empty() || uniqueEdges.front()->truncSize() >= uniqueEdges.back()->truncSize());
@@ -67,7 +67,7 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const Rec
         if (unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         Vertex & start = edge.getStart();
-        const VertexRecord &rec = reads_storage.getRecord(start);
+        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(start);
         Sequence seq = edge.truncSeq().Subseq(0, 1);
         CompactPath path = rec.getFullUniqueExtension(seq, 1, 0);
         if(path.size() == 1)
@@ -88,7 +88,7 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const Rec
     }
 }
 
-dbg::GraphPath greedyExtension(const VertexRecord &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
+dbg::GraphPath greedyExtension(const ag::VertexRecord<DBGTraits> &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
     dbg::GraphPath path(edge.getStart());
     path += edge;
     Sequence seq = CompactPath(path).cpath();
@@ -115,7 +115,7 @@ dbg::GraphPath greedyExtension(const VertexRecord &rec, const AbstractUniqueness
     return path;
 }
 
-inline CompactPath findBulgeExtension(const VertexRecord &rec, Edge &edge, const CompactPath & greedy) {
+inline CompactPath findBulgeExtension(const ag::VertexRecord<DBGTraits> &rec, Edge &edge, const CompactPath & greedy) {
     if(edge.getFinish().outDeg() != 2)
         return greedy;
     Edge &edge1 = edge.getFinish().front();
@@ -150,14 +150,14 @@ inline CompactPath findBulgeExtension(const VertexRecord &rec, Edge &edge, const
     return CompactPath(edge.getStart(), choice + greedy.cpath().Subseq(b1));
 }
 
-inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const RecordStorage &reads_storage,
+inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const dbg::ReadAlignmentStorage &reads_storage,
                                   const AbstractUniquenessStorage &classificator,
                                   std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     for(Edge *edgeIt : uniqueEdges) {
         Edge &edge = *edgeIt;
         if(unique_extensions.find(&edge) != unique_extensions.end())
             continue;
-        const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
+        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(edge.getStart());
         dbg::GraphPath path = greedyExtension(rec, classificator, edge);
         VERIFY(edge == path.frontEdge());
         path = findBulgeExtension(rec, edge, CompactPath(path)).unpack();
@@ -181,7 +181,7 @@ inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const 
 }
 
 inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
-                                                                               SparseDBG &dbg, const RecordStorage &reads_storage,
+                                                                               SparseDBG &dbg, const dbg::ReadAlignmentStorage &reads_storage,
                                                                                const AbstractUniquenessStorage &classificator) {
     std::unordered_map<const Edge *, CompactPath> unique_extensions;
     std::vector<Edge*> uniqueEdges;
@@ -258,13 +258,13 @@ dbg::GraphPath correctRead(std::unordered_map<const Edge *, CompactPath> &unique
         return initial_al;
 }
 
-void correctReads(logging::Logger &logger, size_t threads, RecordStorage &reads_storage,
+void correctReads(logging::Logger &logger, size_t threads, dbg::ReadAlignmentStorage &reads_storage,
                   std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
     omp_set_num_threads(threads);
     logger.info() << "Correcting reads using unique edge extensions" << std::endl;
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, unique_extensions)
     for(size_t i = 0; i < reads_storage.size(); i++) {
-        AlignedRead &alignedRead = reads_storage[i];
+        ag::AlignedRead<DBGTraits> &alignedRead = reads_storage[i];
         if(!alignedRead.valid())
             continue;
         const dbg::GraphPath al = alignedRead.path.unpack();
@@ -279,7 +279,7 @@ void correctReads(logging::Logger &logger, size_t threads, RecordStorage &reads_
     reads_storage.applyCorrections(logger, threads);
 }
 
-void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sdbg, RecordStorage &reads_storage,
+void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sdbg, ReadAlignmentStorage &reads_storage,
                           const AbstractUniquenessStorage &classificator, const std::experimental::filesystem::path &ext_file) {
     std::unordered_map<const Edge *, CompactPath> unique_extensions =
             constructUniqueExtensions(logger, sdbg, reads_storage, classificator);
@@ -310,7 +310,7 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     reads_storage.applyCorrections(logger, threads);
 }
 
-SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
+SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, ReadAlignmentStorage &reads_storage,
                                               const AbstractUniquenessStorage &classificator) {
     logger.info() << "Looking for more unique edges" << std::endl;
     SetUniquenessStorage res;
@@ -319,7 +319,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
             res.addUnique(edge);
             continue;
         }
-        const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
+        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(edge.getStart());
         CompactPath unique_extension = rec.getFullUniqueExtension(edge.truncSeq().Subseq(0, 1), 1, 0);
         dbg::GraphPath path = unique_extension.unpack();
         size_t len = 0;
@@ -346,7 +346,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
 }
 
 void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &dbg, size_t unique_threshold,
-              RecordStorage &reads_storage, AbstractUniquenessStorage &uniquenessStorage) {
+              ReadAlignmentStorage &reads_storage, AbstractUniquenessStorage &uniquenessStorage) {
     std::vector<Component> split = ag::LengthSplitter<DBGTraits>(unique_threshold).splitGraph(dbg);
     recreate_dir(dir);
     const std::function<std::string(Edge &)> colorer = [&uniquenessStorage](Edge &edge) {
@@ -363,8 +363,8 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
     }
 }
 
-RecordStorage MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
-                          RecordStorage &reads_storage, size_t unique_threshold, double initial_rel_coverage, bool diploid,
+ReadAlignmentStorage MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
+                          ReadAlignmentStorage &reads_storage, size_t unique_threshold, double initial_rel_coverage, bool diploid,
                           bool debug) {
     if(debug) {
         recreate_dir(dir);

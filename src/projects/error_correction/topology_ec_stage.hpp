@@ -24,14 +24,14 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
                                (dir/"vertices.save").string())
                  : DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
     size_t extension_size = 10000000;
-    ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
-    RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
+    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, debug);
+    dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, readLogger, false, false);
     io::SeqReader reader(reads_lib);
     {
         KmerIndex index(dbg);
         index.fillAnchors(logger, threads, dbg, w);
-        readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
+        readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
     }
     printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
     if(debug) {
@@ -57,7 +57,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     if(debug) PrintPaths(logger, threads, dir/ "state_dump", "mult1", dbg, readStorage, paths_lib, false);
     RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage});
 
-    RecordStorage extra_reads = MultCorrect(logger, threads, dbg, dir / "mult2", readStorage, unique_threshold, 0, diploid, debug);
+    dbg::ReadAlignmentStorage extra_reads = MultCorrect(logger, threads, dbg, dir / "mult2", readStorage, unique_threshold, 0, diploid, debug);
     MRescue(logger, threads, dbg, readStorage, unique_threshold, 0.05);
     if(debug) PrintPaths(logger, threads, dir/ "state_dump", "mult2", dbg, readStorage, paths_lib, false);
     RemoveUncovered(logger, threads, dbg, {&readStorage, &extra_reads, &refStorage});
@@ -70,7 +70,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     printFasta(dir / "final_dbg.fasta", dbg, &ag::SaveEdgeName<DBGTraits>);
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
-    SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
+    ag::SaveAllReads<DBGTraits>(dir/"final_dbg.aln", {&readStorage, &extra_reads});
     readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     extra_reads.printReadFasta(logger, dir / "pseudo_reads.fasta");
     std::experimental::filesystem::path res;

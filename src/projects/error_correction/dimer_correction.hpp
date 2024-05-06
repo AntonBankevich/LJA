@@ -7,11 +7,11 @@ using namespace dbg;
 class DimerCorrector : public AbstractCorrectionAlgorithm {
 private:
     dbg::SparseDBG &sdbg;
-    RecordStorage &reads_storage;
+    dbg::ReadAlignmentStorage &reads_storage;
     logging::Logger &logger;
     size_t max_at;
 public:
-    DimerCorrector(logging::Logger &logger, dbg::SparseDBG &sdbg, RecordStorage &reads_storage, size_t max_at) :
+    DimerCorrector(logging::Logger &logger, dbg::SparseDBG &sdbg, dbg::ReadAlignmentStorage &reads_storage, size_t max_at) :
             AbstractCorrectionAlgorithm("DimerCorrector"), logger(logger), sdbg(sdbg), reads_storage(reads_storage), max_at(max_at) {}
 
     std::string correctRead(dbg::GraphPath &path) override;

@@ -20,7 +20,7 @@ public:
     std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> findBounds();
 };
 
-std::pair<double, double> minmaxCov(const dbg::Component &subcomponent, const RecordStorage &reads_storage,
+std::pair<double, double> minmaxCov(const dbg::Component &subcomponent, const dbg::ReadAlignmentStorage &reads_storage,
                                     const std::function<bool(const dbg::Edge &)> &is_unique);
 
     class UniqueClassificator : public MultiplicityBounds {
@@ -31,12 +31,12 @@ private:
     double initial_rel_coverage;
 
 public:
-    const RecordStorage &reads_storage;
+    const dbg::ReadAlignmentStorage &reads_storage;
 
     void markPseudoHets() const;
 
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir);
-    explicit UniqueClassificator(dbg::SparseDBG &dbg, const RecordStorage &reads_storage, double initial_rel_coverage, bool diploid, bool debug) :
+    explicit UniqueClassificator(dbg::SparseDBG &dbg, const dbg::ReadAlignmentStorage &reads_storage, double initial_rel_coverage, bool diploid, bool debug) :
                     dbg(dbg), reads_storage(reads_storage), initial_rel_coverage(initial_rel_coverage), diploid(diploid), debug(debug) {}
     size_t ProcessUsingCoverage(logging::Logger &logger, const dbg::Component &subcomponent,
                               const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage);
@@ -45,6 +45,6 @@ public:
     size_t processComponent(logging::Logger &logger, const dbg::Component &component);
 };
 
-RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage,
+dbg::ReadAlignmentStorage ResolveLoops(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads_storage,
                            const AbstractUniquenessStorage &more_unique);
 

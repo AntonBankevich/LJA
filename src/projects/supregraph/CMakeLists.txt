@@ -2,7 +2,7 @@ project(debruijn)
 set(CMAKE_CXX_STANDARD 14)
 
 
-add_library(lja_spg STATIC supregraph.cpp vertex_resolution.cpp supregraph_base.cpp)
+add_library(lja_spg STATIC supregraph.cpp vertex_resolution.cpp supregraph_base.cpp unique_vertex_storage.cpp)
 target_link_libraries (lja_spg m ${OpenMP_CXX_FLAGS} lja_sequence lja_common stdc++fs )
 
 add_executable(spg_test multiplexing_test.cpp)

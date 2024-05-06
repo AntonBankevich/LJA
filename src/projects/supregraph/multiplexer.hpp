@@ -13,7 +13,8 @@ namespace spg {
     public:
         Multiplexer(SupreGraph &graph, DecisionRule &rule) : graph(graph), rule(rule) {
             for(Vertex &v : graph.verticesUnique()) {
-                if(v.isCanonical() && v.isCore() && v.outDeg() > 0 && v.inDeg() > 0) {
+                VERIFY(v.isCanonical());
+                if(v.isCore() && v.outDeg() > 0 && v.inDeg() > 0) {
                     core_queue.insert(v.getId());
                 }
             }
@@ -45,7 +46,9 @@ namespace spg {
         }
 
         std::vector<VertexId> multiplex() {
-            return multiplex(**core_queue.begin());
+            Vertex &next = **core_queue.begin();
+            core_queue.erase(core_queue.begin());
+            return multiplex(next);
         }
 
         bool finished() const {

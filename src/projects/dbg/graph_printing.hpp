@@ -95,8 +95,7 @@ namespace dbg {
         size_t cnt = 0;
         std::unordered_map<const Edge *, std::string> eids;
         for (Edge &edge : component.edges()) {
-	    if(!edge.isCanonical()) continue;
-            VERIFY(edge.isCanonical());
+    	    if(!edge.isCanonical()) continue;
             eids[&edge] = name(edge);
             eids[&edge.rc()] = name(edge);
             if (calculate_coverage)

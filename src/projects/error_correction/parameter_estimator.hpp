@@ -111,7 +111,7 @@ const dbg::Edge *SeekCovered(const dbg::Vertex &start, double min_cov) {
     return nullptr;
 }
 
-DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const RecordStorage &recordStorage, bool diploid) {
+DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const dbg::ReadAlignmentStorage &recordStorage, bool diploid) {
     std::vector<size_t> observations;
     for(dbg::Vertex &v : dbg.vertices()) {
         if(v.inDeg() != 1 || v.outDeg() != 2)

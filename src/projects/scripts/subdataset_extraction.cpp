@@ -10,6 +10,7 @@
 #include <dbg/subdatasets.hpp>
 #include "dbg/dbg_graph_aligner.hpp"
 
+using namespace dbg;
 int main(int argc, char **argv) {
     AlgorithmParameters params({"vertices=none", "unique=none", "dbg=none", "output-dir=",
                                "threads=16", "k-mer-size=", "window=2000", "debug", "disjointigs=none",
@@ -64,12 +65,12 @@ int main(int argc, char **argv) {
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
                          dbg::LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher); //Create dbg
     size_t extension_size = 100000;
-    ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, false, track_paths);//Structure for read alignments
+    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, false, track_paths);//Structure for read alignments
     io::SeqReader reader(reads_lib);//Reader that can read reads from file
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, w);
-    readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);//Align reads to the graph
+    readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);//Align reads to the graph
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;

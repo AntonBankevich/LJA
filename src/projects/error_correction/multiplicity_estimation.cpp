@@ -129,7 +129,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         if(isUnique(edge) || edge.getFinish().outDeg() > 1) {
             continue;
         }
-        const VertexRecord &rec = reads_storage.getRecord(edge.getStart());
+        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(edge.getStart());
         CompactPath unique_extension = rec.getFullUniqueExtension(edge.truncSeq().Subseq(0, 1), 1, 0);
         dbg::GraphPath path = unique_extension.unpack();
         size_t len = 0;
@@ -355,13 +355,13 @@ size_t UniqueClassificator::ProcessUsingCoverage(logging::Logger &logger,
     return ucnt;
 }
 
-std::pair<double, double> minmaxCov(const Component &subcomponent, const RecordStorage &reads_storage,
+std::pair<double, double> minmaxCov(const Component &subcomponent, const dbg::ReadAlignmentStorage &reads_storage,
                                const std::function<bool(const dbg::Edge &)> &is_unique) {
     double max_cov= 0;
     double min_cov= 100000;
     for(Edge &edge : subcomponent.edges()) {
         if(is_unique(edge) && subcomponent.contains(edge.getFinish())) {
-            const VertexRecord & record = reads_storage.getRecord(edge.getStart());
+            const ag::VertexRecord<DBGTraits> & record = reads_storage.getRecord(edge.getStart());
             std::string s = edge.truncSeq().Subseq(0, 1).str();
             size_t cnt = record.countStartsWith(Sequence(s + "A")) +
                          record.countStartsWith(Sequence(s + "C")) +
@@ -532,9 +532,9 @@ std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
     return {&forward_edge, &back_edge};
 }
 
-RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, RecordStorage &reads_storage,
+dbg::ReadAlignmentStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, dbg::ReadAlignmentStorage &reads_storage,
                            const AbstractUniquenessStorage &more_unique) {
-    RecordStorage res(dbg, 0, 10000000000ull, threads, reads_storage.getLogger(), false, reads_storage.log_changes);
+    dbg::ReadAlignmentStorage res(dbg, 0, 10000000000ull, reads_storage.getLogger(), false, reads_storage.log_changes);
     for(const Component &comp : UniqueSplitter(more_unique).splitGraph(dbg)) {
         std::pair<Edge *, Edge *> check = CheckLoopComponent(comp);
         if(check.first == nullptr)
@@ -580,7 +580,7 @@ RecordStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &d
             alignment += forward_edge;
         }
         alignment += Segment<Edge>(out, 0, std::min<size_t>(out.truncSize(), 1000));
-        res.addRead(AlignedRead(back_edge.getInnerId().str() + "_" + itos(vote2), alignment));
+        res.addRead(back_edge.getInnerId().str() + "_" + itos(vote2), alignment);
         logger.trace() << "Resolved loop " << forward_edge.getInnerId() << " " << back_edge.getInnerId() <<
                        " with size " << forward_edge.truncSize() + back_edge.truncSize() << " and multiplicity " << vote2 << std::endl;
     }

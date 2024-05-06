@@ -24,7 +24,7 @@ namespace ag {
                 _start(&start), _edges(std::move(edges)), _first_skip(first_skip), _last_skip(last_skip) {
         }
 
-        explicit CompactPath(const GraphPath<Traits> &path) :
+        explicit CompactPath(const GraphPath <Traits> &path) :
                 _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
             SequenceBuilder sb;
             for (Edge &edge: path.edges()) {
@@ -33,7 +33,7 @@ namespace ag {
             _edges = sb.BuildSequence();
         }
 
-        static CompactPath Subpath(const GraphPath<Traits> &path, size_t left, size_t right) {
+        static CompactPath Subpath(const GraphPath <Traits> &path, size_t left, size_t right) {
             SequenceBuilder sb;
             for (size_t i = left; i < right; i++) {
                 sb.append(path[i].contig().nuclLabel());
@@ -46,7 +46,7 @@ namespace ag {
             return _start != nullptr;
         }
 
-        GraphPath<Traits> unpack() const {
+        GraphPath <Traits> unpack() const {
             if (!valid())
                 return {};
             GraphPath<Traits> res(*_start);
@@ -95,6 +95,7 @@ namespace ag {
         unsigned char operator[](size_t ind) const {
             return _edges[ind];
         }
+
         static CompactPath Load(std::istream &os, IdIndex<Vertex> &index) {
             typename Vertex::id_type id;
             size_t left = 0;
@@ -102,18 +103,20 @@ namespace ag {
             std::string path;
             os >> id >> path >> left >> right;
             path = path.substr(2);
-            if(id == 0 && path.empty()) {
+            if (id == 0 && path.empty()) {
                 return {};
             }
             return {index.getById(id), Sequence(path), left, right};
         }
     };
-}
 
-template<class Traits>
-inline std::ostream& operator<<(std::ostream  &os, const ag::CompactPath<Traits> &cpath) {
-    if(cpath.valid())
-        return os << cpath.start().getInnerId() << " P:" << cpath.cpath() << " " << cpath.leftSkip() << " " << cpath.rightSkip();
-    else
-        return os << "0 P: 0 0";
+
+    template<class Traits>
+    inline std::ostream &operator<<(std::ostream &os, const ag::CompactPath<Traits> &cpath) {
+        if (cpath.valid())
+            return os << cpath.start().getInnerId() << " P:" << cpath.cpath() << " " << cpath.leftSkip() << " "
+                      << cpath.rightSkip();
+        else
+            return os << "0 P: 0 0";
+    }
 }

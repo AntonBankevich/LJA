@@ -16,7 +16,7 @@ inline bool CheckCov(const dbg::Component &component, double &d) {
 }
 
 inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
-                    RecordStorage &reads_storage, size_t unique_length, double error_fraction = 0.05) {
+                    dbg::ReadAlignmentStorage &reads_storage, size_t unique_length, double error_fraction = 0.05) {
     logger.info() << "Attempting to rescue small circular highly covered components" << std::endl;
     std::unordered_set<dbg::Edge const *> bad_edges;
     size_t cnt = 0;

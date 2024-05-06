@@ -20,7 +20,6 @@
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
 #include "../dbg/graph_printing.hpp"
-#include "subdataset_processing.hpp"
 #include "dbg/dbg_graph_aligner.hpp"
 #include <iostream>
 #include <queue>
@@ -243,17 +242,17 @@ int main(int argc, char **argv) {
     if(params.getValue("extension-size") != "none")
         extension_size = std::stoull(params.getValue("extension-size"));
 
-    ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true);
-    RecordStorage refStorage(dbg, 0, extension_size, threads, readLogger, false, false);
+    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, true);
+    dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, readLogger, false, false);
 
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;
         io::SeqReader reader(reads_lib);
-        readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
+        readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
         logger.info() << "Collecting reference alignments" << std::endl;
         io::SeqReader refReader(genome_lib);
-        refStorage.fill(logger, threads, refReader.begin(), refReader.end(), dbg, index);
+        refStorage.FillAlignments(logger, threads, refReader.begin(), refReader.end(), dbg, index);
     }
 
     if(params.getCheck("mult-correct")) {

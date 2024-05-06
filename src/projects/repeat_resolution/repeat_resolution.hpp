@@ -17,8 +17,8 @@ namespace repeat_resolution {
 
 class RepeatResolver {
     dbg::SparseDBG &dbg;
-    RecordStorage *reads_storage;
-    std::vector<RecordStorage *> extra_storages{};
+    dbg::ReadAlignmentStorage *reads_storage;
+    std::vector<dbg::ReadAlignmentStorage *> extra_storages{};
     std::uint64_t start_k{1};
     std::uint64_t saturating_k{1};
     std::experimental::filesystem::path dir;
@@ -27,16 +27,16 @@ class RepeatResolver {
     bool debug{false};
     UniqueClassificator classificator;
 
-    [[nodiscard]] std::vector<RecordStorage *> get_storages() const {
-        std::vector<RecordStorage *> storages = extra_storages;
+    [[nodiscard]] std::vector<dbg::ReadAlignmentStorage *> get_storages() const {
+        std::vector<dbg::ReadAlignmentStorage *> storages = extra_storages;
         storages.push_back(reads_storage);
         return storages;
     }
 
  public:
     RepeatResolver(dbg::SparseDBG &dbg,
-                   RecordStorage *reads_storage,
-                   std::vector<RecordStorage *> extra_storages,
+                   dbg::ReadAlignmentStorage *reads_storage,
+                   std::vector<dbg::ReadAlignmentStorage *> extra_storages,
                    uint64_t start_k,
                    uint64_t saturating_k,
                    const std::experimental::filesystem::path &dir,
@@ -52,7 +52,7 @@ class RepeatResolver {
         std::experimental::filesystem::create_directory(this->dir);
         classificator.classify(logger, unique_threshold, dir/"mult_dir");
         // TODO reactivate filtering
-//        for (RecordStorage *const storage : get_storages()) {
+//        for (dbg::ReadAlignmentStorage *const storage : get_storages()) {
 //            storage->invalidateSubreads(logger, 1);
 //        }
     }

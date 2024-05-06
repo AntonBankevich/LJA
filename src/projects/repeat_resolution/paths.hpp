@@ -112,11 +112,11 @@ class PathsBuilder {
     static RRPaths FromPathVector(std::vector<RRPath> path_vec);
 
     static RRPaths
-    FromStorages(const std::vector<RecordStorage *> &storages,
+    FromStorages(const std::vector<dbg::ReadAlignmentStorage *> &storages,
                  const std::unordered_map<multigraph::MGEdge::id_type, size_t> &edgeid2ind);
 
     static RRPaths FromDBGStorages(dbg::SparseDBG &dbg,
-                                   const std::vector<RecordStorage *> &storages);
+                                   const std::vector<dbg::ReadAlignmentStorage *> &storages);
 };
 
 } // End namespace repeat_resolution

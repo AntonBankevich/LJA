@@ -17,10 +17,10 @@ std::unordered_map<std::string, std::experimental::filesystem::path> MDBGConstru
     SparseDBG dbg = dbg::LoadDBGFromEdgeSequences(logger, threads, {graph_gfa}, hasher);
     IdIndex<Vertex> index(dbg.vertices().begin(), dbg.vertices().end());
     size_t extension_size = 10000000;
-    ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, debug);
-    RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, debug);
-    LoadAllReads(read_paths, {&readStorage, &extra_reads}, index);
+    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, debug);
+    dbg::ReadAlignmentStorage extra_reads(dbg, 0, extension_size, readLogger, false, debug);
+    ag::LoadAllReads<DBGTraits>(read_paths, {&readStorage, &extra_reads}, index);
     for(Vertex &v : dbg.verticesUnique()) {
         if(v.inDeg() == 1 && v.outDeg() == 1) {
             VERIFY(v.back() == v.rc().back().rc() || (v.back() == v.back().rc() && v.rc().back() == v.rc().back().rc()));

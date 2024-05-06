@@ -9,7 +9,7 @@ private:
 public:
     AbstractCorrectionAlgorithm(const std::string &name) : name(name) {};
     std::string getName() const {return name;}
-    virtual void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads) {};
+    virtual void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads) {};
     virtual std::string correctRead(dbg::GraphPath &) = 0;
 };
 
@@ -19,7 +19,7 @@ private:
 public:
     explicit ErrorCorrectionEngine(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
 
-    size_t run(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, RecordStorage &reads_storage) {
+    size_t run(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads_storage) {
         algorithm.initialize(logger, threads, dbg, reads_storage);
         logger.info() << "Correcting reads using algorithm " << algorithm.getName() << std::endl;
         ParallelCounter cnt(threads);
@@ -27,7 +27,7 @@ public:
         logging::ProgressBar progressBar(logger, reads_storage.size(), threads);
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, reads_storage, logger, cnt, progressBar)
         for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-            AlignedRead &alignedRead = reads_storage[read_ind];
+            ag::AlignedRead<dbg::DBGTraits> &alignedRead = reads_storage[read_ind];
             progressBar.tick();
             if (!alignedRead.valid())
                 continue;

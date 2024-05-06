@@ -117,14 +117,14 @@ inline dbg::GraphPath CorrectSuffix(const dbg::GraphPath &al) {
 }
 
 void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
-                        const std::vector<RecordStorage *> &storages) {
+                 std::vector<ReadAlignmentStorage *> storages) {
     logger.info() << "Correcting tips using reliable edge marks" << std::endl;
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
-    for(RecordStorage *storageIt : storages) {
+    for(dbg::ReadAlignmentStorage *storageIt : storages) {
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(storageIt, cnt)
         for (size_t i = 0; i < storageIt->size(); i++) {
-            AlignedRead &read = storageIt->operator[](i);
+            ag::AlignedRead<DBGTraits> &read = storageIt->operator[](i);
             if (!read.valid())
                 continue;
             dbg::GraphPath al = read.path.unpack();
@@ -139,7 +139,7 @@ void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
     }
 }
 
-void TipCorrectionPipeline(logging::Logger &logger, dbg::SparseDBG &dbg, RecordStorage &reads, size_t threads,
+void TipCorrectionPipeline(logging::Logger &logger, dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads, size_t threads,
                            double reliable_threshold) {
     FillReliableTips(logger, dbg, reliable_threshold);
     CorrectTips(logger, threads, dbg, {&reads});

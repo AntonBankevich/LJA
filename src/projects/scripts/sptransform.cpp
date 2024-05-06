@@ -71,12 +71,12 @@ protected:
             dbg::SparseDBG initial = DBGPipeline(logger, hasher, w, lib, dir, threads);
             logger.info() << "Initial graph parameters: " << initial.size() << " vertices, " << initial.edgeCount() << " edges"
                           << std::endl;
-            ReadLogger readLogger(threads, dir/"read_log.txt");
-            RecordStorage readStorage(initial, 0, 0, threads, readLogger, false, false, false);
+            ag::ReadLogger readLogger(threads, dir/"read_log.txt");
+            dbg::ReadAlignmentStorage readStorage(initial, 0, 0, readLogger, false, false, false);
             io::SeqReader reader(lib);
             dbg::KmerIndex index(initial);
             index.fillAnchors(logger, threads, initial, 500);
-            readStorage.fill(logger, threads, reader.begin(), reader.end(), initial, index);
+            readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), initial, index);
             spg::SPGConverter<dbg::DBGTraits> converter;
             spg::SupreGraph graph = converter.Convert(initial);
             std::vector<spg::EdgeId> outerEdges;
@@ -91,7 +91,7 @@ protected:
             ag::printDot<spg::SPGTraits>(dir / "converted.dot", graph);
             logger.info() << "Aligning reads" << std::endl;
             spg::PathStorage pathStorage(graph);
-            for(AlignedRead &read : readStorage) {
+            for(ag::AlignedRead<dbg::DBGTraits> &read : readStorage) {
                 ag::GraphPath<dbg::DBGTraits> opath = read.path.unpack();
                 spg::GraphPath path = converter.convertPath(opath);
                 if(path.size() >= 2) {

@@ -197,7 +197,7 @@ RRPaths PathsBuilder::FromPathVector(std::vector<RRPath> path_vec) {
 }
 
 RRPaths
-PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
+PathsBuilder::FromStorages(const std::vector<dbg::ReadAlignmentStorage *> &storages,
                            const std::unordered_map<multigraph::MGEdge::id_type,
                                                     size_t> &edgeid2ind) {
     std::vector<RRPath> paths;
@@ -209,11 +209,11 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
       }
       return edge_list;
     };
-    for (RecordStorage *const storage : storages) {
+    for (dbg::ReadAlignmentStorage *const storage : storages) {
         if (storage==nullptr) {
             continue;
         }
-        for (const AlignedRead &aligned_read : *storage) {
+        for (const ag::AlignedRead<dbg::DBGTraits> &aligned_read : *storage) {
 //            if(not aligned_read.valid()) {
 //                continue;
 //            }
@@ -237,7 +237,7 @@ PathsBuilder::FromStorages(const std::vector<RecordStorage *> &storages,
 }
 
 RRPaths PathsBuilder::FromDBGStorages(dbg::SparseDBG &dbg,
-                                      const std::vector<RecordStorage *> &storages) {
+                                      const std::vector<dbg::ReadAlignmentStorage *> &storages) {
     std::unordered_map<multigraph::MGEdge::id_type, size_t> edgeid2ind;
     size_t i = 0;
     for (auto it = dbg.edges().begin(); it!= dbg.edges().end(); ++it) {

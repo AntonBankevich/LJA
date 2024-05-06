@@ -36,7 +36,13 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < names.size(); i++) {
         Contig &contig = contigs[names[i]];
         std::cerr << "Processing request " << names[i] << "(" << contig.fullSize() << ") " << from[i] << " " << to[i] << std::endl;
+        bool rc = false;
         to[i] = std::min(contig.fullSize(), to[i]);
+        from[i] = std::min(contig.fullSize(), from[i]);
+        if(from[i] > to[i]) {
+            rc = true;
+            std::swap(from[i], to[i]);
+        }
         if(compressed) {
             size_t compressed_len = 0;
             size_t from_pos = contig.fullSize();
@@ -54,8 +60,11 @@ int main(int argc, char **argv) {
             to[i] = to_pos;
         }
         VERIFY(from[i] <= to[i]);
-        std::cerr << "Resulting segment: " << names[i] << "(" << contig.fullSize() << ") " << from[i] << " " << to[i] << std::endl;
-        std::cout << ">" << names[i] + "_" + itos(from[i]) + "_" + itos(to[i]) << "\n" << contig.getSeq().Subseq(from[i], to[i]) << "\n";
+        std::cerr << "Resulting segment: " << names[i] << "(" << contig.fullSize() << ") " << from[i] << " " << to[i] << " " << (rc ? "Reverse" : "Forward") <<std::endl;
+        Sequence res = contig.getSeq().Subseq(from[i], to[i]);
+        if(rc)
+            res = !res;
+        std::cout << ">" << names[i] + "_" + itos(from[i]) + "_" + itos(to[i]) << (rc ? "_rc" : "") << "\n" << res << "\n";
     }
     return 0;
 }

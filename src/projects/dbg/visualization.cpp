@@ -5,7 +5,7 @@
 size_t stage_num = 0;
 
 void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const string &stage,
-           dbg::SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib,
+           dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &readStorage, const io::Library &paths_lib,
            bool small) {
     stage_num += 1;
     std::string stage_name = itos(stage_num) + "_" + stage;

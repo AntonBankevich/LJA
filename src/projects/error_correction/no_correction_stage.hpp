@@ -14,14 +14,14 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
     SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
     size_t extension_size = std::max<size_t>(k * 2, 1000);
-    ReadLogger readLogger(threads, dir/"read_log.txt");
-    RecordStorage readStorage(dbg, 0, extension_size, threads, readLogger, true, true, false);
-    RecordStorage extra_reads(dbg, 0, extension_size, threads, readLogger, false, true, false);
+    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, true, false);
+    dbg::ReadAlignmentStorage extra_reads(dbg, 0, extension_size, readLogger, false, true, false);
     io::SeqReader reader(reads_lib);
     {
         KmerIndex index(dbg);
         index.fillAnchors(logger, threads, dbg, w);
-        readStorage.fill(logger, threads, reader.begin(), reader.end(), dbg, index);
+        readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
     }
     coverageStats(logger, dbg);
     if(debug) {
@@ -30,7 +30,7 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
     printFasta(dir / "final_dbg.fasta", dbg, &ag::SaveEdgeName<DBGTraits>);
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
-    SaveAllReads(dir/"final_dbg.aln", {&readStorage, &extra_reads});
+    ag::SaveAllReads<DBGTraits>(dir/"final_dbg.aln", {&readStorage, &extra_reads});
     readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     return {{"corrected_reads", dir/"corrected_reads.fasta"}, {"final_dbg", dir / "final_dbg.gfa"}, {"final_aln", dir / "final_dbg.aln"}};
 }

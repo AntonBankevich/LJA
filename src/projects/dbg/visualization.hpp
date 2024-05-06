@@ -208,4 +208,4 @@ inline void DrawSplit(const dbg::Component &component, const std::experimental::
     DrawSplit(component, dir, labeler, colorer, len);
 }
 void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
-               dbg::SparseDBG &dbg, RecordStorage &readStorage, const io::Library &paths_lib, bool small);
+               dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &readStorage, const io::Library &paths_lib, bool small);

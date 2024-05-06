@@ -64,7 +64,7 @@ std::string DimerCorrector::correctRead(dbg::GraphPath &path) {
             continue;
         size_t best_val = 0;
         size_t best = 0;
-        const VertexRecord &rec = reads_storage.getRecord(path.getVertex(path_pos));
+        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(path.getVertex(path_pos));
         for (size_t i = 0; i < candidates.size(); i++) {
             size_t support = rec.countStartsWith(candidates[i].cpath());
             if (support > best_val) {
