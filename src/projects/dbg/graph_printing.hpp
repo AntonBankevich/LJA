@@ -89,7 +89,8 @@ namespace dbg {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
         std::unordered_map<const Edge *, std::string> eids;
-        for (Edge &edge : component.edgesUnique()) {
+        for (Edge &edge : component.edges()) {
+	    if(!edge.isCanonical()) continue;
             VERIFY(edge.isCanonical());
             eids[&edge] = name(edge);
             eids[&edge.rc()] = name(edge);

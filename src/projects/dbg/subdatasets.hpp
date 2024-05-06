@@ -13,9 +13,9 @@ struct Subdataset {
     void Save(const std::experimental::filesystem::path &dir, const std::function<std::string(dbg::Edge &edge)>&labeler) const {
         recreate_dir(dir);
         std::experimental::filesystem::path reads_file = dir / "reads.fasta";
-        std::experimental::filesystem::path graph_file = dir / "graph.fasta";
+        std::experimental::filesystem::path graph_file = dir / "graph.gfa";
         std::experimental::filesystem::path dot_file = dir / "graph.dot";
-        dbg::printFasta(graph_file, component);
+        dbg::printGFA(graph_file, component, true);
         printDot(dot_file, component, labeler);
         std::ofstream os;
         os.open(reads_file);
