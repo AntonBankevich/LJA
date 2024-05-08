@@ -35,7 +35,7 @@ namespace ag {
 
         AlignedRead(AlignedRead &&other) noexcept = default;
 
-        AlignedRead &operator=(AlignedRead &&other) noexcept = default;
+        AlignedRead &operator=(AlignedRead &&other) = default;
 
         explicit AlignedRead(std::string readId) : id(std::move(readId)), corrected(false) {}
 
