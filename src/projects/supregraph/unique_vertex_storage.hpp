@@ -16,21 +16,24 @@ namespace spg {
 
     public:
         template<class I>
-        UniqueVertexStorage(I begin, I end) {
-            for(;begin != end; ++begin) {
-                add(*begin);
-            }
-        }
-        UniqueVertexStorage() = default;
+        UniqueVertexStorage(SupreGraph &spg, I begin, I end);
+        UniqueVertexStorage(SupreGraph &spg) : ResolutionListener(spg) {}
         UniqueVertexStorage(UniqueVertexStorage &&) = default;
         UniqueVertexStorage(const UniqueVertexStorage &) = delete;
 
-        void add(Vertex &v);
-        void remove(Vertex &v);
+        void add(const Vertex &v);
+        void remove(const Vertex &v);
 
         bool isUnique(Vertex &v) const;
 
 
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
     };
+}
+
+template<class I>
+spg::UniqueVertexStorage::UniqueVertexStorage(spg::SupreGraph &spg, I begin, I end) : ResolutionListener(spg) {
+    for(;begin != end; ++begin) {
+        add(*begin);
+    }
 }

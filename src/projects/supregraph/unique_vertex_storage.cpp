@@ -31,12 +31,13 @@ void spg::UniqueVertexStorage::propagateUniqueness(spg::Vertex &uv, spg::Vertex 
     propagateUniquenessForward(uv.rc(), deleted_core);
 }
 
-void spg::UniqueVertexStorage::add(spg::Vertex &v) {
+void spg::UniqueVertexStorage::add(const spg::Vertex &v) {
+    std::cout << "New unique: " << v.getId() << std::endl;
     unique.emplace(v.getId());
     unique.emplace(v.rc().getId());
 }
 
-void spg::UniqueVertexStorage::remove(spg::Vertex &v) {
+void spg::UniqueVertexStorage::remove(const spg::Vertex &v) {
     unique.erase(v.getId());
     unique.erase(v.rc().getId());
 }

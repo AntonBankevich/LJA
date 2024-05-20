@@ -5,6 +5,8 @@
 #include <dbg/visualization.hpp>
 #include <dbg/dbg_construction.hpp>
 #include "common/pipeline_tools.hpp"
+#include "converter.hpp"
+#include "assembly_graph.hpp"
 
 namespace ag {
     template<class Traits>
@@ -72,12 +74,12 @@ protected:
             logger.info() << "Initial graph parameters: " << initial.size() << " vertices, " << initial.edgeCount() << " edges"
                           << std::endl;
             ag::ReadLogger readLogger(threads, dir/"read_log.txt");
-            dbg::ReadAlignmentStorage readStorage(initial, 0, 0, readLogger, false, false, false);
+            dbg::ReadAlignmentStorage readStorage(initial, 0, 0, false, false, false);
             io::SeqReader reader(lib);
             dbg::KmerIndex index(initial);
             index.fillAnchors(logger, threads, initial, 500);
             readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), initial, index);
-            spg::SPGConverter<dbg::DBGTraits> converter;
+            SPGConverter<dbg::DBGTraits> converter;
             spg::SupreGraph graph = converter.Convert(initial);
             std::vector<spg::EdgeId> outerEdges;
             for(spg::Edge &edge : graph.edgesUnique()) {
@@ -119,7 +121,7 @@ protected:
             initial = multigraph::MultiGraphHelper::TransformToEdgeGraph(initial, 501);
             logger.info() << "Initial graph parameters: " << initial.size() << " vertices, " << initial.edgeCount() << " edges"
                           << std::endl;
-            spg::SPGConverter<multigraph::MGTraits> converter;
+            SPGConverter<multigraph::MGTraits> converter;
             spg::SupreGraph graph = converter.Convert(initial);
             ag::printDot<multigraph::MGTraits>(dir / "initial.dot", initial);
             ag::printDot<spg::SPGTraits>(dir / "converted.dot", graph);

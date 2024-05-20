@@ -46,7 +46,7 @@ FindPlausibleBulgeAlternatives(const dbg::GraphPath &path, size_t max_diff, doub
                 if((edge.getCoverage() >= min_cov || edge.is_reliable) && reachable.find(&edge.getFinish().rc()) != reachable.end() &&
                    reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
                     len += edge.truncSize();
-                    alternative+=Segment<dbg::Edge>(edge, 0, edge.truncSize());
+                    alternative += edge;
                     forward = true;
                     break;
                 }
@@ -64,7 +64,7 @@ FindPlausibleBulgeAlternatives(const dbg::GraphPath &path, size_t max_diff, doub
                    reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
                     if(found) {
                         len += edge.truncSize();
-                        alternative+=Segment<dbg::Edge>(edge, 0, edge.truncSize());
+                        alternative += edge;
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {
@@ -103,7 +103,7 @@ FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double
     size_t k = path.start().size();
     size_t max_len = path.truncLen() + max_diff;
     std::vector<dbg::GraphPath> res;
-    VERIFY(path.leftSkip() == 0);
+    VERIFY(path.cutLeft() == 0);
     dbg::GraphPath alternative(path.start());
     size_t iter_cnt = 0;
     size_t len = 0;
@@ -124,7 +124,7 @@ FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double
                 for (dbg::Edge &edge : alternative.finish()) {
                     if (edge.getCoverage() >= min_cov || edge.is_reliable) {
                         len += edge.truncSize();
-                        alternative += Segment<dbg::Edge>(edge, 0, edge.truncSize());
+                        alternative += edge;
                         forward = true;
                         break;
                     }
@@ -141,7 +141,7 @@ FindPlausibleTipAlternatives(const dbg::GraphPath &path, size_t max_diff, double
                 if(edge.getCoverage() >= min_cov || edge.is_reliable) {
                     if(found) {
                         len += edge.truncSize();
-                        alternative += Segment<dbg::Edge>(edge, 0, edge.truncSize());
+                        alternative += edge;
                         forward = true;
                         break;
                     } else if (&edge == &old_edge) {

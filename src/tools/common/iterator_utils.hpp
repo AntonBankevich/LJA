@@ -2,6 +2,7 @@
 
 #include "verify.hpp"
 #include <functional>
+#include <vector>
 
 template<class Iterator>
 class SkippingIterator {
@@ -236,7 +237,7 @@ public:
 };
 
 template<class Iterator, typename V>
-class TransformingGenerator {
+class Generator {
 public:
     typedef V value_type;
     typedef V reference;
@@ -245,34 +246,43 @@ private:
 
     Iterator iterator;
     Iterator end;
-    std::function<reference(old_value_type)> transform;
+    std::function<bool(old_value_type)> use;
+    std::function<reference(old_value_type)> generate;
+
+    void seek() {
+        while(iterator != end && !use(*iterator)) {
+            ++iterator;
+        }
+    }
 
 public:
-    TransformingGenerator(Iterator iterator, Iterator end,
-                         const std::function<reference(old_value_type)> &transform) :
-            iterator(iterator), end(end), transform(transform) {
+    Generator(Iterator iterator, Iterator end, const std::function<reference(old_value_type)> &generate, 
+                      const std::function<bool(old_value_type)> &use = [](old_value_type){return true;}) :
+            iterator(iterator), end(end), use(use), generate(generate) {
+        seek();
     }
 
     reference operator*() const {
-        return transform(*iterator);
+        return generate(*iterator);
     }
 
-    TransformingGenerator& operator++() {
+    Generator& operator++() {
         ++iterator;
+        seek();
         return *this;
     }
 
-    TransformingGenerator operator++(int) const {
-        TransformingGenerator other = *this;
+    Generator operator++(int) const {
+        Generator other = *this;
         ++other;
         return other;
     }
 
-    bool operator==(const TransformingGenerator &other) const {
+    bool operator==(const Generator &other) const {
         return iterator== other.iterator && end == other.end;
     }
 
-    bool operator!=(const TransformingGenerator &other) const {
+    bool operator!=(const Generator &other) const {
         return !operator==(other);
     }
 };
@@ -284,6 +294,7 @@ private:
     Iterator _begin;
     Iterator _end;
 public:
+    typedef Iterator iterator;
     IterableStorage(const Iterator &_begin, const Iterator &_end) : _begin(_begin), _end(_end) {
     }
 
@@ -293,5 +304,104 @@ public:
 
     Iterator end() const {
         return _end;
+    }
+};
+
+template<class Iterator>
+class ComplexIterator {
+private:
+    typedef typename std::vector<IterableStorage<Iterator>>::const_iterator storage_iterator;
+    storage_iterator cur_storage;
+    storage_iterator end_storage;
+    Iterator *cur_item;
+    void seek() {
+        VERIFY(cur_storage == end_storage || cur_item != nullptr);
+        while(cur_storage != end_storage && *cur_item == cur_storage->end()) {
+            ++cur_storage;
+            if(cur_storage != end_storage) {
+                *cur_item = cur_storage->begin();
+            } else {
+                delete cur_item;
+                cur_item = nullptr;
+            }
+        }
+    }
+public:
+    typedef typename Iterator::reference reference;
+    typedef typename Iterator::value_type value_type;
+
+    ComplexIterator(storage_iterator cur_storage, storage_iterator end_storage, Iterator cur_item) : cur_storage(
+            cur_storage), end_storage(end_storage), cur_item(new Iterator(cur_item)) {
+        seek();
+    }
+
+    ComplexIterator(storage_iterator end_storage) : cur_storage(end_storage), end_storage(end_storage), cur_item(nullptr) {
+    }
+    ComplexIterator(const ComplexIterator<Iterator> &other) : cur_storage(other.cur_storage), end_storage(other.end_storage),
+                    cur_item(new Iterator(*other.cur_item)) {}
+
+    ComplexIterator(ComplexIterator<Iterator> &&other) : cur_storage(std::move(other.cur_storage)), end_storage(std::move(other.end_storage)),
+                                                              cur_item(new Iterator(*other.cur_item)) {
+        other.cur_item = nullptr;
+    }
+
+    ~ComplexIterator() {
+        delete cur_item;
+        cur_item = nullptr;
+    }
+
+    reference operator*() const {
+        VERIFY(cur_storage != end_storage);
+        VERIFY(cur_item != nullptr);
+        return **cur_item;
+    }
+
+    ComplexIterator& operator++() {
+        VERIFY(cur_item != nullptr);
+        Iterator &item = *cur_item;
+        ++item;
+        seek();
+        return *this;
+    }
+
+    ComplexIterator operator++(int) const {
+        ComplexIterator other = *this;
+        ++other;
+        return other;
+    }
+
+    bool operator==(const ComplexIterator &other) const {
+        return cur_storage == other.cur_storage && (cur_item == other.cur_item ||
+                    (cur_item != nullptr && other.cur_item != nullptr && *cur_item == *other.cur_item));
+    }
+
+    bool operator!=(const ComplexIterator &other) const {
+        return !operator==(other);
+    }
+
+};
+
+template<class Iterator>
+class ComplexIterableStorage {
+private:
+    std::vector<IterableStorage<Iterator>> storages;
+public:
+    ComplexIterableStorage() {}
+
+    bool empty() const {
+        return storages.empty();
+    }
+    void operator+=(IterableStorage<Iterator> storage) & {
+        storages.template emplace_back(std::move(storage));
+    }
+    ComplexIterator<Iterator> begin() const & {
+        if(storages.empty()) {
+            return {storages.end()};
+        } else {
+            return {storages.begin(), storages.end(), storages.begin()->begin()};
+        }
+    }
+    ComplexIterator<Iterator> end() const & {
+        return {storages.end()};
     }
 };

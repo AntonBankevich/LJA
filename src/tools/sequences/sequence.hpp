@@ -339,17 +339,29 @@ public:
         return size() == 0;
     }
 
+    bool subseqMatch(const Sequence &other, size_t this_start, size_t other_start, size_t len) const {
+        if(size() < this_start + len || other.size_ < other_start + len)
+            return false;
+        for(size_t i = 0; i < len; i++)
+            if(this->operator[](this_start + i) != other[other_start + i])
+                return false;
+        return true;
+    }
+
     bool startsWith(const Sequence & other) const {
-        return (other.size() <= size()) && (Subseq(0, other.size()) == other);
+        return subseqMatch(other, 0, 0, other.size_);
+    }
+
+    bool containsAtPosition(const Sequence & other, size_t pos) const {
+        return subseqMatch(other, pos, 0, other.size_);
     }
 
     bool endsWith(const Sequence & other) const {
-        return (other.size() <= size()) && (Subseq(size() - other.size(), size()) == other);
+        return subseqMatch(other, size() - other.size_, 0, other.size_);
     }
 
     bool nonContradicts(const Sequence & other) const {
-        size_t ms = std::min(size(), other.size());
-        return Subseq(0, ms) == other.Subseq(0, ms);
+        return subseqMatch(other, 0, 0, std::min(size(), other.size_));
     }
 
     template<class Seq>

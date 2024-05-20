@@ -57,7 +57,7 @@ namespace ag {
 
         void applyCorrection();
 
-        static AlignedRead Load(std::istream &is, IdIndex<typename Traits::Vertex> &index) {
+        static AlignedRead Load(std::istream &is, const IdIndex<typename Traits::Vertex> &index) {
             std::string id;
             is >> id;
             id = decodeReadId(id);
@@ -250,15 +250,19 @@ namespace ag {
 
     public:
         RecordStorage(AssemblyGraph<Traits> &graph, size_t _min_len, size_t _max_len,
-                      ReadLogger &readLogger, bool _track_cov = false, bool log_changes = false,
+                      bool _track_cov = false, bool log_changes = false,
                       bool track_suffixes = true) :
-                min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(&readLogger),
+                min_len(_min_len), max_len(_max_len), track_cov(_track_cov), readLogger(nullptr),
                 log_changes(log_changes), track_suffixes(track_suffixes) {
             for(Vertex &v : graph.vertices()) {
                 data.emplace(std::piecewise_construct,
                              std::forward_as_tuple(v.getId()),
                              std::forward_as_tuple(v));
             }
+        }
+
+        void setReadLogger(ReadLogger &_readLogger) {
+            readLogger = &_readLogger;
         }
 
         typedef typename std::vector<AlignedRead<Traits>>::iterator iterator;
@@ -339,11 +343,11 @@ namespace ag {
 
         ReadLogger &getLogger() { return *readLogger; }
 
-        void flush() { readLogger->flush(); }
+        void flush() { if(readLogger != nullptr) readLogger->flush(); }
 
         void Save(std::ostream &os) const;
 
-        void Load(std::istream &is, IdIndex<Vertex> &index);
+        void Load(std::istream &is, const IdIndex<Vertex> &index);
     };
 
     template<class Traits>
@@ -352,7 +356,7 @@ namespace ag {
 
     template<class Traits>
     void LoadAllReads(const std::experimental::filesystem::path &fname, const std::vector<RecordStorage<Traits> *> &recs,
-                      IdIndex<typename Traits::Vertex> &index);
+                      const IdIndex<typename Traits::Vertex> &index);
 
 
     template<class Traits>
@@ -617,7 +621,7 @@ namespace ag {
     template<class Traits>
     void RecordStorage<Traits>::delayedInvalidateRead(AlignedRead<Traits> &read,
                                                       const std::string &message) { // NOLINT(readability-convert-member-functions-to-static)
-        if (log_changes)
+        if (log_changes && readLogger != nullptr)
             readLogger->logInvalidate(read, message);
         read.delayedInvalidate();
     }
@@ -749,11 +753,11 @@ namespace ag {
     void RecordStorage<Traits>::reroute(AlignedRead<Traits> &alignedRead, const GraphPath<Traits> &initial,
                                         const GraphPath<Traits> &corrected,
                                         const string &message) {
-        if (log_changes)
+        if (log_changes && readLogger != nullptr) {
             readLogger->logRerouting(alignedRead, initial, corrected, message);
-        if (corrected.truncLen() < 500)
+        } if (corrected.truncLen() < 500) {
             delayedInvalidateRead(alignedRead, "Deleted_after_" + message);
-        else {
+        } else {
             alignedRead.correct(CompactPath<Traits>(corrected));
         }
     }
@@ -894,7 +898,7 @@ namespace ag {
     }
 
     template<class Traits>
-    void RecordStorage<Traits>::Load(std::istream &is, IdIndex<Vertex> &index) {
+    void RecordStorage<Traits>::Load(std::istream &is, const IdIndex<Vertex> &index) {
         size_t sz;
         is >> sz;
         for (size_t i = 0; i < sz; i++) {
@@ -917,7 +921,7 @@ namespace ag {
     template<class Traits>
     void
     LoadAllReads(const std::experimental::filesystem::path &fname, const std::vector<RecordStorage<Traits> *> &recs,
-                 IdIndex<typename Traits::Vertex> &index) {
+                 const IdIndex<typename Traits::Vertex> &index) {
         std::ifstream is;
         is.open(fname);
         size_t sz;

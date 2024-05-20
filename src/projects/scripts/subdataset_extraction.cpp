@@ -65,8 +65,7 @@ int main(int argc, char **argv) {
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
                          dbg::LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher); //Create dbg
     size_t extension_size = 100000;
-    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
-    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, false, track_paths);//Structure for read alignments
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, false, track_paths);//Structure for read alignments
     io::SeqReader reader(reads_lib);//Reader that can read reads from file
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, w);

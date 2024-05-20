@@ -193,7 +193,7 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
                                              const multigraph::GraphPath &mpath, const AlignmentForm &cigar) {
     Sequence to_seq = mpath.Seq();
     std::vector<std::pair<size_t, size_t>> vertices;
-    size_t skip_left = mpath.leftSkip();
+    size_t skip_left = mpath.cutLeft();
     size_t cur_pos = 0;
     for(multigraph::MGEdge & edge: mpath.edges()) {
         VERIFY(skip_left < edge.fullSize());
@@ -522,12 +522,12 @@ bool changeEnd(multigraph::GraphPath &mpath, const Sequence &from_seq, const std
         if(edge == mpath.backEdge())
             continue;
 //        std::cout << "Change end attempt" << std::endl;
-        if(edge.fullSize() < mpath.getEdge(mpath.size() - 1).fullSize() - mpath.rightSkip())
+        if(edge.fullSize() < mpath.getEdge(mpath.size() - 1).fullSize() - mpath.cutRight())
             continue;
         Sequence subreadSeq = from_seq.Subseq(nails.back().first, from_seq.size());
         Sequence initialSeq = mpath.backEdge().getSeq().Subseq(nails.back().second,
                                                                       mpath.getEdge(mpath.size() - 1).fullSize() -
-                                                                      mpath.rightSkip());
+                                                                      mpath.cutRight());
         Sequence correctionSeq = edge.getSeq().Subseq(nails.back().second, edge.fullSize());
         correctionSeq = correctionSeq.Subseq(0, std::min(correctionSeq.size(), subreadSeq.size() + 1000));
         std::vector<std::pair<size_t, size_t>> to_ignore = Mark(subreadSeq);

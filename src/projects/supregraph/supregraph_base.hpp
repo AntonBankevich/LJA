@@ -1,6 +1,5 @@
 #pragma once
 
-#include "supregraph_base.hpp"
 #include "assembly_graph/assembly_graph.hpp"
 #include <assembly_graph/paths.hpp>
 #include <assembly_graph/compact_path.hpp>
@@ -77,16 +76,9 @@ namespace spg {
     public:
         explicit SPGEdge(id_type id, SPGVertex &start, SPGVertex &end, Sequence _seq, SPGEdgeData = {}) :
                 ag::BaseEdge<SPGTraits>(id, start, end, std::move(_seq)), SPGEdgeData() {}
-
         SPGEdge(const SPGEdge &) = delete;
-
         bool isPrefix() const { return fullSize() == getFinish().size(); }
-
         bool isSuffix() const { return fullSize() == getStart().size(); }
-
-        bool isOuter() const { return getStart().outDeg() > 1 && getFinish().inDeg() > 1; }
-
-        bool isInner() const { return getStart().outDeg() == 1 && getFinish().inDeg() == 1; }
     };
 
     typedef SPGEdge Edge;

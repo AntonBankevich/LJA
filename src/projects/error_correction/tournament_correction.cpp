@@ -192,9 +192,11 @@ namespace dbg {
             }
             Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
             Vertex &end = path.getVertex(path_pos + 1 + step_front);
-            dbg::GraphPath badPath =
-                    corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size())
-                    + path.subPath(path_pos, path_pos + 1 + step_front);
+            auto tmp1 = corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size());
+            auto tmp2 = path.subPath(path_pos, path_pos + 1 + step_front);
+            dbg::GraphPath badPath = tmp1 + tmp2;
+//                    corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size())
+//                    + path.subPath(path_pos, path_pos + 1 + step_front);
             corrected_path.pop_back(step_back);
             if (corrected_path.size() == 0 && step_front == path.size() - path_pos - 1) {
                 for (const Segment<Edge> &seg: badPath) {

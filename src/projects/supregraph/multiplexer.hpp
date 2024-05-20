@@ -2,6 +2,7 @@
 
 #include "vertex_resolution.hpp"
 #include "supregraph.hpp"
+#include "read_storage.hpp"
 #include <unordered_set>
 namespace spg {
 
@@ -22,33 +23,46 @@ namespace spg {
         Multiplexer(Multiplexer &&) = delete;
         Multiplexer(Multiplexer &) = delete;
 
-        std::vector<VertexId> multiplex(Vertex &vertex) {
+        VertexResolutionResult multiplex(Vertex &vertex, PathIndex &index) {
 //            VERIFY(vertex.inDeg() > 1 && vertex.outDeg() > 1);
             core_queue.erase(vertex.getId());
+            std::cout << "Multiplexing step " << vertex.getId() << std::endl;
             VertexResolutionPlan rr = rule.judge(vertex);
+            std::cout << "Judgement: " << rr << std::endl;
             if(!rr.empty()) {
-                std::vector<VertexId> res = graph.resolveVertex(vertex, rr);
+                std::cout << "Starting to resolve" << std::endl;
+                for(auto it : rr.connectionsUnique()) {
+                    std::cout << it.first << " " << it.second << std::endl;
+                }
+                VERIFY(index.checkReadIndexConsistency());
+                VertexResolutionResult res = graph.resolveVertex(vertex, rr);
+                VERIFY(index.checkReadIndexConsistency());
                 std::vector<VertexId> candidates;
-                for(VertexId vid : res) {
-                    candidates.emplace_back(vid);
-                    for(Edge &edge : *vid) {
-                        candidates.emplace_back(edge.getFinish().getId());
-                        candidates.emplace_back(edge.getFinish().rc().getId());
+                for(Vertex &new_vertex : res.newVertices()) {
+                    for(Vertex &v : ag::ThisAndRC(new_vertex)) {
+                        candidates.emplace_back(v.getId());
+                        for (Edge &edge: v) {
+                            candidates.emplace_back(edge.getFinish().getId());
+                            candidates.emplace_back(edge.getFinish().rc().getId());
+                        }
                     }
                 }
                 for(VertexId vid : candidates) {
-                    if(vid->isCanonical() && vid->isCore() && vid->outDeg() > 0 && vid->inDeg() > 0)
+                    if(vid->isCanonical() && vid->isCore() && vid->outDeg() > 0 && vid->inDeg() > 0 && vid->size() < 200000)
                         core_queue.insert(vid);
                 }
+                std::cout << "Result: " << res << std::endl;
                 return res;
-            } else
-                return {};
+            } else {
+                std::cout << "Skipped" << std::endl;
+                return {vertex};
+            }
         }
 
-        std::vector<VertexId> multiplex() {
+        VertexResolutionResult multiplex(PathIndex &index) {
             Vertex &next = **core_queue.begin();
             core_queue.erase(core_queue.begin());
-            return multiplex(next);
+            return multiplex(next, index);
         }
 
         bool finished() const {
@@ -56,10 +70,11 @@ namespace spg {
         }
 
         //        Graph should be in proper form. No outer edges, no unbranching vertices.
-        void fullMultiplex() {
+        void fullMultiplex(PathIndex &index) {
             while(!finished()) {
-                multiplex();
+                multiplex(index);
             }
+            graph.removeMarked();
         }
     };
 }

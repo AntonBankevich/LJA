@@ -7,15 +7,12 @@ namespace spg {
     struct EdgePair {
         EdgeId first;
         EdgeId second;
-        EdgePair(EdgeId first, EdgeId second) : first(first), second(second) {
-            VERIFY(first->getFinish() == second->getStart());
+        EdgePair(Edge & first, Edge &second) : first(first.getId()), second(second.getId()) {
+            VERIFY(this->first->getFinish() == this->second->getStart());
         }
-        bool isCanonical() const {
-            return first->getFinish() != first->getFinish().rc() || first < second->rc().getId();
-        }
-        EdgePair RC() const {
-            return {second->rc().getId(), first->rc().getId()};
-        }
+        EdgePair RC() const {return {second->rc(), first->rc()};}
+        Sequence getSeq() const {return first->getStart().getSeq() + second->truncSeq();}
+        Vertex &middle() const {return first->getFinish();}
 
         bool operator==(const EdgePair &other) const {return first == other.first && second == other.second;}
         bool operator!=(const EdgePair &other) const {return first != other.first || second != other.second;}
@@ -27,21 +24,41 @@ namespace spg {
 
     class VertexResolutionPlan {
     private:
-        ConstVertexId v;
+        VertexId v;
         mutable bool sorted = true;
         mutable std::vector<EdgePair> edge_pairs;
 
         void sort() const;
     public:
-        VertexResolutionPlan(const Vertex &v) : v(v.getId()) {}
+        VertexResolutionPlan(Vertex &v) : v(v.getId()) {} // NOLINT(google-explicit-constructor)
+        VertexResolutionPlan RC() const {
+            VertexResolutionPlan res(v->rc());
+            for(const EdgePair &ep : edge_pairs) {
+                res.add(ep.RC());
+            }
+            return std::move(res);
+        }
 
+        Vertex &getCore() const {return *v;}
         void add(const EdgePair &edgePair);
-        void add(Edge &edge1, Edge &edge2) {add({edge1.getId(), edge2.getId()});}
+        void add(Edge &edge1, Edge &edge2) {add({edge1, edge2});}
 
         bool empty() const {return edge_pairs.empty();}
+        bool incConnected(Edge &edge) const;
+        bool outConnected(Edge &edge) const;
+        bool allConnected() const;
         IterableStorage<std::vector<EdgePair>::const_iterator> connections() const;
         IterableStorage<SkippingIterator<std::vector<EdgePair>::const_iterator>> connectionsUnique() const;
     };
+
+    inline std::ostream &operator<<(std::ostream &stream, const VertexResolutionPlan &vr) {
+        stream << "VRResult." << vr.getCore().getId() << ":";
+        for(const EdgePair & it : vr.connections()) {
+            stream << "(" << it.first->getId() << "|" << it.second->getId() << ")";
+        }
+        return stream;
+    }
+
 
     class VertexResolutionResult {
     private:
@@ -55,6 +72,13 @@ namespace spg {
         }
     public:
         VertexResolutionResult(Vertex &v) : v(v.getId()) {}
+        VertexResolutionResult RC() const {
+            VertexResolutionResult res(v->rc());
+            for(auto it : new_vertices) {
+                res.innerAdd(it.first->rc(), it.second.RC());
+            }
+            return std::move(res);
+        }
 
         bool contains(Edge &edge1, Edge &edge2) const {
             return edge_mapping.find(edge1.getId()) != edge_mapping.end() &&
@@ -73,12 +97,12 @@ namespace spg {
 
         void add(Vertex &new_vertex, const EdgePair &edgePair) {
             innerAdd(new_vertex, edgePair);
-            if(new_vertex != new_vertex.rc()) {
+            if(new_vertex == new_vertex.rc()) {
                 innerAdd(new_vertex.rc(), edgePair.RC());
             }
         }
 
-        void add(Vertex &new_vertex, Edge &edge1, Edge &edge2) {add(new_vertex, {edge1.getId(), edge2.getId()});}
+        void add(Vertex &new_vertex, Edge &edge1, Edge &edge2) {add(new_vertex, {edge1, edge2});}
 
         IterableStorage<TransformingIterator<std::unordered_map<VertexId, EdgePair>::const_iterator, Vertex>> newVertices() const {
             std::function<Vertex &(const std::pair<VertexId, EdgePair> &)> transform = [](const std::pair<VertexId, EdgePair> &val) ->Vertex& {
@@ -88,6 +112,14 @@ namespace spg {
                     {new_vertices.end(),   new_vertices.end(), transform}};
         }
     };
+
+    inline std::ostream &operator<<(std::ostream &stream, const VertexResolutionResult &vr) {
+        stream << "VRResult." << vr.getVertex().getId() << ":";
+        for(Vertex & it : vr.newVertices()) {
+            stream << it.getId() << "(" << vr.get(it).first->getId() << "|" << vr.get(it).second->getId() << ")";
+        }
+        return stream;
+    }
 
     class DecisionRule {
     public:

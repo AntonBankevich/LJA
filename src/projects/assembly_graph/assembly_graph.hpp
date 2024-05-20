@@ -3,12 +3,15 @@
 #include "common/iterator_utils.hpp"
 #include "common/object_id.hpp"
 #include "common/id_index.hpp"
+#include "assembly_graph/assembly_graph.hpp"
+#include "sequences/contigs.hpp"
 #include <list>
 #include <vector>
 #include <functional>
 #include <algorithm>
 #include <array>
 #include <stdexcept>
+
 namespace ag {
     class BaseEdgeId {
     public:
@@ -106,6 +109,49 @@ namespace ag {
         }
     };
 
+    template<class T>
+    class RCIterator {
+    private:
+        T *val;
+        bool rc;
+        bool isend;
+    public:
+        RCIterator(T &obj, bool rc, bool isend) : val(&obj), rc(rc), isend(isend) {
+        }
+        static RCIterator begin(T &obj) {return {obj, false, false};}
+        static RCIterator end(T &obj) {return {obj, false, true};}
+        bool operator==(const RCIterator &other) const {return val == other.val && rc == other.rc && isend == other.isend;}
+        bool operator!=(const RCIterator &other) const {return !(*this == other);}
+        RCIterator &operator++() {
+            VERIFY(!isend);
+            if(rc || *val == val->rc()) {
+                rc = false;
+                isend = true;
+            } else {
+                rc = true;
+            }
+            return *this;
+        }
+
+        RCIterator operator++(int) const {
+            RCIterator res = *this;
+            ++res;
+            return res;
+        }
+        T& operator*() const {
+            VERIFY(!isend);
+            if(rc)
+                return val->rc();
+            else
+                return *val;
+        }
+    };
+
+    template<class T>
+    IterableStorage<RCIterator<T>> ThisAndRC(T&obj) {
+        return {RCIterator<T>::begin(obj), RCIterator<T>::end(obj)};
+    }
+
     enum EdgeMarker {
         incorrect,
         suspicious,
@@ -183,6 +229,9 @@ namespace ag {
         Vertex &getFinish() {return *finish;}
         const Vertex &getStart() const {return *start;}
         Vertex &getStart() {return *start;}
+
+        bool isOuter() const { return getStart().outDeg() > 1 && getFinish().inDeg() > 1; }
+        bool isInner() const { return getStart().outDeg() == 1 && getFinish().inDeg() == 1; }
 
         void mark(ag::EdgeMarker _marker) { marker = _marker; };
         ag::EdgeMarker getMarker() const { return marker; };
@@ -338,7 +387,7 @@ namespace ag {
         omp_lock_t writelock = {};
         bool canonical;
         bool mark_ = false;
-        std::array<int, 4> max_out_id = {0,0,0,0};
+        std::array<int, 5> max_out_id = {0,0,0,0, 0};
 
         Edge &innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, BaseEdgeId eid = {});
         void setRC(Vertex &other) {
@@ -382,7 +431,7 @@ namespace ag {
         size_t size() const { return seq.size(); }
         size_t getStartSize() const {return 0;};
         size_t truncSize() const {return seq.size();}
-        std::array<int, 4> getMaxOutId() const {return max_out_id;}
+        std::array<int, 5> getMaxOutId() const {return max_out_id;}
 
         virtual Sequence getSeq() const { return seq; }
         Sequence truncSeq() const {return seq;}
@@ -434,7 +483,7 @@ namespace ag {
             max_out_id[value % 10] = std::max(max_out_id[value%10], value / 10);
         }
 
-        void updateMaxOutId(const std::array<int, 4> other) {
+        void updateMaxOutId(const std::array<int, 5> other) {
             for(size_t i = 0; i < max_out_id.size(); i++)
                 updateMaxOutId(i + other[i] * 10);
         }
@@ -832,7 +881,8 @@ namespace ag {
     template<class Traits>
     typename Traits::Edge &BaseVertex<Traits>::innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, BaseEdgeId eid) {
         if (!eid.valid()) {
-            eid = {id, (max_out_id[tseq[0]] + 1) * 10 + tseq[0]};
+            int code = tseq.empty() ? 4 : tseq[0];
+            eid = {id, (max_out_id[code] + 1) * 10 + code};
         }
         VERIFY(eid.vid == id);
         updateMaxOutId(eid.eid);
@@ -869,15 +919,22 @@ namespace ag {
 
     template<class Traits>
     typename Traits::Edge &BaseVertex<Traits>::getOutgoing(unsigned char c) const {
+        size_t cnt = 0;
         for (Edge &edge : outgoing_) {
-            if (edge.truncSeq()[0] == c) {
+            if (edge.nuclLabel().empty() || edge.nuclLabel()[0] == c) {
+                cnt++;
+            }
+        }
+        VERIFY(cnt <= 1);
+        for (Edge &edge : outgoing_) {
+            if (edge.nuclLabel().empty() || edge.nuclLabel()[0] == c) {
                 return edge;
             }
         }
+        std::cout << c << std::endl;
         std::cout << getSeq() << std::endl;
-        std::cout << size_t(c) << std::endl;
         for (const Edge &edge : outgoing_) {
-            std::cout << edge.truncSeq() << std::endl;
+            std::cout << edge.nuclLabel() << std::endl;
         }
         VERIFY(false);
         return outgoing_.front();

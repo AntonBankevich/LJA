@@ -32,8 +32,10 @@ namespace dbg {
         index.fillAnchors(logger, threads, dbg, w);
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ag::ReadLogger readLogger(threads, dir / "read_log.txt");
-        dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, true, false);
-        dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, readLogger, false, false);
+        dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true, false);
+        readStorage.setReadLogger(readLogger);
+        dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
+        refStorage.setReadLogger(readLogger);
         io::SeqReader reader(reads_lib);
         readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
         printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);

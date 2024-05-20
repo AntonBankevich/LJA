@@ -125,8 +125,8 @@ namespace dbg {
             if (new_extension_size == 0)
                 new_extension_size = storage.getMaxLen();
             dbg::ReadAlignmentStorage new_storage(subgraph, storage.getMinLen(), new_extension_size,
-                                                  storage.getLogger(),
                                                   storage.isTrackingCov(), false, storage.isTrackingSuffixes());
+            new_storage.setReadLogger(storage.getLogger());
             storage.untrackSuffixes();
             for (ag::AlignedRead<DBGTraits> &al: storage) {
                 new_storage.addRead(al.id);
@@ -272,8 +272,8 @@ namespace dbg {
             if (new_extension_size == 0)
                 new_extension_size = storage.getMaxLen();
             dbg::ReadAlignmentStorage new_storage(subgraph, storage.getMinLen(), new_extension_size,
-                                                  storage.getLogger(),
                                                   storage.isTrackingCov(), false, storage.isTrackingSuffixes());
+            new_storage.setReadLogger(storage.getLogger());
             storage.untrackSuffixes();
             for (ag::AlignedRead<DBGTraits> &al: storage) {
                 new_storage.addRead(al.id);
@@ -362,8 +362,9 @@ namespace dbg {
         logger.trace() << "Realigning reads to the new graph" << std::endl;
         for (ReadAlignmentStorage *sit: storages) {
             ReadAlignmentStorage &storage = *sit;
-            ReadAlignmentStorage new_storage(res, storage.getMinLen(), storage.getMaxLen(), storage.getLogger(),
+            ReadAlignmentStorage new_storage(res, storage.getMinLen(), storage.getMaxLen(),
                                              storage.isTrackingCov(), false);
+            new_storage.setReadLogger(storage.getLogger());
             for (ag::AlignedRead<DBGTraits> &al: storage) {
                 new_storage.addRead(al.id);
             }
@@ -385,8 +386,8 @@ namespace dbg {
                 dbg::GraphPath new_al;
                 if (good) {
                     Vertex &start = index.getVertex(old_read.path.start());
-                    new_al = CompactPath(start, old_read.path.cpath(), old_read.path.leftSkip(),
-                                         old_read.path.rightSkip()).unpack();
+                    new_al = CompactPath(start, old_read.path.cpath(), old_read.path.cutLeft(),
+                                         old_read.path.cutRight()).unpack();
                 } else {
                     new_al = index.align(al.Seq(), new_read.id);
                 }

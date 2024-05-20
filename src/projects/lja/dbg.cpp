@@ -243,8 +243,10 @@ int main(int argc, char **argv) {
         extension_size = std::stoull(params.getValue("extension-size"));
 
     ag::ReadLogger readLogger(threads, dir/"read_log.txt");
-    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, true);
-    dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, readLogger, false, false);
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true);
+    readStorage.setReadLogger(readLogger);
+    dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
+    refStorage.setReadLogger(readLogger);
 
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;

@@ -15,8 +15,10 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
     size_t extension_size = std::max<size_t>(k * 2, 1000);
     ag::ReadLogger readLogger(threads, dir/"read_log.txt");
-    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, readLogger, true, true, false);
-    dbg::ReadAlignmentStorage extra_reads(dbg, 0, extension_size, readLogger, false, true, false);
+    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true, false);
+    readStorage.setReadLogger(readLogger);
+    dbg::ReadAlignmentStorage extra_reads(dbg, 0, extension_size, false, true, false);
+    extra_reads.setReadLogger(readLogger);
     io::SeqReader reader(reads_lib);
     {
         KmerIndex index(dbg);

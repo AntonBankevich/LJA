@@ -7,8 +7,8 @@ namespace dbg {
 class ReadAlignmentStorage : public ag::RecordStorage<DBGTraits> {
 public:
     ReadAlignmentStorage(SparseDBG &dbg, size_t _min_len, size_t _max_len,
-            ag::ReadLogger &readLogger, bool _track_cov = false, bool log_changes = false,
-    bool track_suffixes = true) : ag::RecordStorage<DBGTraits>(dbg, _min_len, _max_len, readLogger, _track_cov, log_changes, track_suffixes) {
+            bool _track_cov = false, bool log_changes = false,
+    bool track_suffixes = true) : ag::RecordStorage<DBGTraits>(dbg, _min_len, _max_len, _track_cov, log_changes, track_suffixes) {
     }
 
     ReadAlignmentStorage(ReadAlignmentStorage&&) = default;

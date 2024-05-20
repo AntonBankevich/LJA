@@ -534,7 +534,8 @@ std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
 
 dbg::ReadAlignmentStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, dbg::ReadAlignmentStorage &reads_storage,
                            const AbstractUniquenessStorage &more_unique) {
-    dbg::ReadAlignmentStorage res(dbg, 0, 10000000000ull, reads_storage.getLogger(), false, reads_storage.log_changes);
+    dbg::ReadAlignmentStorage res(dbg, 0, 10000000000ull, false, reads_storage.log_changes);
+    res.setReadLogger(reads_storage.getLogger());
     for(const Component &comp : UniqueSplitter(more_unique).splitGraph(dbg)) {
         std::pair<Edge *, Edge *> check = CheckLoopComponent(comp);
         if(check.first == nullptr)

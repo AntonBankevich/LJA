@@ -5,30 +5,42 @@
 
 namespace ag {
     template<class Traits>
+    class PathDirection;
+    template<class Traits>
+    class PathIterator;
+
+    template<class Traits>
     class GraphPath {
     public:
         typedef typename Traits::Vertex Vertex;
         typedef typename Traits::Edge Edge;
+        typedef typename Vertex::VertexId VertexId;
+        typedef typename Edge::EdgeId EdgeId;
+        friend class PathIterator<Traits>;
+        friend class PathDirection<Traits>;
     private:
-        Vertex *start_;
-        std::vector<Edge *> path;
-        size_t cut_left = 0;
-        size_t cut_right = 0;
+        VertexId start_;
+        std::vector<EdgeId> path;
+        size_t skip_left = 0;
+        size_t skip_right = 0;
+        size_t cut_left;
+        size_t cut_right;
+
+        void set(Edge &edge, size_t pos) {path[pos + skip_left] = edge.getId();}
     public:
-        typedef typename std::vector<Edge *>::iterator iterator;
-        typedef typename std::vector<Edge *>::const_iterator const_iterator;
+        typedef typename std::vector<EdgeId>::iterator iterator;
+        typedef typename std::vector<EdgeId>::const_iterator const_iterator;
         typedef TransformingIterator<CountingIterator<size_t>, Vertex> vertex_iterator;
         typedef TransformingIterator<CountingIterator<size_t>, Edge> edge_iterator;
-        typedef TransformingGenerator<CountingIterator<size_t>, Segment<Edge>> segment_iterator;
+        typedef Generator<CountingIterator<size_t>, Segment<Edge>> segment_iterator;
 
-        GraphPath(Vertex &_start, std::vector<Edge *> _path, size_t left_skip, size_t rightSkip) :
-                    start_(&_start), path(std::move(_path)), cut_left(left_skip), cut_right(rightSkip) {}
-        GraphPath(Vertex &_start) : start_(&_start) {} // NOLINT(google-explicit-constructor)
-        GraphPath(Vertex &_start, size_t left_skip, size_t right_skip) : start_(&_start), cut_left(left_skip), cut_right(right_skip) {} // NOLINT(google-explicit-constructor)
-        GraphPath(Edge &edge) : start_(&edge.getStart()), path({&edge}) {} // NOLINT(google-explicit-constructor)
-        GraphPath(const Segment<Edge> &segment) : start_(&segment.contig().getStart()), // NOLINT(google-explicit-constructor)
-                          path({&segment.contig()}), cut_left(segment.left), cut_right(segment.contig().truncSize() - segment.right) {}
-        GraphPath() : start_(nullptr) {}
+        GraphPath(Vertex &_start, std::vector<EdgeId> _path, size_t cut_left, size_t cut_right, size_t skip_left = 0, size_t skip_right = 0) :
+                    start_(_start.getId()), path(std::move(_path)), cut_left(cut_left), cut_right(cut_right), skip_left(skip_left), skip_right(skip_right) {}
+        GraphPath(Vertex &_start, size_t cut_left = 0, size_t cut_right = 0) : start_(_start.getId()), cut_left(cut_left), cut_right(cut_right) {} // NOLINT(google-explicit-constructor)
+        GraphPath(Edge &edge) : start_(edge.getStart().getId()), path({edge.getId()}), cut_left(0), cut_right(0) {} // NOLINT(google-explicit-constructor)
+        GraphPath(const Segment<Edge> &segment) : start_(segment.contig().getStart().getId()), // NOLINT(google-explicit-constructor)
+                          path({segment.contig().getId()}), cut_left(segment.left), cut_right(segment.contig().truncSize() - segment.right) {}
+        GraphPath() : start_({}), cut_left(0), cut_right(0) {}
         template<class Iterator>
         explicit GraphPath(Iterator begin, Iterator end) : cut_left(0), cut_right(0) {
             while(begin != end) {
@@ -43,15 +55,20 @@ namespace ag {
         static GraphPath WalkForward(Edge &start);
 
         Vertex &getVertex(size_t i) const;
-        Edge &getEdge(size_t i) const {return *path[i];};
+        Edge &getEdge(size_t i) const {
+            if(i >= size()) {
+                std::cout << i << " " << path.size() << " " << skip_left << " " << skip_right << std::endl;
+            }
+            VERIFY(i < size()); return *path[skip_left + i];
+        }
         Vertex &start() const {return *start_;}
-        Vertex &finish() const {return path.empty() ? start() : path.back()->getFinish();}
+        Vertex &finish() const {return empty() ? start() : backEdge().getFinish();}
         size_t find(Edge &edge, size_t pos = 0) const;
         size_t find(Vertex &v, size_t pos = 0) const;
-        Edge &backEdge() const {return *path.back();}
-        Edge &frontEdge() const {return *path.front();}
-        size_t size() const {return path.size();}
-        bool empty() const {return path.empty();}
+        Edge &backEdge() const {return *path[path.size() - skip_right - 1];}
+        Edge &frontEdge() const {return *path[skip_left];}
+        size_t size() const {return path.size() - skip_left - skip_right;}
+        bool empty() const {return size() == 0;}
 
     //        TODO: Find a way to iterate over temporary path objects
         IterableStorage<vertex_iterator> vertices() const &;
@@ -81,6 +98,7 @@ namespace ag {
         GraphPath subPath(size_t from, size_t to) const;
         GraphPath subPath(size_t from) const {return subPath(from, size());}
         GraphPath reroute(size_t left, size_t right, const GraphPath &rerouting) const;
+        void simpleReroute(size_t left, size_t right, const std::vector<EdgeId> &edges);
         void operator+=(const GraphPath &other);
         void operator+=(const Segment<Edge> &other);
         void operator+=(Edge &other);
@@ -91,41 +109,143 @@ namespace ag {
         Sequence map(std::unordered_map<const Edge *, Sequence> &edge_map);
 
         void pop_back() {
-            path.pop_back();
-            cut_right = 0;
-            if(path.empty() && cut_left > 0) {
-                invalidate();
-            }
+            skip_right++;
+            VERIFY(skip_left + skip_right <= path.size());
+            size_t new_cut_size = path[path.size() - skip_right]->truncSize();
+            path[path.size() - skip_right] = {};
+            cut_right -= std::min(cut_right, new_cut_size);
         }
         void pop_back(size_t len) {
-            path.erase(path.end() - len, path.end());
-            if(len > 0)
-                cut_right = 0;
-            if(size() == 0 && cut_left != 0)
-                invalidate();
+            for(size_t i = 0; i < len; i++)
+                pop_back();
+        }
+        void pop_front() {
+            skip_left++;
+            VERIFY(skip_left + skip_right <= path.size());
+            size_t new_cut_size = path[skip_left - 1]->rc().truncSize();
+            start_ = path[skip_left - 1]->getFinish().getId();
+            path[skip_left - 1] = {};
+            cut_left -= std::min(new_cut_size, cut_left);
+        }
+        void pop_front(size_t len) {
+            for(size_t i = 0; i < len; i++)
+                pop_front();
         }
         GraphPath &cutBack(size_t l);
         GraphPath &cutFront(size_t l);
-        GraphPath &uniqueExtendBack(size_t l);
-        GraphPath &uniqueExtendFront(size_t l);
         GraphPath &addStep();
         GraphPath &addStep(Edge &edge);
         std::vector<GraphPath> allSteps();
         std::vector<GraphPath> allExtensions(size_t len);
         GraphPath &extend(const Sequence &seq);
 
-        unsigned char lastNucl() const;
-        size_t leftSkip() const;
-        size_t rightSkip() const;
+        GraphPath &fastExtend(const Sequence &seq);
+
+        size_t cutLeft() const;
+        size_t cutRight() const;
         bool endClosed() const;
         bool startClosed() const;
 
         Sequence truncSubseq(size_t start_position, size_t size = 10000000) const;
 
         bool operator==(const GraphPath &other) const {
-            return start_ == other.start_ && cut_left == other.cut_left && cut_right == other.cut_right && path == other.path;
+            return start_ == other.start_ && cut_left == other.cut_left && cut_right == other.cut_right && size() == other.size() &&
+                        std::equal(path.begin() + skip_left, path.end() - skip_right, other.path.begin() + other.skip_left);
         }
         bool operator!=(const GraphPath &other) const {return !operator==(other);}
+    };
+
+    template<class Traits>
+    class PathIterator {
+    private:
+        GraphPath<Traits> *path;
+        bool rc;
+        int pos;
+    public:
+        PathIterator(GraphPath<Traits> &path, bool rc, int pos) : path(&path), rc(rc), pos(pos) {
+        }
+    public:
+        typedef typename Traits::Edge Edge;
+        typedef typename Traits::Edge &reference;
+        typedef typename Traits::Edge *pointer;
+
+        reference operator*() const {return rc ? path->path[pos]->rc() : *path->path[pos];}
+        pointer operator->() const {return rc ? &path->path[pos]->rc() : &(*path->path[pos]);}
+        void set(Edge &edge) const {path->set(rc ? edge.rc() : edge, pos - path->skip_left);}
+        PathIterator &operator++() {VERIFY(pos >= -1); rc ? pos-- : pos++; return *this;}
+        PathIterator &operator--() {VERIFY(pos >= -1); rc ? pos++ : pos--; return *this;}
+        PathIterator operator+(int d) const {return {*path, rc, rc ? pos - d : pos + d};}
+        PathIterator operator-(int d) const { return operator+(-d); }
+        PathIterator operator++(int) {return *this + 1;}
+        PathIterator operator--(int) {return *this - 1;}
+        bool operator==(const PathIterator &other) const { return rc == other.rc && path == other.path && pos == other.pos; }
+        bool operator!=(const PathIterator &other) const { return !(*this == other); }
+        std::string str() const {
+            std::stringstream ss;
+            ss << path->lenStr() << ":" << pos << "(" << (rc ? "B" : "F") << ")";
+            return ss.str();
+        }
+    };
+
+    template<class Traits>
+    class PathDirection {
+    private:
+        GraphPath<Traits> *path;
+        bool rc;
+    public:
+        typedef typename Traits::Vertex Vertex;
+        typedef typename Traits::Edge Edge;
+        typedef typename Vertex::VertexId VertexId;
+        typedef typename Edge::EdgeId EdgeId;
+
+        PathDirection(GraphPath<Traits> &path, bool rc) : path(&path), rc(rc) {}
+        Vertex &getgetStart() const { return rc ? path->finish().rc() : path->start(); }
+        Vertex &getgetFinish() const { return rc ? path->start().rc() : path->finish(); }
+        size_t cutRight() const {return rc ? path->cutLeft() : path->cutRight();}
+        size_t cutLeft() const {return rc ? path->cutRight() : path->cutLeft();}
+        void pop_front() const {return rc ? path->pop_back() : path->pop_front();}
+        void pop_back() const {return rc ? path->pop_front() : path->pop_back();}
+        bool isForward() const {return !rc;}
+        size_t size() const {return path->size();}
+        GraphPath<Traits> &getPath() {return *path;}
+        PathIterator<Traits> end() const {
+            return {*path, rc, int(rc ? path->skip_left - 1: path->path.size() - path->skip_right)};
+        }
+        PathIterator<Traits> begin() const {
+            return {*path, rc, int(rc ? path->path.size() - path->skip_right - 1: path->skip_left)};
+        }
+        PathDirection RC() const { return {*path, !rc}; }
+        bool valid() const { return path->valid(); }
+        bool empty() const {return path->empty();}
+
+        void invalidate() {
+            path->invalidate();
+        }
+        void rerouteSameSize(PathIterator<Traits> from, PathIterator<Traits> to, const std::vector<EdgeId> &alt) {
+            size_t cur = 0;
+            while(from != to && cur < alt.size()) {
+                from.set(*alt[cur]);
+                cur++;
+                ++from;
+            }
+            VERIFY(from == to);
+            VERIFY(cur == alt.size());
+            if(!empty())
+                path->start_ = path->frontEdge().getStart().getId();
+        }
+        void cutFrontPrefix() {
+            VERIFY(!path->empty());
+            if (!rc) {
+                path->start = path->frontEdge().getFinish();
+                path->path.pop_front();
+            } else {
+                path->path.pop_back();
+            }
+        }
+
+        void cutBackSuffix() {
+            RC().cutFrontPrefix();
+        }
     };
 }
 
@@ -144,28 +264,35 @@ ag::GraphPath<Graph> ag::GraphPath<Graph>::WalkForward(Edge &start) {
 
 template<class Graph>
 ag::GraphPath<Graph> ag::GraphPath<Graph>::subPath(size_t from, size_t to) const {
+    if(!valid()) {
+        VERIFY(from == 0 && to == 0);
+        return {};
+    }
     if (from == to) {
-        if ((from == 0 && leftSkip() > 0) || (to == size() && rightSkip() > 0))
+        if ((from == 0 && cutLeft() > 0) || (to == size() && cutRight() > 0)) {
             return {};
-        else
+        } else {
             return GraphPath<Graph>(getVertex(from));
-    } else
-        return {getVertex(from), std::vector<Edge *>(path.begin() + from, path.begin() + to),
-                from == 0 ? leftSkip() : 0, to == size() ? rightSkip() : 0};
+        }
+    } else {
+        return {getVertex(from), std::vector<EdgeId>(path.begin() + skip_left + from, path.begin() + skip_left + to),
+                from == 0 ? cutLeft() : 0, to == size() ? cutRight() : 0};
+    }
 }
 
 template<class Graph>
 typename Graph::Vertex &ag::GraphPath<Graph>::getVertex(size_t i) const {
-    VERIFY(i <= path.size());
+    VERIFY(valid());
+    VERIFY(i <= size());
     if (i == 0)
         return *start_;
     else
-        return path[i - 1]->getFinish();
+        return path[skip_left + i - 1]->getFinish();
 }
 
 template<class Graph>
 size_t ag::GraphPath<Graph>::find(Edge &edge, size_t pos) const {
-    while(pos < size() && edge != *path[pos])
+    while(pos < size() && edge != getEdge(pos))
         pos++;
     if(pos == size())
         return -1;
@@ -184,7 +311,7 @@ size_t ag::GraphPath<Graph>::find(Vertex &v, size_t pos) const {
 template<class Graph>
 double ag::GraphPath<Graph>::minCoverage() const {
     double res = 100000000;
-    for (const Edge *edge : path) {
+    for (const Edge &edge : edges()) {
         res = std::min(edge->getCoverage(), res);
     }
     return res;
@@ -193,8 +320,8 @@ double ag::GraphPath<Graph>::minCoverage() const {
 template<class Graph>
 size_t ag::GraphPath<Graph>::truncLen() const {
     size_t res = 0;
-    for (Edge *edge : path)
-        res += edge->truncSize();
+    for (Edge &edge : edges())
+        res += edge.truncSize();
     if(res == 0)
         return 0;
     return res - cut_left - cut_right;
@@ -203,8 +330,8 @@ size_t ag::GraphPath<Graph>::truncLen() const {
 template<class Graph>
 IterableStorage<typename ag::GraphPath<Graph>::vertex_iterator> ag::GraphPath<Graph>::vertices() const & {
     std::function<Vertex &(size_t)> transformer = [this](size_t ind)->Vertex &{return getVertex(ind);};
-    CountingIterator<size_t> end_it = CountingIterator<size_t>(valid()? size() + 1 : 0);
-    vertex_iterator vbegin (CountingIterator<size_t>(0), end_it, transformer);
+    CountingIterator<size_t> end_it = CountingIterator<size_t>(valid()? path.size() - skip_right + 1 : 0);
+    vertex_iterator vbegin (CountingIterator<size_t>(skip_left), end_it, transformer);
     vertex_iterator vend(end_it, end_it, transformer);
     return {vbegin, vend};
 }
@@ -212,8 +339,8 @@ IterableStorage<typename ag::GraphPath<Graph>::vertex_iterator> ag::GraphPath<Gr
 template<class Graph>
 IterableStorage<typename ag::GraphPath<Graph>::edge_iterator> ag::GraphPath<Graph>::edges() const &{
     std::function<Edge &(size_t)> transformer = [this](size_t ind)->Edge &{return *path[ind];};
-    CountingIterator<size_t> end_it = CountingIterator<size_t>(size());
-    edge_iterator ebegin (CountingIterator<size_t>(0), end_it, transformer);
+    CountingIterator<size_t> end_it = CountingIterator<size_t>(path.size() - skip_right);
+    edge_iterator ebegin (CountingIterator<size_t>(skip_left), end_it, transformer);
     edge_iterator eend(end_it, end_it, transformer);
     return {ebegin, eend};
 }
@@ -222,26 +349,27 @@ template<class Graph>
 ag::GraphPath<Graph> ag::GraphPath<Graph>::RC() const {
     if(!valid())
         return {};
-    std::vector<Edge *> res;
+    std::vector<EdgeId> res;
     for(auto it  = path.rbegin(); it != path.rend(); ++it) {
-        Edge *e = *it;
-        res.emplace_back(&e->rc());
+        res.emplace_back((*it)->rc().getId());
     }
-    return {finish().rc(), res, rightSkip(), leftSkip()};
+    return {finish().rc(), res, cutRight(), cutLeft(), skip_right, skip_left};
 }
 
 template<class Graph>
 void ag::GraphPath<Graph>::invalidate() {
-    start_ = nullptr;
+    start_ = {};
     path.clear();
     cut_left = 0;
     cut_right = 0;
+    skip_left = 0;
+    skip_right = 0;
 }
 
 template<class Graph>
 bool ag::GraphPath<Graph>::valid() const {
-    VERIFY(start_ != nullptr || size() == 0);
-    return start_ != nullptr;
+    VERIFY(start_.valid() || size() == 0);
+    return start_.valid();
 }
 
 template<class Graph>
@@ -252,49 +380,45 @@ ag::GraphPath<Graph> &ag::GraphPath<Graph>::cutBack(size_t l) {
     size_t cut = 0;
     l += cut_right;
     cut_right = 0;
-    while(cur_cut < size() && l >= path[path.size() - 1 - cur_cut]->truncSize()) {
-        if(path[path.size() - 1 - cur_cut]->truncSize() == 0) {
+    while(cur_cut < size() && l >= getEdge(size() - 1 - cur_cut).truncSize()) {
+        if(getEdge(size() - 1 - cur_cut).truncSize() == 0) {
             cur_cut++;
         } else {
-            l -= path[path.size() - 1 - cur_cut]->truncSize();
+            l -= getEdge(size() - 1 - cur_cut).truncSize();
             cur_cut++;
             cut = cur_cut;
         }
     }
-    if(cut == size()) {
-        *this = {start(), leftSkip(), l};
-    } else {
-        path.erase(path.end() - cut, path.end());
-        cut_right = l;
-    }
+    pop_back(cut);
+    cut_right = l;
     VERIFY(len() == expected);
     return *this;
 }
 
-template<class Graph>
-ag::GraphPath<Graph> &ag::GraphPath<Graph>::uniqueExtendBack(size_t l) {
-    if(cut_right != 0) {
-        size_t tmp = std::min(l, cut_right);
-        l -= tmp;
-        cut_right -= tmp;
-    }
-    while(l > 0) {
-        VERIFY(finish().outDeg() == 1);
-        Edge &e = finish().front();
-        size_t tmp = std::min(e.truncSize(), l);
-        *this += e;
-        cutBack(e.truncSize() - tmp);
-    }
-    return *this;
-}
+//template<class Graph>
+//ag::GraphPath<Graph> &ag::GraphPath<Graph>::uniqueExtendBack(size_t l) {
+//    if(cut_right != 0) {
+//        size_t tmp = std::min(l, cut_right);
+//        l -= tmp;
+//        cut_right -= tmp;
+//    }
+//    while(l > 0) {
+//        VERIFY(finish().outDeg() == 1);
+//        Edge &e = finish().front();
+//        size_t tmp = std::min(e.truncSize(), l);
+//        *this += e;
+//        cutBack(e.truncSize() - tmp);
+//    }
+//    return *this;
+//}
 
 
-//TODO: Optimize
-template<class Graph>
-ag::GraphPath<Graph> &ag::GraphPath<Graph>::uniqueExtendFront(size_t l) {
-    *this = this->RC().uniqueExtendBack(l);
-    return *this;
-}
+////TODO: Optimize
+//template<class Graph>
+//ag::GraphPath<Graph> &ag::GraphPath<Graph>::uniqueExtendFront(size_t l) {
+//    *this = this->RC().uniqueExtendBack(l);
+//    return *this;
+//}
 
 template<class Graph>
 ag::GraphPath<Graph> &ag::GraphPath<Graph>::cutFront(size_t l) {
@@ -304,22 +428,17 @@ ag::GraphPath<Graph> &ag::GraphPath<Graph>::cutFront(size_t l) {
     size_t cut = 0;
     l += cut_left;
     cut_left = 0;
-    while(cur_cut < size() && l >= path[cur_cut]->rc().truncSize()) {
-        if(path[cur_cut]->rc().truncSize() == 0) {
+    while(cur_cut < size() && l >= getEdge(cur_cut).rc().truncSize()) {
+        if(getEdge(cur_cut).rc().truncSize() == 0) {
             cur_cut++;
         } else {
-            l -= path[cur_cut]->rc().truncSize();
+            l -= getEdge(cur_cut).rc().truncSize();
             cur_cut++;
             cut = cur_cut;
         }
     }
-    if(cut == size()) {
-        *this = {finish(), l, rightSkip()};
-    } else {
-        path.erase(path.begin(), path.begin() + cut);
-        start_ = &path.front()->getStart();
-        cut_left = l;
-    }
+    pop_front(cut);
+    cut_left = l;
     VERIFY(len() == expected);
     return *this;
 }
@@ -364,27 +483,27 @@ ag::GraphPath<Graph> &ag::GraphPath<Graph>::extend(const Sequence &seq) {
 
 template<class Graph>
 bool ag::GraphPath<Graph>::endClosed() const {
-    return valid() && rightSkip() == 0;
+    return valid() && cutRight() == 0;
 }
 
 template<class Graph>
 bool ag::GraphPath<Graph>::startClosed() const {
-    return valid() && leftSkip() == 0;
+    return valid() && cutLeft() == 0;
 }
 
-template<class Graph>
-unsigned char ag::GraphPath<Graph>::lastNucl() const {
-    Segment<Edge> seg = back();
-    return seg.truncSeq()[seg.right - 1];
-}
+//template<class Graph>
+//unsigned char ag::GraphPath<Graph>::lastNucl() const {
+//    Segment<Edge> seg = back();
+//    return seg.truncSeq()[seg.right - 1];
+//}
 
 template<class Graph>
-size_t ag::GraphPath<Graph>::leftSkip() const {
+size_t ag::GraphPath<Graph>::cutLeft() const {
     return cut_left;
 }
 
 template<class Graph>
-size_t ag::GraphPath<Graph>::rightSkip() const {
+size_t ag::GraphPath<Graph>::cutRight() const {
     return cut_right;
 }
 
@@ -463,20 +582,20 @@ Sequence ag::GraphPath<Graph>::Seq() const {
     if (!valid())
         return {};
     if(size() == 0) {
-        return start_->getSeq().Subseq(leftSkip(), start_->size() - rightSkip());
+        return start_->getSeq().Subseq(cutLeft(), start_->size() - cutRight());
     }
     Edge & edge = frontEdge();
     Sequence seq = edge.getSeq();
     if(size() == 1) {
-        return seq.Subseq(leftSkip(), seq .size() - rightSkip());
+        return seq.Subseq(cutLeft(), seq .size() - cutRight());
     }
 
     SequenceBuilder sb;
-    sb.append(seq.Subseq(leftSkip()));
-    for(size_t i = 1; i + 1 < size(); i++) {
+    sb.append(seq.Subseq(cutLeft()));
+    for(size_t i = skip_left + 1; i + 1 < path.size() - skip_right; i++) {
         sb.append(operator[](i).truncSeq());
     }
-    sb.append(backEdge().truncSeq().Subseq(0, backEdge().truncSize() - rightSkip()));
+    sb.append(backEdge().truncSeq().Subseq(0, backEdge().truncSize() - cutRight()));
     return sb.BuildSequence();
 }
 
@@ -493,8 +612,6 @@ template<class Graph>
 Sequence ag::GraphPath<Graph>::truncSubseq(size_t start_position, size_t sz) const {
     SequenceBuilder sb;
     for (size_t i = start_position; i < this->size(); i++) {
-//            std::cout << i << " " << sz << " " << size << std::endl;
-//            std::cout << als[i].contig().size() << " " << als[i].left << " " << als[i].right << " " << als[i].size() << std::endl;
         Segment<Edge> seg = (*this)[i];
         if (seg.size() >= sz) {
             sb.append(seg.shrinkRightToLen(sz).truncSeq());
@@ -527,7 +644,6 @@ void ag::GraphPath<Graph>::operator+=(const ag::GraphPath<Graph> &other) {
         *this = other;
         return;
     }
-    VERIFY(finish() == other.getVertex(0));
     for (Segment<Edge> al : other) {
         operator+=(al);
     }
@@ -541,7 +657,12 @@ void ag::GraphPath<Graph>::operator+=(const Segment<Edge> &other) {
     }
     if(cut_right == 0) {
         VERIFY(other.left == 0 && finish() == other.contig().getStart());
-        path.emplace_back(&other.contig());
+        if(skip_right == 0)
+            path.emplace_back(other.contig().getId());
+        else {
+            path[path.size() - skip_right] = other.contig().getId();
+            skip_right -= 1;
+        }
         cut_right = other.contig().truncSize() - other.right;
     } else {
         VERIFY(cut_right == other.contig().truncSize() - other.left && other.contig() == backEdge());
@@ -580,7 +701,7 @@ std::string ag::GraphPath<Graph>::covStr(bool show_coverage) const {
     if(!valid())
         return "";
     std::stringstream ss;
-    ss << leftSkip() << " " << start().getInnerId();
+    ss << cutLeft() << " " << start().getInnerId();
     for(const Segment<Edge> &seg : *this) {
         ss << " " << seg.size() << "/" <<seg.contig().truncSize() << seg.contig().nuclLabel() ;
         if(show_coverage) {
@@ -588,7 +709,7 @@ std::string ag::GraphPath<Graph>::covStr(bool show_coverage) const {
         }
         ss << " " << seg.contig().getFinish().getInnerId();
     }
-    ss << " " << rightSkip();
+    ss << " " << cutRight();
     return ss.str();
 }
 
@@ -597,12 +718,12 @@ std::string ag::GraphPath<Graph>::str() const {
     if(!valid())
         return "";
     std::stringstream ss;
-    ss << leftSkip() << " " << start().getInnerId();
+    ss << cutLeft() << " " << start().getInnerId();
     for(const Segment<Edge> &seg : *this) {
         ss << " " << seg.size() << "/" <<seg.contig().truncSize() << seg.contig().nuclLabel() ;
         ss << " " << seg.contig().getFinish().getInnerId();
     }
-    ss << " " << rightSkip();
+    ss << " " << cutRight();
     return ss.str();
 }
 
@@ -611,27 +732,27 @@ std::string ag::GraphPath<Graph>::lenStr() const {
     if(!valid())
         return "";
     std::stringstream ss;
-    ss << leftSkip() << " [" << start().getInnerId() << "(" << start().size() << ")";
+    ss << skip_left << "_" << cutLeft() << "[" << start().getInnerId() << "(" << start().size() << ")";
     for(const typename Graph::Edge &edge : edges()) {
-        ss << " -> " << edge.nuclLabel() << "(" << edge.fullSize() << ") -> "  << edge.getFinish().getInnerId() << "(" << edge.getFinish().size() << ")" ;
+        ss << " -> " << edge.getInnerId().eid << edge.nuclLabel() << "(" << edge.rc().truncSize() << "|" << edge.truncSize() << ")->"  << edge.getFinish().getInnerId() << "(" << edge.getFinish().size() << ")" ;
     }
-    ss << "] " << rightSkip();
+    ss << "]" << cutRight() << "_" << skip_right;
     return ss.str();
 }
 
 template<class Graph>
 Segment<typename Graph::Edge> ag::GraphPath<Graph>::back() const {
-    return {*path.back(), (size() == 1 ? leftSkip() : 0), path.back()->truncSize() - rightSkip()};
+    return {backEdge(), (size() == 1 ? cutLeft() : 0), backEdge().truncSize() - cutRight()};
 }
 
 template<class Graph>
 Segment<typename Graph::Edge> ag::GraphPath<Graph>::front() const {
-    return {*path.front(), leftSkip(), size() == 1 ? path.front()->truncSize() - rightSkip() : path.front()->truncSize()};
+    return {frontEdge(), cutLeft(), size() == 1 ? frontEdge().truncSize() - cutRight() : frontEdge().truncSize()};
 }
 
 template<class Graph>
 Segment<typename Graph::Edge> ag::GraphPath<Graph>::operator[](size_t i) const {
-    return {*path[i], i == 0 ? leftSkip() : 0, i == size() - 1 ? path.back()->truncSize() - rightSkip() : path[i]->truncSize()};
+    return {getEdge(i), i == 0 ? cutLeft() : 0, i == size() - 1 ? backEdge().truncSize() - cutRight() : getEdge(i).truncSize()};
 }
 
 template<class Graph>
@@ -639,8 +760,7 @@ typename ag::GraphPath<Graph>::segment_iterator ag::GraphPath<Graph>::begin() co
     std::function<Segment<Edge> (size_t)> transformer = [this](size_t ind)->Segment<Edge> {
         return operator[](ind);
     };
-    CountingIterator<size_t> end_it(size());
-    return {CountingIterator<size_t>(0), end_it, transformer};
+    return {CountingIterator<size_t>(0), {size()}, transformer};
 }
 
 template<class Graph>
@@ -648,8 +768,7 @@ typename ag::GraphPath<Graph>::segment_iterator ag::GraphPath<Graph>::end() cons
     std::function<Segment<Edge> (size_t)> transformer = [this](size_t ind)->Segment<Edge> {
         return operator[](ind);
     };
-    CountingIterator<size_t> end_it(size());
-    return {end_it, end_it, transformer};
+    return {{size()}, {size()}, transformer};
 }
 
 template<class Graph>
@@ -660,5 +779,26 @@ size_t ag::GraphPath<Graph>::len() const {
     for(Edge &edge : edges()) {
         res += edge.truncSize();
     }
-    return res - leftSkip() - rightSkip();
+    return res - cutLeft() - cutRight();
+}
+
+template<class Traits>
+ag::GraphPath<Traits> &ag::GraphPath<Traits>::fastExtend(const Sequence &seq) {
+    size_t pos = cutRight();
+    cut_right = 0;
+    while(pos < seq.size()) {
+        Edge &e = finish().getOutgoing(seq[pos]);
+        *this += e;
+        pos += e.truncSize();
+    }
+    cut_right += pos - seq.size();
+    return *this;
+}
+
+template<class Traits>
+void ag::GraphPath<Traits>::simpleReroute(size_t left, size_t right, const std::vector<EdgeId> &edges) {
+    VERIFY(right - left == edges.size());
+    for(size_t i = 0; i < edges.size(); i++) {
+        path[skip_left + left + i] = edges[i];
+    }
 }

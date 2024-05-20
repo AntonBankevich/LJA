@@ -1,5 +1,5 @@
 #pragma once
-#include "assembly_graph/paths.hpp"
+#include "paths.hpp"
 #include "common/id_index.hpp"
 #include "sequences/sequence.hpp"
 #include <parallel/algorithm>
@@ -25,7 +25,7 @@ namespace ag {
         }
 
         explicit CompactPath(const GraphPath <Traits> &path) :
-                _start(&path.getVertex(0)), _first_skip(path.leftSkip()), _last_skip(path.rightSkip()) {
+                _start(&path.getVertex(0)), _first_skip(path.cutLeft()), _last_skip(path.cutRight()) {
             SequenceBuilder sb;
             for (Edge &edge: path.edges()) {
                 sb.append(edge.nuclLabel());
@@ -80,11 +80,11 @@ namespace ag {
             return _edges;
         }
 
-        size_t leftSkip() const {
+        size_t cutLeft() const {
             return _first_skip;
         }
 
-        size_t rightSkip() const {
+        size_t cutRight() const {
             return _last_skip;
         }
 
@@ -96,7 +96,7 @@ namespace ag {
             return _edges[ind];
         }
 
-        static CompactPath Load(std::istream &os, IdIndex<Vertex> &index) {
+        static CompactPath Load(std::istream &os, const IdIndex<Vertex> &index) {
             typename Vertex::id_type id;
             size_t left = 0;
             size_t right = 0;
@@ -114,8 +114,8 @@ namespace ag {
     template<class Traits>
     inline std::ostream &operator<<(std::ostream &os, const ag::CompactPath<Traits> &cpath) {
         if (cpath.valid())
-            return os << cpath.start().getInnerId() << " P:" << cpath.cpath() << " " << cpath.leftSkip() << " "
-                      << cpath.rightSkip();
+            return os << cpath.start().getInnerId() << " P:" << cpath.cpath() << " " << cpath.cutLeft() << " "
+                      << cpath.cutRight();
         else
             return os << "0 P: 0 0";
     }
