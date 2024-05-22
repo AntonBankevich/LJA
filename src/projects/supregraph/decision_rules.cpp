@@ -2,8 +2,10 @@
 
 size_t spg::ChainRule::getDiveSize(spg::Edge &edge) {
     size_t res = 0;
-    for(ReadDirection dir : storage->getOutgoingReads(edge.getStart())) {
-        if(!dir.empty() && *dir.begin() == edge)
+    for(auto it : storage->getReadPositions(edge)) {
+        ReadDirection dir = it.first;
+        PathIterator pos = it.second;
+        if(pos == dir.begin())
             res = std::max(res, edge.getStart().size() - dir.cutLeft());
     }
     return res;
@@ -17,9 +19,6 @@ spg::VertexResolutionPlan spg::ChainRule::judge(spg::Vertex &v) {
         has_covering = true;
     }
     std::vector<Segment<Vertex>> segs = storage->getInnerReads(v);
-    for(ReadDirection dir : storage->getOutgoingReads(v))
-        if(dir.empty())
-            segs.emplace_back(v, dir.cutLeft(), v.size() - dir.cutRight());
     std::sort(segs.begin(), segs.end());
     bool has_unpassable = false;
     for(Edge &inc : v.incoming()) {
@@ -96,12 +95,12 @@ void spg::AndreyRule::uniqueHeuristic(spg::VertexResolutionPlan &res) {
 
 void spg::AndreyRule::noChoiceHeuristic(spg::VertexResolutionPlan &res) {
     Vertex &core = res.getCore();
-    if(core.inDeg() == 1) {
+    if(core.inDeg() == 1 && !core.isInfLeft()) {
         for(Edge &edge : core) {
             res.add(*core.incoming().begin(), edge);
         }
     }
-    if(core.outDeg() == 1) {
+    if(core.outDeg() == 1 && !core.isInfRight()) {
         for(Edge &edge : core.incoming()) {
             res.add(edge, core.front());
         }

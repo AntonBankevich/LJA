@@ -14,18 +14,18 @@ namespace ag {
     private:
         Vertex *_start;
         Sequence _edges = {};
-        size_t _first_skip;
-        size_t _last_skip;
+        size_t cut_left;
+        size_t cut_right;
     public:
-        CompactPath() : _start(nullptr), _first_skip(0), _last_skip(0) {
+        CompactPath() : _start(nullptr), cut_left(0), cut_right(0) {
         }
 
-        CompactPath(Vertex &start, Sequence edges, size_t first_skip = 0, size_t last_skip = 0) :
-                _start(&start), _edges(std::move(edges)), _first_skip(first_skip), _last_skip(last_skip) {
+        CompactPath(Vertex &start, Sequence edges, size_t cut_left = 0, size_t cut_right = 0) :
+                _start(&start), _edges(std::move(edges)), cut_left(cut_left), cut_right(cut_right) {
         }
 
         explicit CompactPath(const GraphPath <Traits> &path) :
-                _start(&path.getVertex(0)), _first_skip(path.cutLeft()), _last_skip(path.cutRight()) {
+                _start(&path.getVertex(0)), cut_left(path.cutLeft()), cut_right(path.cutRight()) {
             SequenceBuilder sb;
             for (Edge &edge: path.edges()) {
                 sb.append(edge.nuclLabel());
@@ -50,15 +50,21 @@ namespace ag {
             if (!valid())
                 return {};
             GraphPath<Traits> res(*_start);
-            Vertex *cur = _start;
-            for (size_t i = 0; i < _edges.size(); i++) {
-                VERIFY(cur->hasOutgoing(_edges[i]));
-                Edge &edge = cur->getOutgoing(_edges[i]);
-                res += edge;
-                cur = &edge.getFinish();
+            while(res.finish().outDeg() == 1 && res.finish().front().truncSize() == 0) {
+                res += res.finish().front();
             }
-            res.cutFront(_first_skip);
-            res.cutBack(_last_skip);
+            for (size_t i = 0; i < _edges.size(); i++) {
+                VERIFY(res.finish().hasOutgoing(_edges[i]));
+                Edge &edge = res.finish().getOutgoing(_edges[i]);
+                res += edge;
+                while(res.finish().outDeg() == 1 && res.finish().front().truncSize() == 0) {
+                    res += res.finish().front();
+                }
+            }
+            while(res.size() > 0 && res.backEdge().truncSize() == 0 && res.finish().size() <= cut_right)
+                res.pop_back();
+            res.cutFront(cut_left);
+            res.cutBack(cut_right);
             return std::move(res);
         }
 
@@ -81,11 +87,11 @@ namespace ag {
         }
 
         size_t cutLeft() const {
-            return _first_skip;
+            return cut_left;
         }
 
         size_t cutRight() const {
-            return _last_skip;
+            return cut_right;
         }
 
         size_t size() const {

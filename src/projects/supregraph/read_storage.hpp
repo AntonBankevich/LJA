@@ -3,6 +3,7 @@
 #include "vertex_resolution.hpp"
 #include "supregraph.hpp"
 #include "unique_vertex_storage.hpp"
+#include "listeners.hpp"
 
 namespace spg {
 
@@ -28,6 +29,7 @@ namespace spg {
         ReadDirection(ReadRecord &read, bool rc) : PathDirection(read.path, rc), read(&read) {
         }
         ReadRecord &getRead() const {return *read;}
+        ReadDirection RC() const {return {*read, !isRC()};}
     };
 
     inline std::ostream &operator<<(std::ostream &os, const ReadDirection &dir) {
@@ -42,6 +44,32 @@ namespace spg {
         }
         return os;
     }
+
+    template<class ContigId>
+    class IdSegment {
+    public:
+        ContigId id;
+        size_t cut_left;
+        size_t cut_right;
+        IdSegment() : id(), cut_left(0), cut_right(0) {};
+        IdSegment(ContigId id, size_t cut_left, size_t cut_right) : id(id), cut_left(cut_left), cut_right(cut_right) {}
+        Segment<typename ContigId::base> asSegment() {return {*id, cut_left, id->truncSize() - cut_right};}
+        IdSegment nest(const IdSegment &other) {return {other.id, other.cut_left + cut_left, other.cut_right + cut_right};}
+        size_t truncSize() {return id->truncSize() - cut_left - cut_right;}
+    };
+
+    class Embedding {
+    private:
+        std::unordered_map<EdgeId, IdSegment<EdgeId>> edge_embedding;
+        std::unordered_map<VertexId, IdSegment<VertexId>> vertex_embedding;
+
+        Segment<Edge> embed(EdgeId eid, size_t cut_left = 0, size_t cut_right = 0) const;
+        Segment<Vertex> embed(VertexId vid, size_t cut_left = 0, size_t cut_right = 0) const;
+    public:
+        void remap(const GraphPath &path, Vertex &v);
+        GraphPath embed(const GraphPath &path);
+        void clear() {edge_embedding.clear(); vertex_embedding.clear();}
+    };
 
 
     class PathStorage {
@@ -74,6 +102,7 @@ namespace spg {
 
         ReadRecord &operator[](size_t ind) {return reads[ind];}
         const ReadRecord &operator[](size_t ind) const {return reads[ind];}
+        ReadRecord &Oppa();
 
 //        auto passingReads(Vertex &v) const {
 //            for(auto &it : getReadPositions(inc.rc())) {
@@ -95,9 +124,16 @@ namespace spg {
 
     class PathIndex : ResolutionListener {
     private:
-        std::unordered_map<EdgeId, std::vector<std::pair<ReadDirection, PathIterator>>> read_index;
-        std::unordered_map<VertexId, std::vector<ReadDirection>> outgoing_index;
-        std::unordered_map<VertexId, std::vector<Segment<Vertex>>> inner_index;
+//        When reads_ready==false these two, as well as the path storage itself are invalidated
+        mutable std::unordered_map<EdgeId, std::vector<std::pair<ReadDirection, PathIterator>>> read_index;
+        mutable std::unordered_map<EdgeId, std::vector<ReadDirection>> outgoing_index;
+
+//        inner index always remains valid
+        mutable std::unordered_map<VertexId, std::vector<Segment<Vertex>>> inner_index;
+//        remapping is used only when reads_ready=false and allows to reconstruct read paths when necessary
+        mutable Embedding embedding;
+        PathStorage *storage;
+        mutable bool reads_ready = false;
 
         void processPassing(Edge &edge, const spg::VertexResolutionResult &resolution);
     public:
@@ -112,19 +148,42 @@ namespace spg {
 
         PathIndex(SupreGraph &spg, PathStorage &storage);
 
-        ComplexIterableStorage<Generator<std::vector<std::pair<ReadDirection, PathIterator>>::iterator, PassingRead>> getPassing(Vertex &v) &;
+        void unprepare() const {
+            if(reads_ready) {
+                for (auto it: read_index)
+                    it.second.clear();
+                reads_ready = false;
+            }
+        }
+
+        void restorePaths() const {
+            for (ReadRecord &rr: *this->storage) {
+                rr.path = embedding.embed(rr.path);
+            }
+        }
+        void prepareIndex() const;
+        void prepare() const {
+            if(!reads_ready) {
+                restorePaths();
+                prepareIndex();
+                embedding.clear();
+                reads_ready = true;
+            }
+        }
+
+
+        ComplexIterableStorage<Generator<std::vector<std::pair<ReadDirection, PathIterator>>::iterator, PassingRead>> getPassing(Vertex &v) const &;
         const std::vector<std::pair<spg::ReadDirection, PathIterator>> &getReadPositions(Edge &edge) const;
-        const std::vector<spg::ReadDirection> &getOutgoingReads(Vertex &v) const;
         const std::vector<Segment<Vertex>> &getInnerReads(Vertex &v) const;
 
         bool checkReadIndexConsistency() const;
 
-        void fireAddVertex(Vertex &vertex);
-        void fireAddEdge(Edge &edge);
+        void fireAddVertex(Vertex &vertex) override;
+        void fireAddEdge(Edge &edge) override;
         void fireDeleteVertex(Vertex &vertex) override;
         void fireDeleteEdge(Edge &edge) override;
 
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
-
+        void fireMergePath(const GraphPath &path, Vertex &new_vertex) override;
     };
 }

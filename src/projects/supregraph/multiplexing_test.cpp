@@ -68,8 +68,11 @@ RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental
     logger.info() << "Converting graph" << std::endl;
     spg::SPGConverter<dbg::DBGTraits> converter;
     spg::SupreGraph graph = converter.convert(dbg);
+//    TODO: remove after listener system is normalized
+    for(Vertex &v : graph.vertices()) graph.fireAddVertex(v);
+    for(Edge &edge : graph.edges()) graph.fireAddEdge(edge);
     logger.info() << "Printing initial graph" << std::endl;
-    ag::printDot(dir/"supregraph_initial.dot", graph);
+    ag::printDot(dir/"supregraph1.dot", graph);
     logger.info() << "Converting reads" << std::endl;
     spg::PathStorage paths = converter.convertLibs({&storage}, graph);
     logger.info() << "Constructing path index" << std::endl;
@@ -84,17 +87,29 @@ RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental
     }
     logger.info() << "Multiplexing" << std::endl;
     AndreyRule rule(path_index, unique_storage);
-    spg::Multiplexer multiplexer(graph, rule);
-    multiplexer.fullMultiplex(path_index);
+    spg::Multiplexer multiplexer(graph, rule, 200000);
+    multiplexer.fullMultiplex(logger, threads, path_index);
+    ag::printDot(dir/"supregraph2.dot", graph);
+    std::vector<GraphPath> unbranching = ag::AllUnbranchingPaths(logger, threads, graph);
+    for(GraphPath &path : unbranching) {
+        if(path.start() != path.finish() || path.start().isJunction()) {
+            graph.mergePath(path);
+        }
+    }
+    ag::printDot(dir/"supregraph3.dot", graph);
+    spg::Multiplexer multiplexer2(graph, rule, 200000000);
+    multiplexer2.fullMultiplex(logger, threads, path_index);
     logger.info() << "Printing final graph" << std::endl;
-    ag::printDot(dir/"supregraph_final.dot", graph);
+    ag::printDot(dir/"supregraph4.dot", graph);
+    for(Edge &edge : graph.edges()) graph.fireDeleteEdge(edge);
+    for(Vertex &v : graph.vertices()) graph.fireDeleteVertex(v);
     return {{"supregraph_initial", dir / "supregraph_initial.dot"}, {"supregraph_final", dir / "supregraph_final.dot"}};
 }
 
 class SupreGraphPhase : public Stage {
 public:
     SupreGraphPhase() : Stage(AlgorithmParameters(
-            {},
+            {"k-mer-size=5001", "window=500"},
             {}, ""), {"graph", "reads"}, {"supregraph_initial", "supregraph_final"}) {
     }
 protected:
@@ -107,7 +122,8 @@ protected:
 int main(int argc, char **argv) {
     SupreGraphPhase phase;
     AlgorithmParameters params = phase.getStandaloneParameters();
-    CLParser parser(params, {"o=output-dir", "t=threads"});
-    LoggedProgram multiplexing("Multiplexing", std::move(phase), std::move(parser), "Starting multiplexing procedure", "Finished multiplexing procedure");
+    CLParser parser(params, {"o=output-dir", "t=threads", "k=Multiplexing.k-mer-size", "w=Multiplexing.window"}, {});
+    LoggedProgram multiplexing("Multiplexing", std::move(phase), std::move(parser),
+                               "Starting multiplexing procedure", "Finished multiplexing procedure");
     multiplexing.run(oneline::initialize<std::string, char*>(argv, argv + argc));
 }

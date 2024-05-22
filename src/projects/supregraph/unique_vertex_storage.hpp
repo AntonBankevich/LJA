@@ -1,6 +1,7 @@
 #pragma once
 
 #include "supregraph.hpp"
+#include "listeners.hpp"
 #include <unordered_set>
 
 namespace spg {
@@ -26,8 +27,9 @@ namespace spg {
 
         bool isUnique(Vertex &v) const;
 
-
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
+        void fireMergePath(const GraphPath &path, Vertex &vertex) override;
+        void fireDeleteVertex(spg::Vertex &v) override {unique.erase(v.getId());}
     };
 }
 

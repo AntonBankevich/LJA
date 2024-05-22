@@ -56,3 +56,12 @@ void spg::UniqueVertexStorage::fireResolveVertex(spg::Vertex &core, const spg::V
             propagateUniqueness(v.rc().front().getFinish(), core);
     }
 }
+
+void spg::UniqueVertexStorage::fireMergePath(const GraphPath &path, Vertex &new_vertex) {
+    for(Vertex & vertex : path.vertices()) {
+        if(isUnique(vertex)) {
+            add(vertex);
+            return;
+        }
+    }
+}

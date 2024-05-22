@@ -1,4 +1,5 @@
 #include "read_storage.hpp"
+#include "listeners.hpp"
 
 using namespace spg;
 
@@ -7,11 +8,8 @@ spg::PathStorage::PathStorage(spg::SupreGraph &spg) : spg(&spg){
 
 const std::vector<std::pair<spg::ReadDirection, PathIterator>> &
 spg::PathIndex::getReadPositions(spg::Edge &edge) const {
+    prepare();
     return read_index.at(edge.getId());
-}
-
-const std::vector<spg::ReadDirection> &spg::PathIndex::getOutgoingReads(spg::Vertex &v) const {
-    return outgoing_index.at(v.getId());
 }
 
 spg::ReadRecord &spg::PathStorage::addRead(std::string name, spg::GraphPath path) {
@@ -19,6 +17,8 @@ spg::ReadRecord &spg::PathStorage::addRead(std::string name, spg::GraphPath path
     reads.emplace_back(std::move(name), std::move(path));
     return reads.back();
 }
+
+ReadRecord &PathStorage::Oppa() {return reads[4078];}
 
 void spg::PathIndex::processPassing(Edge &edge, const spg::VertexResolutionResult &resolution) {
     std::vector<std::pair<size_t, PathIterator>> res;
@@ -37,29 +37,24 @@ void spg::PathIndex::processPassing(Edge &edge, const spg::VertexResolutionResul
         Vertex &new_vertex = resolution.get(edge ,nedge);
         Edge &new_edge1 = new_vertex.rc().front().rc();
         Edge &new_edge2 = new_vertex.front();
-        dir.rerouteSameSize(it, nit, {new_edge1.getId(), new_edge2.getId()});
+        size_t cut_left = it == dir.begin() ? dir.cutLeft() : 0;
+        size_t cut_right = nit == dir.end() ? dir.cutRight() : 0;
+        dir.rerouteSameSize(it, nit, GraphPath(new_edge1.getStart(), std::vector<EdgeId>({new_edge1.getId(), new_edge2.getId()}), cut_left, cut_right));
         read_index[new_edge1.getId()].emplace_back(dir, it);
         read_index[new_edge2.getId()].emplace_back(dir, it + 1);
     }
 }
 
 void spg::PathIndex::fireAddVertex(spg::Vertex &vertex) {
-    outgoing_index[vertex.getId()] = {};
     inner_index[vertex.getId()] = {};
 }
 
 void spg::PathIndex::fireAddEdge(spg::Edge &edge) {
+    std::cout << "FireAdd " << edge.getId() << " " << edge.truncSize() << std::endl;
     read_index[edge.getId()] = {};
 }
 
 void spg::PathIndex::fireDeleteVertex(spg::Vertex &vertex) {
-    for(ReadDirection dir : getOutgoingReads(vertex)) {
-        if(!dir.empty()) {
-            VERIFY(dir.getgetStart() == vertex);
-            dir.pop_front();
-        }
-    }
-    outgoing_index.erase(vertex.getId());
 //    if(vertex != vertex.rc()) {
 //        outgoing_index.erase(vertex.rc().getId());
 //    }
@@ -67,26 +62,55 @@ void spg::PathIndex::fireDeleteVertex(spg::Vertex &vertex) {
 
 void spg::PathIndex::fireDeleteEdge(spg::Edge &edge) {
     std::cout << "Fire delete " << edge.getId() << std::endl;
+//    if(edge.isPrefix())
+//        for(auto it : read_index[edge.getId()]) {
+//            ReadDirection dir = it.first;
+//            if(it.second == dir.begin()) {
+//                dir.pop_front();
+//                if(dir.empty()) {
+//                    inner_index[dir.getgetStart().getId()].emplace_back(dir.getgetStart(), dir.cutLeft(), dir.getgetStart().size() - dir.cutRight());
+//                    dir.invalidate();
+//                }
+//            }
+//        }
     read_index.erase(edge.getId());
 }
 
 void spg::PathIndex::fireResolveVertex(spg::Vertex &core, const spg::VertexResolutionResult &resolution) {
     std::cout << "FireResolveVertex " << resolution << std::endl;
-    for(Vertex &new_vertex : resolution.newVertices()) {
-        fireAddVertex(new_vertex);
-        VERIFY(new_vertex.outDeg() == 1);
-        VERIFY(new_vertex.inDeg() == 1);
-        fireAddEdge(new_vertex.front());
-    }
+    prepare();
     std::vector<std::pair<size_t, PathIterator>> to_reroute;
-    for(Edge &edge : core.incoming()) {
-        processPassing(edge, resolution);
-    }
-    for(ReadDirection dir : getOutgoingReads(core)) {
-        if(dir.empty()) {
-            inner_index[dir.getgetStart().getId()].emplace_back(dir.getgetStart(), dir.cutLeft(), dir.getgetStart().size() - dir.cutRight());
-        } else {
-            outgoing_index[dir.begin()->getFinish().getId()].emplace_back(dir);
+    for(Edge &edge : core) {
+        for(auto &p : read_index[edge.getId()]) {
+            ReadDirection dir = p.first;
+            auto it = p.second;
+            if(*it != edge) {
+                VERIFY(it->getFinish() == edge.getFinish());
+                continue;
+            }
+            if(it == dir.begin()) {
+                dir.pop_front();
+                if(dir.empty()) {
+                    inner_index[dir.getgetStart().getId()].emplace_back(dir.getgetStart(), dir.cutLeft(), dir.getgetStart().size() - dir.cutRight());
+                    dir.invalidate();
+                }
+            } else {
+                Edge &pedge = *(it - 1);
+                VERIFY(resolution.contains(pedge, edge));
+                Vertex &new_vertex = resolution.get(pedge, edge);
+                Edge &new_edge1 = *new_vertex.incoming().begin();
+                Edge &new_edge2 = new_vertex.front();
+                size_t cut_left = it - 1 == dir.begin() ? dir.cutLeft() : 0;
+                size_t cut_right = it + 1 == dir.end() ? dir.cutRight() : 0;
+                dir.rerouteSameSize(it - 1, it + 1, GraphPath(new_edge1.getStart(),
+                                                       std::vector<EdgeId>({new_edge1.getId(), new_edge2.getId()}),
+                                                       cut_left, cut_right));
+                read_index[new_edge1.getId()].emplace_back(dir, it - 1);
+                PathIterator it1 = (it - 1).SameElementRC();
+                read_index[new_edge1.rc().getId()].emplace_back(dir.RC(), (it - 1).SameElementRC());
+                read_index[new_edge2.getId()].emplace_back(dir, it);
+                read_index[new_edge2.rc().getId()].emplace_back(dir.RC(), it.SameElementRC());
+            }
         }
     }
     for(Vertex &new_vertex : resolution.newVertices()) {
@@ -97,6 +121,9 @@ void spg::PathIndex::fireResolveVertex(spg::Vertex &core, const spg::VertexResol
             inner_index[new_vertex.getId()].emplace_back(new_vertex, left, right);
         }
     }
+    for(ReadRecord &rec : *storage) {
+        rec.path.lenStr();
+    }
 //    TODO: When real fiddreDeleteVertex exists, need to invalidate all reads with empty paths. Also need a way to preserve their information
 }
 
@@ -105,7 +132,8 @@ const std::vector<Segment<Vertex>> &PathIndex::getInnerReads(Vertex &v) const {
 }
 
 ComplexIterableStorage<Generator<std::vector<std::pair<ReadDirection, PathIterator>>::iterator, PathIndex::PassingRead>>
-PathIndex::getPassing(Vertex &v) &{
+PathIndex::getPassing(Vertex &v) const &{
+    prepare();
     std::function<PassingRead(std::pair<ReadDirection, PathIterator> &)> generate = [](std::pair<ReadDirection, PathIterator> &p) -> PassingRead {
         return {p.first, p.second};
     };
@@ -120,43 +148,25 @@ PathIndex::getPassing(Vertex &v) &{
     return std::move(res);
 }
 
-PathIndex::PathIndex(SupreGraph &spg, PathStorage &storage) : ResolutionListener(spg){
+PathIndex::PathIndex(SupreGraph &spg, PathStorage &storage) : ResolutionListener(spg), storage(&storage) {
     for(Edge &edge : spg.edges()) {
         read_index[edge.getId()] = {};
     }
     for(Vertex &vertex : spg.vertices()) {
-        outgoing_index[vertex.getId()] = {};
+        inner_index[vertex.getId()] = {};
     }
-    for(ReadRecord &rr : storage) {
-        if (!rr.path.empty()) {
-            outgoing_index[rr.path.start().getId()].emplace_back(rr.forward());
-            outgoing_index[rr.path.finish().rc().getId()].emplace_back(rr.backward());
-            for (auto it = rr.forward().begin(); it != rr.forward().end(); ++it) {
-                Edge &edge = *it;
-                read_index[it->getId()].emplace_back(rr.forward(), it);
-            }
-            for (auto it = rr.backward().begin(); it != rr.backward().end(); ++it) {
-                Edge &edge = *it;
-                read_index[it->getId()].emplace_back(rr.backward(), it);
-            }
-        } else if (rr.path.valid()) {
-            inner_index[rr.path.start().getId()].emplace_back(rr.path.start(), rr.path.cutLeft(),
-                                                                 rr.path.start().size() - rr.path.cutRight());
-            inner_index[rr.path.start().rc().getId()].emplace_back(rr.path.start().rc(),
-                                                                      rr.path.cutRight(), rr.path.start().size() - rr.path.cutLeft());
-        }
-    }
+    prepareIndex();
+    reads_ready = true;
 }
 
 bool PathIndex::checkReadIndexConsistency() const {
+    prepare();
     for(auto &it1 : read_index) {
         for(auto p : it1.second) {
             bool found = false;
-            size_t cnt = 0;
             for(auto it = p.first.begin(); it != p.first.end(); ++it) {
                 if (it == p.second)
                     found = true;
-                cnt++;
             }
             if(!found) {
                 std::cout << "Found a problem in read index " << it1.first << " " << p.first << " " << p.second.str() << std::endl;
@@ -167,6 +177,92 @@ bool PathIndex::checkReadIndexConsistency() const {
     return true;
 }
 
+void PathIndex::prepareIndex() const {
+    for(ReadRecord &rr : *this->storage) {
+        if (!rr.path.empty()) {
+            for (auto it = rr.forward().begin(); it != rr.forward().end(); ++it)
+                read_index[it->getId()].emplace_back(rr.forward(), it);
+            for (auto it = rr.backward().begin(); it != rr.backward().end(); ++it)
+                read_index[it->getId()].emplace_back(rr.backward(), it);
+        } else if (rr.path.valid()) {
+            inner_index[rr.path.start().getId()].emplace_back(rr.path.start(), rr.path.cutLeft(),
+                                                              rr.path.start().size() - rr.path.cutRight());
+            inner_index[rr.path.start().rc().getId()].emplace_back(rr.path.start().rc(),
+                                                                   rr.path.cutRight(), rr.path.start().size() - rr.path.cutLeft());
+            rr.path.invalidate();
+        }
+    }
+}
+
+void PathIndex::fireMergePath(const GraphPath &path, Vertex &new_vertex) {
+    unprepare();
+    std::cout << "FIreMerge " << path.lenStr() << std::endl;
+    embedding.remap(path, new_vertex);
+    size_t right = path.start().size();
+    size_t left = 0;
+    for(Edge &edge : path.edges()) {
+        if(edge == path.backEdge())
+            break;
+        Vertex &vertex = edge.getFinish();
+        right += edge.truncSize();
+        left = right - vertex.size();
+        Segment<Vertex> vertex_embedding(new_vertex, left, right);
+        for(const Segment<Vertex> &seg : this->getInnerReads(vertex)) {
+            inner_index[new_vertex.getId()].emplace_back(seg.nest(vertex_embedding));
+        }
+    }
+}
+
 ReadDirection ReadRecord::forward() {return {*this, false};}
 
 ReadDirection ReadRecord::backward() {return {*this, true};}
+
+Segment<Edge> Embedding::embed(EdgeId eid, size_t cut_left, size_t cut_right) const {
+    IdSegment<EdgeId> res(eid, cut_left, cut_right);
+    while(edge_embedding.find(res.id) != edge_embedding.end()) {
+        res = res.nest(edge_embedding.at(res.id));
+    }
+    return res.asSegment();
+}
+
+Segment<Vertex> Embedding::embed(VertexId vid, size_t cut_left, size_t cut_right) const {
+    IdSegment<VertexId> res(vid, cut_left, cut_right);
+    while(vertex_embedding.find(res.id) != vertex_embedding.end()) {
+        res = res.nest(vertex_embedding.at(res.id));
+    }
+    return res.asSegment();
+}
+
+void Embedding::remap(const GraphPath &path, Vertex &v) {
+    Edge &new_edge = v == path.start() ? v.front() : *v.incoming().begin();
+    size_t start = 0;
+    size_t sz = path.truncLen();
+    for(Edge &edge : path.edges()) {
+        edge_embedding[edge.getId()] = {new_edge.getId(), start, sz - start - edge.truncSize()};
+        VERIFY(edge.truncSize() == edge_embedding[edge.getId()].truncSize());
+        start += edge.truncSize();
+        if(edge != path.backEdge()) {
+            vertex_embedding[edge.getFinish().getId()] = {v.getId(),
+                                                          start + path.start().size() - edge.getFinish().size(),
+                                                          sz - start};
+            VERIFY(edge.getFinish().truncSize() == vertex_embedding[edge.getFinish().getId()].truncSize());
+        }
+    }
+}
+
+GraphPath Embedding::embed(const GraphPath &path) {
+    if(!path.valid())
+        return {};
+    if(path.size() == 0) {
+        Segment<Vertex> res(embed(path.startId(), path.cutLeft(), path.cutRight()));
+        return {res.contig(), res.left, res.contig().size() - res.right};
+    }
+    GraphPath new_path;
+    for(EdgeId eid : path.edgeIds()) {
+        new_path += embed(eid);
+    }
+    size_t extra_cut = new_path.start().size() - embed(path.startId()).size();
+    new_path.setCutLeft(path.cutLeft() + extra_cut + new_path.cutLeft());
+    new_path.setCutRight(path.cutRight() + new_path.cutRight());
+    return std::move(new_path);
+}

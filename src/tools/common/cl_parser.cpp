@@ -61,10 +61,6 @@ AlgorithmParameterValues CLParser::parseCL(const std::vector <std::string> &args
     return std::move(result);
 }
 
-AlgorithmParameterValues CLParser::parseCL(int argc, char **argv) {
-    return parseCL(oneline::initialize<std::string, char*>(argv, argv + argc));
-}
-
 CLParser::CLParser(const AlgorithmParameters& parameters, const std::vector<std::string>& short_params,
                    const std::vector<std::string>& long_params, size_t max_start_size) :
         parameters(parameters), max_start_size(max_start_size) {
@@ -78,6 +74,10 @@ CLParser::CLParser(const AlgorithmParameters& parameters, const std::vector<std:
         if(this->parameters.hasCheck(long_name) || this->parameters.hasValue(long_name))
             long_param_map[short_name].emplace_back(long_name);
     }
+}
+
+AlgorithmParameterValues CLParser::parseCL(int argc, char **argv) {
+    return parseCL(oneline::initialize<std::string, char*>(argv, argv + argc));
 }
 
 AlgorithmParameters::AlgorithmParameters(const std::vector<std::string>& one_value_parameters, const std::vector<std::string>& lib_params,

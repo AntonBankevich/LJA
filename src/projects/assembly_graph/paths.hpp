@@ -37,7 +37,7 @@ namespace ag {
         GraphPath(Vertex &_start, std::vector<EdgeId> _path, size_t cut_left, size_t cut_right, size_t skip_left = 0, size_t skip_right = 0) :
                     start_(_start.getId()), path(std::move(_path)), cut_left(cut_left), cut_right(cut_right), skip_left(skip_left), skip_right(skip_right) {}
         GraphPath(Vertex &_start, size_t cut_left = 0, size_t cut_right = 0) : start_(_start.getId()), cut_left(cut_left), cut_right(cut_right) {} // NOLINT(google-explicit-constructor)
-        GraphPath(Edge &edge) : start_(edge.getStart().getId()), path({edge.getId()}), cut_left(0), cut_right(0) {} // NOLINT(google-explicit-constructor)
+        GraphPath(Edge &edge, size_t cut_left = 0, size_t cut_right = 0) : start_(edge.getStart().getId()), path({edge.getId()}), cut_left(cut_left), cut_right(cut_right) {} // NOLINT(google-explicit-constructor)
         GraphPath(const Segment<Edge> &segment) : start_(segment.contig().getStart().getId()), // NOLINT(google-explicit-constructor)
                           path({segment.contig().getId()}), cut_left(segment.left), cut_right(segment.contig().truncSize() - segment.right) {}
         GraphPath() : start_({}), cut_left(0), cut_right(0) {}
@@ -63,6 +63,7 @@ namespace ag {
         }
         Vertex &start() const {return *start_;}
         Vertex &finish() const {return empty() ? start() : backEdge().getFinish();}
+        VertexId startId() const {return start_;}
         size_t find(Edge &edge, size_t pos = 0) const;
         size_t find(Vertex &v, size_t pos = 0) const;
         Edge &backEdge() const {return *path[path.size() - skip_right - 1];}
@@ -75,6 +76,7 @@ namespace ag {
         IterableStorage<vertex_iterator> vertices() && = delete;
         IterableStorage<edge_iterator> edges() const &;
         IterableStorage<edge_iterator> edges() && = delete;
+        IterableStorage<typename std::vector<typename Traits::Edge::EdgeId>::const_iterator> edgeIds() const &;
 
         segment_iterator begin() const;
         segment_iterator  end() const;
@@ -97,8 +99,18 @@ namespace ag {
         void invalidate();
         GraphPath subPath(size_t from, size_t to) const;
         GraphPath subPath(size_t from) const {return subPath(from, size());}
+
         GraphPath reroute(size_t left, size_t right, const GraphPath &rerouting) const;
         void simpleReroute(size_t left, size_t right, const std::vector<EdgeId> &edges);
+        void setCutLeft(size_t value) {
+            VERIFY(value <= len() + cut_left);
+            cut_left = value;
+        }
+        void setCutRight(size_t value) {
+            VERIFY(value <= len() + cut_right);
+            cut_right = value;
+        }
+
         void operator+=(const GraphPath &other);
         void operator+=(const Segment<Edge> &other);
         void operator+=(Edge &other);
@@ -180,11 +192,15 @@ namespace ag {
         PathIterator operator--(int) {return *this - 1;}
         bool operator==(const PathIterator &other) const { return rc == other.rc && path == other.path && pos == other.pos; }
         bool operator!=(const PathIterator &other) const { return !(*this == other); }
+        int getPos() const {return pos;}
         std::string str() const {
             std::stringstream ss;
             ss << path->lenStr() << ":" << pos << "(" << (rc ? "B" : "F") << ")";
             return ss.str();
         }
+//        Careful! RC does not point to the same element. Instead it makes sure that begin->end and end->begin
+        PathIterator RC() const {return {*path, !rc, pos + (rc ? 1 : -1)};}
+        PathIterator SameElementRC() const {return {*path, !rc, pos};}
     };
 
     template<class Traits>
@@ -192,6 +208,8 @@ namespace ag {
     private:
         GraphPath<Traits> *path;
         bool rc;
+        void setCutLeft(size_t val) const {rc ? path->cut_right = val : path->cut_left = val;}
+        void setCutRight(size_t val) const {rc ? path->cut_left = val : path->cut_right = val;}
     public:
         typedef typename Traits::Vertex Vertex;
         typedef typename Traits::Edge Edge;
@@ -207,46 +225,84 @@ namespace ag {
         void pop_back() const {return rc ? path->pop_front() : path->pop_back();}
         bool isForward() const {return !rc;}
         size_t size() const {return path->size();}
-        GraphPath<Traits> &getPath() {return *path;}
-        PathIterator<Traits> end() const {
-            return {*path, rc, int(rc ? path->skip_left - 1: path->path.size() - path->skip_right)};
-        }
-        PathIterator<Traits> begin() const {
-            return {*path, rc, int(rc ? path->path.size() - path->skip_right - 1: path->skip_left)};
-        }
+        GraphPath<Traits> &getPath() const {return *path;}
+        PathIterator<Traits> end() const;
+        PathIterator<Traits> begin() const;
         PathDirection RC() const { return {*path, !rc}; }
         bool valid() const { return path->valid(); }
         bool empty() const {return path->empty();}
+        bool isRC() const {return rc;}
 
-        void invalidate() {
-            path->invalidate();
-        }
-        void rerouteSameSize(PathIterator<Traits> from, PathIterator<Traits> to, const std::vector<EdgeId> &alt) {
-            size_t cur = 0;
-            while(from != to && cur < alt.size()) {
-                from.set(*alt[cur]);
-                cur++;
-                ++from;
-            }
-            VERIFY(from == to);
-            VERIFY(cur == alt.size());
-            if(!empty())
-                path->start_ = path->frontEdge().getStart().getId();
-        }
-        void cutFrontPrefix() {
-            VERIFY(!path->empty());
-            if (!rc) {
-                path->start = path->frontEdge().getFinish();
-                path->path.pop_front();
-            } else {
-                path->path.pop_back();
-            }
-        }
-
-        void cutBackSuffix() {
-            RC().cutFrontPrefix();
-        }
+        void invalidate() {path->invalidate();}
+        void rerouteSameSize(PathIterator<Traits> from, PathIterator<Traits> to, const ag::GraphPath<Traits> &alt) const;
+        void cutFrontPrefix() const;
+        void cutBackSuffix() const;
+        void forceReroute(PathIterator<Traits> from, PathIterator<Traits> to, const GraphPath<Traits> &alt) const;
     };
+
+    template<class Traits>
+    void PathDirection<Traits>::rerouteSameSize(PathIterator<Traits> from, PathIterator<Traits> to,
+                                                const ag::GraphPath<Traits> &alt) const {
+        if(from == begin())
+            setCutLeft(alt.cutLeft());
+        if(to == end())
+            setCutRight(alt.cutRight());
+        size_t cur = 0;
+        while(from != to && cur < alt.size()) {
+            from.set(alt.getEdge(cur));
+            cur++;
+            ++from;
+        }
+        VERIFY(from == to);
+        VERIFY(cur == alt.size());
+        if(!empty())
+            path->start_ = path->frontEdge().getStart().getId();
+    }
+
+    template<class Traits>
+    void PathDirection<Traits>::cutFrontPrefix() const{
+        VERIFY(!path->empty());
+        if (!rc) {
+            path->start = path->frontEdge().getFinish();
+            path->path.pop_front();
+        } else {
+            path->path.pop_back();
+        }
+    }
+
+    template<class Traits>
+    PathIterator<Traits> PathDirection<Traits>::end() const {
+        return {*path, rc, int(rc ? path->skip_left - 1: path->path.size() - path->skip_right)};
+    }
+
+    template<class Traits>
+    PathIterator<Traits> PathDirection<Traits>::begin() const {
+        return {*path, rc, int(rc ? path->path.size() - path->skip_right - 1: path->skip_left)};
+    }
+
+    template<class Traits>
+    void PathDirection<Traits>::cutBackSuffix() const {
+        RC().cutFrontPrefix();
+    }
+
+    template<class Traits>
+    void PathDirection<Traits>::forceReroute(PathIterator<Traits> from, PathIterator<Traits> to,
+                                             const GraphPath<Traits> &alt) const {
+        if(rc) {
+            PathDirection rc_dir = RC();
+            rc_dir.forceReroute(to.RC(), from.RC(), alt.RC());
+        }
+        if(from == begin() && to == end()) {
+            *path = alt;
+        } else if(from == begin()) {
+            *path = alt + path->subPath(from.getPos());
+        } else if(to == end()) {
+            path->pop_back(path->size() - from.getPos());
+            *path += alt;
+        } else {
+            *path = path->subPath(0, from.getPos()) + alt + path->subPath(to.getPos());
+        }
+    }
 }
 
 template<class Graph>
@@ -655,19 +711,19 @@ void ag::GraphPath<Graph>::operator+=(const Segment<Edge> &other) {
         *this = {other};
         return;
     }
-    if(cut_right == 0) {
-        VERIFY(other.left == 0 && finish() == other.contig().getStart());
+    if(!empty() && backEdge() == other.contig() && cut_right + other.left == backEdge().truncSize()) {
+        cut_right = other.cutRight();
+    } else {
+        VERIFY(cut_right == 0 && other.cutLeft() == 0);
+        VERIFY(finish() == other.contig().getStart());
         if(skip_right == 0)
             path.emplace_back(other.contig().getId());
         else {
             path[path.size() - skip_right] = other.contig().getId();
             skip_right -= 1;
         }
-        cut_right = other.contig().truncSize() - other.right;
-    } else {
-        VERIFY(cut_right == other.contig().truncSize() - other.left && other.contig() == backEdge());
+        cut_right = other.cutRight();
     }
-    cut_right = other.contig().truncSize() - other.right;
 }
 
 template<class Graph>
@@ -801,4 +857,9 @@ void ag::GraphPath<Traits>::simpleReroute(size_t left, size_t right, const std::
     for(size_t i = 0; i < edges.size(); i++) {
         path[skip_left + left + i] = edges[i];
     }
+}
+
+template<class Traits>
+IterableStorage<typename std::vector<typename Traits::Edge::EdgeId>::const_iterator> ag::GraphPath<Traits>::edgeIds() const &{
+    return {path.begin() + skip_left, path.end() - skip_right};
 }

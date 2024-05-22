@@ -11,25 +11,94 @@ spg::SPGVertex &spg::SupreGraph::outerEdgeToVertex(spg::SPGEdge &edge) {
     return newv;
 }
 
-void spg::SupreGraph::IsolateAndMark(spg::SPGVertex &v) {
-    while(v.outDeg() != 0) v.removeEdgeLockFree(v.front());
-    while(v.rc().outDeg() != 0) v.rc().removeEdgeLockFree(v.rc().front());
-    v.mark();
-    v.rc().mark();
+void spg::SupreGraph::IsolateAndMark(spg::SPGVertex &vertex) {
+    for(Vertex &v : ag::ThisAndRC(vertex))
+        while(v.outDeg() != 0) {
+            fireDeleteEdge(v.front());
+            fireDeleteEdge(v.front().rc());
+            v.removeEdgeLockFree(v.front());
+        }
+    for(Vertex &v : ag::ThisAndRC(vertex)) {
+        fireDeleteVertex(v);
+        v.mark();
+    }
 }
 
-spg::ResolutionListener::ResolutionListener(spg::ResolutionFire &fire) : fire(&fire) {
-    this->fire->addListener(*this);
+spg::VertexResolutionResult
+spg::SupreGraph::resolveVertex(spg::SPGVertex &core, const spg::VertexResolutionPlan &resolution) {
+    VERIFY(core.isCore() && core.inDeg() > 0 && core.outDeg() > 0);
+    VertexResolutionResult result(core);
+    for(const EdgePair &p : resolution.connectionsUnique()) {
+        VERIFY(p.first->getFinish() == core);
+        if(p.middle() != core)
+            continue;
+        VERIFY(p.second->getStart() == core);
+        VERIFY(p.first->isSuffix());
+        VERIFY(p.second->isPrefix());
+        Sequence seq = p.getSeq();
+        Vertex &newv = addSPGVertex(seq, false, false, false);
+        result.add(newv, p);
+        for(Vertex &v : ag::ThisAndRC(newv))
+            fireAddVertex(v);
+        Edge &out = p.first->getStart().addSPEdgeLockFree(newv);
+        for(Edge &e : ag::ThisAndRC(out))
+            fireAddEdge(e);
+        if(newv != newv.rc()) {
+            Edge &inc = newv.addSPEdgeLockFree(p.second->getFinish());
+            for(Edge &e : ag::ThisAndRC(inc))
+                fireAddEdge(e);
+        }
+    }
+    fireResolveVertex(core, result);
+    if(core != core.rc())
+        fireResolveVertex(core.rc(), result.RC());
+    IsolateAndMark(core);
+    return std::move(result);
 }
 
-spg::ResolutionListener::~ResolutionListener() {
-    if(fire != nullptr)
-        fire->removeListener(*this);
-    fire = nullptr;
+spg::SPGVertex &spg::SupreGraph::addSPGVertex(Sequence seq, bool cyclic, bool inf_left, bool inf_right, int id) {
+    return addVertex(std::move(seq), SPGVertexData(cyclic, inf_left, inf_right), id);
 }
 
-spg::ResolutionListener::ResolutionListener(spg::ResolutionListener &&other) noexcept {
-    fire = other.fire;
-    other.fire = nullptr;
-    fire->replaceListener(other, *this);
+spg::SPGVertex &spg::SupreGraph::mergePath(const spg::GraphPath &path) {
+    bool loop = path.start() == path.finish() && !path.start().isJunction();
+    Sequence seq = path.Seq();
+    VertexId resId;
+    if(path.start().getSeq() == seq && !loop)
+        resId = path.start().getId();
+    if(path.finish().getSeq() == seq && !loop)
+        resId = path.finish().getId();
+    Vertex &res = resId.valid() ? *resId : addSPGVertex(seq, loop, false, false);
+    for(Vertex &v : ag::ThisAndRC(res))
+        fireAddVertex(v);
+    if(loop) {
+        Edge &new_edge = res.addSPEdgeLockFree(res);
+        for(Edge &e : ag::ThisAndRC(new_edge))
+            fireAddEdge(e);
+    } else {
+        if(res != path.start()) {
+            Edge &new_edge = path.start().addSPEdgeLockFree(res);
+            for(Edge &e : ag::ThisAndRC(new_edge))
+                fireAddEdge(e);
+        }
+        if(res != path.finish() && res != res.rc()) {
+            Edge &new_edge = res.addSPEdgeLockFree(path.finish());
+            for(Edge &e : ag::ThisAndRC(new_edge))
+                fireAddEdge(e);
+        }
+    }
+    std::cout << path.len() << " " << res.size() << " " << path.start().size() << std::endl;
+    fireMergePath(path, res);
+    if(res != res.rc())
+        fireMergePath(path.RC(), res.rc());
+    if(res != res.rc())
+        for(size_t i = path.size() - 1; i > 0; i--) {
+            IsolateAndMark(path.getVertex(i));
+        }
+    else
+        for(size_t i = path.size() - 1; 2 * i > path.size(); i--) {
+            IsolateAndMark(path.getVertex(i));
+        }
+    return res;
 }
+

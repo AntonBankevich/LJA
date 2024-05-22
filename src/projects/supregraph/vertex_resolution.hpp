@@ -62,7 +62,7 @@ namespace spg {
 
     class VertexResolutionResult {
     private:
-        VertexId v;
+        VertexId core;
         std::unordered_map<VertexId, EdgePair> new_vertices;
         std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> edge_mapping;
         void innerAdd(Vertex &new_vertex, const EdgePair &edgePair) {
@@ -71,9 +71,9 @@ namespace spg {
             edge_mapping[edgePair.first][edgePair.second] = new_vertex.getId();
         }
     public:
-        VertexResolutionResult(Vertex &v) : v(v.getId()) {}
+        VertexResolutionResult(Vertex &core) : core(core.getId()) {}
         VertexResolutionResult RC() const {
-            VertexResolutionResult res(v->rc());
+            VertexResolutionResult res(core->rc());
             for(auto it : new_vertices) {
                 res.innerAdd(it.first->rc(), it.second.RC());
             }
@@ -81,11 +81,13 @@ namespace spg {
         }
 
         bool contains(Edge &edge1, Edge &edge2) const {
+            VERIFY(edge1.getFinish() == *core);
+            VERIFY(edge2.getStart() == *core);
             return edge_mapping.find(edge1.getId()) != edge_mapping.end() &&
                 edge_mapping.at(edge1.getId()).find(edge2.getId()) != edge_mapping.at(edge1.getId()).end();
         }
 
-        Vertex &getVertex() const {return *v;}
+        Vertex &getCore() const {return *core;}
 
         Vertex &get(Edge &edge1, Edge &edge2) const {
             return *edge_mapping.at(edge1.getId()).at(edge2.getId());
@@ -114,9 +116,9 @@ namespace spg {
     };
 
     inline std::ostream &operator<<(std::ostream &stream, const VertexResolutionResult &vr) {
-        stream << "VRResult." << vr.getVertex().getId() << ":";
+        stream << "VRResult." << vr.getCore().getId() << ":";
         for(Vertex & it : vr.newVertices()) {
-            stream << it.getId() << "(" << vr.get(it).first->getId() << "|" << vr.get(it).second->getId() << ")";
+            stream << it.getId() << "(" << vr.get(it).first << "|" << vr.get(it).second << ")";
         }
         return stream;
     }
@@ -124,6 +126,7 @@ namespace spg {
     class DecisionRule {
     public:
         virtual VertexResolutionPlan judge(Vertex &v) = 0;
+        virtual void check() {};
 
         virtual ~DecisionRule() = default;
     };

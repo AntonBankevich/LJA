@@ -34,5 +34,8 @@ namespace spg {
         void noChoiceHeuristic(VertexResolutionPlan &res);
 
         VertexResolutionPlan judge(Vertex &v) override;
+        void check() override {
+            storage->checkReadIndexConsistency();
+        }
     };
 }

@@ -46,6 +46,7 @@ private:
     id_type id;
     T* ref;
 public:
+    typedef T base;
     ObjectId(id_type id, T* ref): id(id), ref(ref) {
         VERIFY(this->ref == nullptr || size_t(this->ref) > 100000)
 //        VERIFY_MSG((id == 0) == (ref == nullptr), "Id 0 is reserved for invalid objects");

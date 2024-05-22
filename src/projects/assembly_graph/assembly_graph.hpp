@@ -456,6 +456,7 @@ namespace ag {
 
         Edge &getOutgoing(unsigned char c) const;
         bool hasOutgoing(unsigned char c) const;
+        bool hasOutgoingSuffix() const;
 
         size_t outDeg() const { return _outDeg; }
         size_t inDeg() const { return rc_->outgoing_.size(); }
@@ -1005,6 +1006,15 @@ namespace ag {
             edge.rc().getStart().innerRemoveEdge(edge.rc());
         }
         return innerRemoveEdge(edge);
+    }
+
+    template<class Traits>
+    bool BaseVertex<Traits>::hasOutgoingSuffix() const {
+        for(Edge &edge : *this) {
+            if(edge.truncSize() == 0)
+                return true;
+        }
+        return false;
     }
 
 }

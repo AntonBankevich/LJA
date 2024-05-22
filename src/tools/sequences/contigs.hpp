@@ -33,6 +33,7 @@ public:
     }
 };
 
+//TODO: store cut_left and cut_right instead of left and right and merge with IdSegment
 template<class T>
 class Segment{
     T *contig_ptr;
@@ -47,25 +48,15 @@ public:
         VERIFY(0 <= left and left <= right and right <= contig_ptr->truncSize())
     }
 
-    Segment() : contig_ptr(nullptr), left(left), right(right) {
-    }
+    Segment() : contig_ptr(nullptr), left(left), right(right) {}
 
-    bool valid() const {
-        return contig_ptr == nullptr;
-    }
+    bool valid() const {return contig_ptr == nullptr;}
+    T &contig() const {return *contig_ptr;}
+    size_t size() const {return right - left;}
+    size_t cutLeft() const {return left;}
+    size_t cutRight() const {return contig_ptr->truncSize() - right;}
 
-    T &contig() const {
-        return *contig_ptr;
-    }
-
-    size_t size() const {
-        return right - left;
-    }
-
-    Sequence truncSeq() const {
-        return contig_ptr->truncSeq().Subseq(left, right);
-    }
-
+    Sequence truncSeq() const {return contig_ptr->truncSeq().Subseq(left, right);}
     Sequence fullSeq() const {
         size_t k = contig_ptr->getStartSize();
         if(left >= k) {
@@ -159,6 +150,8 @@ public:
     Segment<T> unite(const Segment<T> &other) const {
         return {*contig_ptr, std::min(left, other.left), std::max(right, other.right)};
     }
+
+    Segment<T> nest(const Segment<T> &other) const {return {other.contig(), other.left + left, other.left + right};}
 
     std::string coordinaresStr() const {
         std::stringstream ss;
