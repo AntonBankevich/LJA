@@ -91,7 +91,7 @@ class Sequence {
 
         if (rc) {
             for (int i = (int) size_ - 1; i >= 0; --i) {
-                //VERIFY(is_dignucl(s[i]) || is_nucl(s[i]));
+                VERIFY_MSG(is_dignucl(s[i]) || is_nucl(s[i]), "Non-ACGTacgt symbols in the input sequences");
                 char c = complement(digit_str ? s[(unsigned) i] : dignucl(s[(unsigned) i]));
 
                 data = data | (ST(c) << cnt);
@@ -105,7 +105,7 @@ class Sequence {
             }
         } else {
             for (size_t i = 0; i < size_; ++i) {
-                //VERIFY(is_dignucl(s[i]) || is_nucl(s[i]));
+                VERIFY_MSG(is_dignucl(s[i]) || is_nucl(s[i]), "Non-ACGTacgt symbols in the input sequences");
                 char c = digit_str ? s[i] : dignucl(s[i]);
 
                 data = data | (ST(c) << cnt);
