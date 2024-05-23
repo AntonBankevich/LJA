@@ -51,7 +51,8 @@ namespace spg {
                     }
                 }
                 for(VertexId vid : candidates) {
-                    if(vid->isCanonical() && vid->isCore() && vid->outDeg() > 0 && vid->inDeg() > 0 && vid->size() < max_core_length)
+                    if(vid->isCanonical() && vid->isCore() && vid->outDeg() > 0 && vid->inDeg() > 0 && vid->size() < max_core_length &&
+                            (vid->isJunction() || GraphPath::WalkForward(vid->front()).finish().isJunction()))
                         core_queue.insert(vid);
                 }
                 std::cout << "Result: " << res << std::endl;

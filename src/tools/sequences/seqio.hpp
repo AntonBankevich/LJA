@@ -192,7 +192,7 @@ namespace io {
                 if(!std::experimental::filesystem::is_regular_file(file_name)) {
                     std::cerr << "Error: file does not exist " << file_name << std::endl;
                 }
-                VERIFY(std::experimental::filesystem::is_regular_file(file_name));
+                VERIFY_MSG(std::experimental::filesystem::is_regular_file(file_name), std::experimental::filesystem::absolute(file_name));
                 gfa = endsWith(file_name, "gfa");
                 if(gfa) {
                     stream = new std::ifstream(file_name);

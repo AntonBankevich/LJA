@@ -61,33 +61,26 @@ spg::SPGVertex &spg::SupreGraph::addSPGVertex(Sequence seq, bool cyclic, bool in
 }
 
 spg::SPGVertex &spg::SupreGraph::mergePath(const spg::GraphPath &path) {
-    bool loop = path.start() == path.finish() && !path.start().isJunction();
+    VERIFY(path.startClosed() && path.endClosed());
     Sequence seq = path.Seq();
     VertexId resId;
-    if(path.start().getSeq() == seq && !loop)
+    if(path.start().getSeq() == seq)
         resId = path.start().getId();
-    if(path.finish().getSeq() == seq && !loop)
+    if(path.finish().getSeq() == seq)
         resId = path.finish().getId();
-    Vertex &res = resId.valid() ? *resId : addSPGVertex(seq, loop, false, false);
+    Vertex &res = resId.valid() ? *resId : addSPGVertex(seq, false, false, false);
     for(Vertex &v : ag::ThisAndRC(res))
         fireAddVertex(v);
-    if(loop) {
-        Edge &new_edge = res.addSPEdgeLockFree(res);
+    if(res != path.start()) {
+        Edge &new_edge = path.start().addSPEdgeLockFree(res);
         for(Edge &e : ag::ThisAndRC(new_edge))
             fireAddEdge(e);
-    } else {
-        if(res != path.start()) {
-            Edge &new_edge = path.start().addSPEdgeLockFree(res);
-            for(Edge &e : ag::ThisAndRC(new_edge))
-                fireAddEdge(e);
-        }
-        if(res != path.finish() && res != res.rc()) {
-            Edge &new_edge = res.addSPEdgeLockFree(path.finish());
-            for(Edge &e : ag::ThisAndRC(new_edge))
-                fireAddEdge(e);
-        }
     }
-    std::cout << path.len() << " " << res.size() << " " << path.start().size() << std::endl;
+    if(res != path.finish() && res != res.rc()) {
+        Edge &new_edge = res.addSPEdgeLockFree(path.finish());
+        for(Edge &e : ag::ThisAndRC(new_edge))
+            fireAddEdge(e);
+    }
     fireMergePath(path, res);
     if(res != res.rc())
         fireMergePath(path.RC(), res.rc());
@@ -102,3 +95,23 @@ spg::SPGVertex &spg::SupreGraph::mergePath(const spg::GraphPath &path) {
     return res;
 }
 
+spg::SPGVertex &spg::SupreGraph::mergeLoop(const spg::GraphPath &path) {
+    VERIFY(path.start() == path.finish() || (path.size() > 0 && path.frontEdge() == path.backEdge() && path.cutRight() + path.cutLeft() == path.backEdge().truncSize()));
+    Sequence seq = path.Seq();
+    VertexId resId;
+    Vertex &res = addSPGVertex(seq, true, false, false);
+    for(Vertex &v : ag::ThisAndRC(res))
+        fireAddVertex(v);
+    fireMergeLoop(path, res);
+    if(res != res.rc())
+        fireMergeLoop(path.RC(), res.rc());
+    if(res != res.rc())
+        for(size_t i = path.size() - 1; i > 0; i--) {
+            IsolateAndMark(path.getVertex(i));
+        }
+    else
+        for(size_t i = path.size() - 1; 2 * i > path.size(); i--) {
+            IsolateAndMark(path.getVertex(i));
+        }
+    return res;
+}

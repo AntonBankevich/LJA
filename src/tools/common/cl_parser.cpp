@@ -40,6 +40,7 @@ AlgorithmParameterValues CLParser::parseCL(const std::vector <std::string> &args
                 }
                 name = short_param_map[s[1]];
             }
+//            TODO: Make meaningful message if the short parameter was correct but it pointed to a non-existing parameter
             VERIFY_MSG(!strict || result.hasCheck(name) || result.hasValue(name) || long_param_map.find(name) != long_param_map.end(), "Unknown command line parameter: " + s);
             if (result.hasCheck(name) || (long_param_map.find(name) != long_param_map.end() && result.hasCheck(long_param_map.at(name).front()))) {
                 if(long_param_map.find(name) != long_param_map.end()) {

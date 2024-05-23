@@ -418,6 +418,7 @@ namespace ag {
         void unlock() { omp_unset_lock(&writelock); }
 
         bool isCanonical() const;
+        bool isPalindrome() const;
 
         void mark() { mark_ = true; }
         void unmark() { mark_ = false; }
@@ -1016,5 +1017,8 @@ namespace ag {
         }
         return false;
     }
+
+    template<class Traits>
+    bool BaseVertex<Traits>::isPalindrome() const {return *this == rc();}
 
 }

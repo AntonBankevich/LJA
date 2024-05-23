@@ -150,7 +150,7 @@ namespace spg {
 
         void unprepare() const {
             if(reads_ready) {
-                for (auto it: read_index)
+                for (auto &it: read_index)
                     it.second.clear();
                 reads_ready = false;
             }
@@ -185,5 +185,6 @@ namespace spg {
 
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
         void fireMergePath(const GraphPath &path, Vertex &new_vertex) override;
+        void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) override;
     };
 }

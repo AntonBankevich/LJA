@@ -300,7 +300,8 @@ int main(int argc, char **argv) {
     }
 
     if(params.getCheck("print-alignments") || params.getCheck("mult-correct")) {
-        readStorage.printReadAlignments(logger, dir / "alignments.txt");
+        ag::SaveAllReads<DBGTraits>(dir / "alignments.txt", {&readStorage});
+//        readStorage.printReadAlignments(logger, dir / "alignments.txt");
     }
 
     if(params.getCheck("mult-correct") || params.getCheck("initial-correct")) {

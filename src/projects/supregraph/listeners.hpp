@@ -26,6 +26,8 @@ namespace spg {
 
         virtual void fireMergePath(const GraphPath &path, Vertex &new_vertex) {};
 
+        virtual void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {};
+
         virtual void fireAddVertex(spg::Vertex &v) {}
 
         virtual void fireAddEdge(spg::Edge &e) {}
@@ -61,6 +63,12 @@ namespace spg {
         void fireMergePath(const GraphPath &path, Vertex &new_vertex) {
             for (auto *listener: listeners) {
                 listener->fireMergePath(path, new_vertex);
+            }
+        }
+
+        void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
+            for (auto *listener: listeners) {
+                listener->fireMergeLoop(path, new_vertex);
             }
         }
 

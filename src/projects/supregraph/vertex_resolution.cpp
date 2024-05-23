@@ -21,7 +21,8 @@ IterableStorage<SkippingIterator<std::vector<spg::EdgePair>::const_iterator>>
 spg::VertexResolutionPlan::connectionsUnique() const {
     sort();
     std::function<bool(const EdgePair &)> use = [](const EdgePair &ep)->bool {
-        return ep.middle() != ep.middle().rc() || ep.first < ep.second->rc().getId() || ep.second < ep.first->rc().getId();
+        return ep.middle() != ep.middle().rc() || ep.first < ep.second->rc().getId() ||
+                    (ep.first == ep.second->rc().getId() && ep.second < ep.first->rc().getId());
     };
     return {{edge_pairs.begin(), edge_pairs.end(), use}, {edge_pairs.end(), edge_pairs.end(), use}};
 }

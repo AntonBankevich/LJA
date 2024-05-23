@@ -46,11 +46,15 @@ void spg::PathIndex::processPassing(Edge &edge, const spg::VertexResolutionResul
 }
 
 void spg::PathIndex::fireAddVertex(spg::Vertex &vertex) {
+    std::cout << "Fire Add Vertex " << vertex.getId();
+    if(vertex.size() < 10)
+        std::cout << " " << vertex.getSeq();
+    std::cout << std::endl;
     inner_index[vertex.getId()] = {};
 }
 
 void spg::PathIndex::fireAddEdge(spg::Edge &edge) {
-    std::cout << "FireAdd " << edge.getId() << " " << edge.truncSize() << std::endl;
+    std::cout << "Fire Add Edge " << edge.getId() << " " << edge.truncSize() << std::endl;
     read_index[edge.getId()] = {};
 }
 
@@ -102,9 +106,12 @@ void spg::PathIndex::fireResolveVertex(spg::Vertex &core, const spg::VertexResol
                 Edge &new_edge2 = new_vertex.front();
                 size_t cut_left = it - 1 == dir.begin() ? dir.cutLeft() : 0;
                 size_t cut_right = it + 1 == dir.end() ? dir.cutRight() : 0;
+                std::cout << "Reroute " << dir.getRead().name << std::endl;
+                std::cout << dir << std::endl;
                 dir.rerouteSameSize(it - 1, it + 1, GraphPath(new_edge1.getStart(),
                                                        std::vector<EdgeId>({new_edge1.getId(), new_edge2.getId()}),
                                                        cut_left, cut_right));
+                std::cout << dir << std::endl;
                 read_index[new_edge1.getId()].emplace_back(dir, it - 1);
                 PathIterator it1 = (it - 1).SameElementRC();
                 read_index[new_edge1.rc().getId()].emplace_back(dir.RC(), (it - 1).SameElementRC());
@@ -134,7 +141,9 @@ const std::vector<Segment<Vertex>> &PathIndex::getInnerReads(Vertex &v) const {
 ComplexIterableStorage<Generator<std::vector<std::pair<ReadDirection, PathIterator>>::iterator, PathIndex::PassingRead>>
 PathIndex::getPassing(Vertex &v) const &{
     prepare();
-    std::function<PassingRead(std::pair<ReadDirection, PathIterator> &)> generate = [](std::pair<ReadDirection, PathIterator> &p) -> PassingRead {
+    std::function<PassingRead(std::pair<ReadDirection, PathIterator> &)> generate = [&v](std::pair<ReadDirection, PathIterator> &p) -> PassingRead {
+        std::cout << "Passing: " << v.getId() << " " << p.first.getRead().name << " " << p.second.str() << std::endl;
+        std::cout << p.second->getId() << " " << (p.second + 1)->getId() << std::endl;
         return {p.first, p.second};
     };
     std::function<bool(std::pair<ReadDirection, PathIterator> &)> use = [](std::pair<ReadDirection, PathIterator> &p) {
@@ -196,7 +205,7 @@ void PathIndex::prepareIndex() const {
 
 void PathIndex::fireMergePath(const GraphPath &path, Vertex &new_vertex) {
     unprepare();
-    std::cout << "FIreMerge " << path.lenStr() << std::endl;
+    std::cout << "FIreMergePath " << path.lenStr() << std::endl;
     embedding.remap(path, new_vertex);
     size_t right = path.start().size();
     size_t left = 0;
@@ -211,6 +220,10 @@ void PathIndex::fireMergePath(const GraphPath &path, Vertex &new_vertex) {
             inner_index[new_vertex.getId()].emplace_back(seg.nest(vertex_embedding));
         }
     }
+}
+
+void PathIndex::fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
+    VERIFY_MSG(false, "Not supported yet");
 }
 
 ReadDirection ReadRecord::forward() {return {*this, false};}

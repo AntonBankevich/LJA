@@ -24,6 +24,7 @@ namespace spg {
 //        Graph should be in normal form. ResolutionPlan should connect incoming edges with outgoing (not reverse-complement)
         VertexResolutionResult resolveVertex(Vertex &core, const VertexResolutionPlan &resolution);
         Vertex &mergePath(const GraphPath &path);
+        Vertex &mergeLoop(const GraphPath &path);
     };
 
 }

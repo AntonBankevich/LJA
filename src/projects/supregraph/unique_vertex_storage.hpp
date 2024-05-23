@@ -29,6 +29,7 @@ namespace spg {
 
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
         void fireMergePath(const GraphPath &path, Vertex &vertex) override;
+        void fireMergeLoop(const GraphPath &path, Vertex &vertex) override;
         void fireDeleteVertex(spg::Vertex &v) override {unique.erase(v.getId());}
     };
 }

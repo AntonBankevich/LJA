@@ -55,9 +55,9 @@ namespace ag {
 }
 
 std::unordered_map<std::string, std::experimental::filesystem::path>
-RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
+RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, size_t k, size_t w,
                   const io::Library &graph_gfa, const std::experimental::filesystem::path &reads_file, bool debug) {
-    hashing::RollingHash hasher(5001, 239);
+    hashing::RollingHash hasher(k, 239);
     logger.info() << "Loading graph" << std::endl;
     dbg::SparseDBG dbg = dbg::LoadDBGFromEdgeSequences(logger, threads, graph_gfa, hasher);
     IdIndex<dbg::Vertex> index(dbg.vertices().begin(), dbg.vertices().end());
@@ -90,11 +90,41 @@ RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental
     spg::Multiplexer multiplexer(graph, rule, 200000);
     multiplexer.fullMultiplex(logger, threads, path_index);
     ag::printDot(dir/"supregraph2.dot", graph);
-    std::vector<GraphPath> unbranching = ag::AllUnbranchingPaths(logger, threads, graph);
-    for(GraphPath &path : unbranching) {
-        if(path.start() != path.finish() || path.start().isJunction()) {
-            graph.mergePath(path);
+    std::vector<GraphPath> unbranching;
+    for(Vertex &v : graph.vertices()) {
+        if(!v.isJunction())
+            continue;
+        for(Edge &start : v) {
+            GraphPath path = GraphPath::WalkForward(start);
+            if(path.start() > path.finish().rc() || (path.start() == path.finish().rc() && path.Seq() > path.RC().Seq()))
+                continue;
+            if(path.size() > 2 || (path.size() == 2 && path.frontEdge().isPrefix() == path.backEdge().isPrefix()))
+                unbranching.emplace_back(std::move(path));
         }
+    }
+    for(GraphPath &path : unbranching) {
+        graph.mergePath(path);
+    }
+    unbranching.clear();
+    for(Vertex &start : graph.vertices()) {
+        if(start.isJunction() || start.front().getFinish().isJunction())
+            continue;
+        GraphPath forward = GraphPath ::WalkForward(start.front());
+        if(forward.finish() != start)
+            continue;
+        bool ok = true;
+        for (Vertex &v: forward.vertices()) {
+            if (start.isPalindrome() == v.isPalindrome() && (v < start || v.rc() < start)) {
+                ok = false;
+                break;
+            }
+        }
+        if(!ok)
+            continue;
+        unbranching.emplace_back(std::move(forward));
+    }
+    for(GraphPath &path : unbranching) {
+        graph.mergePath(path);
     }
     ag::printDot(dir/"supregraph3.dot", graph);
     spg::Multiplexer multiplexer2(graph, rule, 200000000);
@@ -116,13 +146,15 @@ protected:
     std::unordered_map<std::string, std::experimental::filesystem::path> innerRun(logging::Logger &logger, size_t threads,
                                                                                   const std::experimental::filesystem::path &dir, bool debug,
                                                                                   const AlgorithmParameterValues &parameterValues, const std::unordered_map<std::string, io::Library> &input) override {
-        return RunMultiplexing(logger, threads, dir, input.at("graph"), input.at("reads")[0], debug);
+        size_t k = std::stoull(parameterValues.getValue("k-mer-size"));
+        size_t w = std::stoull(parameterValues.getValue("window"));
+        return RunMultiplexing(logger, threads, dir, k, w,input.at("graph"), input.at("reads")[0], debug);
     }
 };
 int main(int argc, char **argv) {
     SupreGraphPhase phase;
     AlgorithmParameters params = phase.getStandaloneParameters();
-    CLParser parser(params, {"o=output-dir", "t=threads", "k=Multiplexing.k-mer-size", "w=Multiplexing.window"}, {});
+    CLParser parser(params, {"o=output-dir", "t=threads", "k=k-mer-size", "w=window"}, {});
     LoggedProgram multiplexing("Multiplexing", std::move(phase), std::move(parser),
                                "Starting multiplexing procedure", "Finished multiplexing procedure");
     multiplexing.run(oneline::initialize<std::string, char*>(argv, argv + argc));

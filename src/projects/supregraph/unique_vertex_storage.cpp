@@ -65,3 +65,7 @@ void spg::UniqueVertexStorage::fireMergePath(const GraphPath &path, Vertex &new_
         }
     }
 }
+
+void spg::UniqueVertexStorage::fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
+    fireMergePath(path, new_vertex);
+}

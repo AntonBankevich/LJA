@@ -99,7 +99,7 @@ namespace spg {
 
         void add(Vertex &new_vertex, const EdgePair &edgePair) {
             innerAdd(new_vertex, edgePair);
-            if(new_vertex == new_vertex.rc()) {
+            if(*core == core->rc() && new_vertex != new_vertex.rc()) {
                 innerAdd(new_vertex.rc(), edgePair.RC());
             }
         }

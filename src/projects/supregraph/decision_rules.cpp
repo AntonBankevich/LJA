@@ -113,9 +113,13 @@ spg::VertexResolutionPlan spg::AndreyRule::judge(spg::Vertex &v) {
     for(auto it : storage->getPassing(v)) {
         res.add(*it.edges.first, *it.edges.second);
     }
+    std::cout << "Passing: " << res << std::endl;
     loopHeuristic(res);
+    std::cout << "Loop: " << res << std::endl;
     uniqueHeuristic(res);
+    std::cout << "Unique: " << res << std::endl;
     noChoiceHeuristic(res);
+    std::cout << "NoChoice: " << res << std::endl;
     if(res.allConnected())
         return std::move(res);
     return {v};
