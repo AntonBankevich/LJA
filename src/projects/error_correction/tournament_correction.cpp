@@ -190,8 +190,6 @@ namespace dbg {
                 size += path[step_front + path_pos + 1].size();
                 step_front += 1;
             }
-            Vertex &start = corrected_path.getVertex(corrected_path.size() - step_back);
-            Vertex &end = path.getVertex(path_pos + 1 + step_front);
             auto tmp1 = corrected_path.subPath(corrected_path.size() - step_back, corrected_path.size());
             auto tmp2 = path.subPath(path_pos, path_pos + 1 + step_front);
             dbg::GraphPath badPath = tmp1 + tmp2;

@@ -25,7 +25,7 @@ namespace ag {
         }
 
         explicit CompactPath(const GraphPath <Traits> &path) :
-                _start(&path.getVertex(0)), cut_left(path.cutLeft()), cut_right(path.cutRight()) {
+                _start(&path.start()), cut_left(path.cutLeft()), cut_right(path.cutRight()) {
             SequenceBuilder sb;
             for (Edge &edge: path.edges()) {
                 sb.append(edge.nuclLabel());

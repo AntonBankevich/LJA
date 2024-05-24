@@ -316,8 +316,8 @@ namespace dbg {
                 Edge &new_edge = index.getVertex(kmers.front()).addEdge(index.getVertex(kmers.back()), edge.truncSeq(),
                                                                         edge.rc().truncSeq(), edge, edge.getInnerId(),
                                                                         edge.rc().getInnerId());
-                new_edge.incCov(-new_edge.intCov());
-                new_edge.rc().incCov(-new_edge.rc().intCov());
+//                new_edge.incCov(-new_edge.intCov());
+//                new_edge.rc().incCov(-new_edge.rc().intCov());
             } else {
                 VERIFY(kmers.size() > 2);
                 helper.processFullEdgeSequence(res, index, edge.getSeq());
@@ -333,7 +333,7 @@ namespace dbg {
         ParallelProcessor<const Connection>(task1, logger, threads).processObjects(connections.begin(),
                                                                                    connections.end());
         for (const Edge &edge: res.edges()) {
-            VERIFY(edge.getCoverage() == 0);
+            VERIFY_MSG(edge.getCoverage() == 0, edge.intCov());
         }
         helper.checkConsistency(threads, logger, res);
         std::unordered_set<hashing::htype, hashing::alt_hasher<hashing::htype>> to_add;
