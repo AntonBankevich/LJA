@@ -80,7 +80,7 @@ namespace dbg {
         DBGEdge(DBGEdge &&) = delete;
         DBGEdge(const DBGEdge &) = delete;
         mutable bool is_reliable = false;
-        void incCov(int delta) {
+        void incCov(int64_t delta) {
 #pragma omp atomic
             cov += delta;
         }
