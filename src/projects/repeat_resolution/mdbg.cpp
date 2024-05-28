@@ -767,7 +767,8 @@ MultiplexDBG::GetContigs(size_t threads, logging::Logger &logger) const {
           if (vertex_can.at(vertex)) {
               const bool trim_vertex = count_out_neighbors(vertex)!=1;
               trim.emplace(vertex, trim_vertex);
-              trim.emplace(vertex2rc.at(vertex), not trim_vertex);
+              if(vertex2rc.find(vertex) != vertex2rc.end())
+                trim.emplace(vertex2rc.at(vertex), not trim_vertex);
           }
       }
       return trim;
