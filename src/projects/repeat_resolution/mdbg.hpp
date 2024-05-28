@@ -189,11 +189,12 @@ std::unordered_map<IndexType, IndexType> MultiplexDBG::MapSeqs2RC(
     std::unordered_map<IndexType, IndexType> fwd2rc;
     for (const auto &[seq, ind] : seq2ind) {
         if (seq2ind.count(!seq) == 0) {
-            logger.trace() << "Ind = " << ind << "\n";
+            logger.trace() << "Could not find rc vertex: Ind = " << ind << "\n";
+        } else {
+            const IndexType rc_ind = seq2ind.at(!seq);
+            fwd2rc.emplace(ind, rc_ind);
+            fwd2rc.emplace(rc_ind, ind);
         }
-        const IndexType rc_ind = seq2ind.at(!seq);
-        fwd2rc.emplace(ind, rc_ind);
-        fwd2rc.emplace(rc_ind, ind);
     }
     return fwd2rc;
 }

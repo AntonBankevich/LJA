@@ -374,15 +374,26 @@ void MultiplexDBG::ExportToGFA(
         for (auto e_it = begin; e_it!=end; ++e_it) {
             const RREdgeProperty &prop = e_it->second.prop();
             const RREdgeIndexType e_ind = prop.Index();
-            if (edge_can.at(e_ind)) {
+            if (edge_can.at(e_ind) || edge2rc.find(e_ind) == edge2rc.end()) {
                 edge2can_id.emplace(e_ind, e_ind);
-                edge2can_id.emplace(edge2rc.at(e_ind), e_ind);
+                if(edge2rc.find(e_ind) != edge2rc.end())
+                    edge2can_id.emplace(edge2rc.at(e_ind), e_ind);
                 os << "S\t" << e_ind << "\t" << edge_seqs.at(e_ind) << "\n";
             }
         }
     }
 
     for (auto v_it = begin(); v_it!=end(); ++v_it) {
+        if(vertex2rc.find(*v_it) == vertex2rc.end()) {
+            auto[begin, end] = out_neighbors(v_it);
+            for (auto out_it = begin; out_it!=end; ++out_it) {
+                const RREdgeProperty &out_prop = out_it->second.prop();
+                const RREdgeIndexType out_ind = out_prop.Index();
+                os << "L\t" << out_ind << "\t" << "+" << "\t" <<out_ind << "\t" << "+" << "\t"
+                   << node_prop(v_it).size() << "M\n";
+            }
+            continue;
+        }
         if (not vertex_can.at(*v_it)) {
             continue;
         }
