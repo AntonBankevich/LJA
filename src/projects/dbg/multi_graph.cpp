@@ -351,10 +351,9 @@ namespace multigraph {
             std::vector<std::string> tokens = ::split(line);
             if (tokens[0] == "S") {
                 std::string name = tokens[1];
-                MGVertex &newV = int_ids ? res.addVertex(Sequence(tokens[2]), {name}, std::stoi(name)) : res.addVertex(
-                        Sequence(tokens[2]));
+		Sequence seq(tokens[2]);
+		MGVertex &newV = int_ids ? res.addVertex(seq, {name}, seq.isCanonical() ? std::stoi(name) : -std::stoi(name)) : res.addVertex(seq);
 
-                VERIFY(vmap.find(name) == vmap.end());
                 vmap[name] = newV.getId();
             } else if (tokens[0] == "L") {
                 VertexId v1 = vmap[tokens[1]];
