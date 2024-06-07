@@ -197,9 +197,10 @@ namespace dbg {
 //                    + path.subPath(path_pos, path_pos + 1 + step_front);
             corrected_path.pop_back(step_back);
             if (corrected_path.size() == 0 && step_front == path.size() - path_pos - 1) {
-                for (const Segment<Edge> &seg: badPath) {
-                    corrected_path += seg;
-                }
+            //    for (const Segment<Edge> &seg: badPath) {
+            //        corrected_path += seg;
+            //    }
+	        corrected_path = badPath;
             } else if (corrected_path.size() == 0) {
                 corrected_path.invalidate();
                 dbg::GraphPath tip = badPath.RC();
