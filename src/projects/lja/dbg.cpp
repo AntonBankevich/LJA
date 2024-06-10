@@ -312,13 +312,13 @@ int main(int argc, char **argv) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
         GraphPathStorage storage(dbg);
-        io::SeqReader reader(paths_lib);
-        for(StringContig scontig : reader) {
+        io::SeqReader reader1(paths_lib);
+        for(StringContig scontig : reader1) {
             Contig contig = scontig.makeContig();
             storage.addContig(contig);
         }
         storage.Fill(threads, index);
-        reader.reset();
+        io::SeqReader reader(paths_lib);
         size_t cnt = 0;
         for(StringContig scontig : reader) {
             cnt += 1;

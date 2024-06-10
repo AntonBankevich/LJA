@@ -33,8 +33,10 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
     ag::SaveAllReads<DBGTraits>(dir/"final_dbg.aln", {&readStorage, &extra_reads});
-    readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
-    return {{"corrected_reads", dir/"corrected_reads.fasta"}, {"final_dbg", dir / "final_dbg.gfa"}, {"final_aln", dir / "final_dbg.aln"}};
+    //readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
+    readStorage.printReadPaths(logger, dir / "corrected_reads.aln",
+                                   dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);
+    return {{"corrected_reads", dir/"corrected_reads.paths"}, {"final_dbg", dir / "final_dbg.gfa"}, {"final_aln", dir / "final_dbg.aln"}};
 }
 
 class NoCorrectionStage : public Stage {

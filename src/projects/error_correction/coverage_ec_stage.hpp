@@ -74,15 +74,16 @@ namespace dbg {
         coverageStats(logger, dbg);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
-        readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
-
+        //readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
+        readStorage.printReadPaths(logger, dir / "corrected_reads.aln",
+                                   dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);
         if (debug)
             DrawSplit(Component(dbg), dir / "split");
 //    dbg.printFastaOld(dir / "final_dbg.fasta");
         printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
         printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         std::experimental::filesystem::path res;
-        res = dir / "corrected_reads.fasta";
+        res = dir / "corrected_reads.paths";
         logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;
         return {{"corrected_reads", res},
                 {"pseudo_reads",    dir / "pseudo_reads.fasta"},

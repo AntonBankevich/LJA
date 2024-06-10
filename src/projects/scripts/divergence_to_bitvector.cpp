@@ -5,7 +5,7 @@
 #include <dbg/dbg_construction.hpp>
 #include <dbg/visualization.hpp>
 #include "dbg/graph_printing.hpp"
-
+using namespace dbg;
 
 class DivergenceToBitVector : public Stage {
 public:
@@ -24,7 +24,7 @@ public:
         printDot(dir / "graph.dot", dbg::Component(dbg));
         logger << "graph built";
 //        dbg::printGFA()
-        BulgePathFinder finder(dbg, -1.0);
+        dbg::BulgePathFinder finder(dbg, -1.0);
         KSWAligner kswAligner(1, 5, 5, 3);
         logger << "paths found: " << finder.paths.size() << std::endl;
         std::ofstream outfile;

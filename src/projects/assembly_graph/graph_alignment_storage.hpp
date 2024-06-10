@@ -339,6 +339,11 @@ namespace ag {
 
         void printReadFasta(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
 
+        void printReadPaths(logging::Logger &logger, const std::experimental::filesystem::path &aln_path,
+                                                     const std::experimental::filesystem::path &gfa_path,
+                                                     const std::experimental::filesystem::path &rp_path,
+                                                     size_t k) const;
+
         void printFullAlignments(logging::Logger &logger, const std::experimental::filesystem::path &path) const;
 
         ReadLogger &getLogger() { return *readLogger; }
@@ -816,6 +821,24 @@ namespace ag {
                 continue;
             os << ">" << read.id << "\n" << read.path.unpack().Seq() << "\n";
         }
+        os.close();
+    }
+
+    template<class Traits>
+    void RecordStorage<Traits>::printReadPaths(logging::Logger &logger,
+        const std::experimental::filesystem::path &aln_path,
+        const std::experimental::filesystem::path &gfa_path,
+        const std::experimental::filesystem::path &rp_path,
+        size_t k) const {
+        logger.info() << "Printing reads paths to file " << aln_path << std::endl;
+        std::ofstream os;
+        os.open(aln_path);
+        Save(os);
+        os.close();
+        os.open(rp_path);
+        os << gfa_path.c_str() << std::endl;
+        os << aln_path.c_str() << std::endl;
+        os << k << std::endl;
         os.close();
     }
 
