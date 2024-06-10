@@ -1,5 +1,6 @@
 #include "minimizer_selection.hpp"
 #include "common/min_queue.hpp"
+#include "dbg/aln_reads_reader.hpp"
 
 using namespace hashing;
 std::vector<htype>
@@ -38,7 +39,7 @@ constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size
             hashs.addAll(minimizers.begin(), minimizers.end());
         }
     };
-    io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
+    dbg::SeqReader reader(reads_file, logger, threads, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
     processRecords(reader.begin(), reader.end(), logger, threads, task);
 
     logger.info() << "Finished read processing" << std::endl;

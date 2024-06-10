@@ -32,6 +32,14 @@ const StringContig & io::IContigReader::get() {
     return next;
 }
 
+std::vector<StringContig> io::IContigReader::readAll() {
+    std::vector<StringContig> res;
+    for (StringContig ctg : *this) {
+        res.push_back(std::move(ctg));
+    }
+    return std::move(res);
+}
+
 bool io::IContigReader::eof() {
     return next.isNull();
 }
@@ -65,11 +73,7 @@ io::IContigFromFileReader::~IContigFromFileReader() {
     }
 }
 
-void io::IContigFromFileReader::reset() {
-    inner_read();
-}
-
-void io::SeqReader::nextFile() {
+void io::ISeqReader::nextFile() {
     cur_start = 0;
     cur_end = 0;
     next = {};
@@ -81,29 +85,20 @@ void io::SeqReader::nextFile() {
         return;
     }
     const std::experimental::filesystem::path file_name = *file_it;
-    VERIFY(std::experimental::filesystem::is_regular_file(file_name));
-    if (endsWith(file_name, std::vector<std::string>{".gfa", ".gfa.gz"})) {
-        subreader = new GFAReader(file_name);
-    } else if (endsWith(file_name, std::vector<std::string>{".fastq", ".fastq.gz", ".fq", "fq.gz"})){
-        subreader = new FASTQReader(file_name);
-    } else if (endsWith(file_name, std::vector<std::string>{".fasta", ".fasta.gz", ".fa", ".fa.gz"})){
-        subreader = new FASTAReader(file_name);
-    }
+    VERIFY_MSG(std::experimental::filesystem::is_regular_file(file_name), "not a regular file: " << file_name);
+    initReader(file_name);
     ++file_it;
 }
 
-io::SeqReader::SeqReader(Library _lib, size_t _min_read_size, size_t _overlap):
+
+io::ISeqReader::ISeqReader(Library _lib, size_t _min_read_size, size_t _overlap):
     lib(std::move(_lib)), file_it(lib.begin()),
     max_subread_size(2 * _min_read_size - _overlap),
     min_read_size(_min_read_size), overlap(_overlap) {
     VERIFY(min_read_size >= overlap * 2);
-    reset();
 }
 
-io::SeqReader::SeqReader(const std::experimental::filesystem::path &file_name, size_t _min_read_size, size_t _overlap):
-    SeqReader(Library({file_name}), _min_read_size, _overlap) {}
-
-void io::SeqReader::inner_read() {
+void io::ISeqReader::inner_read() {
     VERIFY(subreader!=nullptr)
     if (! subreader->eof() && subreader->get().size() == cur_end) {
         subreader->inner_read();
@@ -127,17 +122,32 @@ void io::SeqReader::inner_read() {
                         subreader->get().id + id_ext);
 }
 
-void io::SeqReader::reset() {
-    file_it = lib.begin();
-    nextFile();
-    cur_start = 0;
-    cur_end = 0;
-    inner_read();
+
+void io::SeqReader::initReader(const std::experimental::filesystem::path &file_name) {
+    if (endsWith(file_name, std::vector<std::string>{".gfa", ".gfa.gz"})) {
+        subreader = new GFAReader(file_name);
+    } else if (endsWith(file_name, std::vector<std::string>{".fastq", ".fastq.gz", ".fq", "fq.gz"})){
+        subreader = new FASTQReader(file_name);
+    } else if (endsWith(file_name, std::vector<std::string>{".fasta", ".fasta.gz", ".fa", ".fa.gz"})) {
+        subreader = new FASTAReader(file_name);
+    } else {
+        VERIFY_MSG(false, "unkwn file ext: " << file_name);
+    }
 }
+
+io::SeqReader::SeqReader(Library _lib, size_t _min_read_size, size_t _overlap):
+io::ISeqReader::ISeqReader(_lib, _min_read_size, _overlap) {
+    nextFile();
+    SeqReader::inner_read();
+}
+
+io::SeqReader::SeqReader(const std::experimental::filesystem::path &file_name, size_t _min_read_size, size_t _overlap):
+    io::SeqReader::SeqReader(Library({file_name}), _min_read_size, _overlap){}
+
 
 io::FASTQReader::FASTQReader(const std::experimental::filesystem::path &_file_name):
     IContigFromFileReader(_file_name){
-    FASTQReader::reset();
+    FASTQReader::inner_read();
 }
 
 void io::FASTQReader::inner_read() {
@@ -174,7 +184,7 @@ void io::FASTQReader::inner_read() {
 
 io::FASTAReader::FASTAReader(const std::experimental::filesystem::path &_file_name):
     IContigFromFileReader(_file_name) {
-    FASTAReader::reset();
+    FASTAReader::inner_read();
 }
 
 void io::FASTAReader::inner_read() {
@@ -195,7 +205,6 @@ void io::FASTAReader::inner_read() {
             }
             ss << seq;
         }
-        std::cout << "ss.str(): " << ss.str() << std::endl;
         next = {ss.str(), std::move(trim(id.substr(1, id.size() - 1)))};
         return;
     }
@@ -204,7 +213,7 @@ void io::FASTAReader::inner_read() {
 
 io::GFAReader::GFAReader(const std::experimental::filesystem::path &_file_name):
     IContigFromFileReader(_file_name){
-    GFAReader::reset();
+    GFAReader::inner_read();
 }
 
 void io::GFAReader::inner_read() {
