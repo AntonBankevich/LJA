@@ -1,5 +1,5 @@
 project(sequences)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 include_directories(.)
 add_library(lja_sequence STATIC contigs.cpp sequence.cpp)

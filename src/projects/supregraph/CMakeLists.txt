@@ -1,5 +1,5 @@
 project(debruijn)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 
 add_library(lja_spg STATIC supregraph.cpp vertex_resolution.cpp supregraph_base.cpp unique_vertex_storage.cpp converter.hpp read_storage.cpp list_path.cpp decision_rules.cpp listeners.cpp)
