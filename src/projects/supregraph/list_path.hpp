@@ -18,7 +18,7 @@
 //    public:
 //        size_t skip_left;
 //        size_t skip_right;
-//        ListPath() : start(), path(), skip_left(0), skip_right(0) {}
+//        ListPath() : getStart(), path(), skip_left(0), skip_right(0) {}
 //        ListPath(const ListPath &other) = default;
 //        ListPath(ListPath &&other) = default;
 //        explicit ListPath(const spg::GraphPath &other);
@@ -83,8 +83,8 @@
 //        bool rc;
 //    public:
 //        ReadDirection(ReadRecord &read, bool rc) : read(&read), path(&read.path), rc(rc) {}
-//        spg::Vertex &getgetStart() const { return rc ? path->getFinish().rc() : path->getStart(); }
-//        spg::Vertex &getgetFinish() const { return rc ? path->getStart().rc() : path->getFinish(); }
+//        spg::Vertex &getStart() const { return rc ? path->getFinish().rc() : path->getStart(); }
+//        spg::Vertex &getFinish() const { return rc ? path->getStart().rc() : path->getFinish(); }
 //        size_t cutLeft() const {return rc ? path->skip_right : path->skip_left;}
 //        size_t cutRight()() const {return rc ? path->skip_left : path->skip_right;}
 //        size_t size() const {return path->size();}

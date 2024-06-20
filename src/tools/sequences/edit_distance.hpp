@@ -42,6 +42,53 @@ inline size_t edit_distance(Sequence s1, Sequence s2, size_t max_diff) {
         return max_diff;
 }
 
+class ArrayWithDefault {
+    size_t min_index;
+    size_t max_index;
+    std::vector<size_t> vals;
+    size_t default_value = size_t(-1) / 2;
+public:
+    size_t &operator[](size_t ind) {
+        VERIFY(ind >= min_index);
+        VERIFY(ind <= max_index);
+        return vals[ind - min_index];
+    }
+    size_t get(size_t ind) const {
+        if(ind <= max_index && ind >= min_index) {
+            return vals[ind - min_index];
+        } else {
+            return default_value;
+        }
+    }
+    size_t minIndex() const {return min_index;}
+    size_t maxIndex() const {return max_index;}
+    ArrayWithDefault(size_t min_index, size_t max_index) : min_index(min_index), max_index(max_index),
+                    vals(max_index - min_index + 1, default_value) {}
+};
+//inline std::pair<size_t, size_t> bestPrefix(const Sequence &s1, const Sequence &_s2) {
+//    if(_s2.startsWith(s1))
+//        return {s1.size(), s1.size()};
+//    Sequence s2 = _s2.Subseq(0, std::min(_s2.size(), s1.size() * 2));
+//    size_t d = std::max<size_t>(std::max(s1.size(), s2.size()) / 50, 20);
+//    if(s2.size() < s1.size() - d)
+//        return {s2.size(), size_t(-1) / 2};
+//    ArrayWithDefault prev(0, d);
+//    for(size_t j = 0; j <= d; ++j) prev[j] = j;
+//    for(size_t i = 1; i <= s1.size(); ++i) {
+//        ArrayWithDefault cur(i - std::min(i, d), std::min(i + d, s2.size()));
+//        if(cur.minIndex() == 0)
+//            cur[0] = prev.get(0) + 1;
+//        for(size_t j = std::max<size_t>(cur.minIndex(), 1); j <= cur.maxIndex(); ++j)
+//            cur[j] = std::min({ prev.get(j) + 1, cur.get(j - 1) + 1, prev.get(j - 1) + (s1[i - 1] == s2[j - 1] ? 0 : 1) });
+//        std::swap(cur, prev);
+//    }
+//    size_t res = s2.size();
+//    for(size_t j = prev.minIndex(); j <= prev.maxIndex(); j++)
+//        if(prev.get(j) < prev.get(res))
+//            res = j;
+//    return {res, prev.get(res)};
+//}
+
 inline std::pair<size_t, size_t> bestPrefix(const Sequence &s1, const Sequence &_s2, size_t max_diff = -1) {
     if(max_diff == -1)
         max_diff = std::max(s1.size(), _s2.size());

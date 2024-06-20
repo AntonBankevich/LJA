@@ -1,7 +1,7 @@
 #include "ReadsAligner.h"
 #include "graph_alignment.hpp"
 #include "alignment_correction.hpp"
-#include <assembly_graph/paths.hpp>
+#include <assembly_graph/random_access_paths.hpp>
 #include <dbg/multi_graph.hpp>
 #include <common/id_index.hpp>
 #include <common/logging.hpp>
@@ -193,7 +193,7 @@ std::vector<std::pair<size_t, size_t>> Nails(const multigraph::MultiGraph &graph
                                              const multigraph::GraphPath &mpath, const AlignmentForm &cigar) {
     Sequence to_seq = mpath.Seq();
     std::vector<std::pair<size_t, size_t>> vertices;
-    size_t skip_left = mpath.cutLeft();
+    size_t skip_left = mpath.leftCut();
     size_t cur_pos = 0;
     for(multigraph::MGEdge & edge: mpath.edges()) {
         VERIFY(skip_left < edge.fullSize());
@@ -360,18 +360,18 @@ void AnalyseAndPrint(const Sequence &from_seq, const Sequence &to_seq1, const Se
 
 bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_t, size_t>> &nails, multigraph::GraphPath &path,
                      AlignmentForm &al, const Detour &detour){
-    VERIFY(path.getVertex(detour.start) == detour.path.start());
-    VERIFY(path.getVertex(detour.end) == detour.path.finish());
+    VERIFY(detour.startPos.getVertex() == detour.path.getStart());
+    VERIFY(detour.endPos.getVertex() == detour.path.getFinish());
     multigraph::GraphPath correction = detour.path;
-    multigraph::GraphPath initial = path.subPath(detour.start, detour.end);
+    multigraph::GraphPath initial = path.subPath(detour.startPos, detour.endPos);
     Sequence correctionSeq = correction.Seq();
-    if(correctionSeq.size() < nails[detour.start - 1].second + (detour.path.finish().size() - nails[detour.end - 1].second - 1))
+    if(correctionSeq.size() < nails[detour.start - 1].second + (detour.path.getFinish().size() - nails[detour.end - 1].second - 1))
            return false;
     correctionSeq = correctionSeq.Subseq(nails[detour.start - 1].second, correctionSeq.size() -
-                                                                         (detour.path.finish().size() - nails[detour.end - 1].second - 1));
+                                                                         (detour.path.getFinish().size() - nails[detour.end - 1].second - 1));
     Sequence initialSeq = initial.Seq();
     initialSeq = initialSeq.Subseq(nails[detour.start - 1].second, initialSeq.size() -
-                                                                   (initial.finish().size() - nails[detour.end - 1].second - 1));
+                                                                   (initial.getFinish().size() - nails[detour.end - 1].second - 1));
     Sequence subreadSeq = read_seq.Subseq(nails[detour.start - 1].first, nails[detour.end - 1].first + 1);
     std::vector<std::pair<size_t, size_t>> to_ignore = Mark(subreadSeq);
     AlignmentForm initialCigar = defaultAlign(subreadSeq, initialSeq);
@@ -382,22 +382,21 @@ bool CheckAndReroute(const Sequence &read_seq, const std::vector<std::pair<size_
     size_t correctionScore = Score(correctionCigar, subreadSeq, correctionSeq, to_ignore);
     if(correctionScore < initialScore) {
 //        std::cout << "Changed path " << initialScore << " " << correctionScore << " " << std::endl;
-//        std::cout << initial.lenStr() << std::endl;
-//        std::cout << correction.lenStr() << std::endl;
+//        std::cout << initial.str() << std::endl;
+//        std::cout << correction.str() << std::endl;
 //        std::cout << join("\n", mixAndShorten(initialCigar.toString(subreadSeq, initialSeq, to_ignore),
 //                                              correctionCigar.toString(subreadSeq, correctionSeq, to_ignore))) << std::endl;
-        auto lit = al.columnByQpos(nails[detour.start - 1].first);
-        auto rit = al.columnByQpos(nails[detour.end - 1].first);
+        auto lit = al.firstColumnByQpos(nails[detour.start - 1].first);
+        auto rit = al.firstColumnByQpos(nails[detour.end - 1].first);
         ++rit;
         AlignmentForm new_al;
         new_al += al.Prefix(lit);
         new_al += correctionCigar;
         new_al += al.Suffix(rit);
         al = std::move(new_al);
-        path = path.reroute(detour.start, detour.end, detour.path);
+        path = path.subPath(path.firstPosition(), detour.startPos) + detour.path + path.subPath(detour.endPos, path.lastPosition());
         VERIFY(al.queryLength() == read_seq.size());
         VERIFY(al.targetLength() == path.len());
-        std::cout << std::endl;
 //        AnalyseAndPrint(alignedSubread, alignedInitial.Seq());
 //        AnalyseAndPrint(alignedSubread, alignedDetour.Seq());
 //        AnalyseAndPrint(alignedInitial.Seq(), alignedDetour.Seq());
@@ -438,27 +437,32 @@ size_t BulgeFinder::getMinDist(const MGVertex &v1, const MGVertex &v2) {
 }
 
 std::vector<Detour> BulgeFinder::findSimpleBulges(const multigraph::GraphPath &path) {
+    if(path.empty())
+        return {};
     std::vector<Detour> res;
-    for(size_t i = 1; i + 1 < path.size(); i++) {
-        multigraph::MGVertex & start = path.getVertex(i);
-        multigraph::MGVertex & end = path.getVertex(i + 1);
+    ag::PathPosition<MGTraits> position = path.firstPosition() + 1;
+    size_t i = 1;
+    for(ag::PathPosition<MGTraits> position = path.firstPosition() + 1; position + 1 != path.lastPosition(); ++position) {
+        multigraph::MGVertex & start = position.getVertex();
+        multigraph::MGVertex & end = position.nextEdge().getFinish();
         for(multigraph::MGEdge &edge : start) {
-            if(edge != path.getEdge(i) && edge.getFinish() == end) {
-                res.emplace_back(Detour(i, i + 1, {edge}));
+            if(edge != position.nextEdge() && edge.getFinish() == end) {
+                res.emplace_back(Detour(i, i + 1, position, position + 1, GraphPath(edge)));
             }
         }
+        i++;
     }
     return std::move(res);
 }
 
 bool BulgeFinder::recursiveFindBulges(std::vector<multigraph::GraphPath> &bulges, multigraph::GraphPath &bulge, const MGEdge &last_edge,
                                       size_t clen, size_t tlen) {
-    if(bulge.finish() == last_edge.getFinish() && bulge.backEdge() != last_edge && tlen <= clen + max_diff <= tlen + 2 * max_diff) {
+    if(bulge.getFinish() == last_edge.getFinish() && bulge.backEdge() != last_edge && tlen <= clen + max_diff <= tlen + 2 * max_diff) {
         bulges.push_back(bulge);
         if(bulges.size() >= 20)
             return false;
     }
-    for(multigraph::MGEdge &edge : bulge.finish()) {
+    for(multigraph::MGEdge &edge : bulge.getFinish()) {
         size_t new_len = clen + edge.truncSize();
         size_t min_bulge_len = new_len + getMinDist(edge.getFinish(), last_edge.getFinish());
         if(min_bulge_len <= tlen + max_diff) {
@@ -472,12 +476,13 @@ bool BulgeFinder::recursiveFindBulges(std::vector<multigraph::GraphPath> &bulges
     return true;
 }
 
-bool BulgeFinder::recursiveFindBulge(std::vector<Detour> &res, const multigraph::GraphPath &path, size_t start, size_t end,
+bool BulgeFinder::recursiveFindBulge(std::vector<Detour> &res, const multigraph::GraphPath &path, size_t from, size_t to,
+                                     ag::PathPosition<MGTraits> start, ag::PathPosition<MGTraits> end,
                                      size_t path_len) {
     if(path_len == INF) {
         path_len = 0;
-        for (size_t i = start; i < end; i++) {
-            path_len += path.getEdge(i).truncSize();
+        for (ag::PathPosition<MGTraits> pp = start; pp != end; ++pp) {
+            path_len += pp.nextEdge().truncSize();
         }
     }
     if (path_len > max_size) {
@@ -485,14 +490,14 @@ bool BulgeFinder::recursiveFindBulge(std::vector<Detour> &res, const multigraph:
     }
     std::vector<multigraph::GraphPath> bulges;
     bool found_all = true;
-    for(multigraph::MGEdge &edge : path.getVertex(start)) {
-        if(edge == path.getEdge(start))
+    for(multigraph::MGEdge &edge : start.getVertex()) {
+        if(edge == start.nextEdge())
             continue;
         multigraph::GraphPath bulge(edge);
-        found_all &=!recursiveFindBulges(bulges, bulge, path.getEdge(end - 1), edge.truncSize(), path_len);
+        found_all &=!recursiveFindBulges(bulges, bulge, end.prevEdge(), edge.truncSize(), path_len);
     }
     for(multigraph::GraphPath &bulge : bulges) {
-        res.emplace_back(start, end, std::move(bulge));
+        res.emplace_back(from, to, start, end, std::move(bulge));
     }
     return found_all;
 }
@@ -500,34 +505,38 @@ bool BulgeFinder::recursiveFindBulge(std::vector<Detour> &res, const multigraph:
 std::vector<Detour> BulgeFinder::findBulges(const multigraph::GraphPath &path) {
     std::vector<Detour> res;
     bool found_all = true;
-    for(size_t i = 1; i + 1 < path.size(); i++) {
+    size_t i;
+    for(ag::PathPosition<MGTraits> left = path.firstPosition() + 1; left + 1 != path.lastPosition(); ++left) {
         size_t len = 0;
-        for(size_t j = i + 1; j + 1 < path.size(); j++) {
-            len += path.getEdge(j - 1).truncSize();
-            if(len > max_size + path.getVertex(j).size()) {
+        size_t j = i + 1;
+        for(ag::PathPosition<MGTraits> right = left + 1; right + 1 != path.lastPosition(); ++right) {
+            len += right.prevEdge().truncSize();
+            if(len > max_size + right.getVertex().size()) {
                 break;
             }
-            found_all &= recursiveFindBulge(res, path, i, j, len);
+            found_all &= recursiveFindBulge(res, path, i, j, left, right, len);
+            j++;
         }
+        i++;
     }
     if(res.size() > 0)
-        std::cout << path.size() << " " << res.size() << " " << found_all << std::endl;
+        std::cout << path.calculateSize() << " " << res.size() << " " << found_all << std::endl;
     return std::move(res);
 }
 
 bool changeEnd(multigraph::GraphPath &mpath, const Sequence &from_seq, const std::vector<std::pair<size_t, size_t>> &nails, AlignmentForm &al) {
-    MGVertex &last_junction = mpath.getVertex(mpath.size() - 1);
+    MGVertex &last_junction = (mpath.lastPosition() - 1).getVertex();
     bool changed = false;
     for(MGEdge &edge: last_junction) {
         if(edge == mpath.backEdge())
             continue;
 //        std::cout << "Change end attempt" << std::endl;
-        if(edge.fullSize() < mpath.getEdge(mpath.size() - 1).fullSize() - mpath.cutRight())
+        if(edge.fullSize() < mpath.backEdge().fullSize() - mpath.rightCut())
             continue;
         Sequence subreadSeq = from_seq.Subseq(nails.back().first, from_seq.size());
         Sequence initialSeq = mpath.backEdge().getSeq().Subseq(nails.back().second,
-                                                                      mpath.getEdge(mpath.size() - 1).fullSize() -
-                                                                      mpath.cutRight());
+                                                                      mpath.backEdge().fullSize() -
+                                                                              mpath.rightCut());
         Sequence correctionSeq = edge.getSeq().Subseq(nails.back().second, edge.fullSize());
         correctionSeq = correctionSeq.Subseq(0, std::min(correctionSeq.size(), subreadSeq.size() + 1000));
         std::vector<std::pair<size_t, size_t>> to_ignore = Mark(subreadSeq);
@@ -547,7 +556,7 @@ bool changeEnd(multigraph::GraphPath &mpath, const Sequence &from_seq, const std
             mpath.pop_back();
             mpath += edge;
             mpath.cutBack(edge.fullSize() - correctionCigar.targetLength() - nails.back().second);
-            auto start = al.columnByQpos(nails.back().first);
+            auto start = al.firstColumnByQpos(nails.back().first);
             al = al.Prefix(start) + correctionCigar;
             VERIFY(al.queryLength() == from_seq.size());
             VERIFY(al.targetLength() == mpath.len());
@@ -579,7 +588,7 @@ multigraph::GraphPath FixPath(const nano::GraphContig &graphContig, BulgeFinder 
             }
         }
     }
-    if(mpath.size() > 1) {
+    if(!mpath.isSingleton() && !mpath.empty()) {
         std::vector<std::pair<size_t, size_t>> nails = Nails(graph, from_seq, mpath, cigar);
         changed = changeEnd(mpath, from_seq, nails, cigar);
 //        if(changed)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <assembly_graph/paths.hpp>
+#include <assembly_graph/random_access_paths.hpp>
 #include <alignment/alignment_form.hpp>
 #include <alignment/ksw_wrapper.hpp>
 

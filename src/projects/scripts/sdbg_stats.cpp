@@ -42,8 +42,6 @@ int main(int argc, char **argv) {
     SparseDBG sdbg = constructSparseDBGFromReads(logger, reads_lib, threads, hasher, hash_list, w);
 //    sdbg.printStats(logger);
     DbgConstructionHelper(hasher).checkSeqFilled(threads, logger, sdbg);
-    if(parameterValues.getCheck("add-ends"))
-        tieTips(logger, sdbg, k, w, threads);
     simpleStats(logger, sdbg);
     io::SeqReader reader(ref);
     KmerIndex aligner(sdbg);

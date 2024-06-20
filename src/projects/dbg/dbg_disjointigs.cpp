@@ -4,17 +4,17 @@
 
 using namespace hashing;
 namespace dbg {
-    Sequence buildDisjointig(dbg::GraphPath &path) {
+    Sequence buildDisjointig(old::ag::RAGraphPath<DBGTraits> &path) {
         Sequence disjointig = path.Seq();
-        const Vertex &last = path.finish().rc();
+        const Vertex &last = path.getFinish().rc();
         const Edge &lastEdge = path.backEdge().rc();
-        size_t k = path.start().size();
+        size_t k = path.getStart().size();
         if (path.frontEdge().intCov() + lastEdge.intCov() + k >= disjointig.size())
             return Sequence{};
         disjointig = disjointig.Subseq(path.frontEdge().intCov(), disjointig.size() - lastEdge.intCov());
-        if (path.start().inDeg() > 1 && path.start().outDeg() == 1) {
+        if (path.getStart().inDeg() > 1 && path.getStart().outDeg() == 1) {
             VERIFY(path.frontEdge().intCov() == 0);
-            const Edge &extra = *path.start().rc().begin();
+            const Edge &extra = *path.getStart().rc().begin();
             disjointig = !(extra.truncSeq().Subseq(0, extra.intCov())) + disjointig;
         }
         if (last.inDeg() > 1 && last.outDeg() == 1) {
@@ -28,16 +28,16 @@ namespace dbg {
     void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
         for (Edge &edge: rec) {
             VERIFY(!rec.getSeq().empty());
-            dbg::GraphPath path = dbg::GraphPath::WalkForward(edge);
-            if (rec < path.finish().rc() || (rec == path.finish().rc() && path.Seq() <= !path.Seq())) {
+            old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(edge);
+            if (rec < path.getFinish().rc() || (rec == path.getFinish().rc() && path.Seq() <= !path.Seq())) {
                 Sequence disjointig = buildDisjointig(path);
                 if (!disjointig.empty()) {
                     VERIFY(disjointig.size() > rec.size());
                     res.add(disjointig.copy());
                 }
             }
-            for (size_t i = 1; i < path.size(); i++) {
-                path.getVertex(i).mark();
+            for (Vertex &vertex : path.innerVertices()) {
+                vertex.mark();
             }
         }
     }
@@ -97,20 +97,20 @@ namespace dbg {
                     if (vertex.isJunction() || vertex.marked())
                         return;
                     Edge &edge = vertex.front();
-                    dbg::GraphPath path = dbg::GraphPath::WalkForward(edge);
-                    if(path.finish() != vertex) {
-                        VERIFY(path.finish() == vertex.rc());
-                        path += dbg::GraphPath::WalkForward(vertex.rc().front());
+                    old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(edge);
+                    if(path.getFinish() != vertex) {
+                        VERIFY(path.getFinish() == vertex.rc());
+                        path += old::ag::RAGraphPath<DBGTraits>::WalkForward(vertex.rc().front());
                     }
-                    if (path.finish() != vertex) {
-                        std::cout << path.start().getInnerId() << " " << path.finish().getInnerId() << " "
+                    if (path.getFinish() != vertex) {
+                        std::cout << path.getStart().getInnerId() << " " << path.getFinish().getInnerId() << " "
                                   << path.size() <<
-                                  " " << path.finish().isJunction() << " " << path.backEdge().rc().nuclLabel()
+                                  " " << path.getFinish().isJunction() << " " << path.backEdge().rc().firstNucl()
                                   << std::endl;
                     }
-                    VERIFY(path.finish() == vertex);
-                    for (size_t i = 1; i < path.size(); i++) {
-                        if (path.getVertex(i) < vertex || path.getVertex(i) < vertex.rc()) {
+                    VERIFY(path.getFinish() == vertex);
+                    for (Vertex &inner : path.innerVertices()) {
+                        if (inner < vertex || inner < vertex.rc()) {
                             return;
                         }
                     }
@@ -150,9 +150,6 @@ namespace dbg {
         DbgConstructionHelper helper(hasher);
 //    sdbg.printStats(logger);
 
-        helper.checkSeqFilled(threads, logger, sdbg);
-
-        tieTips(logger, sdbg, hasher.getK(), w, threads);
         helper.checkSeqFilled(threads, logger, sdbg);
         printStats(logger, sdbg);
 //    std::ofstream os;

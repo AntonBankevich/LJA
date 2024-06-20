@@ -9,11 +9,11 @@
 #include <vector>
 #include "verify.hpp"
 
-inline std::string itos(size_t val, size_t min_size = 0) {
+inline std::string itos(size_t val, size_t add_zero_until_size = 0) {
     std::stringstream ss;
     ss << val;
     std::string res = ss.str();
-    while(res.size() < min_size) {
+    while(res.size() < add_zero_until_size) {
         res = "0" + res;
     }
     return res;

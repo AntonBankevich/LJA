@@ -70,8 +70,11 @@ void dbg::DBGAlignedReadsReader::inner_read() {
         std::stringstream ss;
         ss << line;
         ag::AlignedRead<DBGTraits> aligned_read = ag::AlignedRead<DBGTraits>::Load(ss, id_index);
-        ag::GraphPath<dbg::DBGTraits> graph_path = aligned_read.path.unpack();
-        next = {graph_path.Seq().str(), aligned_read.id};
+        ag::GraphPath<dbg::DBGTraits> graph_path = aligned_read.getPath();
+        if(!graph_path.valid())
+            next = {"", aligned_read.getId()};
+        else
+            next = {graph_path.Seq().str(), aligned_read.getId()};
         --number_of_paths;
         return;
     }

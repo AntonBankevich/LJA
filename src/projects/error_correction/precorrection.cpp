@@ -1,5 +1,5 @@
-#include <assembly_graph/paths.hpp>
-#include <dbg/graph_alignment_storage.hpp>
+#include <assembly_graph/random_access_paths.hpp>
+#include <dbg/dbg_read_alignment_storage.hpp>
 #include "precorrection.hpp"
 #include "correction_utils.hpp"
 #include "dbg/sparse_dbg.hpp"
@@ -9,7 +9,7 @@ dbg::GraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage,
     size_t sz = 0;
     while(sz < max_size) {
         dbg::Edge *next = nullptr;
-        for(dbg::Edge &edge : res.finish()) {
+        for(dbg::Edge &edge : res.getFinish()) {
             if(edge.getCoverage() > 1 && edge.getCoverage() < reliable_coverage) {
                 next = nullptr;
                 break;
@@ -27,7 +27,7 @@ dbg::GraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage,
         size_t len = std::min(max_size - sz, next->truncSize());
         res += Segment<dbg::Edge>(*next, 0, len);
         sz += res.back().size();
-        if(&res.finish() == finish)
+        if(&res.getFinish() == finish)
             break;
     }
     return std::move(res);
@@ -46,11 +46,11 @@ dbg::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_cove
 dbg::GraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
     dbg::GraphPath res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.truncSize() + 20,
                                            &bulge.getFinish());
-    if(res.finish() == bulge.getFinish() && res.endClosed() && res.truncLen() + 20 > bulge.truncSize()) {
+    if(res.getFinish() == bulge.getFinish() && res.endClosed() && res.truncLen() + 20 > bulge.truncSize()) {
         return std::move(res);
     } else {
         res = FindOnlyPathForward(bulge.getFinish().rc(), reliable_coverage, bulge.truncSize() + 20, &bulge.getStart().rc()).RC();
-        if(res.start() == bulge.getStart() && res.startClosed() && res.truncLen() + 20 > bulge.truncSize())
+        if(res.getStart() == bulge.getStart() && res.startClosed() && res.truncLen() + 20 > bulge.truncSize())
             return std::move(res);
         else {
             std::vector<dbg::GraphPath> candidates = FindPlausibleBulgeAlternatives(dbg::GraphPath(bulge), 10, reliable_coverage);
@@ -58,38 +58,39 @@ dbg::GraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
                                                                                             bulge.truncSize() + 20) {
                 return std::move(candidates[0]);
             }
-            return {bulge};
+            return dbg::GraphPath(bulge);
         }
     }
 }
 
 
-std::string Precorrector::correctRead(dbg::GraphPath &path) {
-    if(path.size() == 1)
+std::string Precorrector::correctRead(const std::string &name, dbg::GraphPath &path) {
+    if(path.isSingleton())
         return "";
     dbg::GraphPath corrected_path;
     size_t ncor = 0;
     std::vector<std::string> message;
-    for(size_t i = 0; i < path.size(); i++) {
-        if(path[i].contig().getCoverage() != 1 ||
-           (i > 0 && path[i - 1].contig().getCoverage() < reliable_threshold) ||
-           (i + 1 < path.size() && path[i + 1].contig().getCoverage() < reliable_threshold)) {
-            corrected_path += path[i];
+    for(dbg::PathPosition pp = path.firstPosition(); pp != path.lastPosition(); ++pp) {
+        dbg::PathPosition ppp1 = pp + 1;
+        if(pp.nextEdge().getCoverage() != 1 ||
+           (pp != path.firstPosition() && pp.prevEdge().getCoverage() < reliable_threshold) ||
+           (ppp1 != path.lastPosition() && ppp1.nextEdge().getCoverage() < reliable_threshold)) {
+            corrected_path += path.getSegment(pp);
             continue;
         }
         dbg::GraphPath correction;
         std::string m = "";
-        if(i == 0) {
-            correction = PrecorrectTip(path[i].RC(), reliable_threshold).RC();
+        if(pp == path.firstPosition()) {
+            correction = PrecorrectTip(path.front().RC(), reliable_threshold).RC();
             m = "pit";
-        } else if(i + 1 == path.size()) {
-            correction = PrecorrectTip(path[i], reliable_threshold);
+        } else if(ppp1 == path.lastPosition()) {
+            correction = PrecorrectTip(path.back(), reliable_threshold);
             m = "pot";
         } else {
-            correction = PrecorrectBulge(path[i].contig(), reliable_threshold);
+            correction = PrecorrectBulge(pp.nextEdge(), reliable_threshold);
             m = "pb";
         }
-        if(correction.size() != 1 || correction[0].contig() != path[i].contig()) {
+        if(!correction.isSingleton() || correction.front() != pp.nextEdge()) {
             ncor += 1;
             message.emplace_back(m);
         }

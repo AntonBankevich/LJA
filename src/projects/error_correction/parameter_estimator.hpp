@@ -33,8 +33,10 @@ public:
         VERIFY_MSG(observations.empty() || sigma2 >= -1e-6, sigma2);
     }
 
-    void Print(std::ostream &os) {
+    void PrintBasic(std::ostream &os) {
         os << "Average: " << avg_cov << " variance2: " << sigma2 << " using length step: " << len_step << "\n";
+    }
+    void PrintStatistics(std::ostream &os) {
         for(double cov : {1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 12., 14., 16., 18.,  20., 25., 30., 40., 50., 60., 80., 100.}) {
             os << "Penalties for " << cov << "\n";
             for (size_t i = 0; i < 20; i++)
@@ -111,7 +113,7 @@ const dbg::Edge *SeekCovered(const dbg::Vertex &start, double min_cov) {
     return nullptr;
 }
 
-DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const dbg::ReadAlignmentStorage &recordStorage, bool diploid) {
+DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const dbg::DBGAlignedReadStorage &recordStorage, bool diploid) {
     std::vector<size_t> observations;
     for(dbg::Vertex &v : dbg.vertices()) {
         if(v.inDeg() != 1 || v.outDeg() != 2)
@@ -141,7 +143,7 @@ DatasetParameters EstimateDatasetParameters(dbg::SparseDBG &dbg, const dbg::Read
 //            continue;
 //        }
 //        size_t clen = 0;
-//        const dbg::Vertex *cur = first_covered->start();
+//        const dbg::Vertex *cur = first_covered->getStart();
 //        bool is_hap = true;
 //        while(clen < hap_vote_len) {
 //            std::vector<const dbg::Edge *> out = GetOutgoing(*cur, min_cov);

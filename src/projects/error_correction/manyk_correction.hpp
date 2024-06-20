@@ -1,5 +1,5 @@
 #pragma once
-#include "dbg/graph_alignment_storage.hpp"
+#include "dbg/dbg_read_alignment_storage.hpp"
 #include "dbg/sparse_dbg.hpp"
 #include "error_correction.hpp"
 #include "correction_utils.hpp"
@@ -24,54 +24,60 @@ namespace dbg {
             Tip(dbg::GraphPath &&left, dbg::GraphPath &&tip) : left(left), tip(tip) {}
         };
 
+        struct PathSegment {
+            PathPosition from;
+            PathPosition to;
+            PathSegment(PathPosition from, PathPosition to) : from(from), to(to) {}
+        };
+
         class ReadRecord {
         private:
             const dbg::GraphPath &read;
         public:
-            std::vector<size_t> switch_positions;
+            std::vector<PathSegment> goodRegions;
 
-            ReadRecord(const dbg::GraphPath &read, std::vector<size_t> &&switchPositions) :
-                    read(read), switch_positions(switchPositions) {}
+            ReadRecord(const dbg::GraphPath &read, std::vector<PathSegment> goodRegions) :
+                    read(read), goodRegions(std::move(goodRegions)) {}
 
             bool isPerfect() const { return blockNum() == 1 && !hasIncomingTip() && !hasOutgoingTip(); }
 
-            bool isBad() const { return switch_positions.size() == 0; }
+            bool isBad() const { return goodRegions.size() == 0; }
 
-            size_t blockNum() const { return switch_positions.size() / 2; }
+            size_t blockNum() const { return goodRegions.size(); }
 
             dbg::GraphPath getBlock(size_t num) const;
 
-            size_t bulgeNum() const { return (switch_positions.size() - 2) / 2; }
+            size_t bulgeNum() const { return goodRegions.size() - 1; }
 
             Bulge getBulge(size_t num);
 
-            bool hasIncomingTip() const { return !switch_positions.empty() && switch_positions[0] > 0; }
+            bool hasIncomingTip() const { return !goodRegions.empty() && goodRegions.front().from != read.firstPosition(); }
 
-            bool hasOutgoingTip() const { return !switch_positions.empty() && switch_positions.back() < read.size(); }
+            bool hasOutgoingTip() const { return !goodRegions.empty() && goodRegions.back().to != read.lastPosition(); }
 
             Tip getOutgoingTip();
 
             Tip getIncomingTip();
         };
 
-        void calculateReliable(const dbg::GraphPath &read_path, std::vector<size_t> &last_reliable,
-                               std::vector<size_t> &next_reliable) const;
+        void calculateReliable(const dbg::GraphPath &read_path, std::vector<PathPosition> &last_reliable,
+                               std::vector<PathPosition> &next_reliable) const;
 
-        std::vector<size_t> calculateLowRegions(const std::vector<size_t> &last_reliable,
-                                                const std::vector<size_t> &next_reliable,
-                                                dbg::GraphPath &read_path) const;
+        std::vector<PathSegment> calculateLowRegions(const std::vector<PathPosition> &last_reliable,
+                                                     const std::vector<PathPosition> &next_reliable,
+                                                     const dbg::GraphPath &read_path) const;
 
-        void mergeLow(dbg::GraphPath &read_path, std::vector<size_t> &positions, size_t bad_length) const;
+        void mergeLow(const dbg::GraphPath &read_path, std::vector<PathSegment> &positions, size_t bad_length) const;
 
         dbg::SparseDBG &dbg;
-        ReadAlignmentStorage &reads;
+        DBGAlignedReadStorage &reads;
         size_t K;
         size_t expected_coverage;
         double reliable_threshold;
         double bad_threshold;
         bool diploid;
     public:
-        ManyKCorrector(logging::Logger &logger, dbg::SparseDBG &dbg, ReadAlignmentStorage &reads, size_t K,
+        ManyKCorrector(logging::Logger &logger, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads, size_t K,
                        size_t expectedCoverage,
                        double reliable_threshold, double bad_threshold, bool diploid) : AbstractCorrectionAlgorithm(
                 "ManyKCorrector"),
@@ -82,12 +88,12 @@ namespace dbg {
                                                                                                 reliable_threshold),
                                                                                         bad_threshold(bad_threshold),
                                                                                         diploid(diploid) {
-            VERIFY(reads.getMaxLen() >= K);
+//            VERIFY(reads.getMaxLen() >= K);
         }
 
-        void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, ReadAlignmentStorage &reads) override;
+        void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads) override;
 
-        ReadRecord splitRead(dbg::GraphPath &read_path) const;
+        ReadRecord splitRead(const dbg::GraphPath &read_path) const;
 
         dbg::GraphPath uniqueExtension(const dbg::GraphPath &base, size_t max_len) const;
 
@@ -105,10 +111,10 @@ namespace dbg {
 
         dbg::GraphPath correctTip(const Tip &tip, std::string &message) const;
 
-        std::string correctRead(dbg::GraphPath &read_path) override;
+        std::string correctRead(const std::string &name, dbg::GraphPath &read_path) override;
     };
 
-    size_t ManyKCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, ReadAlignmentStorage &reads_storage,
+    size_t ManyKCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads_storage,
                         double threshold,
                         double reliable_threshold, size_t K, size_t expectedCoverage, bool diploid);
 }

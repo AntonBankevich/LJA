@@ -1,3 +1,4 @@
+#include <assembly_graph/ag_algorithms.hpp>
 #include "graph_stats.hpp"
 #include "dbg_construction.hpp"
 
@@ -89,6 +90,7 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<std::pair<hash
 
     logger.trace() << "Filled dbg edges. Merging unbranching paths." << std::endl;
     ag::MergeAll(logger, threads, dbg);
+    dbg.resetEdgeCodes(logger, threads);
     logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
     logger.trace() << "Statistics for de Bruijn graph:" << std::endl;
     printStats(logger, dbg);

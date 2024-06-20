@@ -15,34 +15,28 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
                                        (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string(), debug) :
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
     size_t extension_size = std::max<size_t>(k * 2, 1000);
-    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
-    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true, false);
-    readStorage.setReadLogger(readLogger);
-    dbg::ReadAlignmentStorage extra_reads(dbg, 0, extension_size, false, true, false);
-    extra_reads.setReadLogger(readLogger);
     io::SeqReader reader(reads_lib);
-    {
-        KmerIndex index(dbg);
-        index.fillAnchors(logger, threads, dbg, w);
-        readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
-    }
+    dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
+                                           AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
+                                           true);
+    readStorage.trackSuffixes(logger, threads, dbg, 0, extension_size);
+    dbg::DBGAlignedReadStorage extra_reads(logger, threads, dbg, std::vector<ag::AlignedRead<DBGTraits>>(), false);
     coverageStats(logger, dbg);
-    if(debug) {
-        PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
-    }
     printFasta(dir / "final_dbg.fasta", dbg, &ag::SaveEdgeName<DBGTraits>);
     Printer<DBGTraits> printer;
     printer.addEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
     printer.printGFA(dir / "final_dbg.gfa", Component(dbg), true);
-    printer.setEdgeInfo(ObjInfo<Edge>({readStorage.labeler()},{},{}));
+    printer.setEdgeInfo(ObjInfo<Edge>({readStorage.getSuffixes().labeler()},{},{}));
     printer.printDot(dir / "final_dbg.dot", Component(dbg));
     //printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>); delete if ok
     //printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler()); delete if ok
-    ag::SaveAllReads<DBGTraits>(dir/"final_dbg.aln", {&readStorage, &extra_reads});
-    //readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
-    readStorage.printReadPaths(logger, dir / "corrected_reads.aln",
+    ag::SaveReads(dir/"final_dbg.aln", readStorage);
+    ag::SaveReads(dir / "extra_read.aln", extra_reads);
+    //readStorage.getReads().printReadFasta(logger, dir / "corrected_reads.fasta");
+    readStorage.getReads().printReadPaths(logger, dir / "corrected_reads.aln",
                                    dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);
-    return {{"corrected_reads", dir/"corrected_reads.paths"}, {"final_dbg", dir / "final_dbg.gfa"}, {"final_aln", dir / "final_dbg.aln"}};
+    return {{"corrected_reads", dir/"corrected_reads.paths"}, {"final_dbg", dir / "final_dbg.gfa"},
+            {"final_aln", dir / "final_dbg.aln"}, {"extra_reads_aln", dir / "extra_reads.aln"}};
 }
 
 class NoCorrectionStage : public Stage {

@@ -2,7 +2,6 @@
 
 #include "dbg/graph_modification.hpp"
 #include "dbg/sparse_dbg.hpp"
-#include "assembly_graph/compact_path.hpp"
 #include "error_correction/tip_correction.hpp"
 #include <sequences/sequence.hpp>
 #include <random>
@@ -40,6 +39,5 @@ namespace dbg {
 
     void MarkUnreliableTips(dbg::SparseDBG &dbg, const std::vector<Connection> &patches);
 
-    void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
-                           const std::vector<dbg::ReadAlignmentStorage *> &storages);
+    void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg);
 }

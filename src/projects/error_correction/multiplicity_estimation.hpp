@@ -1,11 +1,10 @@
 #pragma once
 
-#include "dbg/graph_alignment_storage.hpp"
+#include "dbg/dbg_read_alignment_storage.hpp"
 #include "uniqueness.hpp"
 #include "ff.hpp"
 #include "dbg/sparse_dbg.hpp"
 #include "dbg/visualization.hpp"
-#include "assembly_graph/compact_path.hpp"
 #include <utility>
 
 class MappedNetwork : public Network {
@@ -20,10 +19,10 @@ public:
     std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> findBounds();
 };
 
-std::pair<double, double> minmaxCov(const dbg::Component &subcomponent, const dbg::ReadAlignmentStorage &reads_storage,
+std::pair<double, double> minmaxCov(const dbg::Component &subcomponent, const dbg::DBGAlignedReadStorage &reads_storage,
                                     const std::function<bool(const dbg::Edge &)> &is_unique);
 
-    class UniqueClassificator : public MultiplicityBounds {
+class UniqueClassificator : public MultiplicityBounds {
 private:
     dbg::SparseDBG &dbg;
     bool diploid;
@@ -31,12 +30,12 @@ private:
     double initial_rel_coverage;
 
 public:
-    const dbg::ReadAlignmentStorage &reads_storage;
+    const dbg::DBGAlignedReadStorage &reads_storage;
 
     void markPseudoHets() const;
 
     void classify(logging::Logger &logger, size_t unique_len, const std::experimental::filesystem::path &dir);
-    explicit UniqueClassificator(dbg::SparseDBG &dbg, const dbg::ReadAlignmentStorage &reads_storage, double initial_rel_coverage, bool diploid, bool debug) :
+    explicit UniqueClassificator(dbg::SparseDBG &dbg, const dbg::DBGAlignedReadStorage &reads_storage, double initial_rel_coverage, bool diploid, bool debug) :
                     dbg(dbg), reads_storage(reads_storage), initial_rel_coverage(initial_rel_coverage), diploid(diploid), debug(debug) {}
     size_t ProcessUsingCoverage(logging::Logger &logger, const dbg::Component &subcomponent,
                               const std::function<bool(const dbg::Edge &)> &is_unique, double rel_coverage);
@@ -45,6 +44,6 @@ public:
     size_t processComponent(logging::Logger &logger, const dbg::Component &component);
 };
 
-dbg::ReadAlignmentStorage ResolveLoops(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads_storage,
+ag::AlignedReadStorage<dbg::DBGTraits> ResolveLoops(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads_storage,
                            const AbstractUniquenessStorage &more_unique);
 

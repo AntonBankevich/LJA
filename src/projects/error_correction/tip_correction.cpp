@@ -14,22 +14,15 @@ void MakeUnreliable(Edge &e) {
 
 inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, double reliable_threshold) {
     logger.info() << "Remarking reliable edges" << std::endl;
-    for(auto &vit : sdbg.verticesUnique()) {
-        for(Vertex * vp : {&vit, &vit.rc()}) {
-            Vertex &v = *vp;
-            for(Edge &edge : v) {
-                edge.is_reliable = true;
-            }
-        }
-    }
+    for(Edge &edge : sdbg.edges()) edge.is_reliable = true;
     size_t infty = 1000000000;
-    std::unordered_map<Vertex *, size_t> max_tip;
-    std::vector<Edge*> queue;
+    std::unordered_map<VertexId, size_t> max_tip;
+    std::vector<EdgeId> queue;
     for(Edge &edge : sdbg.edges()) {
         if(edge.getFinish().outDeg() == 0 && edge.getFinish().inDeg() == 1 && edge.truncSize() < 15000 &&
                 edge.getCoverage() < reliable_threshold) {
-            max_tip[&edge.getFinish()] = 0;
-            queue.emplace_back(&edge);
+            max_tip[edge.getFinish().getId()] = 0;
+            queue.emplace_back(edge.getId());
         }
     }
     while(!queue.empty()) {
@@ -38,22 +31,22 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
         Vertex &v = new_edge.getStart();
         bool good = true;
         size_t val = 0;
-        Edge *best = nullptr;
+        EdgeId best;
         for(Edge &out : v) {
-            if(max_tip.find(&out.getFinish()) == max_tip.end()) {
+            if(max_tip.find(out.getFinish().getId()) == max_tip.end()) {
                 good = false;
                 break;
             } else {
-                if(val < max_tip[&out.getFinish()] + out.truncSize()) {
-                    val = max_tip[&out.getFinish()] + out.truncSize();
-                    best = &out;
+                if(val < max_tip[out.getFinish().getId()] + out.truncSize()) {
+                    val = max_tip[out.getFinish().getId()] + out.truncSize();
+                    best = out.getId();
                 }
             }
         }
         if(good && val < 30000) {
-            max_tip[&v] = val;
+            max_tip[v.getId()] = val;
             for(Edge &out : v) {
-                if(&out == best) {
+                if(out.getId() == best) {
                     out.is_reliable = true;
                 } else {
                     MakeUnreliable(out);
@@ -61,7 +54,7 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
             }
             if(v.inDeg() == 1 && v.rc().begin()->truncSize() < 10000 &&
                     v.rc().begin()->getCoverage() < reliable_threshold) {
-                queue.emplace_back(&(v.rc().begin()->rc()));
+                queue.emplace_back(v.rc().begin()->rc().getId());
             }
         }
     }
@@ -71,17 +64,17 @@ inline dbg::GraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
     dbg::GraphPath path(v);
     size_t len = 0;
     while(len < max_size) {
-        Edge *next = nullptr;
-        for (Edge &edge : path.finish()) {
+        EdgeId next;
+        for (Edge &edge : path.getFinish()) {
             if (edge.is_reliable) {
-                if(next != nullptr) {
-                    next = nullptr;
+                if(next.valid()) {
+                    next = EdgeId();
                     break;
                 }
-                next = &edge;
+                next = edge.getId();
             }
         }
-        if(next == nullptr)
+        if(!next.valid())
             break;
         path += *next;
         len += next->truncSize();
@@ -92,55 +85,59 @@ inline dbg::GraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
 
 
 inline dbg::GraphPath CorrectSuffix(const dbg::GraphPath &al) {
-    size_t first_unreliable = al.size();
+    PathPosition first_unreliable = al.lastPosition();
     size_t bad_end_size = 0;
-    while(first_unreliable > 0 && !al[first_unreliable - 1].contig().is_reliable) {
-        first_unreliable--;
-        bad_end_size += al[first_unreliable].size();
+    while(first_unreliable != al.firstPosition() && !first_unreliable.prevEdge().is_reliable) {
+        bad_end_size += first_unreliable.prevEdge().truncSize();
+        --first_unreliable;
     }
-    if(first_unreliable == al.size() || first_unreliable == 0) {
+    if(first_unreliable == al.lastPosition() || first_unreliable == al.firstPosition()) {
         return al;
     }
     size_t max_len = bad_end_size  * 11/10 + 100;
-    dbg::GraphPath alternative = ReliablePath(al.getVertex(first_unreliable), max_len);
-    if(alternative.finish().outDeg() != 0 && alternative.truncLen() + 2000 < bad_end_size) {
+    dbg::GraphPath alternative = ReliablePath(first_unreliable.getVertex(), max_len);
+    if(alternative.getFinish().outDeg() != 0 && alternative.truncLen() + 100 < bad_end_size) {
         return al;
     }
-    Sequence tip = al.truncSubseq(first_unreliable);
+    Sequence tip = al.subPath(first_unreliable).truncSeq();
     Sequence alt = alternative.truncSeq();
     Sequence projection = alt;
     if(alt.size() > tip.size())
         projection = alt.Subseq(0, bestPrefix(tip, alt).first);
-    dbg::GraphPath res = al.subPath(0, first_unreliable);
+    dbg::GraphPath res = al.subPath(al.firstPosition(), first_unreliable);
     res.extend(projection);
     return res;
 }
 
-void CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
-                 std::vector<ReadAlignmentStorage *> storages) {
+size_t CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
+                 std::vector<DBGAlignedReadStorage *> storages) {
     logger.info() << "Correcting tips using reliable edge marks" << std::endl;
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
-    for(dbg::ReadAlignmentStorage *storageIt : storages) {
+    for(dbg::DBGAlignedReadStorage *storageIt : storages) {
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(storageIt, cnt)
-        for (size_t i = 0; i < storageIt->size(); i++) {
-            ag::AlignedRead<DBGTraits> &read = storageIt->operator[](i);
+        for (size_t i = 0; i < storageIt->getReads().size(); i++) {
+            ag::AlignedRead<DBGTraits> &read = storageIt->getReads()[i];
             if (!read.valid())
                 continue;
-            dbg::GraphPath al = read.path.unpack();
+            dbg::GraphPath al = read.getPath();
             dbg::GraphPath al1 = CorrectSuffix(al);
             dbg::GraphPath al2 = CorrectSuffix(al1.RC()).RC();
-            if (al != al2) {
+            if (al != al2 && al2.truncLen() > 500) {
                 cnt += 1;
-                storageIt->reroute(read, al, al2, "Tip corrected");
+                storageIt->getReads().rerouteRead(read, al2, "Tip corrected");
             }
         }
-        storageIt->applyCorrections(logger, threads);
+        storageIt->getReads().applyCorrections(logger, threads);
     }
+    return cnt.get();
 }
 
-void TipCorrectionPipeline(logging::Logger &logger, dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads, size_t threads,
+void TipCorrectionPipeline(logging::Logger &logger, dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads, size_t threads,
                            double reliable_threshold) {
     FillReliableTips(logger, dbg, reliable_threshold);
-    CorrectTips(logger, threads, dbg, {&reads});
+    size_t cnt = CorrectTips(logger, threads, dbg, {&reads});
+    for(Edge &edge : dbg.edges())
+        edge.is_reliable = false;
+    logger.info() << "Corrected " << cnt << " reads using algorithm " << "TipCorrector" << std::endl;
 }

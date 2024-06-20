@@ -1,14 +1,11 @@
 #pragma once
 
 #include "assembly_graph/assembly_graph.hpp"
-#include <assembly_graph/paths.hpp>
-#include <assembly_graph/compact_path.hpp>
+#include <assembly_graph/random_access_paths.hpp>
 #include "sequences/contigs.hpp"
+
 namespace spg {
-    class SupreGraph;
-
     class SPGVertex;
-
     class SPGEdge;
 
     typedef Position<SPGEdge> EdgePosition;
@@ -20,8 +17,6 @@ namespace spg {
         bool inf_left;
         bool inf_right;
     public:
-        bool fire_create = false;
-        bool fire_destroy = false;
         SPGVertexData(bool cyclic, bool inf_left, bool inf_right) : cyclic(cyclic), inf_left(inf_left),
                                                                     inf_right(inf_right) {
         }
@@ -39,8 +34,6 @@ namespace spg {
 
     class SPGEdgeData {
     public:
-        bool fire_create = false;
-        bool fire_destroy = false;
         SPGEdgeData RC() const { return {}; }
     };
 
@@ -52,25 +45,27 @@ namespace spg {
         typedef SPGVertexData VertexData;
     };
 
+//    TODO: switch to new path without random access
+    typedef typename ag::GraphPath<SPGTraits> GraphPath;
+//    typedef typename old::ag::PathPosition<SPGTraits> PathPosition;
+    typedef typename ag::PathDirection<SPGTraits> PathDirection;
+    typedef ag::VertexResolutionResult<SPGTraits> VertexResolutionResult;
+
+
     class SPGVertex : public ag::BaseVertex<SPGTraits>, public SPGVertexData {
     public:
         explicit SPGVertex(id_type id, Sequence seq, SPGVertexData data) : ag::BaseVertex<SPGTraits>(id,
                                                                                                      std::move(seq)),
-                                                                           SPGVertexData(std::move(data)) {}
+                                                                           SPGVertexData(data) {}
 
         explicit SPGVertex(id_type id, bool canonical, SPGVertexData data) : ag::BaseVertex<SPGTraits>(id, canonical),
-                                                                             SPGVertexData(std::move(data)) {}
+                                                                             SPGVertexData(data) {}
 
 //        SPGVertex(): seq(""), id(0), label("") {VERIFY(false);}
         SPGVertex(const SPGVertex &) = delete;
         ~SPGVertex() override {
-            VERIFY(fire_destroy);
+            VERIFY_MSG(fire_destroy, getId());
         }
-
-        Edge &addSPEdgeLockFree(Vertex &end, ag::BaseEdge<SPGTraits>::id_type eid = {},
-                                ag::BaseEdge<SPGTraits>::id_type rcid = {});
-
-        Edge &addSPEdge(Vertex &end, ag::BaseEdge<SPGTraits>::id_type eid = {}, ag::BaseEdge<SPGTraits>::id_type rcid = {});
 
         bool isCore();
 
@@ -83,9 +78,9 @@ namespace spg {
     public:
         explicit SPGEdge(id_type id, SPGVertex &start, SPGVertex &end, Sequence _seq, SPGEdgeData = {}) :
                 ag::BaseEdge<SPGTraits>(id, start, end, std::move(_seq)), SPGEdgeData() {}
+        size_t intCov() const {return 0;}
+        double getCoverage() const {return 0;}
         SPGEdge(const SPGEdge &) = delete;
-        bool isPrefix() const { return fullSize() == getFinish().size(); }
-        bool isSuffix() const { return fullSize() == getStart().size(); }
         ~SPGEdge() override {
             VERIFY(fire_destroy);
         }
@@ -97,7 +92,4 @@ namespace spg {
     typedef SPGVertex::VertexId VertexId;
     typedef SPGEdge::ConstEdgeId ConstEdgeId;
     typedef SPGVertex::ConstVertexId ConstVertexId;
-    typedef ag::GraphPath <SPGTraits> GraphPath;
-    typedef ag::CompactPath <SPGTraits> CompactPath;
-
 }

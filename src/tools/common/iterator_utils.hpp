@@ -2,6 +2,7 @@
 
 #include "verify.hpp"
 #include <functional>
+#include <iterator>
 #include <vector>
 
 template<class Iterator>
@@ -9,7 +10,6 @@ class SkippingIterator {
 public:
     typedef typename Iterator::value_type value_type;
     typedef typename Iterator::reference reference;
-    typedef value_type &pointer;
 private:
     Iterator iterator;
     Iterator end;
@@ -28,10 +28,6 @@ public:
 
     reference operator*() const {
         return *iterator;
-    }
-
-    pointer operator->() const {
-        return &(operator*());
     }
 
     SkippingIterator& operator++() {
@@ -58,9 +54,11 @@ public:
 template<typename I>
 class CountingIterator {
 public:
-    typedef I value_type;
-    typedef I reference;
-    typedef I pointer;
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = I;
+    using difference_type = std::ptrdiff_t;
+    using pointer = I*;
+    using reference = I;
 private:
     I pos;
 
@@ -184,8 +182,8 @@ private:
 
 public:
     TransformingIterator(Iterator iterator, Iterator end,
-                     const std::function<reference(old_value_type)> &transform) :
-            iterator(iterator), end(end), transform(transform) {
+                     std::function<reference(old_value_type)> transform) :
+            iterator(iterator), end(end), transform(std::move(transform)) {
     }
 
     static TransformingIterator<Iterator, V> DereferencingIterator(Iterator iterator, Iterator end) {
@@ -306,14 +304,14 @@ public:
         return _end;
     }
 
-    std::vector<typename Iterator::value_type> asVector() && {
-        std::vector<typename Iterator::value_type> res;
-        while(_begin != _end) {
-            res.template emplace_back(*_begin);
-            ++_begin;
-        }
-        return std::move(res);
-    }
+//    std::vector<typename Iterator::value_type> asVector() && {
+//        std::vector<typename Iterator::value_type> res;
+//        while(_begin != _end) {
+//            res.template emplace_back(*_begin);
+//            ++_begin;
+//        }
+//        return std::move(res);
+//    }
 };
 
 template<class Iterator>

@@ -27,7 +27,7 @@
 #include <unordered_set>
 #include <wait.h>
 #include <common/id_index.hpp>
-
+#include <assembly_graph/ag_algorithms.hpp>
 #include "assembly_graph/visualization.hpp"
 
 using namespace dbg;
@@ -52,15 +52,14 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
             continue;
         }
         auto tmp = index.align(seq);
-        for(size_t i = 0; i < tmp.size(); i++) {
-            const Segment<Edge> &seg = tmp[i];
+        for(Segment<Edge> seg : tmp) {
             mult[&seg.contig()]++;
             mult[&seg.contig().rc()]++;
-            os << "[" << cur << ", " << cur + seg.size() << "] -> " << tmp[i].contig().getInnerId() << " [" << seg.left << ", " << seg.right << "]\n";
+            os << "[" << cur << ", " << cur + seg.size() << "] -> " << seg.contig().getInnerId() << " [" << seg.left << ", " << seg.right << "]\n";
             cur += seg.size();
         }
-        logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
-        num += tmp.size();
+        logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.calculateSize() << std::endl;
+        num += tmp.calculateSize();
         paths.emplace_back(std::move(tmp));
     }
     os.close();
@@ -244,20 +243,19 @@ int main(int argc, char **argv) {
     if(params.getValue("extension-size") != "none")
         extension_size = std::stoull(params.getValue("extension-size"));
 
-    ag::ReadLogger readLogger(threads, dir/"read_log.txt");
-    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true);
-    readStorage.setReadLogger(readLogger);
-    dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
-    refStorage.setReadLogger(readLogger);
-
+    std::vector<ag::AlignedRead<DBGTraits>> read_als;
+    std::vector<ag::AlignedRead<DBGTraits>> ref_als;
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;
         io::SeqReader reader(reads_lib);
-        readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
+        read_als = AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w);
         logger.info() << "Collecting reference alignments" << std::endl;
         io::SeqReader refReader(genome_lib);
-        refStorage.FillAlignments(logger, threads, refReader.begin(), refReader.end(), dbg, index);
+        ref_als = AlignReads(logger, threads, refReader.begin(), refReader.end(), dbg, w);
     }
+    dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg, std::move(read_als), true);
+    dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::move(ref_als), false);
+
 
     if(params.getCheck("mult-correct")) {
         MultCorrect(logger, threads, dbg, dir, readStorage, 50000, 0, params.getCheck("diploid"), debug);
@@ -279,7 +277,7 @@ int main(int argc, char **argv) {
     if(!paths_lib.empty()) {
         logger << "Printing additional figures with paths" << std::endl;
         logger << "Aligning contigs from paths files" << std::endl;
-        GraphPathStorage storage(dbg);
+        GraphAlignedReadStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -304,18 +302,18 @@ int main(int argc, char **argv) {
     }
 
     if(params.getCheck("print-alignments") || params.getCheck("mult-correct")) {
-        ag::SaveAllReads<DBGTraits>(dir / "alignments.txt", {&readStorage});
+        ag::SaveReads(dir / "alignments.txt", readStorage);
 //        readStorage.printReadAlignments(logger, dir / "alignments.txt");
     }
 
     if(params.getCheck("mult-correct") || params.getCheck("initial-correct")) {
-        readStorage.printReadFasta(logger, dir / "corrected.fasta");
+        readStorage.getReads().printReadFasta(logger, dir / "corrected.fasta");
     }
 
     if(params.getCheck("print-all")) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        GraphPathStorage storage(dbg);
+        GraphAlignedReadStorage storage(dbg);
         io::SeqReader reader1(paths_lib);
         for(StringContig scontig : reader1) {
             Contig contig = scontig.makeContig();
@@ -350,7 +348,7 @@ int main(int argc, char **argv) {
         logger.info() << "Aligning paths" << std::endl;
         std::vector<Component> comps;
         std::vector<std::ofstream *> os;
-        GraphPathStorage storage(dbg);
+        GraphAlignedReadStorage storage(dbg);
         io::SeqReader reader(paths_lib);
         size_t cnt = 0;
         size_t radius = std::stoull(params.getValue("subdataset-radius"));
@@ -370,8 +368,8 @@ int main(int argc, char **argv) {
                 return;
             dbg::GraphPath al = index.align(contig.getSeq());
             for(size_t j = 0; j < comps.size(); j++) {
-                for(size_t i = 0; i <= al.size(); i++) {
-                    if(comps[j].contains(al.getVertex(i))) {
+                for(Vertex &v : al.vertices()) {
+                    if(comps[j].contains(v)) {
 #pragma omp critical
                         *os[j] << ">" << contig.getInnerId() << "\n" << initial_seq << "\n";
                         break;
@@ -391,7 +389,7 @@ int main(int argc, char **argv) {
     if(!path_segments.empty()) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        GraphPathStorage storage(dbg);
+        GraphAlignedReadStorage storage(dbg);
         std::vector<std::tuple<std::string, size_t, size_t, std::string>> seg_recs;
         for(const std::string& s : path_segments) {
             std::vector<std::string> parsed = split(s, "[,]");
@@ -428,7 +426,7 @@ int main(int argc, char **argv) {
     if(params.getCheck("genome-path")) {
         logger.info() << "Printing additional figures with reference alignments" << std::endl;
         logger.info() << "Aligning genome" << std::endl;
-        GraphPathStorage storage(dbg);
+        GraphAlignedReadStorage storage(dbg);
         io::SeqReader reader(genome_lib);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -483,17 +481,17 @@ int main(int argc, char **argv) {
             if(read.truncSize() < w + hasher.getK() - 1)
                 return;
             dbg::GraphPath gal = index.align(read.getSeq());
-            if (gal.size() > 0 && gal.front().contig().getCoverage() < 2 && gal.start().inDeg() == 0 && gal.start().outDeg() == 1) {
-                gal = gal.subPath(1, gal.size());
+            if (!gal.empty() > 0 && gal.front().contig().getCoverage() < 2 && gal.getStart().inDeg() == 0 && gal.getStart().outDeg() == 1) {
+                gal.pop_front();
             }
-            if (gal.size() > 0 && gal.back().contig().getCoverage() < 2 && gal.finish().outDeg() == 0 && gal.finish().inDeg() == 1) {
-                gal = gal.subPath(0, gal.size() - 1);
+            if (!gal.empty() > 0 && gal.back().contig().getCoverage() < 2 && gal.getFinish().outDeg() == 0 && gal.getFinish().inDeg() == 1) {
+                gal.pop_back();
             }
             for(Segment<Edge> seg : gal) {
                 if (seg.contig().getCoverage() < 2)
                     return;
             }
-            if (gal.size() > 0) {
+            if (!gal.empty()) {
                 alignment_results.emplace_back(gal.Seq(), read.getInnerId());
             }
         };
