@@ -64,7 +64,7 @@ namespace spg {
 //        SPGVertex(): seq(""), id(0), label("") {VERIFY(false);}
         SPGVertex(const SPGVertex &) = delete;
         ~SPGVertex() override {
-            VERIFY(fire_destroy);
+            VERIFY_MSG(fire_destroy, getId());
         }
 
         Edge &addSPEdgeLockFree(Vertex &end, ag::BaseEdge<SPGTraits>::id_type eid = {},

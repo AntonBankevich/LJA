@@ -3,21 +3,18 @@
 #include "read_storage.hpp"
 
 namespace spg {
-    class ChainRule : public DecisionRule {
-    private:
-        PathIndex *storage;
-        size_t k;
-
-        size_t getDiveSize(Edge &edge);
-    public:
-        ChainRule(const ChainRule &other) = delete;
-        ChainRule(PathIndex &storage, size_t k) : storage(&storage), k(k) {}
-
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "LocalValueEscapesScope"
-        VertexResolutionPlan judge(Vertex &v) override;
-#pragma clang diagnostic pop
-    };
+//    class ChainRule : public DecisionRule {
+//    private:
+//        PathIndex *storage;
+//        size_t k;
+//
+//        size_t getDiveSize(Edge &edge);
+//    public:
+//        ChainRule(const ChainRule &other) = delete;
+//        ChainRule(PathIndex &storage, size_t k) : storage(&storage), k(k) {}
+//
+//        VertexResolutionPlan judge(Vertex &v) override;
+//    };
 
     class AndreyRule: public DecisionRule {
     private:

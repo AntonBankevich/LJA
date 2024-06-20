@@ -253,6 +253,7 @@ void MergeAll(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &gr
     MergePaths(logger, threads, linear_paths);
     logger.trace() << "Removing isolated vertices" << std::endl;
     graph.removeMarked();
+    graph.removeIsolated();
     logger.trace() << "Finished merging unbranching paths" << std::endl;
 }
 

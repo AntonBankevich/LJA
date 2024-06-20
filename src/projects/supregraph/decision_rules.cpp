@@ -1,47 +1,61 @@
 #include "decision_rules.hpp"
 
-size_t spg::ChainRule::getDiveSize(spg::Edge &edge) {
-    size_t res = 0;
-    for(auto it : storage->getReadPositions(edge)) {
-        ReadDirection dir = it.first;
-        PathIterator pos = it.second;
-        if(pos == dir.begin())
-            res = std::max(res, edge.getStart().size() - dir.cutLeft());
-    }
-    return res;
-}
-
-spg::VertexResolutionPlan spg::ChainRule::judge(spg::Vertex &v) {
-    VertexResolutionPlan res(v);
-    bool has_covering = false;
-    for(auto it : storage->getPassing(v)) {
-        res.add(*it.edges.first, *it.edges.second);
-        has_covering = true;
-    }
-    std::vector<Segment<Vertex>> segs = storage->getInnerReads(v);
-    std::sort(segs.begin(), segs.end());
-    bool has_unpassable = false;
-    for(Edge &inc : v.incoming()) {
-        size_t max = getDiveSize(inc.rc());
-        for(Segment<Vertex> &p : segs) {
-            if(max >= p.left + k) {
-                max = std::max(max, p.right);
-            }
-        }
-        for(Edge &out : v) {
-            size_t min = v.size() - getDiveSize(out);
-            if(min + k <= max) {
-                res.add(inc, out);
-            } else {
-                has_unpassable = true;
-            }
-        }
-    }
-    if(has_covering || has_unpassable)
-        return std::move(res);
-    else
-        return {v};
-}
+//size_t spg::ChainRule::getDiveSize(spg::Edge &edge) {
+//    size_t res = 0;
+//    VERIFY(storage->getReadPositions(edge).size() == storage->getReadPositions(edge.rc()).size());
+//    for(auto it : storage->getReadPositions(edge)) {
+//        ReadDirection dir = it.first;
+//        PathIterator pos = it.second;
+//        if(pos == dir.begin() && dir.cutLeft() <= edge.getStart().size())
+//            res = std::max(res, edge.getStart().size() - dir.cutLeft());
+//    }
+//    return res;
+//}
+//
+//spg::VertexResolutionPlan spg::ChainRule::judge(spg::Vertex &v) {
+//    VertexResolutionPlan res(v);
+//    bool has_covering = false;
+//    for(auto it : storage->getPassing(v)) {
+//        res.add(*it.edges.first, *it.edges.second);
+//        has_covering = true;
+//    }
+//    std::vector<Segment<Vertex>> segs = storage->getInnerReads(v);
+//    std::cout << segs << std::endl;
+//    std::sort(segs.begin(), segs.end());
+//    bool has_unpassable = false;
+//    for(Edge &inc : v.incoming()) {
+//        size_t max = getDiveSize(inc.rc());
+//        std::cout << "incoming " << inc.rc().getId() << std::endl;
+//        for(auto it : storage->getReadPositions(inc.rc()))
+//            std::cout << it.second.str() << std::endl;
+//        for(Segment<Vertex> &p : segs) {
+//            if(max >= p.left + k) {
+//                max = std::max(max, p.right);
+//            }
+//        }
+//        bool all_unpassable = true;
+//        for(Edge &out : v) {
+//            std::cout << "outgoing " << out.getId() << std::endl;
+//            for(auto it : storage->getReadPositions(out))
+//                std::cout << it.second.str() << std::endl;
+//            size_t min = getDiveSize(out);
+//            std::cout << min << std::endl;
+//            min = v.size() - min;
+//            std::cout <<min << std::endl;
+//            if(min + k <= max) {
+//                res.add(inc, out);
+//                all_unpassable = false;
+//            } else {
+//                has_unpassable = true;
+//            }
+//        }
+//        VERIFY(!all_unpassable || res.incConnected(inc));
+//    }
+//    if(has_covering || has_unpassable)
+//        return std::move(res);
+//    else
+//        return {v};
+//}
 
 void spg::AndreyRule::loopHeuristic(spg::VertexResolutionPlan &res) const {
     Vertex &core = res.getCore();

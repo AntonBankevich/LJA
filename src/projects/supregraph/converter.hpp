@@ -234,6 +234,7 @@ namespace spg {
         }
         res.cutFront(path.cutLeft());
         res.cutBack(path.cutRight());
+        res.normalize();
 //
 //        size_t l = path.cutLeft() + res.cutLeft();
 //        size_t r = path.cutRight()() + res.cutRight()();

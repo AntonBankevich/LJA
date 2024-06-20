@@ -754,7 +754,7 @@ namespace ag {
     template<class Traits>
     void AssemblyGraph<Traits>::removeMarked() {
         for (auto it = vertex_list.begin(); it != vertex_list.end();) {
-            if (it->marked() || (it->inDeg() == 0 && it->outDeg() == 0)) {
+            if (it->marked()) {
                 it = vertex_list.erase(it);
             } else {
                 ++it;

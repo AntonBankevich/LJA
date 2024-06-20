@@ -55,24 +55,31 @@ namespace spg {
         }
 
         void fireResolveVertex(spg::Vertex &core, const spg::VertexResolutionResult &resolution) {
+            std::cout << "FireResolveVertex " << resolution << std::endl;
             for (auto *listener: listeners) {
                 listener->fireResolveVertex(core, resolution);
             }
         }
 
         void fireMergePath(const GraphPath &path, Vertex &new_vertex) {
+            std::cout << "FIreMergePath " << path.lenStr() << std::endl;
             for (auto *listener: listeners) {
                 listener->fireMergePath(path, new_vertex);
             }
         }
 
         void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
+            std::cout << "FIreMergeLoop " << path.lenStr() << std::endl;
             for (auto *listener: listeners) {
                 listener->fireMergeLoop(path, new_vertex);
             }
         }
 
         void fireAddVertex(spg::Vertex &vertex) {
+            std::cout << "Fire Add Vertex " << vertex.getId();
+            if(vertex.size() < 10)
+                std::cout << " " << vertex.getSeq();
+            std::cout << std::endl;
             VERIFY(!vertex.fire_create)
             vertex.fire_create = true;
             for (auto *listener: listeners) {
@@ -81,6 +88,7 @@ namespace spg {
         }
 
         void fireAddEdge(spg::Edge &edge) {
+            std::cout << "Fire Add Edge " << edge.getId() << " " << edge.truncSize() << std::endl;
             VERIFY(!edge.fire_create)
             edge.fire_create = true;
             for (auto *listener: listeners) {
@@ -98,6 +106,7 @@ namespace spg {
         }
 
         void fireDeleteEdge(spg::Edge &edge) {
+            std::cout << "Fire delete " << edge.getId() << std::endl;
             VERIFY(edge.fire_create);
             VERIFY(!edge.fire_destroy);
             edge.fire_destroy = true;

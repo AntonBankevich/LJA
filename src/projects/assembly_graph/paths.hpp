@@ -54,6 +54,32 @@ namespace ag {
 
         static GraphPath WalkForward(Edge &start);
 
+        void normalize() {
+            if(!valid())
+                return;
+            while(!empty() && frontEdge().isPrefix())
+                pop_front();
+            while(!empty() && backEdge().isSuffix())
+                pop_back();
+            while(start().inDeg() == 1 && start().rc().front().isSuffix() && cutLeft() < start().rc().front().getFinish().size()) {
+                if(skip_left == 0) {
+                    path.insert(path.begin(), start().rc().front().rc().getId());
+                } else {
+                    skip_left -= 1;
+                    path[skip_left] = start().rc().front().rc().getId();
+                }
+                start_ = frontEdge().getStart().getId();
+            }
+            while(finish().outDeg() == 1 && finish().front().isSuffix() && cutRight() < finish().front().getFinish().size()) {
+                if(skip_right == 0) {
+                    path.push_back(finish().front().getId());
+                } else {
+                    path[path.size() - skip_right] = finish().front().getId();
+                    skip_right -= 1;
+                }
+            }
+        }
+
         Vertex &getVertex(size_t i) const;
         Edge &getEdge(size_t i) const {
             if(i >= size()) {

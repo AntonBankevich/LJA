@@ -4,6 +4,7 @@
 #include "read_storage.hpp"
 #include "converter.hpp"
 #include "unique_vertex_storage.hpp"
+#include <dbg/dbg_construction.hpp>
 #include <dbg/graph_algorithms.hpp>
 #include <common/pipeline_tools.hpp>
 #include <dbg/graph_alignment_storage.hpp>
@@ -56,20 +57,25 @@ namespace ag {
 
 std::unordered_map<std::string, std::experimental::filesystem::path>
 RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, size_t k, size_t w,
-                  const io::Library &graph_gfa, const std::experimental::filesystem::path &reads_file, bool debug) {
+                  const io::Library &graph_gfa, const io::Library &reads_file, bool debug) {
     hashing::RollingHash hasher(k, 239);
     logger.info() << "Loading graph" << std::endl;
-    dbg::SparseDBG dbg = dbg::LoadDBGFromEdgeSequences(logger, threads, graph_gfa, hasher);
-    IdIndex<dbg::Vertex> index(dbg.vertices().begin(), dbg.vertices().end());
+    dbg::SparseDBG dbg = graph_gfa.empty() ? DBGPipeline(logger, hasher, w, reads_file, dir, threads) :
+            dbg::LoadDBGFromEdgeSequences(logger, threads, graph_gfa, hasher);
+//    IdIndex<dbg::Vertex> index(dbg.vertices().begin(), dbg.vertices().end());
     logger.info() << "Loading reads" << std::endl;
     dbg::ReadAlignmentStorage storage(dbg, 0, 1000000, true, false, true);
-    dbg::ReadAlignmentStorage extra_reads(dbg, 0, 1000000, false, false, false);
-    ag::LoadAllReads<dbg::DBGTraits>(reads_file, {&storage, &extra_reads}, index);
+//    dbg::ReadAlignmentStorage extra_reads(dbg, 0, 1000000, false, false, false);
+    io::SeqReader reader(reads_file);
+    dbg::KmerIndex index(dbg);
+    index.fillAnchors(logger, threads, dbg, 500);
+    storage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
+//    ag::LoadAllReads<dbg::DBGTraits>(reads_file, {&storage, &extra_reads}, index);
     logger.info() << "Converting graph" << std::endl;
     spg::SPGConverter<dbg::DBGTraits> converter;
     spg::SupreGraph graph = converter.convert(dbg);
 //    TODO: remove after listener system is normalized
-    for(Vertex &v : graph.vertices()) graph.fireAddVertex(v);
+//    for(Vertex &v : graph.vertices()) graph.fireAddVertex(v);
     for(Edge &edge : graph.edges()) graph.fireAddEdge(edge);
     logger.info() << "Printing initial graph" << std::endl;
     ag::printDot(dir/"supregraph1.dot", graph);
@@ -86,6 +92,7 @@ RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental
             unique_storage.add(converter.map(edge));
     }
     logger.info() << "Multiplexing" << std::endl;
+//    ChainRule rule(path_index, 4000);
     AndreyRule rule(path_index, unique_storage);
     spg::Multiplexer multiplexer(graph, rule, 200000);
     multiplexer.fullMultiplex(logger, threads, path_index);
@@ -131,9 +138,9 @@ RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental
     multiplexer2.fullMultiplex(logger, threads, path_index);
     logger.info() << "Printing final graph" << std::endl;
     ag::printDot(dir/"supregraph4.dot", graph);
-    for(Edge &edge : graph.edges()) graph.fireDeleteEdge(edge);
-    for(Vertex &v : graph.vertices()) graph.fireDeleteVertex(v);
-    return {{"supregraph_initial", dir / "supregraph_initial.dot"}, {"supregraph_final", dir / "supregraph_final.dot"}};
+    for(Vertex &v : graph.verticesUnique())
+        graph.IsolateAndMark(v);
+    return {{"supregraph_initial", dir / "supregraph1.dot"}, {"supregraph_final", dir / "supregraph4.dot"}};
 }
 
 class SupreGraphPhase : public Stage {
@@ -148,7 +155,7 @@ protected:
                                                                                   const AlgorithmParameterValues &parameterValues, const std::unordered_map<std::string, io::Library> &input) override {
         size_t k = std::stoull(parameterValues.getValue("k-mer-size"));
         size_t w = std::stoull(parameterValues.getValue("window"));
-        return RunMultiplexing(logger, threads, dir, k, w,input.at("graph"), input.at("reads")[0], debug);
+        return RunMultiplexing(logger, threads, dir, k, w,input.at("graph"), input.at("reads"), debug);
     }
 };
 int main(int argc, char **argv) {

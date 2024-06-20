@@ -1,4 +1,6 @@
 #pragma once
+#include <utility>
+
 #include "list_path.hpp"
 #include "vertex_resolution.hpp"
 #include "supregraph.hpp"
@@ -122,20 +124,71 @@ namespace spg {
 
     };
 
+    class LinkedSegments {
+    private:
+        size_t k;
+        std::vector<Segment<Vertex>> segments;
+        void normalize() {
+            if(segments.empty())
+                return;
+            std::sort(segments.begin(), segments.end());
+            size_t cur = 1;
+            for(size_t i = 1; i < segments.size(); i++) {
+                if(segments[i].left + k > segments[cur - 1].right) {
+                    segments[cur] = segments[i];
+                    cur++;
+                } else {
+                    segments[cur - 1].right = segments[i].right;
+                }
+            }
+            segments.erase(segments.begin() + cur, segments.end());
+        }
+        LinkedSegments(size_t k, std::vector<Segment<Vertex>> segments) : k(k), segments(std::move(segments)) {
+        }
+    public:
+        LinkedSegments(size_t k) : k(k) {
+        }
+        void operator+=(const Segment<Vertex> &seg) {
+            segments.emplace_back(seg);
+            normalize();
+        }
+        void operator+=(const LinkedSegments &other) {
+            segments.insert(segments.end(), other.segments.begin(), other.segments.end());
+            normalize();
+        }
+        LinkedSegments embed(const Segment<Vertex> &other) {
+            std::vector<Segment<Vertex>> res;
+            for(const auto &seg : segments) {
+                res.emplace_back(seg.nest(other));
+            }
+            return {k, std::move(res)};
+        }
+        size_t longestExtension(size_t dive) const {
+            size_t res = dive;
+            for(const Segment<Vertex> &seg : segments) {
+                if(seg.left + k <= dive)
+                    res = std::max(res, seg.right);
+                else
+                    break;
+            }
+            return res;
+        }
+    };
     class PathIndex : ResolutionListener {
     private:
 //        When reads_ready==false these two, as well as the path storage itself are invalidated
         mutable std::unordered_map<EdgeId, std::vector<std::pair<ReadDirection, PathIterator>>> read_index;
-        mutable std::unordered_map<EdgeId, std::vector<ReadDirection>> outgoing_index;
+//        This is required only for chain rule and theoretical paper. Need to move it into a separate listener.
+        mutable std::unordered_map<VertexId, size_t> vertex_dive;
 
-//        inner index always remains valid
-        mutable std::unordered_map<VertexId, std::vector<Segment<Vertex>>> inner_index;
+        mutable std::unordered_map<VertexId, LinkedSegments> inner_index;
 //        remapping is used only when reads_ready=false and allows to reconstruct read paths when necessary
         mutable Embedding embedding;
         PathStorage *storage;
         mutable bool reads_ready = false;
 
         void processPassing(Edge &edge, const spg::VertexResolutionResult &resolution);
+        void prepareIndex() const;
     public:
         struct PassingRead {
             EdgePair edges;
@@ -146,6 +199,8 @@ namespace spg {
                     edges(*position, *(position + 1)), direction(direction), position(position) {}
         };
 
+//        Contract! No read from storage is fully contained within more than one core vertex.
+//        This is always true if all reads have length at least K and spg was converted from DBG with K.
         PathIndex(SupreGraph &spg, PathStorage &storage);
 
         void unprepare() const {
@@ -161,7 +216,6 @@ namespace spg {
                 rr.path = embedding.embed(rr.path);
             }
         }
-        void prepareIndex() const;
         void prepare() const {
             if(!reads_ready) {
                 restorePaths();
@@ -170,6 +224,15 @@ namespace spg {
                 reads_ready = true;
             }
         }
+
+//        void addInnerSegment(const Segment<Vertex> &seg) const {
+//            Vertex &v = seg.contig();
+////            if(v.outDeg() == 1 && v.front().isSuffix())
+////                VERIFY(seg.cutRight() >= v.front().getFinish().size());
+////            if(v.inDeg() == 1 && v.rc().front().isSuffix())
+////                VERIFY(seg.cutLeft() >= v.rc().front().getFinish().size());
+//            inner_index[v.getId()] += seg;
+//        }
 
 
         ComplexIterableStorage<Generator<std::vector<std::pair<ReadDirection, PathIterator>>::iterator, PassingRead>> getPassing(Vertex &v) const &;
