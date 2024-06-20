@@ -38,8 +38,8 @@ template<class T>
 class Segment{
     T *contig_ptr;
 public:
-    size_t left;
-    size_t right;
+    size_t left = 0;
+    size_t right = 0;
     Segment(T &contig_, size_t left_, size_t right_) : left(left_), right(right_), contig_ptr(&contig_){
         VERIFY(0 <= left and left <= right and right <= contig_ptr->truncSize())
     }
@@ -48,7 +48,7 @@ public:
         VERIFY(0 <= left and left <= right and right <= contig_ptr->truncSize())
     }
 
-    Segment() : contig_ptr(nullptr), left(left), right(right) {}
+    Segment() : contig_ptr(nullptr), left(0), right(0) {}
 
     bool valid() const {return contig_ptr == nullptr;}
     T &contig() const {return *contig_ptr;}

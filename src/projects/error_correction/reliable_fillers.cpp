@@ -1,8 +1,8 @@
-#include <assembly_graph/component.hpp>
+#include <assembly_graph/data_structures/component.hpp>
 #include <dbg/visualization.hpp>
 #include "reliable_fillers.hpp"
 #include "correction_utils.hpp"
-#include <assembly_graph/component.hpp>
+#include <assembly_graph/data_structures/component.hpp>
 #include <dbg/visualization.hpp>
 
 size_t AbstractReliableFillingAlgorithm::ReFill(dbg::SparseDBG &dbg) {
@@ -61,7 +61,7 @@ size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
     for(dbg::Edge &edge : dbg.edgesUnique()) {
         if(edge.getCoverage() < min_rel_cov)
             continue;
-        dbg::GraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
+        dbg::GraphPath al = FindLongestCoveredExtension(edge, 100000, min_rel_cov, max_err_cov);
         if(al.truncLen() < min_length)
             continue;
         for(Segment<dbg::Edge> seg : al) {

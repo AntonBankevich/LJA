@@ -1,8 +1,8 @@
 #pragma once
 
 #include <common/logging.hpp>
-#include <assembly_graph/splitters.hpp>
-#include "assembly_graph/component.hpp"
+#include <assembly_graph/data_structures/splitters.hpp>
+#include "assembly_graph/data_structures/component.hpp"
 #include "sparse_dbg.hpp"
 
 namespace dbg {
@@ -21,10 +21,6 @@ namespace dbg {
                     elen += edge.truncSize();
                 }
             }
-            for (const Sequence &seq: v.getHanging()) {
-                e_cnt += 2;
-                elen += 2 * seq.size();
-            }
         }
         logger << "Unique edges: " << e_cnt / 2 << std::endl;
         logger << "Unique edge total length: " << elen / 2 << std::endl;
@@ -42,8 +38,8 @@ namespace dbg {
         std::vector<size_t> inout(25);
         for (auto &tmp: dbg.verticesUnique()) {
             if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-                dbg::GraphPath path = dbg::GraphPath::WalkForward(tmp.front());
-                if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
+                old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(tmp.front());
+                if (path.getFinish().outDeg() == 0 && path.getFinish().inDeg() == 1) {
                     isolated += 1;
                     for (dbg::Edge &edge: path.edges()) {
                         isolatedSize += edge.truncSize();
@@ -52,8 +48,8 @@ namespace dbg {
                 }
             }
             if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-                dbg::GraphPath path = dbg::GraphPath::WalkForward(tmp.rc().front());
-                if (path.finish().outDeg() == 0 && path.finish().inDeg() == 1) {
+                old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(tmp.rc().front());
+                if (path.getFinish().outDeg() == 0 && path.getFinish().inDeg() == 1) {
                     isolated += 1;
                     for (dbg::Edge &edge: path.edges()) {
                         isolatedSize += edge.truncSize();

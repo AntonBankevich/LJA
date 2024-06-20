@@ -3,11 +3,12 @@
 #include <yak/yak_lib.h>
 #include <dbg/multi_graph.hpp>
 #include <polishing/polishing_stage.hpp>
+#include <dbg/aln_reads_reader.hpp>
 #include "trio.hpp"
 
 std::experimental::filesystem::path CompressIlluminaLib(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
                          const std::string &name, const io::Library &lib) {
-    io::SeqReader reader(lib);
+    dbg::SeqReader reader(lib, logger, threads);
     StringContig cur;
     std::ofstream out_stream;
     auto out_fasta = (dir / (name + "_compressed.fasta"));

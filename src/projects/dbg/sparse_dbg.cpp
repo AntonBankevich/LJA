@@ -1,4 +1,5 @@
-
+#include "sparse_dbg.hpp"
+const hashing::htype dbg::DBGVertexData::default_hash = 1651253415;
 
 
 

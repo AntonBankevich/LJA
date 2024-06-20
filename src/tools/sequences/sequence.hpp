@@ -3,128 +3,29 @@
 #include "common/oneline_utils.hpp"
 #include "common/output_utils.hpp"
 #include "common/string_utils.hpp"
+#include "nucl_buffer.hpp"
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
 #include "common/verify.hpp"
 #include <functional>
 #include <vector>
 #include <string>
-#include <memory>
 #include <cstring>
 #include <sstream>
-
-template<size_t N, size_t base = 2>
-struct log_ {
-    const static size_t value = 1 + log_<N / base, base>::value;
-};
-
-template<size_t base>
-struct log_<1, base> {
-    const static size_t value = 0;
-};
-
-template<size_t base>
-struct log_<0, base> {
-    const static size_t value = 0;
+//TODO: rewrite everything with bitset to improve binary operations
+class ManagedNuclBuffer final : public NuclBuffer, public llvm::ThreadSafeRefCountedBase<ManagedNuclBuffer> {
+public:
+    explicit ManagedNuclBuffer(size_t nucls) : NuclBuffer(nucls) {}
+    ManagedNuclBuffer(size_t nucls, ST *buf) : NuclBuffer(nucls, buf) {}
 };
 
 class Sequence {
     // Type to store Seq in Sequences
-    typedef u_int64_t ST;
-    // Number of bits in ST
-    const static size_t STBits = sizeof(ST) << 3u;
-    // Number of nucleotides in ST
-    const static size_t STN = (STBits >> 1u);
-    // Number of bits in STN (for faster div and mod)
-    const static size_t STNBits = log_<STN, 2>::value;
-
-    class ManagedNuclBuffer final : public llvm::ThreadSafeRefCountedBase<ManagedNuclBuffer> {
-    public:
-        explicit ManagedNuclBuffer(size_t nucls) : _data(new ST[Sequence::DataSize(nucls)]), _size(nucls) {
-        }
-
-        ManagedNuclBuffer(size_t nucls, ST *buf) : _data(new ST[Sequence::DataSize(nucls)]), _size(nucls) {
-            std::uninitialized_copy(buf, buf + Sequence::DataSize(nucls), data());
-        }
-
-    private:
-        ST *_data;
-        size_t _size;
-    public:
-        const ST *data() const { return _data; }
-
-        ST *data() { return _data; }
-
-        size_t size() const {return _size;}
-
-        ~ManagedNuclBuffer() {
-            delete[] _data;
-        }
-    };
 
     size_t from_;
     size_t size_;
     bool rtl_; // Right to left + complimentary (?)
     llvm::IntrusiveRefCntPtr<ManagedNuclBuffer> data_;
-
-    static size_t DataSize(size_t size) {
-        return (size + STN - 1) >> STNBits;
-    }
-
-    template<typename S>
-    void InitFromNucls(const S &s, bool rc = false) {
-        size_t bytes_size = DataSize(size_);
-        ST *bytes = data_->data();
-        if(size_ > 0 && (!(is_dignucl(s[0]) || is_nucl(s[0])))) {
-            std::cerr << "Bad nucleotide sequence " << size_ << " " << s << std::endl;
-        }
-        VERIFY(size_ == 0 || is_dignucl(s[0]) || is_nucl(s[0]));
-
-        // Which symbols does our string contain : 0123 or ACGT?
-        bool digit_str = size_ == 0 || is_dignucl(s[0]);
-
-        // data -- one temporary variable corresponding to the i-th array element
-        // and some counters
-        ST data = 0;
-        size_t cnt = 0;
-        size_t cur = 0;
-
-        if (rc) {
-            for (int i = (int) size_ - 1; i >= 0; --i) {
-                VERIFY_MSG(is_dignucl(s[i]) || is_nucl(s[i]), "Non-ACGTacgt symbols in the input sequences");
-                char c = complement(digit_str ? s[(unsigned) i] : dignucl(s[(unsigned) i]));
-
-                data = data | (ST(c) << cnt);
-                cnt += 2;
-
-                if (cnt == STBits) {
-                    bytes[cur++] = data;
-                    cnt = 0;
-                    data = 0;
-                }
-            }
-        } else {
-            for (size_t i = 0; i < size_; ++i) {
-                VERIFY_MSG(is_dignucl(s[i]) || is_nucl(s[i]), "Non-ACGTacgt symbols in the input sequences");
-                char c = digit_str ? s[i] : dignucl(s[i]);
-
-                data = data | (ST(c) << cnt);
-                cnt += 2;
-
-                if (cnt == STBits) {
-                    bytes[cur++] = data;
-                    cnt = 0;
-                    data = 0;
-                }
-            }
-        }
-
-        if (cnt != 0)
-            bytes[cur++] = data;
-
-        for (; cur < bytes_size; ++cur)
-            bytes[cur] = 0;
-    }
 
     Sequence(size_t size, int)
             : from_(0), size_(size), rtl_(false), data_(new ManagedNuclBuffer(size_)) {}
@@ -152,17 +53,17 @@ public:
      */
     explicit Sequence(const char *s, bool rc = false)
             : Sequence(strlen(s), 0) {
-        InitFromNucls(s, rc);
+        data_->InitFromNucls(s, rc);
     }
 
     explicit Sequence(const std::string &s, bool rc = false)
             : Sequence(s.size(), 0) {
-        InitFromNucls(s, rc);
+        data_->InitFromNucls(s, rc);
     }
 
     explicit Sequence(const std::vector<char> &s, bool rc = false)
             : Sequence(s.size(), 0) {
-        InitFromNucls(s, rc);
+        data_->InitFromNucls(s, rc);
     }
 
     explicit Sequence(char c) : Sequence(std::vector<char>({c})){
@@ -170,17 +71,27 @@ public:
 
     explicit Sequence(const std::vector<unsigned char> &s, bool rc = false)
             : Sequence(s.size(), 0) {
-        InitFromNucls(s, rc);
+        data_->InitFromNucls(s, rc);
     }
 
     explicit Sequence(char *s, bool rc = false)
             : Sequence(strlen(s), 0) {
-        InitFromNucls(s, rc);
+        data_->InitFromNucls(s, rc);
+    }
+
+    template<class S>
+    explicit Sequence(const S &s, bool rc = false) : Sequence(s.size(), 0) {
+        data_->InitFromNucls(s, rc);
+    }
+
+    template<class I>
+    explicit Sequence(I begin, I end, bool rc = false) : Sequence(size_t(end - begin), int(0)) {
+        data_->InitFromNucls(begin, end, end - begin, rc);
     }
 
     Sequence()
             : Sequence(size_t(0), 0) {
-        memset(data_->data(), 0, DataSize(size_));
+        data_->InitZero();
     }
 
     Sequence(const Sequence &s)
@@ -213,32 +124,30 @@ public:
 
     Sequence copy() const {
         Sequence res = Sequence(size_, 0);
-        res.InitFromNucls(*this, this->rtl_);
+        res.data_->InitFromNucls(*this, this->rtl_);
         return std::move(res);
 ;    }
 
     unsigned char operator[](const size_t index) const {
         VERIFY_MSG(index < size_, itos(index) + " " + itos(size_));
-        const ST *bytes = data_->data();
         if (rtl_) {
             size_t i = from_ + size_ - 1 - index;
-            return complement((bytes[i >> STNBits] >> ((i & (STN - 1u)) << 1u)) & 3u);
+            return complement(data_->getNucl(i));
         } else {
             size_t i = from_ + index;
-            return (bytes[i >> STNBits] >> ((i & (STN - 1u)) << 1u)) & 3u;
+            return data_->getNucl(i);
         }
     }
 
     size_t asNumber() const {
         size_t res = 0;
-        const ST *bytes = data_->data();
         if (rtl_) {
             for(size_t i = from_ + size_ - 1; i + 1 >= from_ + 1; i++) {
-                res = (res << 2u) + (complement((bytes[i >> STNBits] >> ((i & (STN - 1u)) << 1u)) & 3u));
+                res = (res << 2u) + (complement(data_->getNucl(i)));
             }
         } else {
             for(size_t i = from_; i < from_ + size_; i++) {
-                res = (res<< 2u) + ((bytes[i >> STNBits] >> ((i & (STN - 1u)) << 1u)) & 3u);
+                res = (res << 2u) + data_->getNucl(i);
             }
         }
         return res;
@@ -307,6 +216,9 @@ public:
 
     inline Sequence Suffix(size_t count) const;
 
+    inline unsigned char lastNucl() const {return operator[](size() - 1);}
+    inline unsigned char firstNucl() const {return operator[](0);}
+
     Sequence dicompress() const {
         if(size() <= 5)
             return *this;
@@ -329,8 +241,6 @@ public:
 
     inline std::string str() const;
 
-    inline std::string err() const;
-
     size_t size() const {
         return size_;
     }
@@ -339,8 +249,9 @@ public:
         return size() == 0;
     }
 
-    bool subseqMatch(const Sequence &other, size_t this_start, size_t other_start, size_t len) const {
-        if(size() < this_start + len || other.size_ < other_start + len)
+    template<class S>
+    bool subseqMatch(const S &other, size_t this_start, size_t other_start, size_t len) const {
+        if(size() < this_start + len || other.size() < other_start + len)
             return false;
         for(size_t i = 0; i < len; i++)
             if(this->operator[](this_start + i) != other[other_start + i])
@@ -348,8 +259,9 @@ public:
         return true;
     }
 
-    bool startsWith(const Sequence & other) const {
-        return subseqMatch(other, 0, 0, other.size_);
+    template<class S>
+    bool startsWith(const S & other) const {
+        return subseqMatch(other, 0, 0, other.size());
     }
 
     bool containsAtPosition(const Sequence & other, size_t pos) const {
@@ -435,15 +347,6 @@ std::string Sequence::str() const {
         res[i] = nucl(this->operator[](i));
     }
     return res;
-}
-
-std::string Sequence::err() const {
-    std::ostringstream oss;
-    oss << "{ *data=" << data_->data() <<
-        ", from_=" << from_ <<
-        ", size_=" << size_ <<
-        ", rtl_=" << int(rtl_) << " }";
-    return oss.str();
 }
 
 std::ostream &operator<<(std::ostream &os, const Sequence &s) {

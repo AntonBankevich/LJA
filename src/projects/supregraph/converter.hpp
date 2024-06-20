@@ -1,12 +1,11 @@
 #pragma once
 
-#include <dbg/graph_alignment_storage.hpp>
+#include <dbg/dbg_read_alignment_storage.hpp>
 #include "vertex_resolution.hpp"
 #include "supregraph_base.hpp"
 #include "assembly_graph/assembly_graph.hpp"
 #include "sequences/contigs.hpp"
-#include "assembly_graph/paths.hpp"
-#include "assembly_graph/compact_path.hpp"
+#include "assembly_graph/random_access_paths.hpp"
 #include "read_storage.hpp"
 
 namespace spg {
@@ -19,20 +18,14 @@ namespace spg {
         typedef typename OVertex::VertexId OVertexId;
         typedef typename OEdge::EdgeId OEdgeId;
         typedef ag::GraphPath<Traits> OPath;
-        std::unordered_map<OVertexId, Segment<spg::Vertex>> vmap;
-        std::unordered_map<OEdgeId, Segment<spg::Vertex>> outer_map;
+        std::unordered_map<OVertexId, Segment<spg::Vertex>> vmap = {};
+        std::unordered_map<OEdgeId, Segment<spg::Vertex>> outer_map = {};
 
         OPath maxExtension(OVertex &vertex) const;
-
         spg::VertexId processUnbranching(spg::SupreGraph &g, const OVertex &v) const;
-
         void constructInnerVertices(OGraph &other, spg::SupreGraph &g);
-
         void constructOuterVertices(SPGConverter::OGraph &other, spg::SupreGraph &g);
-
-        void addSPEdges(OGraph &other) const;
-
-        void addOuterEdges(OGraph &other);
+        void addSPEdges(spg::SupreGraph &g, OGraph &other) const;
 
     public:
         SPGConverter() = default;
@@ -45,7 +38,7 @@ namespace spg {
 //        This method does not allow to convert loops paths properly
         spg::GraphPath convertPath(const OPath &path) const;
 
-        spg::PathStorage convertLibs(const std::vector<dbg::ReadAlignmentStorage *> &storages, SupreGraph &spg);
+        std::vector<ag::AlignedRead<SPGTraits>> convertLib(ag::AlignedReadStorage<Traits> &storage, SupreGraph &spg);
 
         Vertex &map(OVertex &v) const {
             return vmap.at(v.getId()).contig();
@@ -58,30 +51,36 @@ namespace spg {
 
     template<class Traits>
     typename SPGConverter<Traits>::OPath SPGConverter<Traits>::maxExtension(OVertex &vertex) const {
-        OPath path(vertex);
-        while (path.finish().outDeg() == 1) {
-            path += path.finish().front();
-            if (path.finish() == path.start() || path.finish() == path.getVertex(path.size() / 2))
+        if(vertex.outDeg() != 1)
+            return {vertex};
+        ag::GraphPath<Traits> path(vertex.front());
+        ag::PathPosition<Traits> pp = path.firstPosition();
+        size_t cnt = 0;
+        while (path.getFinish().outDeg() == 1) {
+            path += path.getFinish().front();
+            if (path.getFinish() == vertex || path.back() == pp.nextEdge())
                 break;
+            if((cnt & 1) == 1) {
+                ++pp;
+                cnt++;
+            }
         }
-        if (path.empty())
-            return std::move(path);
-        size_t pos = path.size() - 1;
-        while (pos > 0 && path.getVertex(pos) != path.finish())
-            pos--;
-        while (pos > 0 && path.backEdge() == path.getEdge(pos - 1)) {
+        ag::PathPosition<Traits> pos = path.lastPosition() - 1;
+        while (pos != path.firstPosition() && pos.getVertex() != path.getFinish())
+            --pos;
+        while (pos != path.firstPosition() && path.backEdge() == pos.prevEdge()) {
             path.pop_back();
-            pos--;
+            --pos;
         }
-        return std::move(path);
+        return {path};
     }
 
     template<class Traits>
     spg::VertexId SPGConverter<Traits>::processUnbranching(spg::SupreGraph &g, const OVertex &v) const {
-        OPath fpath = OPath::WalkForward(v.front());
-        VERIFY(fpath.finish() == v || fpath.finish() == v.rc());
+        OPath fpath = ag::PathHelper<Traits>::WalkForward(v.front());
+        VERIFY(fpath.getFinish() == v || fpath.getFinish() == v.rc());
         Sequence loop;
-        if (fpath.finish() == v && v != v.rc()) {
+        if (fpath.getFinish() == v && v != v.rc()) {
             if (v < v.rc())
                 return {};
             loop = v.front().truncSeq();
@@ -99,7 +98,7 @@ namespace spg {
             VERIFY(v.rc().front() == v.rc().front().rc())
         }
         spg::Vertex &newv = g.addSPGVertex(loop, true, false, false);
-        newv.addSPEdgeLockFree(newv);
+        g.addSPEdgeLockFree(newv, newv);
         return newv.getId();
     }
 
@@ -110,25 +109,25 @@ namespace spg {
                 if (v.outDeg() == 1) processUnbranching(g, v);
             } else {
                 OPath right = maxExtension(v);
-                OVertex *f = &right.finish().rc();
-                if ((right.empty() || (right.size() == 1 && right.finish().inDeg() == 1)) &&
-                    vmap.find(right.finish().rc().getId()) != vmap.end()) {
+                OVertex *f = &right.getFinish().rc();
+                if ((right.empty() || (right.isSingleton() && right.getFinish().inDeg() == 1)) &&
+                    vmap.find(right.getFinish().rc().getId()) != vmap.end()) {
 //                        Only possible for core vertices
-                    OVertexId rv = right.finish().rc().getId();
+                    OVertexId rv = right.getFinish().rc().getId();
                     vmap[v.getId()] = {vmap[rv].contig().rc(), 0, v.size()};
                     VERIFY(v.getSeq() == vmap[v.getId()].fullSeq());
                     vmap[v.rc().getId()] = vmap[v.getId()].RC();
                     VERIFY(v.rc().getSeq() == vmap[v.rc().getId()].fullSeq());
                 } else {
-                    bool inf_right = false;
-                    for (size_t i = 0; i < right.size(); i++)
-                        if (right.getVertex(i) == right.finish()) {
+                    bool inf_right = (right.getStart() == right.getFinish());
+                    for (OVertex &vertex : right.innerVertices())
+                        if (vertex == right.getFinish()) {
                             inf_right = true;
                             break;
                         }
                     Sequence vseq = right.Seq();
                     if (inf_right)
-                        vseq = vseq.Subseq(0, vseq.size() - right.finish().size());
+                        vseq = vseq.Subseq(0, vseq.size() - right.getFinish().size());
                     spg::Vertex &newv = g.addSPGVertex(vseq, false, false, inf_right);
                     vmap[v.getId()] = {newv, 0, v.size()};
                     VERIFY(v.getSeq() == vmap[v.getId()].fullSeq());
@@ -154,7 +153,7 @@ namespace spg {
     }
 
     template<class Traits>
-    void SPGConverter<Traits>::addSPEdges(SPGConverter::OGraph &other) const {
+    void SPGConverter<Traits>::addSPEdges(spg::SupreGraph &g, SPGConverter::OGraph &other) const {
         for (OVertex &v: other.vertices()) {
             if (v.inDeg() == 1 || v.outDeg() != 1)
                 continue;
@@ -170,9 +169,9 @@ namespace spg {
                 size_t shift = v.front().rc().truncSize();
                 VERIFY(to.getSeq().startsWith(from.getSeq().Subseq(shift)));
                 Sequence seq = from.getSeq().Subseq(0, shift) + to.getSeq();
-                from.addEdgeLockFree(to, seq);
+                g.addEdgeLockFree(from, to, seq);
             } else
-                from.addSPEdgeLockFree(to);
+                g.addSPEdgeLockFree(from, to);
         }
         for (OEdge &e: other.edgesUnique()) {
             if(!e.isOuter())
@@ -180,24 +179,9 @@ namespace spg {
             Vertex &outer = outer_map.at(e.getId()).contig();
             Vertex &start = vmap.at(e.getStart().getId()).contig();
             Vertex &finish = vmap.at(e.getFinish().getId()).contig();
-            start.addSPEdgeLockFree(outer);
+            g.addSPEdgeLockFree(start, outer);
             if(start != start.rc())
-                outer.addSPEdgeLockFree(finish);
-        }
-    }
-
-    template<class Traits>
-    void SPGConverter<Traits>::addOuterEdges(SPGConverter::OGraph &other) {
-        for (OEdge &e: other.edgesUnique()) {
-            if (e.getStart().outDeg() != 1 && e.getFinish().inDeg() != 1) {
-                VERIFY(vmap.find(e.getStart().rc().getId()) != vmap.end());
-                VERIFY(vmap.find(e.getFinish().getId()) != vmap.end());
-                spg::Vertex &rcfrom = vmap[e.getStart().rc().getId()].contig();
-                spg::Vertex &from = rcfrom.rc();
-                spg::Vertex &to = vmap[e.getFinish().getId()].contig();
-                Sequence seq = from.getSeq() + e.truncSeq() + to.getSeq().Subseq(e.getFinish().size());
-                spg::Edge &new_edge = from.addEdgeLockFree(to, seq);
-            }
+                g.addSPEdgeLockFree(outer, finish);
         }
     }
 
@@ -209,8 +193,7 @@ namespace spg {
         for (spg::Vertex &v: g.vertices()) {
             VERIFY(!v.getSeq().empty());
         }
-        addSPEdges(other);
-//        addOuterEdges(other);
+        addSPEdges(g, other);
         return std::move(g);
     }
 
@@ -218,48 +201,27 @@ namespace spg {
     spg::GraphPath SPGConverter<Traits>::convertPath(const SPGConverter::OPath &path) const {
         if (!path.valid())
             return {};
-        if (!path.start().isJunction())
+        if (!path.getStart().isJunction())
             return {};
-        Segment<spg::Vertex> seg = vmap.at(path.start().getId());
+        Segment<spg::Vertex> seg = vmap.at(path.getStart().getId());
         spg::GraphPath res(seg.contig(), seg.left, seg.contig().size() - seg.right);
-        if (path.size() == 0)
+        if (path.empty())
             return std::move(res);
-        VERIFY(path.start().getSeq() == res.Seq());
-//        OPath opath(path.start());
-//        VERIFY(opath.Seq() == res.Seq());
+        VERIFY(path.getStart().getSeq() == res.Seq());
         for (OEdge &edge: path.edges()) {
-//            opath += edge;
             res.fastExtend(edge.truncSeq());
-//            VERIFY(opath.Seq() == res.Seq());
         }
-        res.cutFront(path.cutLeft());
-        res.cutBack(path.cutRight());
-//
-//        size_t l = path.cutLeft() + res.cutLeft();
-//        size_t r = path.cutRight()() + res.cutRight()();
-//        res.uniqueExtendBack(res.cutRight()());
-//        res.uniqueExtendFront(res.cutLeft());
-//        while(res.finish().outDeg() == 1 && res.finish().front().truncSize() == 0)
-//            res += res.finish().front();
-//        res = res.RC();
-//        while(res.finish().outDeg() == 1 && res.finish().front().truncSize() == 0)
-//            res += res.finish().front();
-//        res = res.RC();
-//        res.cutFront(l);
-//        res.cutBack(r);
+        res.cutFront(path.leftCut());
+        res.cutBack(path.rightCut());
+        res.normalize();
         return std::move(res);
     }
 
     template<class Traits>
-    spg::PathStorage
-    SPGConverter<Traits>::convertLibs(const std::vector<dbg::ReadAlignmentStorage *> &storages, SupreGraph &spg) {
-        spg::PathStorage res(spg);
-        for (const dbg::ReadAlignmentStorage *storageIt: storages) {
-            const dbg::ReadAlignmentStorage &storage = *storageIt;
-            for (const ag::AlignedRead<dbg::DBGTraits> &alignedRead : storage) {
-                convertPath(alignedRead.path.unpack());
-                res.addRead(alignedRead.id, convertPath(alignedRead.path.unpack()));
-            }
+    std::vector<ag::AlignedRead<SPGTraits>> SPGConverter<Traits>::convertLib(ag::AlignedReadStorage<Traits> &storage, SupreGraph &spg) {
+        std::vector<ag::AlignedRead<SPGTraits>> res;
+        for (const ag::AlignedRead<dbg::DBGTraits> &alignedRead : storage) {
+            res.template emplace_back(alignedRead.getId(), convertPath(alignedRead.getPath()));
         }
         return std::move(res);
     }

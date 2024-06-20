@@ -5,8 +5,8 @@
 #include <sequences/seqio.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
-#include <assembly_graph/component.hpp>
-#include <dbg/graph_alignment_storage.hpp>
+#include <assembly_graph/data_structures/component.hpp>
+#include <dbg/dbg_read_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
 #include <dbg/aln_reads_reader.hpp>
 #include "dbg/dbg_graph_aligner.hpp"
@@ -64,16 +64,17 @@ int main(int argc, char **argv) {
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads) :
                          dbg::LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher); //Create dbg
     size_t extension_size = 100000;
-    dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, false, track_paths);//Structure for read alignments
-    dbg::SeqReader reader(reads_lib, logger, threads);//Reader that can read reads from file
+    io::SeqReader reader(reads_lib);//Reader that can read reads from file
+    dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
+                                           AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
+                                           false);
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, w);
-    readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);//Align reads to the graph
     readStorage.trackSuffixes(logger, threads);
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
-    GraphPathStorage storage(dbg);
+    GraphAlignedReadStorage storage(dbg);
     for(StringContig stringContig : dbg::SeqReader(ref_lib, logger, threads)) {
         storage.addContig(stringContig.makeContig());
     }
@@ -114,7 +115,7 @@ int main(int argc, char **argv) {
     Printer<DBGTraits> printer;
     printer.setEdgeInfo(ObjInfo<dbg::Edge>({storage.labeler(), readStorage.labeler()}, {}, {}));
     printer.printDot(dir / "graph.dot", Component(dbg));
-    //printDot(dir / "graph.dot", dbg::Component(dbg), storage.labeler() + readStorage.labeler());
+    //printDot(dir / "graph.dot", dbg::Component(dbg), storage.labeler() + readStorage.getSuffixes().labeler());
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
         logger.info() << "Printing subdataset " << cnt << " " << subdataset.id << ":";
         for(dbg::Vertex &v : subdataset.component.verticesUnique()) {
@@ -124,7 +125,7 @@ int main(int argc, char **argv) {
         std::string name = itos(cnt);
         if(!subdataset.id.empty())
             name += "_" + name;
-        subdataset.Save(subdir / name, ObjInfo<Edge>::Labeler(storage.labeler()) + ObjInfo<Edge>::Tooltiper(readStorage.labeler()));
+        subdataset.Save(subdir / name, ObjInfo<Edge>::Labeler(storage.labeler()) + ObjInfo<Edge>::Tooltiper(readStorage.getSuffixes().labeler()));
         cnt++;
     }
     logger.info() << "Finished extracting subdatasets" << std::endl;

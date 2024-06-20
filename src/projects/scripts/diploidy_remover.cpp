@@ -5,6 +5,7 @@
 #include <experimental/filesystem>
 #include <unordered_map>
 #include <common/pipeline_tools.hpp>
+#include <assembly_graph/ag_algorithms.hpp>
 
 using namespace multigraph;
 
@@ -358,7 +359,7 @@ private:
                 if(to_remove.find(b1.getId()) != to_remove.end()|| to_remove.find(b2.getId()) != to_remove.end())
                     continue;
                 Sequence seq = in1.getSeq() + b1.getSeq().Subseq(v.size()) + in2.rc().getSeq().Subseq(v.size());
-                in1.getStart().addEdge(in2.getFinish().rc(), seq, MGEdgeData(""));
+                mg.addEdge(in1.getStart(), in2.getFinish().rc(), seq);
                 to_remove.insert(in1.getId());
                 to_remove.insert(in2.getId());
                 to_remove.insert(b1.getId());

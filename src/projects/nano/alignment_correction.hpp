@@ -2,17 +2,20 @@
 
 #include "GraphContig.hpp"
 #include <dbg/multi_graph.hpp>
-#include <assembly_graph/paths.hpp>
+#include <assembly_graph/random_access_paths.hpp>
 #include <common/logging.hpp>
 #include <sequences/seqio.hpp>
 
 struct Detour {
     size_t start;
     size_t end;
+    ag::PathPosition<multigraph::MGTraits> startPos;
+    ag::PathPosition<multigraph::MGTraits> endPos;
     multigraph::GraphPath path;
 
-    Detour(size_t start, size_t anEnd, multigraph::GraphPath path) : start(start), end(anEnd),
-                                                           path(std::move(path)) {}
+    Detour(size_t start, size_t end, ag::PathPosition<multigraph::MGTraits> startPos,
+           ag::PathPosition<multigraph::MGTraits> endPos, multigraph::GraphPath path) : start(start), end(end),
+            startPos(startPos), endPos(endPos), path(std::move(path)) {}
 };
 
 
@@ -30,7 +33,8 @@ public:
     BulgeFinder(multigraph::MultiGraph &mg, size_t max_size, size_t max_diff) : mg(&mg), max_size(max_size), max_diff(max_diff) {
     }
     std::vector<Detour> findSimpleBulges(const multigraph::GraphPath &path);
-    bool recursiveFindBulge(std::vector<Detour> &res, const multigraph::GraphPath &path, size_t start, size_t end, size_t path_len = INF);
+    bool recursiveFindBulge(std::vector<Detour> &res, const multigraph::GraphPath &path, size_t from, size_t to,
+                            ag::PathPosition<multigraph::MGTraits> start, ag::PathPosition<multigraph::MGTraits> end, size_t path_len = INF);
     std::vector<Detour> findBulges(const multigraph::GraphPath &path);
 };
 

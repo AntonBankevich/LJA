@@ -2,6 +2,7 @@
 #include <iostream>
 #include <vector>
 
+namespace std {
 template<class U, class V>
 std::ostream& operator<<(std::ostream& out, const std::pair<U, V>& item) {
     return out << "(" << item.first << ", " << item.second << ")";
@@ -17,15 +18,15 @@ std::ostream& operator<<(std::ostream& out, const std::pair<U, V>& item) {
 //    return out << std::string(res.rbegin(), res.rend());
 //}
 
-
-template<class T>
-std::ostream& operator<<(std::ostream& out, const std::vector<T>& tree) {
-    if(tree.size() == 0) {
-        return out << "[]";
+    template<class T>
+    std::ostream &operator<<(std::ostream &out, const std::vector<T> &tree) {
+        if (tree.size() == 0) {
+            return out << "[]";
+        }
+        out << "[";
+        for (size_t i = 0; i + 1 < tree.size(); i += 1) {
+            out << tree[i] << ", ";
+        }
+        return out << tree[tree.size() - 1] << "]";
     }
-    out << "[";
-    for(size_t i = 0; i + 1 < tree.size(); i += 1) {
-        out << tree[i] << ", ";
-    }
-    return out << tree[tree.size() - 1] << "]";
 }

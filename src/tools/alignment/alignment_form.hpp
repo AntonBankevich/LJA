@@ -119,8 +119,9 @@ public:
         CigarEvent event;
         AlignmentColumn(size_t qpos, size_t tpos, CigarEvent event) : qpos(qpos), tpos(tpos), event(event) {}
     };
-
+    class ConstAlignmentColumnIterator;
     class AlignmentColumnIterator {
+        friend class ConstAlignmentColumnIterator;
         AlignmentForm *alignmentForm;
         size_t cigar_pos;
         size_t block_pos;
@@ -148,21 +149,26 @@ public:
         const AlignmentForm *alignmentForm;
         size_t cigar_pos;
         size_t block_pos;
-        size_t qpos;
-        size_t tpos;
+        size_t cur_qpos;
+        size_t cur_tpos;
     public:
         typedef AlignmentColumn value_type;
         ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos, size_t qpos, size_t tpos) :
-                alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(qpos), tpos(tpos) {
+                alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), cur_qpos(qpos), cur_tpos(tpos) {
         }
         ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos);
+        ConstAlignmentColumnIterator(const AlignmentColumnIterator &other) :
+                alignmentForm(other.alignmentForm), cigar_pos(other.cigar_pos),
+                block_pos(other.block_pos), cur_qpos(other.qpos), cur_tpos(other.tpos) {}
 
         ConstAlignmentColumnIterator &operator++();
         ConstAlignmentColumnIterator operator++(int) const;
         ConstAlignmentColumnIterator &operator--();
         ConstAlignmentColumnIterator operator--(int) const;
 
-        AlignmentColumn operator*() const {return {qpos, tpos, alignmentForm->cigar[cigar_pos].type};}
+        AlignmentColumn operator*() const {return {cur_qpos, cur_tpos, alignmentForm->cigar[cigar_pos].type};}
+        size_t getTpos() const {return cur_tpos;}
+        size_t getQpos() const {return cur_qpos;}
 
         bool operator==(const ConstAlignmentColumnIterator &other) const {return cigar_pos == other.cigar_pos && block_pos == other.block_pos;}
         bool operator!=(const ConstAlignmentColumnIterator &other) const {return !(*this == other);}
@@ -171,6 +177,8 @@ public:
     AlignmentForm() : qlen(0), tlen(0) {}
     AlignmentForm(std::vector<CigarPair> _cigar) : cigar(std::move(_cigar)), qlen(0), tlen(0) {calculateLens();}
     AlignmentForm(const std::string &s);
+    AlignmentForm(ConstAlignmentColumnIterator left, ConstAlignmentColumnIterator right);
+    static AlignmentForm Equal(size_t size) {return {{CigarPair(CigarEvent::M, size)}};}
 
 
     bool empty() const {return cigar.empty();}
@@ -193,8 +201,10 @@ public:
     IterableStorage<ConstAlignmentColumnIterator> columns() const {
         return {{*this, 0, 0, 0, 0}, {*this, cigar.size(), 0, qlen, tlen}};
     }
-    AlignmentColumnIterator columnByQpos(size_t qpos);
-    AlignmentColumnIterator columnByTpos(size_t tpos);
+    ConstAlignmentColumnIterator firstColumnByQpos(size_t qpos) const;
+    ConstAlignmentColumnIterator firstColumnByTpos(size_t tpos) const;
+    ConstAlignmentColumnIterator lastColumnByQpos(size_t qpos) const;
+    ConstAlignmentColumnIterator lastColumnByTpos(size_t tpos) const;
 
 
     void operator+=(const AlignmentForm &other);
@@ -206,8 +216,8 @@ public:
     AlignmentForm operator+(const AlignmentForm &other) const;
     AlignmentForm RC() const;
     AlignmentForm Reverse() const;
-    AlignmentForm Prefix(AlignmentColumnIterator bound);
-    AlignmentForm Suffix(AlignmentColumnIterator bound);
+    AlignmentForm Prefix(ConstAlignmentColumnIterator bound);
+    AlignmentForm Suffix(ConstAlignmentColumnIterator bound);
 
 
     std::string toCigarString() const;
@@ -289,6 +299,18 @@ public:
         } else
             res.emplace_back('*');
         return {res.begin(), res.end()};
+    }
+
+    template<class U, class V>
+    size_t editDistance(const U &from_seq, const V &to_seq) const {
+        VERIFY(from_seq.size() == queryLength())
+        VERIFY(to_seq.size() == targetLength())
+        size_t res = 0;
+        for(AlignmentColumn col: columns()) {
+            if(col.event != CigarEvent::M || from_seq[col.qpos] != to_seq[col.tpos])
+                res++;
+        }
+        return res;
     }
 };
 

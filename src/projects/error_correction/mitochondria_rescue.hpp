@@ -1,6 +1,7 @@
 #pragma once
 #include "dbg/sparse_dbg.hpp"
-#include "dbg/graph_alignment_storage.hpp"
+#include "dbg/dbg_read_alignment_storage.hpp"
+#include "read_cleaning.hpp"
 
 inline bool CheckCov(const dbg::Component &component, double &d) {
     size_t bad_cnt = 0;
@@ -16,7 +17,7 @@ inline bool CheckCov(const dbg::Component &component, double &d) {
 }
 
 inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
-                    dbg::ReadAlignmentStorage &reads_storage, size_t unique_length, double error_fraction = 0.05) {
+                    dbg::DBGAlignedReadStorage &reads_storage, size_t unique_length, double error_fraction = 0.05) {
     logger.info() << "Attempting to rescue small circular highly covered components" << std::endl;
     std::unordered_set<dbg::Edge const *> bad_edges;
     size_t cnt = 0;
@@ -56,7 +57,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     std::function<bool(const dbg::Edge&)> is_bad = [&bad_edges](const dbg::Edge &edge) {
         return bad_edges.find(&edge) != bad_edges.end();
     };
-    reads_storage.delayedInvalidateBad(logger, threads, is_bad, "after_mitres");
-    reads_storage.applyCorrections(logger, threads);
+    InvalidateBad(logger, threads, reads_storage.getReads(), 500, is_bad, "after_mitres");
+    reads_storage.getReads().applyCorrections(logger, threads);
     logger.info() << "Rescued " << cnt << " circular highly covered components" << std::endl;
 }

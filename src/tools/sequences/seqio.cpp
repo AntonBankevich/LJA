@@ -131,7 +131,7 @@ void io::SeqReader::initReader(const std::experimental::filesystem::path &file_n
     } else if (endsWith(file_name, std::vector<std::string>{".fasta", ".fasta.gz", ".fa", ".fa.gz"})) {
         subreader = new FASTAReader(file_name);
     } else {
-        VERIFY_MSG(false, "unkwn file ext: " << file_name);
+        VERIFY_MSG(false, "Unknown file extension: " << file_name);
     }
 }
 

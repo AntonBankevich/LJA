@@ -29,6 +29,11 @@ namespace oneline {
         return std::move(result);
     }
 
+    template<class V, class I>
+    std::vector<V> removeValue(I begin, I end, const V &to_remove) {
+        return filter<V, I>(begin, end, [&to_remove](const V &val){return val != to_remove;});
+    }
+
     template<class V, class C>
     C filter(const C&container, const std::function<bool(const V&)> &f) {
         return std::move(filter<V, typename C::const_iterator>(container.begin(), container.getFinish(), f));

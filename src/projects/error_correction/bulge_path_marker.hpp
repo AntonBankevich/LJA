@@ -1,25 +1,25 @@
 #pragma once
 #include "dbg/sparse_dbg.hpp"
-#include "dbg/graph_alignment_storage.hpp"
+#include "dbg/dbg_read_alignment_storage.hpp"
 #include "reliable_fillers.hpp"
 #include "diploidy_analysis.hpp"
 
 namespace dbg {
     class BulgePathMarker : public AbstractReliableFillingAlgorithm {
     private:
-        dbg::ReadAlignmentStorage &reads;
+        dbg::DBGAlignedReadStorage &reads;
         size_t unique_threshold;
 
-        bool checkBulgeForward(const std::pair<EdgeId, EdgeId> &bulge) {
-            const ag::VertexRecord<DBGTraits> &vr1 = reads.getRecord(bulge.first->getStart());
-            const ag::VertexRecord<DBGTraits> &vr2 = reads.getRecord(bulge.first->getFinish());
-            Sequence s1 = vr1.getFullUniqueExtension(bulge.first->truncSeq().Subseq(0, 1), 1, 0, 3).cpath();
-            Sequence s2 = vr1.getFullUniqueExtension(bulge.second->truncSeq().Subseq(0, 1), 1, 0, 3).cpath();
-            Sequence s = vr2.getFullUniqueExtension(Sequence(), 1, 0, 2).cpath();
-            return s1.size() > s.size() + 1 && s2.size() > s.size() + 1;
+        bool checkBulgeForward(const std::pair<dbg::EdgeId, dbg::EdgeId> &bulge) {
+            GraphPath s1 = FullSuffixSupportedExtension(reads.getSuffixes().getSuffixRecord(*bulge.first),
+                                                        GraphPath(bulge.first->getFinish()), 1, 0, 2);
+            GraphPath s2 = FullSuffixSupportedExtension(reads.getSuffixes().getSuffixRecord(*bulge.second),
+                                                        GraphPath(bulge.second->getFinish()), 1, 0, 2);
+            return (s1.calculateSize() >= 1 && s2.calculateSize() >= 1 && s1.frontEdge() != s2.frontEdge()) ||
+                    (s1.calculateSize() == 2 && s2.calculateSize() == 2 && s1.frontEdge() == s2.frontEdge() && s1.backEdge() != s2.backEdge());
         }
 
-        bool checkBulgeIdeal(const BulgePath<dbg::DBGTraits> &bulgePath, size_t index) {
+        bool checkBulgeIdeal(const BulgePath<DBGTraits> &bulgePath, size_t index) {
             if (!bulgePath.isBulge(index))
                 return false;
             return checkBulgeForward(bulgePath[index]) &&
@@ -29,7 +29,7 @@ namespace dbg {
     public:
         std::string name() const override { return "BulgePathMarker"; }
 
-        BulgePathMarker(dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads, size_t unique_threshold) : reads(reads),
+        BulgePathMarker(dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads, size_t unique_threshold) : reads(reads),
                                                                                                           unique_threshold(
                                                                                                                   unique_threshold) {
             dbg.resetMarkers();
@@ -37,7 +37,7 @@ namespace dbg {
 
         void setUniqueMarkers(dbg::SparseDBG &dbg) {
             for (const BulgePath<DBGTraits> &bulgePath: BulgePathFinder(dbg).paths) {
-                if (bulgePath.length() < unique_threshold || bulgePath.start() < bulgePath.finish().rc()) {
+                if (bulgePath.length() < unique_threshold || bulgePath.getStart() < bulgePath.getFinish().rc()) {
                     continue;
                 }
                 for (size_t i = 0; i < bulgePath.size(); i++) {
@@ -117,10 +117,10 @@ namespace dbg {
                         break;
                     found++;
                     dbg::GraphPath res(best->rc());
-                    while (component.contains(res.finish())) {
-                        res += prev[res.finish().rc().getId()].second->rc();
+                    while (component.contains(res.getFinish())) {
+                        res += prev[res.getFinish().rc().getId()].second->rc();
                     }
-                    VERIFY(!component.contains(res.finish()));
+                    VERIFY(!component.contains(res.getFinish()));
                     VERIFY(used.find(res.backEdge().getId()) == used.end());
                     for (dbg::Edge &edge: res.edges()) {
                         used.emplace(edge.getId());

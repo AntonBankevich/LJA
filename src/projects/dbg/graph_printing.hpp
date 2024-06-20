@@ -1,6 +1,6 @@
 #pragma once
 
-#include "assembly_graph/component.hpp"
+#include "assembly_graph/data_structures/component.hpp"
 #include "sparse_dbg.hpp"
 namespace dbg {
 //TODO: move to namespace ag and make it universal for all graphs

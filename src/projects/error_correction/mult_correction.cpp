@@ -1,8 +1,10 @@
 #include "mult_correction.hpp"
-
+#include "correction_utils.hpp"
+#include "read_cleaning.hpp"
 #include "assembly_graph/visualization.hpp"
+
 using namespace dbg;
-void printAl(logging::Logger &logger, std::unordered_map<const dbg::Edge *, CompactPath> &unique_extensions,
+void printAl(logging::Logger &logger, std::unordered_map<const dbg::Edge *, GraphPath> &unique_extensions,
              const dbg::GraphPath &al) {
     for(Edge &piece : al.edges()) {
         logger << piece.str() << " ";
@@ -14,28 +16,28 @@ void printAl(logging::Logger &logger, std::unordered_map<const dbg::Edge *, Comp
 }
 
 struct UEdge {
-    UEdge(dbg::Edge *from, dbg::Edge *to, dbg::CompactPath cpath, size_t support) : from(from), to(to), cpath(std::move(cpath)),
+    UEdge(dbg::Edge *from, dbg::Edge *to, dbg::GraphPath cpath, size_t support) : from(from), to(to), cpath(std::move(cpath)),
                                                                                     support(support) {}
 
     dbg::Edge *from;
     dbg::Edge *to;
-    dbg::CompactPath cpath;
+    dbg::GraphPath cpath;
     size_t support;
 
     UEdge RC() const {
         return {&to->rc(), &from->rc(), cpath.RC(), support};
     }
 };
-//std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
+//std::unordered_map<const Edge *, GraphPath> constructUniqueExtensions(logging::Logger &logger, SparseDBG &dbg,
 //                                                                         const dbg::ReadAlignmentStorage &reads_storage, const UniqueClassificator &classificator) {
 //    std::unordered_map<Edge *, std::vector<UEdge>> bg;
 //    for(Edge &edge : dbg.edges()) {
 //        if(!classificator.isUnique(edge))
 //            continue;
-//        Vertex &start = *edge.start();
+//        Vertex &start = *edge.getStart();
 //        std::vector<Sequence> extensions;
 //        for(auto & c : reads_storage.getRecord(start)) {
-//            GraphAlignment al = CompactPath(start, c.first).getAlignment();
+//            GraphAlignment al = GraphPath(start, c.first).getAlignment();
 //            if(al.front().contig() != edge)
 //                continue;
 //            for(size_t i = 0; i < al.size(); i++) {
@@ -47,12 +49,12 @@ struct UEdge {
 //            }
 //            if(!classificator.isUnique(al.back().contig()))
 //                continue;
-//            extensions.emplace_back(CompactPath(al).cpath());
+//            extensions.emplace_back(GraphPath(al).cpath());
 //        }
 //        std::sort(extensions.begin(), extensions.end());
 //        extensions.erase(std::unique(extensions.begin(), extensions.end()), extensions.end());
 //        for(Sequence &extension : extensions) {
-//            CompactPath new_path(start, extension);
+//            GraphPath new_path(start, extension);
 //            bg[&edge].emplace_back(&edge, &new_path.getAlignment().back().contig(), new_path,
 //                                   reads_storage.getRecord(start).countStartsWith(extension));
 //        }
@@ -60,132 +62,148 @@ struct UEdge {
 //    std::unordered_map<Edge *, UEdge> choice;
 //}
 
-inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const dbg::ReadAlignmentStorage &reads_storage,
+inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const dbg::DBGAlignedReadStorage &reads_storage,
                                const AbstractUniquenessStorage &classificator,
-                               std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
+                               std::unordered_map<const Edge *, GraphPath> &unique_extensions) {
     VERIFY(uniqueEdges.empty() || uniqueEdges.front()->truncSize() >= uniqueEdges.back()->truncSize());
     for(Edge *edgeIt : uniqueEdges) {
         Edge &edge = *edgeIt;
         if (unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         Vertex & start = edge.getStart();
-        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(start);
-        Sequence seq = edge.truncSeq().Subseq(0, 1);
-        CompactPath path = rec.getFullUniqueExtension(seq, 1, 0);
-        if(path.size() == 1)
+        const ag::SuffixRecord<DBGTraits> &erec = reads_storage.getSuffixes().getSuffixRecord(edge);
+//        Sequence seq = edge.truncSeq().Subseq(0, 1);
+        GraphPath al = FullSuffixSupportedExtension(erec, GraphPath(edge.getFinish()), 1, 0);
+        if(al.empty())
             continue;
-        dbg::GraphPath al = path.unpack();
-        for(size_t i = 1; i < al.size(); i++) {
-            Segment<Edge> seg = al[i];
-            if(classificator.isUnique(seg.contig())) {
-                al = al.subPath(0, i + 1);
+        for(PathPosition pp = al.firstPosition(); pp != al.lastPosition(); ++pp) {
+            if(classificator.isUnique(pp.nextEdge())) {
+                al = al.subPath(al.firstPosition(), pp + 1);
                 break;
             }
         }
-        if(!classificator.isUnique(al.back().contig()) || al.size() == 1)
+        VERIFY(!al.empty());
+        if(!classificator.isUnique(al.back().contig()))
             continue;
-        unique_extensions.emplace(&edge, CompactPath(edge.getFinish(), CompactPath(al).cpath().Subseq(1), 0, 0));
-        CompactPath res1(al.RC().subPath(1, al.size()));
-        unique_extensions.emplace(&al.back().contig().rc(), res1);
+        al.push_front(edge);
+        unique_extensions.emplace(&al.frontEdge(), al.subPath(al.firstPosition() + 1));
+        al = al.RC();
+        unique_extensions.emplace(&al.frontEdge(), al.subPath(al.firstPosition() + 1));
     }
 }
 
-dbg::GraphPath greedyExtension(const ag::VertexRecord<DBGTraits> &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
-    dbg::GraphPath path(edge.getStart());
-    path += edge;
-    Sequence seq = CompactPath(path).cpath();
+dbg::GraphPath greedyExtension(const ag::SuffixRecord<DBGTraits> &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
+    dbg::GraphPath path(edge.getFinish());
+    Sequence seq = edge.getCode();
     while(true) {
-        Sequence best;
         size_t best_val = 0;
         Edge *next_edge = nullptr;
-        for(Edge &next_candidate : path.finish()) {
+        for(Edge &next_candidate : path.getFinish()) {
             if(classificator.isError(next_candidate))
                 continue;
-            Sequence next = seq + next_candidate.truncSeq().Subseq(0, 1);
-            size_t val = rec.countStartsWith(next);
+            path += next_candidate;
+            size_t val = rec.countStartsWith(path);
             if(val > best_val) {
                 best_val = val;
-                best = next;
                 next_edge = &next_candidate;
             }
+            path.pop_back();
         }
         if(best_val == 0)
             break;
-        seq = best;
         path += *next_edge;
     }
-    return path;
+    return std::move(path);
 }
 
-inline CompactPath findBulgeExtension(const ag::VertexRecord<DBGTraits> &rec, Edge &edge, const CompactPath & greedy) {
+PathPosition findVertexInPath(const GraphPath &path, Vertex &vertex, PathPosition pp) {
+    while(pp != path.endPosition()) {
+        if(vertex == pp.getVertex())
+            return pp;
+        ++pp;
+    }
+    return pp;
+}
+
+//Dealing with the case when unique edge is folowed by a fork. Choosing one direction for this case
+inline GraphPath findBulgeExtension(const ag::SuffixRecord<DBGTraits> &rec, Edge &edge, const GraphPath & greedy) {
     if(edge.getFinish().outDeg() != 2)
         return greedy;
     Edge &edge1 = edge.getFinish().front();
     Edge &edge2 = edge.getFinish().back();
-    CompactPath cp1 = rec.getFullUniqueExtension(edge.firstNucl() + edge1.firstNucl(), 1, 0);
-    CompactPath cp2 = rec.getFullUniqueExtension(edge.firstNucl() + edge2.firstNucl(), 1, 0);
-    if(greedy.cpath().startsWith(cp2.cpath())) {
-        std::swap(cp1, cp2);
+    GraphPath p1 = GraphPath(edge1) + FullSuffixSupportedExtension(rec, GraphPath(edge1), 1, 0);
+    GraphPath p2 = GraphPath(edge2) + FullSuffixSupportedExtension(rec, GraphPath(edge2), 1, 0);
+//    We make sure that greedy extension corresponds to the first extension
+    if(greedy.startsWith(p2)) {
+        std::swap(p1, p2);
     } else {
-        if(!greedy.cpath().startsWith(cp1.cpath()))
+//        If gready extension does not correspond to any of the extensions we drop the analysis
+        if(!greedy.startsWith(p1))
             return greedy;
     }
-    dbg::GraphPath p1 = cp1.unpack();
-    dbg::GraphPath p2 = cp2.unpack();
-    size_t b1 = 0;
-    size_t b2 = 0;
-    Sequence choice;
-    if(p2.find(p1.getVertex(2), 2) != size_t (-1)) {
-        b1 = 2;
-        b2 = p2.find(p1.getVertex(2), 2);
-        choice = cp2.cpath().Subseq(0, b2);
-        if(p1.find(p2.getVertex(2), 2) != size_t(-1)) {
+    p1 = greedy;
+    PathPosition b1 = p1.firstPosition();
+    PathPosition b2 = p2.firstPosition();
+    GraphPath choice;
+//    Considering the most simple case where one of the edges in the forks forms a bulge with alternative extension
+    Vertex &p1v2 = (p1.firstPosition() + 1).getVertex();
+    Vertex &p2v2 = (p2.firstPosition() + 1).getVertex();
+    if(findVertexInPath(p2, p1v2, p2.firstPosition() + 1) != p2.endPosition()) {
+        b1 = p1.firstPosition() + 1;
+        b2 = findVertexInPath(p2, p1v2, p2.firstPosition() + 1);
+        if(findVertexInPath(p1, p2v2, p1.firstPosition() + 1) != p1.endPosition()) {
             return greedy;
         }
-    } else if(p1.find(p2.getVertex(2), 2) != size_t(-1)) {
-        b1 = p1.find(p2.getVertex(2), 2);
-        b2 = 2;
-        choice = cp1.cpath().Subseq(0, b1);
+        choice = p2.subPath(p2.firstPosition(), b2);
+    } else if(findVertexInPath(p1, p2v2, p1.firstPosition() + 1) != p1.endPosition()) {
+        b1 = findVertexInPath(p1, p2v2, p1.firstPosition() + 1);
+        b2 = p2.firstPosition() + 1;
+        choice = p1.subPath(p1.firstPosition(), b1);
     }
-    if(!cp1.cpath().Subseq(b1).nonContradicts(cp2.cpath().Subseq(b2)))
+//    choice contains the alternative path in the bulge
+//    If after the bulge extentions not contradict each other we drop the analysis.
+    if(!p1.subPath(b1).nonContradicts(p2.subPath(b2)))
         return greedy;
-    return CompactPath(edge.getStart(), choice + greedy.cpath().Subseq(b1));
+//    We correct greedy path to go through the more complex path.
+    return choice + p1.subPath(b1);
 }
 
-inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const dbg::ReadAlignmentStorage &reads_storage,
+inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const dbg::DBGAlignedReadStorage &reads_storage,
                                   const AbstractUniquenessStorage &classificator,
-                                  std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
+                                  std::unordered_map<const Edge *, GraphPath> &unique_extensions) {
     for(Edge *edgeIt : uniqueEdges) {
         Edge &edge = *edgeIt;
         if(unique_extensions.find(&edge) != unique_extensions.end())
             continue;
-        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(edge.getStart());
+        const ag::SuffixRecord<DBGTraits> &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
         dbg::GraphPath path = greedyExtension(rec, classificator, edge);
-        VERIFY(edge == path.frontEdge());
-        path = findBulgeExtension(rec, edge, CompactPath(path)).unpack();
-        VERIFY(edge == path.frontEdge());
-        for(size_t i = 1; i < path.size(); i++) {
-            if(classificator.isUnique(path.frontEdge())) {
-                path = path.subPath(0, i + 1);
+        VERIFY(edge.getFinish() == path.getStart());
+        path = findBulgeExtension(rec, edge, path);
+        VERIFY(edge.getFinish() == path.getStart());
+        for(PathPosition pp = path.firstPosition(); pp != path.lastPosition(); ++pp) {
+            if(classificator.isUnique(pp.nextEdge())) {
+                path = path.subPath(path.firstPosition(), pp + 1);
                 break;
             }
         }
-        if(path.size() == 1) {
+        if(path.empty()) {
             continue;
         }
-        VERIFY(edge == path.frontEdge());
-        unique_extensions.emplace(&edge, CompactPath::Subpath(path,1, path.size()));
+        VERIFY(edge.getFinish() == path.getStart());
+        unique_extensions.emplace(&edge, path);
         Edge &last_rc_edge = path.backEdge().rc();
         if(classificator.isUnique(last_rc_edge) && unique_extensions.find(&last_rc_edge) == unique_extensions.end()) {
-            unique_extensions.emplace(&last_rc_edge, CompactPath::Subpath(path.RC(), 1, path.size()));
+            path.push_front(edge);
+            path.pop_back();
+            unique_extensions.emplace(&last_rc_edge, path.RC());
         }
     }
 }
 
-inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(logging::Logger &logger,
-                                                                               SparseDBG &dbg, const dbg::ReadAlignmentStorage &reads_storage,
+inline std::unordered_map<const Edge *, GraphPath> constructUniqueExtensions(logging::Logger &logger,
+                                                                               SparseDBG &dbg, const dbg::DBGAlignedReadStorage &reads_storage,
                                                                                const AbstractUniquenessStorage &classificator) {
-    std::unordered_map<const Edge *, CompactPath> unique_extensions;
+    std::unordered_map<const Edge *, GraphPath> unique_extensions;
     std::vector<Edge*> uniqueEdges;
     for(Edge &edge : dbg.edges()) {
         if (classificator.isUnique(edge))
@@ -209,34 +227,32 @@ inline std::unordered_map<const Edge *, CompactPath> constructUniqueExtensions(l
     return std::move(unique_extensions);
 }
 
-dbg::GraphPath correctRead(std::unordered_map<const Edge *, CompactPath> &unique_extensions,
+//This procedure should not exist int this world
+dbg::GraphPath correctRead(std::unordered_map<const Edge *, GraphPath> &unique_extensions,
                          const dbg::GraphPath &initial_al) {
-    CompactPath initialCompactPath(initial_al);
+    GraphPath initialGraphPath(initial_al);
     dbg::GraphPath al = initial_al;
     bool bad;
     bool corrected = false;
-    for(size_t i = 0; i + 1 < al.size(); i++) {
-        if(unique_extensions.find(&al[i].contig()) == unique_extensions.end())
+    for(PathPosition cur = al.firstPosition(); cur + 1 != al.lastPosition(); ++cur) {
+        if(unique_extensions.find(&cur.nextEdge()) == unique_extensions.end())
             continue;
-        CompactPath &compactPath = unique_extensions.find(&al[i].contig())->second;
-        if(compactPath.cpath().nonContradicts(CompactPath::Subpath(al, i + 1, al.size()).cpath()))
+        GraphPath replacement = unique_extensions.find(&cur.nextEdge())->second;
+        if(replacement.nonContradicts(al.subPath(cur + 1)))
             continue;
         corrected = true;
-        dbg::GraphPath new_al = al.subPath(0, i + 1);
-        size_t corrected_len = al.subPath(i + 1, al.size()).truncLen();
-        dbg::GraphPath replacement = compactPath.unpack();
+        dbg::GraphPath new_al = al.subPath(al.firstPosition(), cur + 1);
+        size_t corrected_len = al.subPath(cur + 1).truncLen();
         while(replacement.truncLen() < corrected_len &&
               unique_extensions.find(&replacement.back().contig()) != unique_extensions.end()) {
-            replacement += unique_extensions[&replacement.back().contig()].unpack();
+            replacement += unique_extensions[&replacement.back().contig()];
         }
         if(replacement.truncLen() < corrected_len) {
             size_t deficite = corrected_len - replacement.truncLen();
-//            logger.info() << "Need to correct more than known " << read_id << "\n"
-//                          << CompactPath(al.subalignment(i + 1, al.size())) << "\n" << compactPath << std::endl;
             new_al += replacement;
-            while(new_al.finish().outDeg() == 1 && deficite > 0) {
-                size_t len = std::min(deficite, new_al.finish().front().truncSize());
-                new_al += Segment<Edge>(new_al.finish().front(), 0, len);
+            while(new_al.getFinish().outDeg() == 1 && deficite > 0) {
+                size_t len = std::min(deficite, new_al.getFinish().front().truncSize());
+                new_al += Segment<Edge>(new_al.getFinish().front(), 0, len);
                 deficite -= len;
             }
             bad = true;
@@ -253,6 +269,7 @@ dbg::GraphPath correctRead(std::unordered_map<const Edge *, CompactPath> &unique
             }
         }
         al = new_al;
+        break;
     }
     if(corrected)
         return std::move(al);
@@ -260,35 +277,35 @@ dbg::GraphPath correctRead(std::unordered_map<const Edge *, CompactPath> &unique
         return initial_al;
 }
 
-void correctReads(logging::Logger &logger, size_t threads, dbg::ReadAlignmentStorage &reads_storage,
-                  std::unordered_map<const Edge *, CompactPath> &unique_extensions) {
+void correctReads(logging::Logger &logger, size_t threads, dbg::DBGAlignedReadStorage &reads_storage,
+                  std::unordered_map<const Edge *, GraphPath> &unique_extensions) {
     omp_set_num_threads(threads);
     logger.info() << "Correcting reads using unique edge extensions" << std::endl;
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, unique_extensions)
-    for(size_t i = 0; i < reads_storage.size(); i++) {
-        ag::AlignedRead<DBGTraits> &alignedRead = reads_storage[i];
+    for(size_t i = 0; i < reads_storage.getReads().size(); i++) {
+        ag::AlignedRead<DBGTraits> &alignedRead = reads_storage.getReads()[i];
         if(!alignedRead.valid())
             continue;
-        const dbg::GraphPath al = alignedRead.path.unpack();
-        if(al.size() > 1) {
+        const dbg::GraphPath al = alignedRead.getPath();
+        if(!al.isSingleton()) {
             dbg::GraphPath corrected1 = correctRead(unique_extensions, al);
             dbg::GraphPath corrected2 = correctRead(unique_extensions, corrected1.RC()).RC();
             if(al != corrected2) {
-                reads_storage.reroute(alignedRead, al, corrected2, "mult correction");
+                reads_storage.getReads().rerouteRead(alignedRead, corrected2, "mult correction");
             }
         }
     }
-    reads_storage.applyCorrections(logger, threads);
+    reads_storage.getReads().applyCorrections(logger, threads);
 }
 
-void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sdbg, ReadAlignmentStorage &reads_storage,
+void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sdbg, DBGAlignedReadStorage &reads_storage,
                           const AbstractUniquenessStorage &classificator, const std::experimental::filesystem::path &ext_file) {
-    std::unordered_map<const Edge *, CompactPath> unique_extensions =
+    std::unordered_map<const Edge *, GraphPath> unique_extensions =
             constructUniqueExtensions(logger, sdbg, reads_storage, classificator);
     std::ofstream os;
     os.open(ext_file);
     for(auto &it : unique_extensions) {
-        os << it.first->getInnerId() << " " << it.second.cpath() << "\n";
+        os << it.first->getInnerId() << " " << it.second << "\n";
     }
     os.close();
     correctReads(logger, threads, reads_storage, unique_extensions);
@@ -297,8 +314,8 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     for(Edge & edge : sdbg.edgesUnique()) {
         if(edge.innerSize() > 5000)
             continue;
-        if(reads_storage.getRecord(edge.getStart()).isDisconnected(edge) ||
-           reads_storage.getRecord(edge.rc().getStart()).isDisconnected(edge.rc())) {
+        if(reads_storage.getSuffixes().getSuffixRecord(edge).empty() ||
+           reads_storage.getSuffixes().getSuffixRecord(edge.rc()).empty()) {
             bad_edges.emplace(&edge);
             bad_edges.emplace(&edge.rc());
         }
@@ -308,11 +325,11 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
     std::function<bool(const Edge&)> is_bad = [&bad_edges](const Edge &edge) {
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
-    reads_storage.delayedInvalidateBad(logger, threads, is_bad, "after_mult");
-    reads_storage.applyCorrections(logger, threads);
+    InvalidateBad(logger, threads, reads_storage.getReads(), 500, is_bad, "after_mult");
+    reads_storage.getReads().applyCorrections(logger, threads);
 }
 
-SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, ReadAlignmentStorage &reads_storage,
+SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, DBGAlignedReadStorage &reads_storage,
                                               const AbstractUniquenessStorage &classificator) {
     logger.info() << "Looking for more unique edges" << std::endl;
     SetUniquenessStorage res;
@@ -321,14 +338,13 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
             res.addUnique(edge);
             continue;
         }
-        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(edge.getStart());
-        CompactPath unique_extension = rec.getFullUniqueExtension(edge.truncSeq().Subseq(0, 1), 1, 0);
-        dbg::GraphPath path = unique_extension.unpack();
+        const ag::SuffixRecord<DBGTraits> &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
+        GraphPath path = GraphPath(edge) + FullSuffixSupportedExtension(rec, GraphPath(edge.getFinish()), 1, 0);
         size_t len = 0;
-        for(size_t i = 1; i < path.size(); i++) {
-            if(classificator.isUnique(path[i].contig())) {
-                if(len < 3000 && rec.countStartsWith(CompactPath::Subpath(path,0, i + 1).cpath()) >= 4) {
-                    if(i == 1 && edge.getStart().inDeg() == 2 && edge.getFinish().outDeg() == 2 &&
+        for(PathPosition pos = path.firstPosition() + 1; pos != path.lastPosition(); ++pos) {
+            if(classificator.isUnique(pos.nextEdge())) {
+                if(len < 3000 && rec.countStartsWith(path.subPath(path.firstPosition() + 1, pos + 1)) >= 4) {
+                    if(pos == path.firstPosition() + 1 && edge.getStart().inDeg() == 2 && edge.getFinish().outDeg() == 2 &&
                             edge.getStart().outDeg() == 1 && edge.getFinish().inDeg() == 1) {
                         if(classificator.isUnique(edge.getStart().rc().front()) && classificator.isUnique(edge.getStart().rc().back()) &&
                            classificator.isUnique(edge.getFinish().front()) && classificator.isUnique(edge.getFinish().back())) {
@@ -340,7 +356,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
                     break;
                 }
             }
-            len += path[i].size();
+            len += path.getSegment(pos).size();
         }
     }
     logger.info() << "Finished unique edges search. Found " << res.size() << " unique edges" << std::endl;
@@ -348,7 +364,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
 }
 
 void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &dbg, size_t unique_threshold,
-              ReadAlignmentStorage &reads_storage, AbstractUniquenessStorage &uniquenessStorage) {
+              DBGAlignedReadStorage &reads_storage, AbstractUniquenessStorage &uniquenessStorage) {
     std::vector<Component> split = ag::LengthSplitter<DBGTraits>(unique_threshold).splitGraph(dbg);
     recreate_dir(dir);
     const std::function<std::string(const Edge &)> colorer = [&uniquenessStorage](const Edge &edge) {
@@ -361,16 +377,17 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
         return "blue";
     };
     Printer<dbg::DBGTraits> printer;
-    printer.addEdgeInfo(ObjInfo<dbg::Edge>({reads_storage.labeler()}, {colorer}, {}));
+    ObjInfo<dbg::Edge> info({reads_storage.getSuffixes().labeler()}, {colorer}, {});
+    printer.addEdgeInfo(info);
     for(size_t i = 0; i < split.size(); i++) {
         // printDot(dir / (itos(i) + ".dot"), split[i], reads_storage.labeler(), colorer); delete if ok
         printer.printDot(dir / (itos(i) + ".dot"), split[i]);
     }
 }
 
-ReadAlignmentStorage MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
-                          ReadAlignmentStorage &reads_storage, size_t unique_threshold, double initial_rel_coverage, bool diploid,
-                          bool debug) {
+ag::AlignedReadStorage<DBGTraits> MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
+                                       DBGAlignedReadStorage &reads_storage, size_t unique_threshold, double initial_rel_coverage, bool diploid,
+                                       bool debug) {
     if(debug) {
         recreate_dir(dir);
     }
@@ -387,5 +404,6 @@ ReadAlignmentStorage MultCorrect(logging::Logger &logger, size_t threads, Sparse
     if(debug)
         DrawMult(dir / "final", dbg, unique_threshold, reads_storage, more_unique);
     auto res = std::move(ResolveLoops(logger, threads, dbg, reads_storage, more_unique));
+    for(Edge &edge: dbg.edges()) edge.is_reliable = false;
     return std::move(res);
 }

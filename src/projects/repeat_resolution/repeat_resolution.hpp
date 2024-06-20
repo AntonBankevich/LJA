@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../dbg/graph_alignment_storage.hpp"
+#include "../dbg/dbg_read_alignment_storage.hpp"
 #include "../dbg/sparse_dbg.hpp"
 #include "../error_correction/multiplicity_estimation.hpp"
 #include "mdbg.hpp"
@@ -17,8 +17,8 @@ namespace repeat_resolution {
 
 class RepeatResolver {
     dbg::SparseDBG &dbg;
-    dbg::ReadAlignmentStorage *reads_storage;
-    std::vector<dbg::ReadAlignmentStorage *> extra_storages{};
+    dbg::DBGAlignedReadStorage *reads_storage;
+    std::vector<dbg::DBGAlignedReadStorage *> extra_storages{};
     std::uint64_t start_k{1};
     std::uint64_t saturating_k{1};
     std::experimental::filesystem::path dir;
@@ -27,16 +27,16 @@ class RepeatResolver {
     bool debug{false};
     UniqueClassificator classificator;
 
-    [[nodiscard]] std::vector<dbg::ReadAlignmentStorage *> get_storages() const {
-        std::vector<dbg::ReadAlignmentStorage *> storages = extra_storages;
+    [[nodiscard]] std::vector<dbg::DBGAlignedReadStorage *> get_storages() const {
+        std::vector<dbg::DBGAlignedReadStorage *> storages = extra_storages;
         storages.push_back(reads_storage);
         return storages;
     }
 
  public:
     RepeatResolver(dbg::SparseDBG &dbg,
-                   dbg::ReadAlignmentStorage *reads_storage,
-                   std::vector<dbg::ReadAlignmentStorage *> extra_storages,
+                   dbg::DBGAlignedReadStorage *reads_storage,
+                   std::vector<dbg::DBGAlignedReadStorage *> extra_storages,
                    uint64_t start_k,
                    uint64_t saturating_k,
                    const std::experimental::filesystem::path &dir,

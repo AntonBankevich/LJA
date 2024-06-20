@@ -1,6 +1,6 @@
 #pragma once
 
-#include "graph_alignment_storage.hpp"
+#include "dbg_read_alignment_storage.hpp"
 #include "visualization.hpp"
 #include "graph_printing.hpp"
 #include "assembly_graph/visualization.hpp"
@@ -28,14 +28,14 @@ namespace dbg {
             std::ofstream os;
             os.open(reads_file);
             for (ag::AlignedRead<DBGTraits> *read: reads) {
-                os << ">" << read->id << "\n" << read->path.unpack().Seq() << "\n";
+                os << ">" << read->getId() << "\n" << read->getPath().Seq() << "\n";
             }
             os.close();
         }
     };
 
     inline void
-    FillSubdatasets(std::vector<Subdataset> &result, const std::vector<dbg::ReadAlignmentStorage *> &storages,
+    FillSubdatasets(std::vector<Subdataset> &result, const std::vector<dbg::DBGAlignedReadStorage *> &storages,
                     bool add_out_edges = true) {
         std::unordered_map<dbg::Vertex *, std::vector<size_t>> cmap;
         for (size_t i = 0; i < result.size(); i++) {
@@ -43,21 +43,21 @@ namespace dbg {
                 cmap[&vert].emplace_back(i);
             }
         }
-        for (dbg::ReadAlignmentStorage *recordStorage: storages)
-            for (ag::AlignedRead<DBGTraits> &read: *recordStorage) {
+        for (dbg::DBGAlignedReadStorage *recordStorage: storages)
+            for (ag::AlignedRead<DBGTraits> &read: recordStorage->getReads()) {
                 if (!read.valid())
                     continue;
-                dbg::GraphPath al = read.path.unpack();
+                dbg::GraphPath al = read.getPath();
                 std::vector<size_t> cids;
-                for (size_t i = 1; i < al.size(); i++) {
-                    if (cmap.find(&al.getVertex(i)) != cmap.end())
-                        cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].end());
+                for (Vertex & vertex : al.innerVertices()) {
+                    if (cmap.find(&vertex) != cmap.end())
+                        cids.insert(cids.end(), cmap[&vertex].begin(), cmap[&vertex].end());
                 }
-                const std::vector<size_t> &other = cmap[&al.getVertex(0)];
-                if (al.size() == 1) {
+                const std::vector<size_t> &other = cmap[&al.getStart()];
+                if (al.isSingleton()) {
                     if (add_out_edges) {
-                        for (size_t i = 0; i < 2; i++)
-                            cids.insert(cids.end(), cmap[&al.getVertex(i)].begin(), cmap[&al.getVertex(i)].end());
+                        for (Vertex &vertex : al.vertices())
+                            cids.insert(cids.end(), cmap[&vertex].begin(), cmap[&vertex].end());
                     } else {
                         size_t p2 = 0;
                         for (size_t c1: other) {

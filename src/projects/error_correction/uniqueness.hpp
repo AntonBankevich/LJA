@@ -1,6 +1,6 @@
 #pragma once
-#include "assembly_graph/component.hpp"
-#include "assembly_graph/splitters.hpp"
+#include "assembly_graph/data_structures/component.hpp"
+#include "assembly_graph/data_structures/splitters.hpp"
 #include "dbg/sparse_dbg.hpp"
 
 class AbstractUniquenessStorage {

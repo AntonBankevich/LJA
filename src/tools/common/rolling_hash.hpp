@@ -110,6 +110,8 @@ namespace hashing {
 
 
         Sequence getSeq() const {return KWH::getSeq(hasher->getK());}
+        unsigned char nextNucl() const {return seq[getPos() + hasher->getK()];}
+        unsigned char prevNucl() const {return seq[getPos() - 1];}
 
         bool isLast() const {return pos + hasher->getK() == seq.size();}
 
@@ -119,7 +121,6 @@ namespace hashing {
         bool hasPrev() const {return pos > 0;}
         bool isValid() const {return pos + hasher->getK() <= seq.size();}
 
-        unsigned char nextNucl() const {return seq[getPos() + hasher->getK()];}
         MovingKWH next() const;
         MovingKWH prev() const;
     };

@@ -10,6 +10,7 @@
 #include <array>
 #include <algorithm>
 #include <dbg/graph_algorithms.hpp>
+#include <assembly_graph/ag_algorithms.hpp>
 
 using namespace trio;
 using std::vector;
@@ -39,7 +40,7 @@ HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, size_t threads, mult
 
 void HaplotypeRemover::deleteEdgeHaplo(EdgeId eid) {
     logger_.debug() << "Removing " << eid <<std::endl;
-    eid->getStart().removeEdge(*eid);
+    mg.removeEdge(*eid);
 //    mg.internalRemoveEdge(*eid);
 }
 
@@ -57,16 +58,16 @@ void HaplotypeRemover::compressAllVertices() {
         for(Edge &edge : rc.edges()) {
             ids.emplace_back(edge.getInnerId());
         }
-        HaplotypeStats new_haplo(haplotype_info[path.getEdge(0).getInnerId()]);
-        for(size_t i = 1; i < path.size(); i++) {
-            Edge::id_type eid = path.getEdge(i).getInnerId();
+        HaplotypeStats new_haplo(haplotype_info[path.frontEdge().getInnerId()]);
+        for(ag::PathPosition<MGTraits> position = path.firstPosition() + 1; position != path.lastPosition(); ++position) {
+            Edge::id_type eid = position.nextEdge().getInnerId();
             if (new_haplo.haplotype != haplotype_info[eid].haplotype) {
                 logger_.trace() << "Merging different haplotypes " << path.str() <<
-                                " " << i << " " << new_haplo.haplotype << " " << haplotype_info[eid].haplotype <<std::endl;
+                                " " << new_haplo.haplotype << " " << haplotype_info[eid].haplotype <<std::endl;
             }
             new_haplo.appendKmerStats(haplotype_info[eid]);
         }
-        Edge &merged = ag::CompressPath(path);
+        Edge &merged = mg.mergePathToEdge(path);
         new_haplo.label = std::move(ids);
         haplotype_info[merged.getInnerId()] = new_haplo;
         new_haplo.label = std::move(rcids);

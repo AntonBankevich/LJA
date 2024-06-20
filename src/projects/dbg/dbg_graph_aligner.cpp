@@ -55,6 +55,8 @@ dbg::GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) co
     std::vector<hashing::MovingKWH> kmers = extractVertexPositions(seq, 1);
     size_t k = hasher().getK();
     dbg::GraphPath res;
+    Segment<Edge> seg;
+    size_t seq_pos;
     if (kmers.empty()) {
         for(const hashing::MovingKWH &kwh : hasher().kmers(seq)) {
             if (isAnchor(kwh.hash())) {
@@ -108,6 +110,7 @@ dbg::GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) co
         cpos += len;
         prestart = &next.getFinish();
     }
+    VERIFY(res.len() == seq.size());
     return std::move(res);
 }
 

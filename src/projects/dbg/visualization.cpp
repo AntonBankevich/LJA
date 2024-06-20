@@ -1,27 +1,27 @@
 #include "visualization.hpp"
-
-#include "graph_alignment_storage.hpp"
+#include "dbg_read_alignment_storage.hpp"
 #include "graph_printing.hpp"
 
 size_t stage_num = 0;
 
 void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const string &stage,
-           dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &readStorage, const io::Library &paths_lib,
-           bool small) {
+                dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &readStorage, const io::Library &paths_lib, const io::Library &references_lib,
+                bool small) {
     stage_num += 1;
     Printer<dbg::DBGTraits> printer;
-    ObjInfo<dbg::Edge> edge_printing_style = ObjInfo<dbg::Edge>::Tooltiper(readStorage.labeler()) + EdgePrintStyles<dbg::DBGTraits>::defaultDotLabeler();
+    ObjInfo<dbg::Edge> edge_printing_style = EdgePrintStyles<dbg::DBGTraits>::defaultDotLabeler();
+    if(readStorage.tracksSuffixes())
+        edge_printing_style = edge_printing_style + ObjInfo<dbg::Edge>::Tooltiper(readStorage.getSuffixes().labeler());
     printer.setEdgeInfo(edge_printing_style);
     printer.setVertexInfo(VertexPrintStyles<dbg::DBGTraits>::defaultDotInfo());
     std::string stage_name = itos(stage_num) + "_" + stage;
     logger.info() << "Dumping current state. Stage id: " << stage_name << std::endl;
     ensure_dir_existance(dir);
     ensure_dir_existance(dir / "paths");
-    printer.printDot(dir / (stage_name + ".dot"), dbg::Component(dbg));
-    //printDot(dir / (stage_name + ".dot"), dbg::Component(dbg), readStorage.labeler());
+    printer.printDot(dir / (stage_name + ".dot"), dbg);
     dbg::printFasta(dir / (stage_name + ".fasta"), dbg);
     if(!small)
-        readStorage.printFullAlignments(logger, dir / (stage_name + ".als"));
+        readStorage.getReads().printFullAlignments(logger, dir / (stage_name + ".als"));
     std::vector<Contig> paths;
     for(StringContig sc : io::SeqReader(paths_lib)) {
         Contig contig = sc.makeContig();
@@ -32,9 +32,13 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
             paths.emplace_back(std::move(contig));
         }
     }
-    GraphPathStorage storage(dbg);
+    GraphAlignedReadStorage storage(dbg);
     for(Contig &contig : paths) {
         storage.addContig(contig);
+    }
+    for(StringContig sc : io::SeqReader(references_lib)) {
+        Contig tmp = sc.makeContig();
+        storage.addContig(tmp);
     }
     if(paths.empty())
         return;

@@ -34,7 +34,7 @@ void SeqReader::initReader(const std::experimental::filesystem::path &file_name)
     } else if (endsWith(file_name, std::vector<std::string>{".fasta", ".fasta.gz", ".fa", ".fa.gz"})) {
         subreader = new io::FASTAReader(file_name);
     } else {
-        VERIFY_MSG(false, "unkwn file ext: " << file_name);
+        VERIFY_MSG(false, "Unknown file extension: " << file_name);
     }
 }
 
@@ -70,8 +70,9 @@ void dbg::DBGAlignedReadsReader::inner_read() {
         std::stringstream ss;
         ss << line;
         ag::AlignedRead<DBGTraits> aligned_read = ag::AlignedRead<DBGTraits>::Load(ss, id_index);
-        ag::GraphPath<dbg::DBGTraits> graph_path = aligned_read.path.unpack();
-        next = {graph_path.Seq().str(), aligned_read.id};
+        ag::GraphPath<dbg::DBGTraits> graph_path = aligned_read.getPath();
+        next = {graph_path.Seq().str(), aligned_read.getId()};
+
         --number_of_paths;
         return;
     }

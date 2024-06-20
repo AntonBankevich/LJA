@@ -5,8 +5,8 @@
 #include <fstream>
 #include <experimental/filesystem>
 #include <common/string_utils.hpp>
-#include "splitters.hpp"
-#include "assembly_graph/component.hpp"
+#include "assembly_graph/data_structures/splitters.hpp"
+#include "assembly_graph/data_structures/component.hpp"
 #include "dbg/sparse_dbg.hpp"
 
 template <typename T>
@@ -137,7 +137,7 @@ public:
     static ObjInfo<Edge> defaultDotLabeler() {
         std::function<std::string(const Edge &e)> f = [](const Edge &e) {
             std::stringstream ss;
-            ss << e.getInnerId().eid << e.nuclLabel() << " " << e.truncSize();
+            ss << e.getInnerId().eid << e.getCode() << " " << e.truncSize();
             if (std::is_same<Traits, dbg::DBGTraits>::value) {
                 ss << "(" << e.getCoverage() << ")";
             }

@@ -12,6 +12,7 @@
 #include <array>
 #include <spoa/spoa.hpp>
 #include <alignment/ksw_wrapper.hpp>
+#include <dbg/aln_reads_reader.hpp>
 
 using std::vector;
 using std::pair;
@@ -659,12 +660,12 @@ struct AssemblyInfo {
         }
     }
 
-    vector<Contig> process(logging::Logger &logger, const io::Library &lib,
+    vector<Contig> process(logging::Logger &logger, size_t threads, const io::Library &lib,
                            const std::experimental::filesystem::path &alignmens_file) {
         std::ifstream compressed_reads;
         std::ofstream corrected_contigs;
         compressed_reads.open(alignmens_file);
-        io::SeqReader reader(lib);
+        dbg::SeqReader reader(lib, logger, threads);
         logger.trace() << "Initialized\n";
         if (compressed_reads.eof()) {
             logger.info() << "NO ALIGNMENTS AVAILABLE!";
@@ -746,6 +747,6 @@ std::vector<Contig> Polish(logging::Logger &logger, size_t threads,
                                            const io::Library &reads, size_t dicompress) {
     omp_set_num_threads(threads);
     AssemblyInfo assemblyInfo(logger, contigs, dicompress);
-    return std::move(assemblyInfo.process(logger, reads, alignments));
+    return std::move(assemblyInfo.process(logger, threads, reads, alignments));
 }
 

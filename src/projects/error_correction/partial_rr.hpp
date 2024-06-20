@@ -1,11 +1,11 @@
 #pragma once
 
 #include "dbg/sparse_dbg.hpp"
-#include "dbg/graph_alignment_storage.hpp"
+#include "dbg/dbg_read_alignment_storage.hpp"
 #include "diploidy_analysis.hpp"
 
 namespace dbg {
-    std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath<DBGTraits> &bulgePath, const dbg::ReadAlignmentStorage &reads) {
+    std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath<DBGTraits> &bulgePath, const ag::SuffixTracker<DBGTraits> &reads) {
         VERIFY(bulgePath.size() > 0);
         if (bulgePath.size() == 1)
             return {dbg::GraphPath() + *bulgePath[0].first};
@@ -19,47 +19,37 @@ namespace dbg {
         dbg::GraphPath path1, path2;
         {
             dbg::Vertex &sv = bulgePath.getVertex(left + 1);
-            const ag::VertexRecord<DBGTraits> &vrec = reads.getRecord(sv.rc());
-            path1 = vrec.getFullUniqueExtension(bulgePath[left].first->rc().truncSeq().Subseq(0, 1), 2,
-                                                1).RC().unpack();
-            path2 = vrec.getFullUniqueExtension(bulgePath[left].second->rc().truncSeq().Subseq(0, 1), 2,
-                                                1).RC().unpack();
+            path1 = FullSuffixSupportedExtension(reads.getSuffixRecord(bulgePath[left].first->rc()), GraphPath(),
+                                                 2, 1).RC() + *bulgePath[left].first;
+            path2 = FullSuffixSupportedExtension(reads.getSuffixRecord(bulgePath[left].second->rc()), GraphPath(),
+                                                 2, 1).RC() + *bulgePath[left].second;
         }
-        Sequence s;
+        GraphPath s;
         for (size_t i = left + 1; i < bulgePath.size(); i++) {
             if (!bulgePath.isBulge(i))
-                s = s + bulgePath[i].first->truncSeq().Subseq(0, 1);
+                s += *bulgePath[i].first;
             else {
-                Sequence s11 =
-                        path1.back().contig().truncSeq().Subseq(0, 1) + s + bulgePath[i].first->truncSeq().Subseq(0, 1);
-                Sequence s12 =
-                        path1.back().contig().truncSeq().Subseq(0, 1) + s +
-                        bulgePath[i].second->truncSeq().Subseq(0, 1);
-                Sequence s21 =
-                        path2.back().contig().truncSeq().Subseq(0, 1) + s + bulgePath[i].first->truncSeq().Subseq(0, 1);
-                Sequence s22 =
-                        path2.back().contig().truncSeq().Subseq(0, 1) + s +
-                        bulgePath[i].second->truncSeq().Subseq(0, 1);
-                const ag::VertexRecord<DBGTraits> &vrec = reads.getRecord(path1.back().contig().getStart());
-                size_t n11 = vrec.countStartsWith(s11);
-                size_t n12 = vrec.countStartsWith(s12);
-                size_t n21 = vrec.countStartsWith(s21);
-                size_t n22 = vrec.countStartsWith(s22);
-                dbg::GraphPath repeat = dbg::CompactPath(path1.finish(), s).unpack();
+                GraphPath s_1 = s + *bulgePath[i].first;
+                GraphPath s_2 = s + *bulgePath[i].second;
+                const ag::SuffixRecord<DBGTraits> &erec1 = reads.getSuffixRecord(path1.backEdge());
+                const ag::SuffixRecord<DBGTraits> &erec2 = reads.getSuffixRecord(path2.backEdge());
+                size_t straight_support = erec1.countStartsWith(s_1) + erec2.countStartsWith(s_2);
+                size_t switch_support = erec1.countStartsWith(s_2) + erec2.countStartsWith(s_1);
+                dbg::GraphPath repeat = s;
                 s = {};
                 path1 += repeat;
                 path2 += repeat;
-                if ((n11 + n22 != 0 && n12 + n21 != 0) || (n11 + n22 == 0 && n12 + n21 == 0)) {
+                if ((straight_support != 0 && switch_support != 0) || (straight_support == 0 && switch_support == 0)) {
                     res.emplace_back(std::move(path1));
                     res.emplace_back(std::move(path2));
                     path1 = repeat + *bulgePath[i].first;
                     path2 = repeat + *bulgePath[i].second;
                 } else {
-                    if (n11 + n22 > 0) {
+                    if (straight_support > 0) {
                         path1 += *bulgePath[i].first;
                         path2 += *bulgePath[i].second;
                     } else {
-                        VERIFY(n12 + n21 > 0);
+                        VERIFY(switch_support > 0);
                         path1 += *bulgePath[i].second;
                         path2 += *bulgePath[i].first;
                     }
@@ -67,13 +57,10 @@ namespace dbg {
             }
         }
         {
-            dbg::Vertex &sv = path1.back().contig().getStart();
-            VERIFY(sv == path2.back().contig().getStart());
-            const ag::VertexRecord<DBGTraits> &vrec = reads.getRecord(sv);
-            path1 += vrec.getFullUniqueExtension(path1.back().contig().truncSeq().Subseq(0, 1), 2,
-                                                 1).unpack().subPath(1);
-            path2 += vrec.getFullUniqueExtension(path2.back().contig().truncSeq().Subseq(0, 1), 2,
-                                                 1).unpack().subPath(1);
+            path1 += FullSuffixSupportedExtension(reads.getSuffixRecord(path1.backEdge()),
+                                                  GraphPath(path1.getFinish()), 2,1);
+            path2 += FullSuffixSupportedExtension(reads.getSuffixRecord(path2.backEdge()),
+                                                  GraphPath(path2.getFinish()), 2,1);
             res.emplace_back(std::move(path1));
             res.emplace_back(std::move(path2));
         }
@@ -81,7 +68,7 @@ namespace dbg {
     }
 
     std::vector<dbg::GraphPath>
-    PartialRR(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, const dbg::ReadAlignmentStorage &reads) {
+    PartialRR(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, const ag::SuffixTracker<DBGTraits> &reads) {
         logger.info() << "Performing partial repeat resolution" << std::endl;
         BulgePathFinder bulges(dbg, 1);
         logger.trace() << "Bulge collection finished" << std::endl;

@@ -4,7 +4,7 @@
 #pragma once
 #include "sparse_dbg.hpp"
 #include "sequences/seqio.hpp"
-#include "graph_alignment_storage.hpp"
+#include "dbg_read_alignment_storage.hpp"
 #include <map>
 
 namespace dbg {

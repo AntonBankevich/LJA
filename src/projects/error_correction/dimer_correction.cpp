@@ -1,15 +1,33 @@
 #include "dimer_correction.hpp"
 using namespace dbg;
 
-std::string DimerCorrector::correctRead(dbg::GraphPath &path) {
+Sequence truncSubseq(const GraphPath &path, PathPosition pp, size_t sz) {
+    SequenceBuilder sb;
+    while (pp != path.lastPosition()) {
+        Segment<Edge> seg = path.getSegment(pp);
+        if (seg.size() >= sz) {
+            sb.append(seg.shrinkRightToLen(sz).truncSeq());
+            sz = 0;
+            break;
+        } else {
+            sb.append(seg.truncSeq());
+            sz -= seg.size();
+        }
+        ++pp;
+    }
+    return sb.BuildSequence();
+}
+
+std::string DimerCorrector::correctRead(const std::string &name, dbg::GraphPath &path) {
     size_t corrected = 0;
-    size_t k = path.start().size();
+    size_t k = path.getStart().size();
     Sequence remaining_seq = path.truncSeq();
     std::vector<std::string> message;
-    for (size_t path_pos = 0; path_pos < path.size(); path_pos++) {
-        if (path[path_pos].left > 0 || path[path_pos].right < path[path_pos].contig().truncSize())
+    for (PathPosition pp = path.firstPosition(); pp != path.lastPosition(); ++pp) {
+        Edge &edge = pp.nextEdge();
+        if ((pp == path.firstPosition() && !path.startClosed()) || (pp + 1 == path.lastPosition() && !path.endClosed()))
             continue;
-        Sequence seq = path.getVertex(path_pos).getSeq();
+        Sequence seq = edge.getStart().getSeq();
         size_t at_cnt1 = 2;
         while (at_cnt1 < k && seq[k - at_cnt1 - 1] == seq[k - at_cnt1 + 1])
             at_cnt1 += 1;
@@ -18,11 +36,12 @@ std::string DimerCorrector::correctRead(dbg::GraphPath &path) {
         if (at_cnt1 < 4) //Tandem repeat should be at least 4 nucleotides long
             continue;
         Sequence unit = seq.Subseq(k - 2);
-        dbg::GraphPath atPrefix(path.getVertex(path_pos));
+        dbg::GraphPath atPrefix(edge.getStart());
+        VERIFY(atPrefix.getStart() == edge.getStart());
         atPrefix.extend(unit);
         if (!atPrefix.valid())
             continue;
-        Sequence extension = path.truncSubseq(path_pos, k + max_at);
+        Sequence extension = truncSubseq(path, pp, k + max_at);
         size_t at_cnt2 = 0;
         while (at_cnt2 < extension.size() && extension[at_cnt2] == unit[at_cnt2 % 2])
             at_cnt2 += 1;
@@ -31,15 +50,15 @@ std::string DimerCorrector::correctRead(dbg::GraphPath &path) {
         if (at_cnt2 % 2 != 0 || extension.size() < at_cnt2 + k - at_cnt1)
             continue;
         extension = extension.Subseq(0, at_cnt2 + k - at_cnt1);
-        dbg::GraphPath bulgeSide(path.getVertex(path_pos));
+        dbg::GraphPath bulgeSide(edge.getStart());
         bulgeSide.extend(extension);
         VERIFY_MSG(bulgeSide.valid(), "Extension along an existing path failed");
         if (!bulgeSide.endClosed())
             continue;
         Sequence end_seq = extension.Subseq(at_cnt2);
-        std::vector<CompactPath> candidates = {CompactPath(bulgeSide)};
+        std::vector<GraphPath> candidates = {bulgeSide};
         if (at_cnt2 > 0) {
-            dbg::GraphPath candidate(path.getVertex(path_pos));
+            dbg::GraphPath candidate(edge.getStart());
             candidate.extend(end_seq);
             if (!candidate.valid())
                 continue;
@@ -64,9 +83,9 @@ std::string DimerCorrector::correctRead(dbg::GraphPath &path) {
             continue;
         size_t best_val = 0;
         size_t best = 0;
-        const ag::VertexRecord<DBGTraits> &rec = reads_storage.getRecord(path.getVertex(path_pos));
         for (size_t i = 0; i < candidates.size(); i++) {
-            size_t support = rec.countStartsWith(candidates[i].cpath());
+            const ag::SuffixRecord<DBGTraits> &rec = reads_storage.getSuffixes().getSuffixRecord(candidates[i].frontEdge());
+            size_t support = rec.countStartsWith(candidates[i].subPath(candidates[i].firstPosition() + 1, candidates[i].lastPosition()));
             if (support > best_val) {
                 best_val = support;
                 best = i;
@@ -78,8 +97,12 @@ std::string DimerCorrector::correctRead(dbg::GraphPath &path) {
         }
         if (best == 0)
             continue;
-        message.emplace_back(itos(at_cnt1) + "_" + itos(at_cnt2) + "_" + itos(candidates[best].unpack().truncLen()));
-        path = path.reroute(path_pos, path_pos + candidates[0].size(), candidates[best].unpack());
+        message.emplace_back(itos(at_cnt1) + "_" + itos(at_cnt2) + "_" + itos(candidates[best].truncLen()));
+        GraphPath tail = path.subPath(pp + candidates[0].calculateSize(), path.lastPosition());
+        path.shorten(path.firstPosition(), pp);
+        pp = path.lastPosition();
+        path += candidates[best];
+        path += tail;
         corrected++;
     }
     return join("_", message);

@@ -23,11 +23,20 @@ private:
     AlignmentForm extendAlignment(const char *tseq, const char *qseq) const;
     AlignmentForm alignByExtension(const char *tseq, const char *qseq) const;
 public:
-    KSWAligner(__int8_t scMch, __int8_t scMis, int gapo, int gape) :
+    KSWAligner(__int8_t scMch = 1, __int8_t scMis = 5, int gapo = 10, int gape = 2) :
             sc_mch(scMch), sc_mis(scMis), gapo(gapo), gape(gape) {}
 
     inline __int64_t cost(const char *tseq, const char *qseq, const AlignmentForm &cigar) const;
 
+    AlignmentForm directAlignment(const std::string &tseq, const std::string &qseq, int width) const {
+        return runAlignment(tseq.c_str(), qseq.c_str(), width);
+    }
     AlignmentForm globalAlignment(const std::string &tseq, const std::string &qseq) const;
     AlignmentForm extendAlignment(const std::string &tseq, const std::string &qseq) const;
+    size_t editDistance(const std::string &tseq, const std::string &qseq) {
+        AlignmentForm al = globalAlignment(tseq, qseq);
+        if(al.empty())
+            return size_t(-1) / 2;
+        return al.editDistance(qseq, tseq);
+    }
 };

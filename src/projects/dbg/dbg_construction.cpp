@@ -1,5 +1,7 @@
+#include <assembly_graph/ag_algorithms.hpp>
 #include "graph_stats.hpp"
 #include "dbg_construction.hpp"
+#include "aln_reads_reader.hpp"
 
 using namespace hashing;
 using namespace dbg;
@@ -89,6 +91,7 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<std::pair<hash
 
     logger.trace() << "Filled dbg edges. Merging unbranching paths." << std::endl;
     ag::MergeAll(logger, threads, dbg);
+    dbg.resetEdgeCodes(logger, threads);
     logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
     logger.trace() << "Statistics for de Bruijn graph:" << std::endl;
     printStats(logger, dbg);
@@ -150,7 +153,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
         malloc_trim(0);
     } else {
         logger.info() << "Loading disjointigs from file " << disjointigs_file << std::endl;
-        io::SeqReader reader(disjointigs_file);
+        dbg::SeqReader reader(disjointigs_file, logger, threads);
         for(StringContig stringContig: io::SeqReader(disjointigs_file))
             disjointigs.push_back(stringContig.makeSequence());
     }

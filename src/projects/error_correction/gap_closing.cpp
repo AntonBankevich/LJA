@@ -1,5 +1,6 @@
 #include "gap_closing.hpp"
 #include <dbg/visualization.hpp>
+#include <alignment/ksw_aligner.hpp>
 #include "dbg/graph_stats.hpp"
 #include "sequences/edit_distance.hpp"
 
@@ -68,8 +69,8 @@ namespace dbg {
             m2 = d2;
             if (m1 >= 2 && m2 >= 2)
                 continue;
-            Sequence s1 = tips[pairs[i].first]->getStart().getSeq() + tips[pairs[i].first]->truncSeq();
-            Sequence s2 = tips[pairs[i].second]->getStart().getSeq() + tips[pairs[i].second]->truncSeq();
+            Sequence s1 = tips[pairs[i].first]->fullSeq();
+            Sequence s2 = tips[pairs[i].second]->fullSeq();
             std::pair<size_t, size_t> overlap = CheckOverlap(s1, !s2, min_overlap, max_overlap, allowed_divergence);
             if (overlap.first > 0) {
 #pragma omp atomic update
@@ -79,89 +80,41 @@ namespace dbg {
                 filtered_pairs.emplace_back(pairs[i].first, pairs[i].second, overlap.first, overlap.second);
             }
         }
+        KSWAligner aligner;
         logger.info() << "Collected " << filtered_pairs.size() << " overlaps. Looking for unique overlaps" << std::endl;
         std::vector<Connection> res;
         for (OverlapRecord &rec: filtered_pairs) {
             if (deg[rec.from] == 1 && deg[rec.to] == 1) {
                 dbg::Edge &edgeFrom = *tips[rec.from];
                 dbg::Edge &edgeTo = *tips[rec.to];
-                Sequence new_seq = edgeFrom.getSeq();
-                new_seq = new_seq.Subseq(0, new_seq.size() - rec.match_size_from) + !(edgeTo.getSeq());
-                new_seq = edgeFrom.getStart().getSeq() + new_seq.Subseq(edgeFrom.getStartSize());
-                StringContig tmp(new_seq.str(), "tmp");
-                tmp.compress();
-                new_seq = tmp.makeSequence();
-                if (!new_seq.endsWith(!edgeTo.getStart().getSeq()) || !new_seq.startsWith(edgeFrom.getStart().getSeq())
-                    || HasInnerDuplications(new_seq, std::min(edgeFrom.getStartSize(), edgeTo.getStartSize())))
-                    continue;
-                size_t left_match = 0;
-                size_t right_match = 0;
-                const Sequence &fromTruncSeq = edgeFrom.truncSeq();
-                while (left_match < edgeFrom.truncSize() &&
-                       new_seq[edgeFrom.getStartSize() + left_match] == fromTruncSeq[left_match])
-                    left_match++;
-                const Sequence &toTruncSeq = edgeTo.truncSeq();
-                while (right_match < edgeTo.truncSize() &&
-                       (!new_seq)[edgeTo.getStartSize() + right_match] == toTruncSeq[right_match])
-                    right_match++;
-                dbg::EdgePosition p1(edgeFrom, left_match);
-                dbg::EdgePosition p2(edgeTo, right_match);
-                VERIFY(left_match + right_match + std::min(edgeFrom.getStartSize(), edgeTo.getStartSize()) <=
-                       new_seq.size());
-                Connection gap(p1, p2.RC(), new_seq.Subseq(left_match, new_seq.size() - right_match));
-                gap = gap.shrink();
+                Sequence seq_from = edgeFrom.fullSubseq(edgeFrom.fullSize() - rec.match_size_from, edgeFrom.fullSize());
+                Sequence seq_to = edgeTo.fullSubseq(edgeTo.fullSize() - rec.match_size_to, edgeTo.fullSize()).rc();
+                size_t width = std::max<size_t>(size_t(std::max(seq_from.size(), seq_to.size()) *allowed_divergence), 100);
+                AlignmentForm al = aligner.directAlignment(seq_to.str(), seq_from.str(), width);
+                VERIFY(al.queryLength() == seq_from.size());
+                VERIFY(al.targetLength() == seq_to.size());
+                Connection gap(edgeFrom, edgeTo, std::move(al));
                 res.emplace_back(gap);
-                logger.trace() << "New connection " << gap.connection.size() << std::endl;
-                logger.trace() << gap.pos1.edge->suffix(gap.pos1.pos) << std::endl;
-                logger.trace() << !(gap.pos2.RC().edge->suffix(gap.pos2.RC().pos)) << std::endl;
-                logger.trace() << gap.connection << std::endl;
+                logger.trace() << "New connection " << edgeFrom << " " << edgeTo.rc() << std::endl;
+                logger.trace() << gap.al.queryLength() << " " <<  gap.al.targetLength() << std::endl;
             }
         }
         logger.info() << "Collected " << res.size() << " unique overlaps." << std::endl;
         return std::move(res);
     }
 
-    void processVertex(dbg::SparseDBG &dbg, dbg::KmerIndex &index, const Sequence &seq) {
-        size_t k = dbg.hasher().getK();
-        hashing::MovingKWH kwh(dbg.hasher(), seq, 0);
-        if (!index.containsVertex(kwh.hash()))
-            return;
-        dbg::Vertex &v1 = index.getVertex(kwh);
-        for (dbg::Edge &edge: v1) {
-            if (edge.truncSeq()[0] != seq[k]) {
-                edge.is_reliable = false;
-                edge.rc().is_reliable = false;
-            } else {
-                edge.is_reliable = true;
-                edge.rc().is_reliable = true;
-            }
-        }
-    }
-
-    void MarkUnreliableTips(dbg::SparseDBG &dbg, const std::vector<Connection> &patches) {
-        dbg::KmerIndex index(dbg);
-        for (dbg::Edge &edge: dbg.edges()) {
-            edge.is_reliable = edge.getCoverage() >= 2;
-        }
-        for (const dbg::Connection &connection: patches) {
-            processVertex(dbg, index, connection.connection);
-            processVertex(dbg, index, !connection.connection);
-        }
-    }
-
-    void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
-                           const std::vector<dbg::ReadAlignmentStorage *> &storages) {
+//    TODO: split gap closing operation into seuence correction and adding new edge.
+//    TODO: make it work with a chain of isolated edges
+    void GapCloserPipeline(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg) {
         GapCloser gap_closer(700, 10000, 311, 0.05);
         std::vector<dbg::Connection> patches = gap_closer.GapPatches(logger, dbg, threads);
         if (patches.empty()) {
             return;
         }
-        dbg = dbg::AddConnections(logger, threads, dbg, storages, patches);
-        storages.front()->checkCoverage(dbg);
-        MarkUnreliableTips(dbg, patches);
-        CorrectTips(logger, threads, dbg, storages);
-        printStats(logger, dbg);
-        storages.front()->checkCoverage(dbg);
-        RemoveUncovered(logger, threads, dbg, storages);
+        omp_set_num_threads(threads);
+        for(Connection &connection : patches) {
+            if(connection.tip1->rc().front().rc() != connection.tip2->rc().front())
+                dbg.mergeTipsToEdge(connection.tip1->rc().front().rc(), connection.tip2->rc().front(), std::move(connection.al));
+        }
     }
 }

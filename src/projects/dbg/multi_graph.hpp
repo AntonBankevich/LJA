@@ -1,8 +1,7 @@
 #pragma once
 
-#include "assembly_graph/paths.hpp"
+#include "assembly_graph/random_access_paths.hpp"
 #include "assembly_graph/assembly_graph.hpp"
-#include "assembly_graph/compact_path.hpp"
 #include <sequences/sequence.hpp>
 #include <sequences/contigs.hpp>
 #include <common/string_utils.hpp>
@@ -24,7 +23,10 @@ namespace multigraph {
     typedef Position<MGEdge> EdgePosition;
     typedef Segment<MGEdge> EdgeSegment;
 
+    class LabelListener;
+
     class MGVertexData {
+        friend class LabelListener;
     protected:
         std::string label;
     public:
@@ -35,26 +37,24 @@ namespace multigraph {
     };
 
     class MGEdgeData {
+        friend class LabelListener;
     protected:
         size_t cov = 0;
-        std::string label;
+        std::vector<ag::BaseEdgeId> label = {};
     public:
-        MGEdgeData(std::string label) : label(std::move(label)) {}
+        MGEdgeData() = default;
         void incCov(int delta) {
 #pragma omp atomic
             cov += delta;
         }
         size_t intCov() const {return cov;}
-        MGEdgeData RC() const {return {getReverseLabel()};}
-        std::string getReverseLabel() const {
-            if(label.empty())
-                return {};
-            std::vector<std::string> tokens = ::split(label, "_");
-            std::string res;
-            for (size_t i = tokens.size() -1; i > 0; i --)
-                res += tokens[i] + "_";
-            res += tokens[0];
-            return res;
+        MGEdgeData RC() const {
+            MGEdgeData res;
+            res.label = getReverseLabel();
+            return std::move(res);
+        }
+        std::vector<ag::BaseEdgeId> getReverseLabel() const {
+            return {label.rbegin(), label.rend()};
         }
 
         template<class I>
@@ -103,12 +103,48 @@ namespace multigraph {
 //        }
 //        MGEdge() : MGEdgeData(*this) {VERIFY(false);}
 
-        const std::string &getLabel() const {return label;}
+        const std::vector<ag::BaseEdgeId> &getLabel() const {return label;}
+        std::string stringLabel() const {
+            if(label.empty())
+                return "";
+            std::stringstream ss;
+            ss << label.front();
+            for(size_t i = 1; i < label.size(); i++) {
+                ss << "_" << label[i];
+            }
+            return ss.str();
+        }
         double getCoverage() const {return double(cov) / truncSize();}
 //        TODO: create reasonable coverage for multiplex graph
 
 //        bool isSimpleBridge();
     };
+
+    class LabelListener : public ag::ResolutionListener<MGTraits> {
+    public:
+        explicit LabelListener(ag::ResolutionFire<MGTraits> &fire) : ag::ResolutionListener<MGTraits>(fire, "LabelListener") {}
+
+        void fireAddVertex(Vertex &v) override {}
+        void fireAddEdge(Edge &e) override {}
+        void fireDeleteVertex(Vertex &v) override {}
+        void fireDeleteEdge(Edge &e) override {}
+        void fireAddSupreVertex(Vertex &v, Edge &e) override {}
+
+//        void fireMergePath(const std::vector<EdgeId> &path, Vertex &new_vertex) override {}
+//        void fireMergeLoop(const ag::GraphPath <Traits> &path, Vertex &new_vertex) override {}
+//        void fireMergePathToEdge(const std::vector<EdgeId> &path, Edge &new_edge) override {}
+//        void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
+//                                         const AlignmentForm &left_al, const AlignmentForm &right_al) override {}
+//        void fireSplitEdge(Edge &edge, const std::vector<EdgeId> &split) override {}
+//
+//        void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) override {}
+//
+//        void fireResolveVertex(Vertex &core, const VertexResolutionResult<Traits> &resolution) override {};
+
+
+    };
+
+
     typedef std::unordered_map<std::string, std::vector<std::string>> deleted_edges_map;
 
     typedef MGEdge Edge;
@@ -118,7 +154,6 @@ namespace multigraph {
     typedef MGEdge::ConstEdgeId ConstEdgeId;
     typedef MGVertex::ConstVertexId ConstVertexId;
     typedef ag::GraphPath<multigraph::MGTraits> GraphPath;
-    typedef ag::CompactPath<multigraph::MGTraits> CompactPath;
 
     class MultiGraph : public ag::AssemblyGraph<MGTraits> {
     public:

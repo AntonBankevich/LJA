@@ -49,16 +49,16 @@ AlignmentForm AlignmentForm::Reverse() const {
     return std::move(res);
 }
 
-AlignmentForm AlignmentForm::Prefix(AlignmentForm::AlignmentColumnIterator bound) {
+AlignmentForm AlignmentForm::Prefix(AlignmentForm::ConstAlignmentColumnIterator bound) {
     AlignmentForm res;
-    for(auto it = columns().begin(); it != bound; ++it)
+    for(AlignmentForm::ConstAlignmentColumnIterator it = columns().begin(); it != bound; ++it)
         res += (*it).event;
     return std::move(res);
 }
 
-AlignmentForm AlignmentForm::Suffix(AlignmentForm::AlignmentColumnIterator bound) {
+AlignmentForm AlignmentForm::Suffix(AlignmentForm::ConstAlignmentColumnIterator bound) {
     AlignmentForm res;
-    for(auto it = bound; it != columns().end(); ++it)
+    for(AlignmentForm::ConstAlignmentColumnIterator it = bound; it != columns().end(); ++it)
         res += (*it).event;
     return std::move(res);
 }
@@ -100,6 +100,14 @@ AlignmentForm::AlignmentForm(const std::string &s) {
     calculateLens();
 }
 
+AlignmentForm::AlignmentForm(AlignmentForm::ConstAlignmentColumnIterator left,
+                             AlignmentForm::ConstAlignmentColumnIterator right) : qlen(0), tlen(0) {
+    while(left != right) {
+        *this += (*left).event;
+        ++left;
+    }
+}
+
 std::string AlignmentForm::toCigarString() const {
     std::stringstream ss;
     for(auto p : *this) {
@@ -112,7 +120,7 @@ std::string AlignmentForm::toCigarString() const {
 }
 
 //TODO: optimize.
-AlignmentForm::AlignmentColumnIterator AlignmentForm::columnByQpos(size_t qpos) {
+AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::firstColumnByQpos(size_t qpos) const {
     for(auto it = columns().begin(); it != columns().end(); ++it) {
         if((*it).qpos == qpos) {
             return it;
@@ -121,11 +129,39 @@ AlignmentForm::AlignmentColumnIterator AlignmentForm::columnByQpos(size_t qpos) 
     return columns().end();
 }
 
-AlignmentForm::AlignmentColumnIterator AlignmentForm::columnByTpos(size_t tpos) {
+AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::lastColumnByQpos(size_t qpos) const {
+    AlignmentForm::ConstAlignmentColumnIterator res = columns().begin();
+    for(auto it = columns().begin(); it != columns().end(); ++it) {
+        if(res.getQpos() == qpos && it.getQpos() > qpos) {
+            return it;
+        } else
+            res = it;
+    }
+    if(res.getQpos() == qpos) {
+        return res;
+    }
+    return columns().end();
+}
+
+AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::firstColumnByTpos(size_t tpos) const {
     for(auto it = columns().begin(); it != columns().end(); ++it) {
         if((*it).tpos == tpos) {
             return it;
         }
+    }
+    return columns().end();
+}
+
+AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::lastColumnByTpos(size_t tpos) const {
+    AlignmentForm::ConstAlignmentColumnIterator res = columns().begin();
+    for(auto it = columns().begin(); it != columns().end(); ++it) {
+        if(res.getTpos() == tpos && it.getTpos() > tpos) {
+            return it;
+        } else
+            res = it;
+    }
+    if(res.getTpos() == tpos) {
+        return res;
     }
     return columns().end();
 }
@@ -156,24 +192,24 @@ AlignmentForm::AlignmentColumnIterator::AlignmentColumnIterator(AlignmentForm &f
 
 AlignmentForm::ConstAlignmentColumnIterator::ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos)
         :
-        alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(0), tpos(0) {
+        alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), cur_qpos(0), cur_tpos(0) {
     for(size_t i = 0; i < cigar_pos; i++) {
         CigarPair p = form.cigar[i];
         if(p.type != CigarEvent::D) {
-            qpos += p.length;
+            cur_qpos += p.length;
         }
         if(p.type != CigarEvent::I) {
-            tpos += p.length;
+            cur_tpos += p.length;
         }
     }
     if(block_pos > 0) {
         VERIFY(cigar_pos < form.cigar.size());
         CigarPair p = form.cigar[cigar_pos];
         if(p.type != CigarEvent::D) {
-            qpos += p.length;
+            cur_qpos += p.length;
         }
         if(p.type != CigarEvent::I) {
-            tpos += p.length;
+            cur_tpos += p.length;
         }
     }
 }
@@ -213,8 +249,8 @@ AlignmentForm::AlignmentColumnIterator AlignmentForm::AlignmentColumnIterator::o
 }
 
 AlignmentForm::ConstAlignmentColumnIterator &AlignmentForm::ConstAlignmentColumnIterator::operator++() {
-    this->qpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
-    this->tpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
+    this->cur_qpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
+    this->cur_tpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
     block_pos++;
     if(alignmentForm->cigar[cigar_pos].length == block_pos) {
         cigar_pos++;
@@ -235,8 +271,8 @@ AlignmentForm::ConstAlignmentColumnIterator &AlignmentForm::ConstAlignmentColumn
         block_pos = alignmentForm->cigar[cigar_pos].length;
     }
     block_pos--;
-    this->qpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
-    this->tpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
+    this->cur_qpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
+    this->cur_tpos -= CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
     return *this;
 }
 

@@ -53,7 +53,7 @@ public:
     }
     template<class T1>
     ObjectId(const ObjectId<T1, id_type> &other) : id(other.innerId()), ref(other.reference()) {} // NOLINT(google-explicit-constructor)
-    ObjectId(): ref(nullptr) {}
+    ObjectId(): id(), ref(nullptr) {}
     bool valid() const {return id != id_type() && ref != nullptr;}
     id_type innerId() const {return id;}
     T* pointer() const {return ref;}

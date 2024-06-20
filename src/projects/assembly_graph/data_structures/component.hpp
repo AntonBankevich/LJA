@@ -1,7 +1,7 @@
 #pragma once
 
-#include "paths.hpp"
-#include "alignment_chain.hpp"
+#include "assembly_graph/alignment_chain.hpp"
+#include "assembly_graph/assembly_graph.hpp"
 #include "common/iterator_utils.hpp"
 #include <utility>
 #include <unordered_set>

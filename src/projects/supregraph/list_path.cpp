@@ -73,7 +73,7 @@
 //}
 //
 //ListPath::ListPath(std::__cxx11::list <spg::EdgeId> _path, size_t skip_left, size_t skip_right) :
-//        start(), path(std::move(_path)), skip_left(skip_left), skip_right(skip_right) {
+//        getStart(), path(std::move(_path)), skip_left(skip_left), skip_right(skip_right) {
 //    VERIFY(!path.empty())
 //    start = path.front()->getStart().getId();
 //}
@@ -101,9 +101,9 @@
 //    return res - skip_left - skip_right;
 //}
 //
-//spg::ListPath::ListPath(const spg::GraphPath &other) : start(){
+//spg::ListPath::ListPath(const spg::GraphPath &other) : getStart(){
 //    if(other.valid())
-//        start = other.start().getId();
+//        start = other.getStart().getId();
 //    for(Edge &edge : other.edges()) {
 //        path.emplace_back(edge.getId());
 //    }

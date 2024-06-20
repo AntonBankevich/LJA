@@ -1,30 +1,30 @@
 #pragma once
 #include "sparse_dbg.hpp"
 #include "sequences/contigs.hpp"
-#include "graph_alignment_storage.hpp"
+#include "dbg_read_alignment_storage.hpp"
 #include <unordered_map>
 #include <utility>
-#include <assembly_graph/splitters.hpp>
-#include "assembly_graph/component.hpp"
+#include <assembly_graph/data_structures/splitters.hpp>
+#include "assembly_graph/data_structures/component.hpp"
 #include "dbg_graph_aligner.hpp"
 #include "assembly_graph/visualization.hpp"
 
 //TODO rewrite for AssemblyGraph
-class GraphPathStorage {
+class GraphAlignedReadStorage {
 private:
     std::unordered_map<dbg::ConstEdgeId, std::vector<ag::AlignmentChain<Contig, dbg::Edge>>> alignments;
     std::vector<Contig*> stored_contigs;
     const dbg::SparseDBG * dbg;
 
 public:
-    explicit GraphPathStorage(dbg::SparseDBG & dbg_) : dbg(&dbg_) {
+    explicit GraphAlignedReadStorage(dbg::SparseDBG & dbg_) : dbg(&dbg_) {
     }
 
-    GraphPathStorage(const GraphPathStorage &) = delete;
+    GraphAlignedReadStorage(const GraphAlignedReadStorage &) = delete;
 
-    GraphPathStorage(GraphPathStorage &&other)  noexcept = default;
+    GraphAlignedReadStorage(GraphAlignedReadStorage &&other)  noexcept = default;
 
-    ~GraphPathStorage() {
+    ~GraphAlignedReadStorage() {
         for(Contig * contig : stored_contigs) {
             delete contig;
         }
@@ -114,7 +114,7 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
                const std::string &color = "black") {
     dbg:: Vertex &end = edge.getFinish();
     os << "\"" << edge.getStart().getId() << "\" -> \"" << end.getId() <<
-       "\" [label=\"" << edge.getInnerId() << " " << edge.nuclLabel() << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
+       "\" [label=\"" << edge.getInnerId() << " " << edge.firstNucl() << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
         os << " labeltooltip=\"" << extra_label << "\"";
 //        os << "\\n"<<extra_label;
@@ -225,4 +225,4 @@ inline void DrawSplit(const dbg::Component &component, const std::experimental::
 }
 
 void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
-               dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &readStorage, const io::Library &paths_lib, bool small);
+                dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &readStorage, const io::Library &paths_lib, const io::Library &references_lib, bool small);

@@ -1,4 +1,5 @@
 #pragma once
+#include "sequences/contigs.hpp"
 namespace ag {
     template<class U, class V>
     class AlignmentChain {

@@ -32,7 +32,6 @@ void spg::UniqueVertexStorage::propagateUniqueness(spg::Vertex &uv, spg::Vertex 
 }
 
 void spg::UniqueVertexStorage::add(const spg::Vertex &v) {
-    std::cout << "New unique: " << v.getId() << std::endl;
     unique.emplace(v.getId());
     unique.emplace(v.rc().getId());
 }
@@ -57,15 +56,24 @@ void spg::UniqueVertexStorage::fireResolveVertex(spg::Vertex &core, const spg::V
     }
 }
 
-void spg::UniqueVertexStorage::fireMergePath(const GraphPath &path, Vertex &new_vertex) {
-    for(Vertex & vertex : path.vertices()) {
-        if(isUnique(vertex)) {
+void spg::UniqueVertexStorage::fireMergePath(const std::vector<EdgeId> &path, Vertex &vertex) {
+    for(EdgeId eid : path) {
+        if(isUnique(eid->getStart())) {
             add(vertex);
             return;
         }
     }
+    if(isUnique(path.back()->getFinish())) {
+        add(vertex);
+    }
+}
+void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath<SPGTraits> &path, Vertex &vertex) {
+    fireMergePath(path.asEdgeIds(), vertex);
+}
+spg::UniqueVertexStorage::UniqueVertexStorage(spg::SupreGraph &spg, const std::function<bool(Vertex &)> &is_unique) : ResolutionListener(spg){
+    for(Vertex &vertex : spg.vertices()) {
+        if(is_unique(vertex))
+            add(vertex);
+    }
 }
 
-void spg::UniqueVertexStorage::fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
-    fireMergePath(path, new_vertex);
-}
