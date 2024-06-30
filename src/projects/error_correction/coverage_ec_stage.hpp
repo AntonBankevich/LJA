@@ -40,6 +40,11 @@ namespace dbg {
         io::SeqReader reader(reads_lib);
         readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
         printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
+        printGFA(dir / "initial_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
+#ifdef USE_LIBTORCH
+        logger.info() << "Exporting torch tensors..." << std::endl;
+        printPT(dir, Component(dbg));
+#endif // USE_LIBTORCH
         coverageStats(logger, dbg);
         if (debug) {
             PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
