@@ -16,7 +16,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(PYTHON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/py)
 
 find_package(OpenMP)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -lstdc++fs -ggdb3 ${OpenMP_CXX_FLAGS}" )
+find_package(Torch)
+if (Torch_FOUND)
+    # Defina a macro to indicate availability
+    add_definitions(-DUSE_LIBTORCH)
+endif()
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -lstdc++fs -ggdb3 ${OpenMP_CXX_FLAGS} ${TORCH_CXX_FLAGS}" )
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 set(CMAKE_COMPILE_OPTIONS "-Wall ${OpenMP_CXX_FLAGS}")
