@@ -3,7 +3,7 @@
 #include "dbg/sparse_dbg.hpp"
 #include "error_correction.hpp"
 #include "correction_utils.hpp"
-#include "bulge_path_marker.hpp"
+#include "reliable_filler_interface.hpp"
 
 namespace dbg {
     class ManyKCorrector : public AbstractCorrectionAlgorithm {
@@ -65,17 +65,22 @@ namespace dbg {
 
         dbg::SparseDBG &dbg;
         ReadAlignmentStorage &reads;
+        AbstractReliableFillingAlgorithm *reliableFiller;
         size_t K;
         size_t expected_coverage;
         double reliable_threshold;
         double bad_threshold;
         bool diploid;
     public:
-        ManyKCorrector(logging::Logger &logger, dbg::SparseDBG &dbg, ReadAlignmentStorage &reads, size_t K,
+        ManyKCorrector(logging::Logger &logger, dbg::SparseDBG &dbg, ReadAlignmentStorage &reads,
+                       AbstractReliableFillingAlgorithm &reliableFiller,
+                       size_t K,
                        size_t expectedCoverage,
                        double reliable_threshold, double bad_threshold, bool diploid) : AbstractCorrectionAlgorithm(
                 "ManyKCorrector"),
-                                                                                        dbg(dbg), reads(reads), K(K),
+                                                                                        dbg(dbg), reads(reads),
+                                                                                        reliableFiller(&reliableFiller),
+                                                                                        K(K),
                                                                                         expected_coverage(
                                                                                                 expectedCoverage),
                                                                                         reliable_threshold(
@@ -109,6 +114,7 @@ namespace dbg {
     };
 
     size_t ManyKCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, ReadAlignmentStorage &reads_storage,
+                        AbstractReliableFillingAlgorithm &reliableFiller,
                         double threshold,
                         double reliable_threshold, size_t K, size_t expectedCoverage, bool diploid);
 }

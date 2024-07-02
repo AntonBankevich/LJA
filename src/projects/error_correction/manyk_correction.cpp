@@ -1,6 +1,7 @@
 #include "manyk_correction.hpp"
 #include "correction_utils.hpp"
 #include "error_correction.hpp"
+#include "reliable_filler_interface.hpp"
 
 namespace dbg {
     void ManyKCorrector::calculateReliable(const dbg::GraphPath &read_path, std::vector<size_t> &last_reliable,
@@ -348,15 +349,16 @@ namespace dbg {
 
     void ManyKCorrector::initialize(logging::Logger &logger, size_t threads, SparseDBG &dbg,
                                     dbg::ReadAlignmentStorage &reads) {
-        CoverageReliableFiller cov(reliable_threshold);
-        LengthReliableFiller len(20000, 3, 1);
-        BridgeReliableFiller bridge(40000);
-        ConnectionReliableFiller connect(reliable_threshold);
-        BulgePathMarker bulge(dbg, reads, 60000);
-        std::vector<AbstractReliableFillingAlgorithm *> algs = {&len, &cov, &bridge, &connect};
-        if (diploid)
-            algs.emplace_back(&bulge);
-        CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
+        reliableFiller->LoggedReFill(logger, dbg);
+//        CoverageReliableFiller cov(reliable_threshold);
+//        LengthReliableFiller len(20000, 3, 1);
+//        BridgeReliableFiller bridge(40000);
+//        ConnectionReliableFiller connect(reliable_threshold);
+//        BulgePathMarker bulge(dbg, reads, 60000);
+//        std::vector<AbstractReliableFillingAlgorithm *> algs = {&len, &cov, &bridge, &connect};
+//        if (diploid)
+//            algs.emplace_back(&bulge);
+//        CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
     }
 
     ManyKCorrector::Bulge ManyKCorrector::ReadRecord::getBulge(size_t num) {
@@ -381,10 +383,11 @@ namespace dbg {
 
     size_t
     ManyKCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, dbg::ReadAlignmentStorage &reads_storage,
+                 AbstractReliableFillingAlgorithm &reliableFiller,
                  double threshold,
                  double reliable_threshold, size_t K, size_t expectedCoverage, bool diploid) {
         logger.info() << "Using K = " << K << " for error correction" << std::endl;
-        ManyKCorrector algorithm(logger, dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold,
+        ManyKCorrector algorithm(logger, dbg, reads_storage, reliableFiller, K, expectedCoverage, reliable_threshold, threshold,
                                  diploid);
         return ErrorCorrectionEngine(algorithm).run(logger, threads, dbg, reads_storage);
     }

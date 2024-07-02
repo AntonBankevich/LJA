@@ -6,6 +6,7 @@
 #include "precorrection.hpp"
 #include "dimer_correction.hpp"
 #include "manyk_correction.hpp"
+#include "reliable_fillers.hpp"
 #include <dbg/dbg_construction.hpp>
 #include <dbg/graph_printing.hpp>
 #include <dbg/graph_stats.hpp>
@@ -15,7 +16,8 @@ namespace dbg {
     std::unordered_map<std::string, std::experimental::filesystem::path>
     CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
-               size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+               size_t threads, size_t k, size_t w, double threshold, double reliable_coverage, const std::string &reliability_mode,
+               double ml_threshold,
                bool diploid, bool debug, bool load) {
         logger.info() << "Performing coverage-based error correction with k = " << k << std::endl;
         if (k % 2 == 0) {
@@ -41,17 +43,18 @@ namespace dbg {
         readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
         printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
         printGFA(dir / "initial_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
-#ifdef USE_LIBTORCH
-        logger.info() << "Exporting torch tensors..." << std::endl;
-        printPT(dir, Component(dbg));
-#endif // USE_LIBTORCH
         coverageStats(logger, dbg);
         if (debug) {
             PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
         }
         Precorrector precorrector(4);
         DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
-        TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
+        AbstractReliableFillingAlgorithm * reliableFiller = nullptr;
+        if(reliability_mode == "default") {
+            reliableFiller = new CompositeReliableFiller(CreateDefaultReliableFiller(dbg, readStorage, reliable_coverage, diploid));
+        } else
+            reliableFiller = new MLReliableFiller(reliability_mode, dir, ml_threshold);
+        TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, *reliableFiller, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
         ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
@@ -60,16 +63,16 @@ namespace dbg {
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.Print(logger);
-        ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 800, 4, diploid);
+        ManyKCorrect(logger, threads, dbg, readStorage, *reliableFiller, threshold, reliable_coverage, 800, 4, diploid);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk800", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 5 / 2, 3000));
-        ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 2000, 4, diploid);
+        ManyKCorrect(logger, threads, dbg, readStorage, *reliableFiller, threshold, reliable_coverage, 2000, 4, diploid);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 7 / 2, 10000000));
         ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
-        ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 3500, 3, diploid);
+        ManyKCorrect(logger, threads, dbg, readStorage, *reliableFiller, threshold, reliable_coverage, 3500, 3, diploid);
         ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
         if (diploid)
             ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
@@ -90,6 +93,7 @@ namespace dbg {
         std::experimental::filesystem::path res;
         res = dir / "corrected_reads.paths";
         logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;
+        delete reliableFiller;
         return {{"corrected_reads", res},
                 {"pseudo_reads",    dir / "pseudo_reads.fasta"},
                 {"final_dbg",       dir / "final_dbg.gfa"}};
@@ -98,7 +102,7 @@ namespace dbg {
     class CoverageCorrectionStage : public Stage {
     public:
         CoverageCorrectionStage() : Stage(AlgorithmParameters(
-                {"k-mer-size=501", "window=2000", "coverage-threshold=3", "reliable-coverage=10", "diploid", "load"},
+                {"k-mer-size=501", "window=2000", "coverage-threshold=3", "reliable-coverage=10", "reliability-mode=default", "ml-threshold=0.5", "diploid", "load"},
                 {}, ""), {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "pseudo_reads", "final_dbg"}) {
         }
 
@@ -114,8 +118,9 @@ namespace dbg {
             double threshold = std::stod(parameterValues.getValue("coverage-threshold"));
             bool diploid = parameterValues.getCheck("diploid");
             bool load = parameterValues.getCheck("load");
+            double ml_threshold = std::stod(parameterValues.getValue("ml-threshold"));
             return CoverageEC(logger, dir, input.find("reads")->second, input.find("pseudo_reads")->second,
-                              input.find("paths")->second, threads, k, w, threshold, reliable_coverage, diploid, debug,
+                              input.find("paths")->second, threads, k, w, threshold, reliable_coverage, parameterValues.getValue("reliability-mode"), ml_threshold, diploid, debug,
                               load);
         }
     };

@@ -10,6 +10,7 @@ std::unordered_map<std::string, std::experimental::filesystem::path>
 TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &dir,
         const io::Library &reads_lib, const io::Library &pseudo_reads_lib,
         const io::Library &paths_lib, size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
+           const std::string &reliability_mode, double ml_threshold,
         size_t unique_threshold, bool diploid, bool debug, bool load) {
     logger.info() << "Performing topology-based error correction using k = " << k << std::endl;
     if (k%2==0) {
@@ -39,16 +40,17 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     }
     printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
     printGFA(dir / "initial_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
-#ifdef USE_LIBTORCH
-    logger.info() << "Exporting torch tensors..." << std::endl;
-    printPT(dir, Component(dbg));
-#endif // USE_LIBTORCH
+    AbstractReliableFillingAlgorithm * reliableFiller = nullptr;
+    if(reliability_mode == "default") {
+        reliableFiller = new CompositeReliableFiller(CreateDefaultReliableFiller(dbg, readStorage, reliable_coverage, diploid));
+    } else
+        reliableFiller = new MLReliableFiller(reliability_mode, dir, ml_threshold);
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, false);
     }
     initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
-                   threshold, 2 * threshold, reliable_coverage, diploid, 60000, false);
+                   threshold, 2 * threshold, reliable_coverage, *reliableFiller, diploid, 60000, false);
     if(debug) PrintPaths(logger, threads, dir/ "state_dump", "low", dbg, readStorage, paths_lib, false);
     GapCloserPipeline(logger, threads, dbg, {&readStorage, &refStorage});
     if(debug) PrintPaths(logger, threads, dir/ "state_dump", "gap1", dbg, readStorage, paths_lib, false);
@@ -88,6 +90,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     res = dir / "corrected_reads.paths";
     logger.info() << "Second phase results with k = " << k << " printed to "
                   << res << std::endl;
+    delete reliableFiller;
     return {{"corrected_reads", res}, {"pseudo_reads", dir / "pseudo_reads.fasta"}, {"final_dbg", dir / "final_dbg.gfa"}, {"final_aln", dir / "final_dbg.aln"}};
 }
 
@@ -95,7 +98,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
 class TopologyCorrectionStage : public Stage {
 public:
     TopologyCorrectionStage() : Stage(AlgorithmParameters(
-            {"k-mer-size=5001", "window=500", "coverage-threshold=3", "reliable-coverage=10", "unique-threshold=40000", "diploid", "load"},
+            {"k-mer-size=5001", "window=500", "coverage-threshold=3", "reliable-coverage=10", "unique-threshold=40000", "reliability-mode=default", "ml-threshold=0.5", "diploid", "load"},
             {}, ""), {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "pseudo_reads", "final_dbg", "final_aln"}) {
     }
 protected:
@@ -109,7 +112,8 @@ protected:
         size_t unique_threshold = std::stoull(parameterValues.getValue("unique-threshold"));
         bool diploid = parameterValues.getCheck("diploid");
         bool load = parameterValues.getCheck("load");
+        double ml_threshold = std::stod(parameterValues.getValue("ml-threshold"));
         return TopologyEC(logger, dir, input.find("reads")->second, input.find("pseudo_reads")->second, input.find("paths")->second,
-                          threads, k, w, threshold, reliable_coverage, unique_threshold, diploid, debug, load);
+                          threads, k, w, threshold, reliable_coverage, parameterValues.getValue("reliability-mode"), ml_threshold, unique_threshold, diploid, debug, load);
     }
 };

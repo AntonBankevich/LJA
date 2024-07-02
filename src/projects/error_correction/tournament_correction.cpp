@@ -1,9 +1,8 @@
 #include "dbg/graph_algorithms.hpp"
 #include "tournament_correction.hpp"
-#include "bulge_path_marker.hpp"
 #include "error_correction.hpp"
 #include "dimer_correction.hpp"
-#include "reliable_fillers.hpp"
+#include "reliable_filler_interface.hpp"
 
 namespace dbg {
     size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump) {
@@ -135,11 +134,13 @@ namespace dbg {
 
 
     TournamentPathCorrector::TournamentPathCorrector(SparseDBG &sdbg, dbg::ReadAlignmentStorage &reads_storage,
+                                                     AbstractReliableFillingAlgorithm &reliableFiller,
                                                      double threshold, double reliable_threshold, bool diploid,
                                                      size_t unique_threshold) : AbstractCorrectionAlgorithm(
             "TournamentCorrection"),
                                                                                 sdbg(sdbg),
                                                                                 reads_storage(reads_storage),
+                                                                                reliableFiller(&reliableFiller),
                                                                                 threshold(threshold),
                                                                                 reliable_threshold(reliable_threshold),
                                                                                 diploid(diploid),
@@ -149,16 +150,17 @@ namespace dbg {
 
     void TournamentPathCorrector::initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                                              dbg::ReadAlignmentStorage &reads) {
-        CoverageReliableFiller cov(reliable_threshold);
-        LengthReliableFiller len(20000, 2, 1);
-        BridgeReliableFiller bridge(40000);
-        ConnectionReliableFiller connect(reliable_threshold);
-        BulgePathMarker bulge(dbg, reads, unique_threshold);
-        std::vector<AbstractReliableFillingAlgorithm *> algs = {&len, &cov, &bridge, &connect};
-        if (diploid)
-            algs.emplace_back(&bulge);
-        CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
-        max_size = reads_storage.getMaxLen() * 9 / 10;
+        reliableFiller->LoggedReFill(logger, dbg);
+//        CoverageReliableFiller cov(reliable_threshold);
+//        LengthReliableFiller len(20000, 2, 1);
+//        BridgeReliableFiller bridge(40000);
+//        ConnectionReliableFiller connect(reliable_threshold);
+//        BulgePathMarker bulge(dbg, reads, unique_threshold);
+//        std::vector<AbstractReliableFillingAlgorithm *> algs = {&len, &cov, &bridge, &connect};
+//        if (diploid)
+//            algs.emplace_back(&bulge);
+//        CompositeReliableFiller(std::move(algs)).LoggedReFill(logger, dbg);
+//        max_size = reads_storage.getMaxLen() * 9 / 10;
     }
 
     std::string TournamentPathCorrector::correctRead(dbg::GraphPath &path) {
@@ -388,10 +390,11 @@ namespace dbg {
                         const std::experimental::filesystem::path &out_file,
                         dbg::ReadAlignmentStorage &reads_storage,
                         dbg::ReadAlignmentStorage &ref_storage,
-                        double threshold, double bulge_threshold, double reliable_coverage, bool diploid,
+                        double threshold, double bulge_threshold, double reliable_coverage,
+                        AbstractReliableFillingAlgorithm &reliableFiller, bool diploid,
                         size_t unique_threshold, bool dump) {
         DimerCorrector dimerCorrector(logger, dbg, reads_storage, StringContig::max_dimer_size);
-        TournamentPathCorrector tournamentPathCorrector(dbg, reads_storage, threshold, reliable_coverage, diploid,
+        TournamentPathCorrector tournamentPathCorrector(dbg, reads_storage, reliableFiller, threshold, reliable_coverage, diploid,
                                                         unique_threshold);
         PrimitiveBulgeCorrector primitiveBulgeCorrector(bulge_threshold);
         ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);

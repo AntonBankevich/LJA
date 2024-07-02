@@ -34,22 +34,6 @@
 
 using namespace dbg;
 
-#ifdef USE_LIBTORCH
-std::vector<float> loadInferenceResultMultiplicity(const std::experimental::filesystem::path& container_path) {
-    torch::jit::script::Module container = torch::jit::load(container_path.string());
-    torch::Tensor multiplicity = container.attr("multiplicity").toTensor();
-    std::vector<float> mul_vec(multiplicity.data_ptr<float>(), multiplicity.data_ptr<float>() + multiplicity.numel());
-    return mul_vec;
-}
-
-std::vector<float> loadInferenceResultProbability(const std::experimental::filesystem::path& container_path) {
-    torch::jit::script::Module container = torch::jit::load(container_path.string());
-    torch::Tensor probability = container.attr("probability").toTensor();
-    std::vector<float> prob_vec(probability.data_ptr<float>(), probability.data_ptr<float>() + probability.numel());
-    return prob_vec;
-}
-#endif // USE_LIBTORCH
-
 void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file,
                    const std::experimental::filesystem::path &path_dump,
                    const std::experimental::filesystem::path &cov_dump,

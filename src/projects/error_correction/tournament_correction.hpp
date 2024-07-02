@@ -6,6 +6,7 @@
 #include "sequences/edit_distance.hpp"
 #include "tip_correction.hpp"
 #include "correction_utils.hpp"
+#include "reliable_filler_interface.hpp"
 
 namespace dbg {
     size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false);
@@ -32,13 +33,15 @@ namespace dbg {
                         const std::experimental::filesystem::path &out_file,
                         dbg::ReadAlignmentStorage &reads_storage,
                         ReadAlignmentStorage &ref_storage,
-                        double threshold, double bulge_threshold, double reliable_coverage, bool diploid,
+                        double threshold, double bulge_threshold, double reliable_coverage,
+                        AbstractReliableFillingAlgorithm &reliableFiller, bool diploid,
                         size_t unique_threshold, bool dump);
 
     class TournamentPathCorrector : public AbstractCorrectionAlgorithm {
     private:
         dbg::SparseDBG &sdbg;
         ReadAlignmentStorage &reads_storage;
+        AbstractReliableFillingAlgorithm *reliableFiller;
         double threshold;
         double reliable_threshold;
         bool diploid;
@@ -49,6 +52,7 @@ namespace dbg {
 
     public:
         TournamentPathCorrector(dbg::SparseDBG &sdbg, ReadAlignmentStorage &reads_storage,
+                                AbstractReliableFillingAlgorithm &reliableFiller,
                                 double threshold, double reliable_threshold, bool diploid,
                                 size_t unique_threshold = 60000);
 

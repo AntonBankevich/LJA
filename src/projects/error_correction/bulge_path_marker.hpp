@@ -1,18 +1,19 @@
 #pragma once
 #include "dbg/sparse_dbg.hpp"
 #include "dbg/graph_alignment_storage.hpp"
-#include "reliable_fillers.hpp"
+#include "reliable_filler_interface.hpp"
 #include "diploidy_analysis.hpp"
+#include "reliable_filler_interface.hpp"
 
 namespace dbg {
     class BulgePathMarker : public AbstractReliableFillingAlgorithm {
     private:
-        dbg::ReadAlignmentStorage &reads;
+        dbg::ReadAlignmentStorage *reads;
         size_t unique_threshold;
 
         bool checkBulgeForward(const std::pair<dbg::Edge *, dbg::Edge *> &bulge) {
-            const ag::VertexRecord<DBGTraits> &vr1 = reads.getRecord(bulge.first->getStart());
-            const ag::VertexRecord<DBGTraits> &vr2 = reads.getRecord(bulge.first->getFinish());
+            const ag::VertexRecord<DBGTraits> &vr1 = reads->getRecord(bulge.first->getStart());
+            const ag::VertexRecord<DBGTraits> &vr2 = reads->getRecord(bulge.first->getFinish());
             Sequence s1 = vr1.getFullUniqueExtension(bulge.first->truncSeq().Subseq(0, 1), 1, 0, 3).cpath();
             Sequence s2 = vr1.getFullUniqueExtension(bulge.second->truncSeq().Subseq(0, 1), 1, 0, 3).cpath();
             Sequence s = vr2.getFullUniqueExtension(Sequence(), 1, 0, 2).cpath();
@@ -29,10 +30,9 @@ namespace dbg {
     public:
         std::string name() const override { return "BulgePathMarker"; }
 
-        BulgePathMarker(dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads, size_t unique_threshold) : reads(reads),
+        BulgePathMarker(dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &reads, size_t unique_threshold) : reads(&reads),
                                                                                                           unique_threshold(
                                                                                                                   unique_threshold) {
-            dbg.resetMarkers();
         }
 
         void setUniqueMarkers(dbg::SparseDBG &dbg) {
@@ -159,5 +159,9 @@ namespace dbg {
             }
             return cnt;
         }
+    };
+
+    class ReliableBulgePathMarker : public AbstractReliableFillingAlgorithm {
+
     };
 }

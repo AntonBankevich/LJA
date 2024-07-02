@@ -4,46 +4,7 @@
 #include "correction_utils.hpp"
 #include <assembly_graph/component.hpp>
 #include <dbg/visualization.hpp>
-
-size_t AbstractReliableFillingAlgorithm::ReFill(dbg::SparseDBG &dbg) {
-    for(dbg::Edge &edge : dbg.edges()) {
-        edge.is_reliable = false;
-        edge.mark(ag::EdgeMarker::common);
-    }
-    return Fill(dbg);
-}
-
-size_t AbstractReliableFillingAlgorithm::LoggedReFill(logging::Logger &logger, dbg::SparseDBG &dbg) {
-    for(dbg::Edge &edge : dbg.edges()) {
-        edge.is_reliable = false;
-        edge.mark(ag::EdgeMarker::common);
-    }
-    return LoggedFill(logger, dbg);
-}
-
-size_t AbstractReliableFillingAlgorithm::LoggedFill(logging::Logger &logger, dbg::SparseDBG &dbg) {
-    logger.info() << "Running reliable marker " << name() << std::endl;
-    size_t res = Fill(dbg);
-    logger.info() << "Marked " << res << " edges as reliable" << std::endl;
-    return res;
-}
-
-CompositeReliableFiller::CompositeReliableFiller(std::vector<AbstractReliableFillingAlgorithm *> &&algorithms) : algorithms(algorithms){
-    std::vector<std::string> names;
-    for(AbstractReliableFillingAlgorithm *alg : algorithms) {
-        names.emplace_back(alg->name());
-    }
-    _name = join(" ", names);
-}
-
-size_t CompositeReliableFiller::Fill(dbg::SparseDBG &dbg) {
-    size_t res = 0;
-    for(AbstractReliableFillingAlgorithm *alg : algorithms) {
-        res += alg->Fill(dbg);
-    }
-    return res;
-}
-
+using namespace dbg;
 size_t CoverageReliableFiller::Fill(dbg::SparseDBG &sdbg) {
     size_t cnt = 0;
     for(dbg::Edge &edge : sdbg.edgesUnique()) {
@@ -51,24 +12,6 @@ size_t CoverageReliableFiller::Fill(dbg::SparseDBG &sdbg) {
             edge.is_reliable = true;
             edge.rc().is_reliable = true;
             cnt++;
-        }
-    }
-    return cnt;
-}
-
-size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
-    size_t cnt = 0;
-    for(dbg::Edge &edge : dbg.edgesUnique()) {
-        if(edge.getCoverage() < min_rel_cov)
-            continue;
-        dbg::GraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
-        if(al.truncLen() < min_length)
-            continue;
-        for(Segment<dbg::Edge> seg : al) {
-            if(!seg.contig().is_reliable) {
-                seg.contig().is_reliable = true;
-                cnt++;
-            }
         }
     }
     return cnt;
@@ -134,6 +77,24 @@ std::vector<dbg::Edge *> BridgeReliableFiller::bridges(dbg::Edge &start) {
     return std::move(result);
 }
 
+size_t LengthReliableFiller::Fill(dbg::SparseDBG &dbg) {
+    size_t cnt = 0;
+    for(dbg::Edge &edge : dbg.edgesUnique()) {
+        if(edge.getCoverage() < min_rel_cov)
+            continue;
+        dbg::GraphPath al = FindLongestCoveredExtension(edge, min_rel_cov, max_err_cov);
+        if(al.truncLen() < min_length)
+            continue;
+        for(Segment<dbg::Edge> seg : al) {
+            if(!seg.contig().is_reliable) {
+                seg.contig().is_reliable = true;
+                cnt++;
+            }
+        }
+    }
+    return cnt;
+}
+
 size_t BridgeReliableFiller::Fill(dbg::SparseDBG &dbg) {
     size_t marked = 0;
     std::queue<dbg::Edge *> queue;
@@ -159,7 +120,7 @@ size_t BridgeReliableFiller::Fill(dbg::SparseDBG &dbg) {
     return marked;
 }
 
-dbg::Edge *ConnectionReliableFiller::checkBorder(dbg::Vertex &v) {
+dbg::Edge *dbg::ConnectionReliableFiller::checkBorder(dbg::Vertex &v) {
     dbg::Edge * res = nullptr;
     size_t out_rel = 0;
     for(dbg::Edge &edge : v.rc()) {
@@ -247,3 +208,5 @@ size_t ConnectionReliableFiller::Fill(dbg::SparseDBG &dbg) {
     }
     return cnt;
 }
+
+size_t MLReliableFiller::cnt = 0;
