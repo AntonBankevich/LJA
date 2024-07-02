@@ -244,9 +244,9 @@ bool AlgorithmParameterValues::getCheck(const std::string &s) const {
 }
 
 const std::string &AlgorithmParameterValues::getValue(const std::string &parameter_name) const {
-    auto it = values.find(parameter_name);
+    auto it = values.find(s);
     if (it == values.end()) {
-        std::cerr << "Request for non-existing parameter " << parameter_name << std::endl;
+        std::cerr << "Request for non-existing parameter " << s << std::endl;
         exit(1);
     }
     return it->second;
