@@ -38,11 +38,6 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
         readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
     }
     printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
-    printGFA(dir / "initial_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
-#ifdef USE_LIBTORCH
-    logger.info() << "Exporting torch tensors..." << std::endl;
-    printPT(dir, Component(dbg));
-#endif // USE_LIBTORCH
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, false);
