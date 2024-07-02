@@ -864,8 +864,7 @@ namespace ag {
             unlock();
             if(rc_ != nullptr) {
                 rc_->lock();
-		if(rc_->seq.empty())
-                    rc_->seq = !getSeq();
+                rc_->seq = !getSeq();
                 rc_->unlock();
             }
         } else {

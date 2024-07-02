@@ -316,8 +316,8 @@ namespace dbg {
                 Edge &new_edge = index.getVertex(kmers.front()).addEdge(index.getVertex(kmers.back()), edge.truncSeq(),
                                                                         edge.rc().truncSeq(), edge, edge.getInnerId(),
                                                                         edge.rc().getInnerId());
-                new_edge.incCov(-new_edge.intCov());
-                new_edge.rc().incCov(-new_edge.rc().intCov());
+//                new_edge.incCov(-new_edge.intCov());
+//                new_edge.rc().incCov(-new_edge.rc().intCov());
             } else {
                 VERIFY(kmers.size() > 2);
                 helper.processFullEdgeSequence(res, index, edge.getSeq());
