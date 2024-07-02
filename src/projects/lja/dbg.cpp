@@ -35,18 +35,11 @@
 using namespace dbg;
 
 #ifdef USE_LIBTORCH
-std::vector<float> loadInferenceResultMultiplicity(const std::experimental::filesystem::path& container_path) {
+std::vector<float> loadInferenceResult(const std::experimental::filesystem::path& container_path) {
     torch::jit::script::Module container = torch::jit::load(container_path.string());
     torch::Tensor multiplicity = container.attr("multiplicity").toTensor();
     std::vector<float> mul_vec(multiplicity.data_ptr<float>(), multiplicity.data_ptr<float>() + multiplicity.numel());
     return mul_vec;
-}
-
-std::vector<float> loadInferenceResultProbability(const std::experimental::filesystem::path& container_path) {
-    torch::jit::script::Module container = torch::jit::load(container_path.string());
-    torch::Tensor probability = container.attr("probability").toTensor();
-    std::vector<float> prob_vec(probability.data_ptr<float>(), probability.data_ptr<float>() + probability.numel());
-    return prob_vec;
 }
 #endif // USE_LIBTORCH
 
@@ -492,7 +485,7 @@ int main(int argc, char **argv) {
         logger.info() << "Calling docker with cmd " << docker_cmd << std::endl;
         auto result = std::system(docker_cmd.c_str());
         logger.info() << "Docker exited with status " << result << std::endl;
-        auto inference_result = loadInferenceResultMultiplicity(dir / "container.pt");
+        auto inference_result = loadInferenceResult(dir / "container.pt");
 #endif // USE_LIBTORCH
     }
 
