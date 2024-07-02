@@ -247,8 +247,7 @@ namespace multigraph {
     }
 
     void
-    MultiGraphHelper::
-    printEdgeGFA(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool labels) {
+    MultiGraphHelper::printEdgeGFA(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool labels) {
         std::vector<ConstVertexId> component;
         for (const MGVertex &vertex: mg.vertices()) {
             component.push_back(vertex.getId());

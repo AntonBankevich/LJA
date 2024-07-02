@@ -42,11 +42,11 @@ int main(int argc, char **argv) {
     io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("ref"));
     SparseDBG dbg = DBGPipeline(logger, hasher, w, ref_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string());
 //    sdbg.printStats(logger);
-    io::SeqReader reader1(ref_lib);
+    io::SeqReader reader(ref_lib);
     KmerIndex aligner(dbg);
     aligner.fillAnchors(logger, threads, dbg, w);
     std::unordered_map<Edge *, size_t> mults;
-    for(StringContig scontig : reader1) {
+    for(StringContig scontig : reader) {
         Sequence seq = scontig.makeSequence();
         if(seq.size() < k + w) continue;
         for(Segment<Edge> seg : aligner.align(seq)) {
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
             mults[&seg.contig().rc()] += 1;
         }
     }
-    io::SeqReader reader(ref_lib);
+    reader.reset();
     size_t cnt = 0;
     for(StringContig scontig : reader) {
         Sequence seq = scontig.makeSequence();

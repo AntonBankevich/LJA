@@ -1,6 +1,5 @@
 #include "polishing_stage.hpp"
 #include <common/cl_parser.hpp>
-#include "dbg/aln_reads_reader.hpp"
 
 std::unordered_map <std::string, std::experimental::filesystem::path>
 RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
@@ -8,7 +7,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
              const io::Library &reads, size_t min_alignment, bool debug) {
     logger.info() << "Performing polishing and homopolymer uncompression" << std::endl;
     size_t dicompress = StringContig::max_dimer_size / 2;
-    dbg::SeqReader reader(corrected_reads, logger, threads);
+    io::SeqReader reader(corrected_reads);
     multigraph::MultiGraph vertex_graph = multigraph::MultiGraphHelper::LoadGFA(gfa_file, true);
     multigraph::MultiGraph edge_graph = multigraph::MultiGraphHelper::TransformToEdgeGraph(vertex_graph);
     std::vector<Contig> contigs = multigraph::MultiGraphHelper::extractContigs(edge_graph, false);

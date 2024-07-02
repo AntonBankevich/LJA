@@ -1,6 +1,4 @@
 #include "graph_algorithms.hpp"
-
-#include "aln_reads_reader.hpp"
 #include "dbg_graph_aligner.hpp"
 
 using namespace hashing;
@@ -247,7 +245,7 @@ namespace dbg {
         logger.info() << "Starting construction of sparse de Bruijn graph" << std::endl;
         SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
         logger.info() << "Vertex map constructed." << std::endl;
-        dbg::SeqReader reader(reads_file, logger, threads, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
+        io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
         logger.info() << "Filling edge sequences." << std::endl;
         FillSparseDBGEdges(sdbg, reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
         logger.info() << "Finished sparse de Bruijn graph construction." << std::endl;

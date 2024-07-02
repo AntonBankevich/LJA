@@ -1,7 +1,5 @@
 #pragma once
 
-#include <dbg/aln_reads_reader.hpp>
-
 #include "gap_closing.hpp"
 #include "mult_correction.hpp"
 #include "mitochondria_rescue.hpp"
@@ -31,7 +29,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     readStorage.setReadLogger(readLogger);
     dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
     refStorage.setReadLogger(readLogger);
-    dbg::SeqReader reader(reads_lib, logger, threads);
+    io::SeqReader reader(reads_lib);
     {
         KmerIndex index(dbg);
         index.fillAnchors(logger, threads, dbg, w);
@@ -75,12 +73,10 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
     printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
     ag::SaveAllReads<DBGTraits>(dir/"final_dbg.aln", {&readStorage, &extra_reads});
-    //readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
-    readStorage.printReadPaths(logger, dir / "corrected_reads.aln",
-                                   dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);
+    readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     extra_reads.printReadFasta(logger, dir / "pseudo_reads.fasta");
     std::experimental::filesystem::path res;
-    res = dir / "corrected_reads.paths";
+    res = dir / "corrected_reads.fasta";
     logger.info() << "Second phase results with k = " << k << " printed to "
                   << res << std::endl;
     return {{"corrected_reads", res}, {"pseudo_reads", dir / "pseudo_reads.fasta"}, {"final_dbg", dir / "final_dbg.gfa"}, {"final_aln", dir / "final_dbg.aln"}};

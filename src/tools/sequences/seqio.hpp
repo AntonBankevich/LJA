@@ -35,19 +35,14 @@ namespace io{
     protected:
         StringContig next{};
     public:
-        IContigReader() = default;
         virtual ~IContigReader();
         const StringContig& get();
-        std::vector<StringContig> readAll();
         bool eof();
         virtual void inner_read() = 0;
         ContigIterator begin();
         ContigIterator end();
+        virtual void reset() = 0;
         StringContig read();
-        IContigReader(const IContigReader &) = delete;
-        IContigReader(IContigReader &&) = delete;
-        IContigReader& operator=(const IContigReader &) = delete;
-        IContigReader& operator=(IContigReader &&) = delete;
     };
 
     class IContigFromFileReader: public IContigReader {
@@ -56,10 +51,11 @@ namespace io{
     public:
         explicit IContigFromFileReader(const std::experimental::filesystem::path& _file_name);
         ~IContigFromFileReader() override;
+        void reset() override;
     };
 
-    class ISeqReader : public IContigReader {
-    protected:
+    class SeqReader final: public IContigReader{
+    private:
         const Library lib;
         Library::const_iterator file_it;
         size_t max_subread_size;
@@ -69,22 +65,14 @@ namespace io{
         size_t cur_end = 0;
         IContigReader* subreader = nullptr;
 
-        virtual void initReader(const std::experimental::filesystem::path &file_name) = 0;
         void nextFile();
-
-    public:
-        explicit ISeqReader(Library _lib, size_t _min_read_size, size_t _overlap);
-        void inner_read() override;
-    };
-
-    class SeqReader : public ISeqReader{
-    private:
-        void initReader(const std::experimental::filesystem::path &file_name) override;
 
     public:
         explicit SeqReader(Library _lib, size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8);
         explicit SeqReader(const std::experimental::filesystem::path & file_name,
                            size_t _min_read_size = size_t(-1) / 2, size_t _overlap = size_t(-1) / 8);
+        void inner_read() override;
+        void reset() override;
     };
 
 
