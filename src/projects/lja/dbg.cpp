@@ -27,6 +27,7 @@
 #include <unordered_set>
 #include <wait.h>
 #include <common/id_index.hpp>
+#include <error_correction/reliable_fillers.hpp>
 
 #ifdef USE_LIBTORCH
 #include <torch/script.h>
@@ -272,8 +273,9 @@ int main(int argc, char **argv) {
         if (params.getValue("reference") != "none") {
             ref_vector = io::SeqReader(params.getValue("reference")).readAll();
         }
+        CompositeReliableFiller reliableFiller(CreateDefaultReliableFiller(dbg, readStorage, reliable, false));
         initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
-                       threshold, 2 * threshold, reliable, false, 60000, params.getCheck("dump"));
+                       threshold, 2 * threshold, reliable, reliableFiller, false, 60000, params.getCheck("dump"));
         Component comp(dbg);
         DrawSplit(comp, dir / "split");
     }
