@@ -27,6 +27,10 @@ The docker accepts command line arguments which enable modifying the configurati
 Once the inference is completed, the inference results are stored as a torch vector called "container.pt" stored in the same directory where input vectors/tensors were created.
 The LJA application loads this vector and converts it into a float `std::vector`.
 This vector corresponds to the edge index of a graph - 0th entry in the vector corresponds to the inference result for 0-th row (edge) in the edge index.
+Vector can either contain predicted probabilities if classification model is use (in range [0,1]) or edge multiplicities for regression model.
+Which model will be called depends on the configuration passed on to the docker call.
+User can load the results through `loadInferenceResultsProbability` and `loadInferenceResultsMultiplicity`, respectively.
+
 
 ## Building docker image
 It is assumed that you have running instance of `docker engine` on your machine: https://docs.docker.com/engine/install/.
