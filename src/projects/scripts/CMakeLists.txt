@@ -1,5 +1,5 @@
 project(scripts)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 #add_executable(analyse_hifi main.cpp)
 #add_executable(count_perfect count_perfect.cpp)
 #add_executable(analyse_positions position_analysis.cpp)
