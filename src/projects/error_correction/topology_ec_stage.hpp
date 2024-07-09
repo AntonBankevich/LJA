@@ -43,8 +43,9 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     AbstractReliableFillingAlgorithm * reliableFiller = nullptr;
     if(reliability_mode == "default") {
         reliableFiller = new CompositeReliableFiller(CreateDefaultReliableFiller(dbg, readStorage, reliable_coverage, diploid));
-    } else
+    } else {
         reliableFiller = new MLReliableFiller(reliability_mode, dir, ml_threshold);
+    }
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, false);

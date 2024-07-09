@@ -24,13 +24,28 @@ size_t AbstractReliableFillingAlgorithm::LoggedFill(logging::Logger &logger, Spa
     return res;
 }
 
-CompositeReliableFiller::CompositeReliableFiller(std::vector<AbstractReliableFillingAlgorithm *> &&algorithms)
-        : algorithms(algorithms) {
+CompositeReliableFiller::CompositeReliableFiller(std::vector<AbstractReliableFillingAlgorithm*> &&algorithms_)
+        : algorithms(algorithms_) {
     std::vector<std::string> names;
     for (AbstractReliableFillingAlgorithm *alg: algorithms) {
         names.emplace_back(alg->name());
     }
     _name = join(" ", names);
+}
+
+CompositeReliableFiller::CompositeReliableFiller(CompositeReliableFiller&& other)
+    : algorithms(std::move(other.algorithms)) {
+    for(auto* alg: other.algorithms) {
+        alg = nullptr;
+    }
+}
+
+CompositeReliableFiller::~CompositeReliableFiller() {
+    for (AbstractReliableFillingAlgorithm *alg: algorithms) {
+        if(alg) {
+            delete alg;
+        }
+    }
 }
 
 size_t CompositeReliableFiller::Fill(SparseDBG &dbg) {

@@ -22,10 +22,12 @@ namespace dbg {
     };
 
     class CompositeReliableFiller : public AbstractReliableFillingAlgorithm {
-        std::vector<AbstractReliableFillingAlgorithm *> &algorithms;
+        std::vector<AbstractReliableFillingAlgorithm *> algorithms;
         std::string _name;
     public:
-        CompositeReliableFiller(std::vector<AbstractReliableFillingAlgorithm *> &&algorithms);
+        CompositeReliableFiller(std::vector<AbstractReliableFillingAlgorithm *> &&algorithms_);
+        CompositeReliableFiller(CompositeReliableFiller&& other);
+        ~CompositeReliableFiller();
 
         std::string name() const override { return _name; }
 

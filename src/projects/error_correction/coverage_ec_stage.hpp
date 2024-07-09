@@ -52,8 +52,9 @@ namespace dbg {
         AbstractReliableFillingAlgorithm * reliableFiller = nullptr;
         if(reliability_mode == "default") {
             reliableFiller = new CompositeReliableFiller(CreateDefaultReliableFiller(dbg, readStorage, reliable_coverage, diploid));
-        } else
+        } else {
             reliableFiller = new MLReliableFiller(reliability_mode, dir, ml_threshold);
+        }
         TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, *reliableFiller, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
         ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);

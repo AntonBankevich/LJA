@@ -52,21 +52,18 @@ docker images
 
 
 ## How to build LJA with libtorch
-The easiest way to install libtorch library is to use python virtual environment.
-Assuming we are in folder `ENV_PARENT` and on Ubuntu 22.04:
+The easiest way to install libtorch library is to download zipped version of `libtorch` with required dependencies:
 ```Bash
-sudo apt install python3.10-venv
-python3.10 -m venv env
-source env/bin/activate
-pip3 install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu
-TORCH_CMAKE_PATH=$(python -c 'import torch;print(torch.utils.cmake_prefix_path)')
+wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.3.1%2Bcpu.zip
+unzip libtorch-cxx11-abi-shared-with-deps-2.2.2.zip
+TORCH_CMAKE_PATH=`pwd`/libtorch
 ```
 
 Next we build the LJA with libtorch
 ```Bash
 git clone https://github.com/AntonBankevich/LJA
 git checkout -t origin/ML_edge_maker
-cmake -DCMAKE_PREFIX_PATH=$TORCH_CMAKE_PATH
+cmake -DCMAKE_PREFIX_PATH=$TORCH_CMAKE_PATH .
 make -j lja jumboDBG
 ```
 

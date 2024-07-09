@@ -18,3 +18,4 @@ src/tests/googletest/googletest/CTestTestfile.cmake
 .idea
 bin
 install_manifest.txt
+libtorch*

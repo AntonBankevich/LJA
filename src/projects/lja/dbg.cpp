@@ -29,9 +29,6 @@
 #include <common/id_index.hpp>
 #include <error_correction/reliable_fillers.hpp>
 
-#ifdef USE_LIBTORCH
-#include <torch/script.h>
-#endif // USE_LIBTORCH
 
 using namespace dbg;
 
@@ -273,7 +270,7 @@ int main(int argc, char **argv) {
         if (params.getValue("reference") != "none") {
             ref_vector = io::SeqReader(params.getValue("reference")).readAll();
         }
-        CompositeReliableFiller reliableFiller(CreateDefaultReliableFiller(dbg, readStorage, reliable, false));
+        CompositeReliableFiller reliableFiller(std::move(CreateDefaultReliableFiller(dbg, readStorage, reliable, false)));
         initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable, reliableFiller, false, 60000, params.getCheck("dump"));
         Component comp(dbg);
@@ -463,23 +460,6 @@ int main(int argc, char **argv) {
         printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage, &ag::SaveEdgeName<DBGTraits>);
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         printDot(dir / "graph.dot", Component(dbg), &ag::SaveEdgeName<DBGTraits>);
-#ifdef USE_LIBTORCH
-        logger.info() << "Exporting graph to PT files " << dir << std::endl;
-        printPT(dir, Component(dbg));
-        // mount local /tmp/models directory
-        std::string docker_cmd = "docker run -v /tmp/models:/tmp/models -v ";
-        // and local dir for files
-        docker_cmd += dir.string();
-        docker_cmd += ":";
-        docker_cmd += dir.string();
-        // run inference using lja_regression_cfg and set data dir to the current "dir"
-        docker_cmd += " dbg:latest src/inference.py --config-name=lja_regression_cfg.yaml paths.data_dir=";
-        docker_cmd += dir.string();
-        logger.info() << "Calling docker with cmd " << docker_cmd << std::endl;
-        auto result = std::system(docker_cmd.c_str());
-        logger.info() << "Docker exited with status " << result << std::endl;
-        auto inference_result = loadInferenceResultMultiplicity(dir / "container.pt");
-#endif // USE_LIBTORCH
     }
 
     if (params.getCheck("tip-correct")) {
