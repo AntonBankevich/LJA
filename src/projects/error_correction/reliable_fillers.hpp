@@ -97,14 +97,14 @@ inline std::vector<float> loadInferenceResultProbability(const std::experimental
 }
 
 inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &cur_path, std::string config_name) {
-    std::string docker_cmd = "docker run -v /tmp/models:/tmp/models -v ";
+    std::string docker_cmd = "docker run -v /tmp/models:/tmp/models -v /data/cconfigs:/configs -v ";
     // and local dir for files
     docker_cmd += cur_path.string();
     docker_cmd += ":";
-    docker_cmd += cur_path.string();
+    docker_cmd += cur_path.string() + " dbg:latest ";
     // run inference using lja_regression_cfg and set data dir to the current dir
-    docker_cmd += " dbg:latest src/inference.py --config-name=";
-    docker_cmd += config_name;
+    docker_cmd += "src/inference.py --config-name=";
+    docker_cmd += config_name + " --config-path /configs";
     docker_cmd += " paths.data_dir=";
     docker_cmd += cur_path.string();
     //logger.info() << "Calling docker with cmd " << docker_cmd << std::endl;
