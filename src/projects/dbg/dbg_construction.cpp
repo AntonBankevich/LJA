@@ -3,7 +3,7 @@
 
 using namespace hashing;
 using namespace dbg;
-std::vector<hashing::htype>
+std::vector<std::pair<hashing::htype, bool>>
 findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs, const hashing::RollingHash &hasher,
               size_t threads) {
     bloom_parameters parameters;
@@ -43,11 +43,11 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
     std::pair<size_t, size_t> bits = filter.count_bits();
     logger.info() << "Filled " << bits.first << " bits out of " << bits.second << std::endl;
     logger.info() << "Finished filling bloom filter. Selecting junctions." << std::endl;
-    ParallelRecordCollector<hashing::htype> junctions(threads);
+    ParallelRecordCollector<std::pair<hashing::htype, bool>> junctions(threads);
     std::function<void(size_t, const Sequence &)> junk_task = [&filter, &hasher, &junctions](size_t pos, const Sequence & seq) {
         for(const MovingKWH &kmer : hasher.kmers(seq)) {
             if (kmer.isFirst() || kmer.isLast()) {
-                junctions.emplace_back(kmer.hash());
+                junctions.emplace_back(kmer.hash(), kmer.getSeq() == kmer.getSeq().rc());
             } else {
                 size_t cnt1 = 0;
                 size_t cnt2 = 0;
@@ -56,26 +56,29 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
                     cnt2 += filter.contains(kmer.extendLeft(c));
                 }
                 if (cnt1 != 1 || cnt2 != 1) {
-                    junctions.emplace_back(kmer.hash());
+                    junctions.emplace_back(kmer.hash(), kmer.getSeq() == kmer.getSeq().rc());
                 }
                 VERIFY(cnt1 <= 4 && cnt2 <= 4);
             }
         }
     };
     processRecords(split_disjointigs.begin(), split_disjointigs.end(), logger, threads, junk_task);
-    std::vector<hashing::htype> res = junctions.collect();
+    std::vector<std::pair<hashing::htype, bool>> res = junctions.collect();
     __gnu_parallel::sort(res.begin(), res.end());
     res.erase(std::unique(res.begin(), res.end()), res.end());
     logger.info() << "Collected " << res.size() << " junctions." << std::endl;
     return res;
 }
 
-SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype> &vertices, const std::vector<Sequence> &disjointigs,
+SparseDBG constructDBG(logging::Logger &logger, const std::vector<std::pair<hashing::htype, bool>> &vertices, const std::vector<Sequence> &disjointigs,
              const RollingHash &hasher, size_t threads) {
     logger.info() << "Assembling junctions and disjointigs into DBG." << std::endl;
     SparseDBG dbg(hasher);
-    for(hashing::htype hash : vertices) {
-        dbg.addVertexPair({hash});
+    for(auto & hash : vertices) {
+        if(hash.second)
+            dbg.addSelfRCVertex({hash.first});
+        else
+            dbg.addVertexPair({hash.first});
     }
     {
         KmerIndex index(dbg);
@@ -94,32 +97,34 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<hashing::htype
     return std::move(dbg);
 }
 
-inline void writeHashs(std::ostream &os, const std::vector<htype> &hash_list) {
-    os << "hashes " << hash_list.size() << std::endl;
-    for (htype h : hash_list) {
-        os << h << std::endl;
+inline void writeHashs(std::ostream &os, const std::vector<std::pair<hashing::htype, bool>> &hash_list) {
+    os << "hashes_and_selfrc " << hash_list.size() << std::endl;
+    for (auto & h : hash_list) {
+        os << h.first << " " << h.second << std::endl;
     }
 }
 
-inline std::vector<htype> readHashs(std::istream &is) {
-    std::vector<htype> result;
+inline std::vector<std::pair<hashing::htype, bool>> readHashs(std::istream &is) {
+    std::vector<std::pair<hashing::htype, bool>> result;
     std::string first;
     is >> first;
-    if(first == "hashes"){
+    if(first == "hashes_and_selfrc"){
         size_t len;
         is >> len;
         for (size_t i = 0; i < len; i++) {
             htype tmp;
             is >> tmp;
-            result.push_back(tmp);
+            bool selfrc;
+            is >> selfrc;
+            result.emplace_back(tmp, selfrc);
         }
     } else {
-        size_t len = std::stoull(first);
-        size_t a[2];
+        size_t len;
+        is >> len;
         for (size_t i = 0; i < len; i++) {
-            is >> a[0] >> a[1];
-            auto *tmp = reinterpret_cast<htype *>(a);
-            result.push_back(*tmp);
+            htype tmp;
+            is >> tmp;
+            result.emplace_back(tmp, false);
         }
     }
     return std::move(result);
@@ -155,7 +160,7 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
     while(!reader.eof()) {
         disjointigs.push_back(reader.read().makeSequence());
     }
-    std::vector<hashing::htype> vertices;
+    std::vector<std::pair<hashing::htype, bool>> vertices;
     if (vertices_file == "none") {
         vertices = findJunctions(logger, disjointigs, hasher, threads);
         std::ofstream os;

@@ -15,7 +15,7 @@
 #include "common/omp_utils.hpp"
 #include <wait.h>
 
-std::vector<hashing::htype> findJunctions(logging::Logger & logger, const std::vector<Sequence>& disjointigs,
+std::vector<std::pair<hashing::htype, bool>> findJunctions(logging::Logger & logger, const std::vector<Sequence>& disjointigs,
                                  const hashing::RollingHash &hasher, size_t threads);
 dbg::SparseDBG constructDBG(logging::Logger & logger, const std::vector<hashing::htype> &vertices,
                        const std::vector<Sequence> &disjointigs, const hashing::RollingHash &hasher, size_t threads);
