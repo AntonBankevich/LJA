@@ -13,10 +13,9 @@ int main(int argc, char **argv) {
     typedef typename ag::BaseEdge<multigraph::MGTraits>::EdgeId EID;
     ag::Component<multigraph::MGTraits> cmp(mdbg);
     ObjInfo<VID> vertexInfo = VertexPrintStyles<multigraph::MGTraits>::defaultDotInfo(cmp);
-    ObjInfo<EID> edgeInfo = ObjInfo<EID>::Tooltiper([](const EID &eid){return std::string("black");});
+    ObjInfo<EID> edgeInfo = EdgePrintStyles<multigraph::MGTraits>::defaultDotInfo();
     Printer<multigraph::MGTraits> printer(vertexInfo, edgeInfo);
-    std::ofstream os("printer_test.dot");
-    printer.printDot(os, cmp);
-    os.close();
+    printer.printDot("printer_test.dot", cmp);
+    printer.printGFA("printer_test.gfa", cmp);
     return 0;
 }
