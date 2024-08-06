@@ -4,7 +4,7 @@
 #pragma once
 #include <fstream>
 #include <experimental/filesystem>
-
+#include <common/string_utils.hpp>
 #include "splitters.hpp"
 #include "assembly_graph/component.hpp"
 #include "dbg/sparse_dbg.hpp"
@@ -14,14 +14,6 @@ std::vector<T> concatenate(const std::vector<T>& vec1, const std::vector<T>& vec
     std::vector<T> result = vec1;
     result.insert(result.end(), vec2.begin(), vec2.end());
     return result;
-}
-
-//insert  from string utils
-inline std::string concatStrings(const std::vector<std::string> &in_strings, const std::string &delim) {
-    if (in_strings.empty()) return "";
-    std::string res = in_strings[0];
-    for (int i=1; i < in_strings.size(); ++i) {res += delim + in_strings[i];}
-    return res;
 }
 
 template <class Obj>
@@ -46,6 +38,10 @@ public:
     label_fs(_label_fs),
     color_fs(_color_fs),
     tooltip_fs(_tooltip_fs){}
+
+    static ObjInfo EmptyObjInfo() {
+        return ObjInfo({},{},{});
+    }
 
     static ObjInfo Labeler(std::function<std::string(const Obj &)> label_f) {
         return ObjInfo({label_f}, {}, {});
@@ -80,60 +76,66 @@ public:
 
 template <class Traits>
 class VertexPrintStyles {
-private:
-    typedef typename ag::BaseVertex<Traits>::VertexId VID;
+
 public:
-    static ObjInfo<VID> defaultDotColorer(const ag::Component<Traits> &cmp) {
-        std::function<std::string(const VID &vid)> f = [& cmp](const VID &vid) {
-            return cmp.covers(*vid) ? "white" : "yellow";
+    typedef typename Traits::Edge::EdgeId EdgeId;
+    typedef typename Traits::Vertex::VertexId VertexId;
+    typedef typename Traits::Vertex::ConstVertexId ConstVertexId;
+    typedef typename Traits::Vertex Vertex;
+    typedef typename Traits::Edge Edge;
+
+    static ObjInfo<Vertex> defaultDotColorer() {
+        std::function<std::string(const Vertex &v)> f = [](const Vertex &v) {
+            return "white";
         };
-        return ObjInfo<VID>::Colorer(f);
+        return ObjInfo<Vertex>::Colorer(f);
     }
 
-    static ObjInfo<VID> defaultLabeler() {
-        std::function<std::string(const VID &vid)> f = [](const VID &vid) {
-            ag::BaseVertex<Traits> &v = *vid;
+    static ObjInfo<Vertex> defaultLabeler() {
+        std::function<std::string(const Vertex &v)> f = [](const Vertex &v) {
             return std::to_string(v.getInnerId());
         };
-        return ObjInfo<VID>::Labeler(f);
+        return ObjInfo<Vertex>::Labeler(f);
     }
 
-    static ObjInfo<VID> defaultTooltiper() {
-        std::function<std::string(const VID &vid)> f = [](const VID &vid) {
-            ag::BaseVertex<Traits> &v = *vid;
+    static ObjInfo<Vertex> defaultTooltiper() {
+        std::function<std::string(const Vertex &v)> f = [](const Vertex &v) {
             return std::to_string(v.getInnerId());
         };
-        return ObjInfo<VID>::Tooltiper(f);
+        return ObjInfo<Vertex>::Tooltiper(f);
     }
 
-    static ObjInfo<VID> vertexSetColorer(std::unordered_set<VID> &vSet) {
-        std::function<std::string(const VID &vid)> f = [&vSet](const VID &vid) {
+    static ObjInfo<Vertex>
+    vertexSetColorer(std::unordered_set<ConstVertexId> &vSet) {
+        std::function<std::string(const Vertex &v)> f = [&vSet](const Vertex &v) {
+            ConstVertexId vid = v.getId();
             if (vSet.find(vid) == vSet.end()){ return "white"; }
             return "red";
         };
-        return ObjInfo<VID>::Colorer(f);
+        return ObjInfo<Vertex>::Colorer(f);
     }
 
-    static ObjInfo<VID> defaultDotInfo(const ag::Component<Traits> &cmp) {
-        return defaultLabeler() + defaultDotColorer(cmp) + defaultTooltiper();
+    static ObjInfo<Vertex> defaultDotInfo() {
+        return defaultLabeler() + defaultDotColorer() + defaultTooltiper();
     }
 };
 
 template <class Traits>
 class EdgePrintStyles {
-private:
-    typedef typename ag::BaseEdge<Traits>::EdgeId EID;
 public:
-    static ObjInfo<EID> simpleColorer(const std::string &color) {
-        std::function<std::string(const EID &eid)> f = [color](const EID &eid) {
+    typedef typename Traits::Edge::EdgeId EdgeId;
+    typedef typename Traits::Vertex::VertexId VertexId;
+    typedef typename Traits::Vertex Vertex;
+    typedef typename Traits::Edge Edge;
+    static ObjInfo<Edge> simpleColorer(const std::string &color) {
+        std::function<std::string(const Edge &e)> f = [color](const Edge &e) {
             return color;
         };
-        return ObjInfo<EID>::Colorer(f);
+        return ObjInfo<Edge>::Colorer(f);
     }
 
-    static ObjInfo<EID> defaultDotLabeler() {
-        std::function<std::string(const EID &eid)> f = [](const EID &eid) {
-            ag::BaseEdge<Traits> &e = *eid;
+    static ObjInfo<Edge> defaultDotLabeler() {
+        std::function<std::string(const Edge &e)> f = [](const Edge &e) {
             std::stringstream ss;
             ss << e.getStart().getInnerId() << " " << e.nuclLabel() << " " << e.truncSize();
             if (std::is_same<Traits, dbg::DBGTraits>::value) {
@@ -141,55 +143,76 @@ public:
             }
             return ss.str();
         };
-        return ObjInfo<EID>::Labeler(f);
+        return ObjInfo<Edge>::Labeler(f);
     }
 
-    static ObjInfo<EID> defaultDotInfo () {
+    static ObjInfo<Edge> defaultDotInfo () {
         return simpleColorer("black") + defaultDotLabeler();
     }
 };
 
 template <class Traits>
 class Printer {
-private:
-    typedef typename ag::BaseVertex<Traits>::VertexId VID;
-    typedef typename ag::BaseEdge<Traits>::EdgeId EID;
+public:
+    typedef typename Traits::Edge::EdgeId EdgeId;
+    typedef typename Traits::Vertex::VertexId VertexId;
+    typedef typename Traits::Vertex Vertex;
+    typedef typename Traits::Edge Edge;
 
-    ObjInfo<VID> vertexInfo;
-    ObjInfo<EID> edgeInfo;
+private:
+    ObjInfo<Vertex> vertexInfo;
+    ObjInfo<Edge> edgeInfo;
 
 public:
-    Printer(ObjInfo<VID> _vertexInfo, ObjInfo<EID> _edgeInfo):
+    Printer():
+        vertexInfo(ObjInfo<Vertex>::EmptyObjInfo()),
+        edgeInfo(EdgePrintStyles<Traits>::simpleColorer("black")){}
+
+    Printer(ObjInfo<Vertex> _vertexInfo, ObjInfo<Edge> _edgeInfo):
     vertexInfo(_vertexInfo),
     edgeInfo(_edgeInfo){}
 
+    void addVertexInfo(const ObjInfo<Vertex> &obj_info) {
+        vertexInfo = vertexInfo + obj_info;
+    }
+
+    void setVertexInfo(const ObjInfo<Vertex> &obj_info) {
+        vertexInfo = obj_info;
+    }
+
+    void addEdgeInfo(const ObjInfo<Edge> &obj_info) {
+        edgeInfo = edgeInfo + obj_info;
+    };
+
+    void setEdgeInfo(const ObjInfo<Edge> &obj_info) {
+        edgeInfo = obj_info;
+    }
+
     void printDot(std::ostream &os, const ag::Component<Traits> &component) {
         os << "digraph {\nnodesep = 0.5;\n";
-        std::unordered_set<VID> extended;
-        for(ag::BaseEdge<Traits> &edge : component.edges()) {
+        std::unordered_set<VertexId> extended;
+        for(Edge &edge : component.edges()) {
             extended.emplace(edge.getFinish().getId());
             extended.emplace(edge.getStart().getId());
         }
-        for(ag::BaseVertex<Traits> &vertex : component.vertices()) {
+        for(Vertex &vertex : component.vertices()) {
             extended.emplace(vertex.getId());
         }
-        for(VID vid : extended) {
-            ag::BaseVertex<Traits> &v = *vid;
-            std::string label = v.size() < 10 ? v.getSeq().str() : concatStrings(vertexInfo.get_label_info(vid), " : ");
-            std::string color = concatStrings(vertexInfo.get_color_info(vid), " : ");
-            std::string tooltip = concatStrings(vertexInfo.get_tooltip_info(vid), " : ");
-            os << vid.innerId();
+        for(VertexId VertexId : extended) {
+            Vertex &v = *VertexId;
+            std::string label = v.size() < 10 ? v.getSeq().str() : join(" : ", vertexInfo.get_label_info(v));
+            std::string color = join(":", vertexInfo.get_color_info(v));
+            std::string tooltip = join(" : ", vertexInfo.get_tooltip_info(v));
+            os << VertexId.innerId();
             os << " [";
             os << "label=\"" + label + "\" ";
-// add coloring for outer vert
             os << "tooltip=\"" + tooltip + "\" ";
-            os << "style=filled fillcolor=\"" + color + "\"]\n";
+            os << "style=filled fillcolor=\"" << (component.covers(v) ? color : "yellow") << "\"]\n";
         }
-        for(ag::BaseEdge<Traits> &edge : component.edges()) {
-            EID eid = edge.getId();
-            std::string label = concatStrings(edgeInfo.get_label_info(eid), " : ");
-            std::string color = concatStrings(edgeInfo.get_color_info(eid), ":");
-            std::string tooltip = concatStrings(edgeInfo.get_tooltip_info(eid), " : ");
+        for(Edge &edge : component.edges()) {
+            std::string label = join(" : ", edgeInfo.get_label_info(edge));
+            std::string color = join(":", edgeInfo.get_color_info(edge));
+            std::string tooltip = join(" : ", edgeInfo.get_tooltip_info(edge));
             os << "\"" << edge.getStart().getInnerId() << "\" -> \"" << edge.getFinish().getInnerId() << "\" ";
             os << "[";
             if (! label.empty()) os << "label=\"" + label + "\" ";
@@ -199,12 +222,28 @@ public:
         }
         os << "}\n";
     }
-// add function with graph instead component
+
     void printDot(const std::experimental::filesystem::path &filename,const ag::Component<Traits> &component) {
         std::ofstream os;
         os.open(filename);
         printDot(os, component);
         os.close();
+    }
+
+    void printDot(std::ostream &out, ag::AssemblyGraph<Traits> &graph) {
+        std::unordered_set<VertexId> VertexIds;
+        for (Vertex &v: graph.vertices()) {
+            VertexIds.emplace(v.getId());
+        }
+        ag::Component<Traits> component(graph, VertexIds.begin(), VertexIds.end());
+        printDot(out, component);
+    }
+
+    void printDot(const std::experimental::filesystem::path &filename, ag::AssemblyGraph<Traits> &graph) {
+        std::ofstream out;
+        out.open(filename);
+        printDot(out, graph);
+        out.close();
     }
 
     void DrawSplit(const ag::Component<Traits> &component, const std::experimental::filesystem::path &dir,
@@ -223,23 +262,32 @@ public:
     void printGFA(std::ostream &out, const ag::Component<Traits> &component, bool calculate_coverage = true) {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
-        std::unordered_map<const ag::BaseEdge<Traits> *, std::string> eids;
-        for (ag::BaseEdge<Traits> &edge : component.edges()) {
-            if(!edge.isCanonical()) continue;
-            eids[&edge] = edge.getInnerId().str();
-            eids[&edge.rc()] = edge.getInnerId().str();
-            if (calculate_coverage)
-                out << "S\t" << edge.getInnerId().str() << "\t" << edge.getStart().getSeq() << edge.truncSeq()
-                    << "\tKC:i:" << edge.getCoverage() << "\n";
-            else
-                out << "S\t" << edge.getInnerId().str() << "\t" << edge.getStart().getSeq() << edge.truncSeq() << "\n";
+        std::unordered_map<const Edge *, std::string> EdgeIds;
+        for (Edge &edge : component.edgesUnique()) {
+            EdgeId EdgeId = edge.getId();
+            std::string label = join(" : ", edgeInfo.get_label_info(edge));
+            if (label.empty()) {label = edge.getInnerId().str();}
+            std::string color = join(":", edgeInfo.get_color_info(edge));
+            std::string tooltip = join(" : ", edgeInfo.get_tooltip_info(edge));
+            EdgeIds[&edge] = edge.getInnerId().str();
+            EdgeIds[&edge.rc()] = edge.getInnerId().str();
+            out << "S\t";
+            out << label << "\t";
+            out << edge.getStart().getSeq() << edge.truncSeq();
+            if (calculate_coverage) {
+                out << "\tKC:i:" << edge.getCoverage();
+            }
+            if (! tooltip.empty()) {
+                out << "\tLB:Z:" << tooltip;
+            }
+            out << "\n";
         }
-        for (ag::BaseVertex<Traits> &vertex : component.verticesUnique()) {
-            for (const ag::BaseEdge<Traits> &out_edge : vertex) {
-                std::string outid = eids[&out_edge];
+        for (Vertex &vertex : component.verticesUnique()) {
+            for (const Edge &out_edge : vertex) {
+                std::string outid = EdgeIds[&out_edge];
                 bool outsign = out_edge.isCanonical();
-                for (const ag::BaseEdge<Traits> &inc_edge : vertex.incoming()) {
-                    std::string incid = eids[&inc_edge];
+                for (const Edge &inc_edge : vertex.incoming()) {
+                    std::string incid = EdgeIds[&inc_edge];
                     bool incsign = inc_edge.isCanonical();
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
                         << (outsign ? "+" : "-") << "\t" << vertex.size() << "M" << "\n";
@@ -253,6 +301,99 @@ public:
         std::ofstream out;
         out.open(filename);
         printGFA(out, component, calculate_coverage);
+        out.close();
+    }
+
+    void printGFA(std::ostream &out, ag::AssemblyGraph<Traits> &graph,
+                         bool calculate_coverage = true) {
+        std::unordered_set<VertexId> VertexIds;
+        for (Vertex &v: graph.vertices()) {
+            VertexIds.emplace(v.getId());
+        }
+        ag::Component<Traits> component(graph, VertexIds.begin(), VertexIds.end());
+        printGFA(out, component, calculate_coverage);
+    }
+
+    void printGFA(const std::experimental::filesystem::path &filename, ag::AssemblyGraph<Traits> &graph,
+                  bool calculate_coverage = true) {
+        std::ofstream out;
+        out.open(filename);
+        printGFA(out, graph, calculate_coverage);
+        out.close();
+    }
+
+    void printExtendedGFA(std::ostream &out, const ag::Component<Traits> &component, bool calculate_coverage = true) {
+        out << "H\tVN:Z:1.0" << std::endl;
+        size_t cnt = 0;
+        std::unordered_map<const Edge *, std::string> EdgeIds;
+        for (Edge &edge : component.edgesUnique()) {
+            EdgeId EdgeId = edge.getId();
+            std::string label = join(" : ", edgeInfo.get_label_info(edge));
+            std::string color = join(":", edgeInfo.get_color_info(edge));
+            std::string tooltip = join(" : ", edgeInfo.get_tooltip_info(edge));
+            EdgeIds[&edge] = edge.getInnerId().str();
+            EdgeIds[&edge.rc()] = edge.getInnerId().str();
+            out << "S\t";
+            out << "e" << edge.getInnerId().str() << "\t";
+            out << edge.getStart().getSeq() << edge.truncSeq();
+            if (calculate_coverage) {
+                out << "\tKC:i:" << edge.getCoverage();
+            }
+            if (! label.empty()) {
+                out << "\tLB:Z:" << label;
+            }
+            out << "\n";
+        }
+        for (Vertex &vertex: component.verticesUnique()) {
+            out << "S\t";
+            out << "v" << vertex.getInnerId() << "\t";
+            out << vertex.getSeq();
+            out << "\n";
+        }
+        for (Edge &edge : component.edgesUnique()) {
+            std::string fromId;
+            std::string toId  = edge.getInnerId().str();
+            string fromOrient;
+            if (edge.getStart().isCanonical()) {
+                fromId = std::to_string(edge.getStart().getInnerId());
+                fromOrient = "+";
+            } else {
+                fromId = std::to_string(-edge.getStart().getInnerId());
+                fromOrient = "-";
+            }
+            out << "L\tv" << fromId << "\t" << fromOrient << "\te" << toId << "\t+\t" << 10 << "M" << "\n";
+            fromId = toId;
+            string toOrient;
+            if (edge.getFinish().isCanonical()) {
+                toId = std::to_string(edge.getFinish().getInnerId());
+                toOrient = "+";
+            } else {
+                toId = std::to_string(-edge.getFinish().getInnerId());
+                toOrient = "-";
+            }
+            out << "L\te" << fromId << "\t+\tv" << toId << "\t" << toOrient << "\t" << 10 << "M" << "\n";
+        }
+    }
+
+    void printExtendedGFA(const std::experimental::filesystem::path &filename, const ag::Component<Traits> &component,
+                     bool calculate_coverage = true) {
+        std::ofstream out;
+        out.open(filename);
+        printExtendedGFA(out, component, calculate_coverage);
+        out.close();
+    }
+
+    void printExtendedGFA(std::ostream &out, ag::AssemblyGraph<Traits> &graph,
+                     bool calculate_coverage = true) {
+        ag::Component<Traits> component(graph);
+        printExtendedGFA(out, component, calculate_coverage);
+    }
+
+    void printExtendedGFA(const std::experimental::filesystem::path &filename, ag::AssemblyGraph<Traits> &graph,
+                          bool calculate_coverage = true) {
+        std::ofstream out;
+        out.open(filename);
+        printExtendedGFA(out, graph, calculate_coverage);
         out.close();
     }
 };

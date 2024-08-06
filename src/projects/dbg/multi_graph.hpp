@@ -150,6 +150,7 @@ namespace multigraph {
         static std::vector<Contig> extractContigs(const MultiGraph &mg, bool cut_overlaps);
         static void printExtractedContigs(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool cut_overlaps);
         static void printDot(const MultiGraph &mg, const std::experimental::filesystem::path &f);
+        static void printDot2(const MultiGraph &mg, const std::experimental::filesystem::path &f);
 //This is ugly duplication of code. It could be avoided using templates but it is ugly too. No viable solution for that in C++
         static void printEdgeGFA(const std::experimental::filesystem::path &f, const std::vector<ConstVertexId> &component, bool labels = false);
         static void printEdgeGFA(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool labels = false);

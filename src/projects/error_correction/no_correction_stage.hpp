@@ -30,8 +30,13 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
     }
     printFasta(dir / "final_dbg.fasta", dbg, &ag::SaveEdgeName<DBGTraits>);
-    printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
-    printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
+    Printer<DBGTraits> printer;
+    printer.addEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
+    printer.printGFA(dir / "final_dbg.gfa", Component(dbg), true);
+    printer.setEdgeInfo(ObjInfo<Edge>({readStorage.labeler()},{},{}));
+    printer.printDot(dir / "final_dbg.dot", Component(dbg));
+    //printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>); delete if ok
+    //printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler()); delete if ok
     ag::SaveAllReads<DBGTraits>(dir/"final_dbg.aln", {&readStorage, &extra_reads});
     //readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     readStorage.printReadPaths(logger, dir / "corrected_reads.aln",

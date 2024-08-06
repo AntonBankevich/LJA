@@ -10,7 +10,7 @@ namespace dbg {
         dbg::ReadAlignmentStorage &reads;
         size_t unique_threshold;
 
-        bool checkBulgeForward(const std::pair<dbg::Edge *, dbg::Edge *> &bulge) {
+        bool checkBulgeForward(const std::pair<EdgeId, EdgeId> &bulge) {
             const ag::VertexRecord<DBGTraits> &vr1 = reads.getRecord(bulge.first->getStart());
             const ag::VertexRecord<DBGTraits> &vr2 = reads.getRecord(bulge.first->getFinish());
             Sequence s1 = vr1.getFullUniqueExtension(bulge.first->truncSeq().Subseq(0, 1), 1, 0, 3).cpath();
@@ -19,11 +19,11 @@ namespace dbg {
             return s1.size() > s.size() + 1 && s2.size() > s.size() + 1;
         }
 
-        bool checkBulgeIdeal(const BulgePath &bulgePath, size_t index) {
+        bool checkBulgeIdeal(const BulgePath<dbg::DBGTraits> &bulgePath, size_t index) {
             if (!bulgePath.isBulge(index))
                 return false;
             return checkBulgeForward(bulgePath[index]) &&
-                   checkBulgeForward({&bulgePath[index].first->rc(), &bulgePath[index].second->rc()});
+                   checkBulgeForward({bulgePath[index].first->rc().getId(), bulgePath[index].second->rc().getId()});
         }
 
     public:
@@ -36,7 +36,7 @@ namespace dbg {
         }
 
         void setUniqueMarkers(dbg::SparseDBG &dbg) {
-            for (const BulgePath &bulgePath: BulgePathFinder(dbg).paths) {
+            for (const BulgePath<DBGTraits> &bulgePath: BulgePathFinder(dbg).paths) {
                 if (bulgePath.length() < unique_threshold || bulgePath.start() < bulgePath.finish().rc()) {
                     continue;
                 }

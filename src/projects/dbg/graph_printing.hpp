@@ -88,7 +88,7 @@ namespace dbg {
         printAssembly(out, Component(dbg), name);
         out.close();
     }
-
+/*
     inline void printGFA(std::ostream &out, const Component &component, bool calculate_coverage,
                          const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         out << "H\tVN:Z:1.0" << std::endl;
@@ -125,7 +125,7 @@ namespace dbg {
         printGFA(out, component, calculate_coverage, name);
         out.close();
     }
-
+*/
     inline void printGraphAlignments(std::ostream &out, const std::vector<dbg::GraphPath> &als) {
         for(size_t i = 0; i < als.size(); i++) {
             out << ">" << i <<"\n" << als[i].Seq() << "\n";

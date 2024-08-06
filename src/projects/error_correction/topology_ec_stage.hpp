@@ -37,7 +37,10 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
         index.fillAnchors(logger, threads, dbg, w);
         readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
     }
-    printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
+    Printer<dbg::DBGTraits> printer;
+    printer.setEdgeInfo(ObjInfo<dbg::Edge>({&SaveEdgeName}, {}, {}));
+    printer.printDot(dir / "initial_dbg.dot", Component(dbg));
+    //printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, false);
@@ -72,8 +75,12 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
         DrawSplit(Component(dbg), dir / "split_figs", readStorage.labeler());
     }
     printFasta(dir / "final_dbg.fasta", dbg, &ag::SaveEdgeName<DBGTraits>);
-    printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
-    printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
+    printer.setEdgeInfo(ObjInfo<Edge>({&dbg::SaveEdgeName},{}, {}));
+    printer.printGFA(dir / "final_dbg.gfa", Component(dbg), true);
+    printer.setEdgeInfo(ObjInfo<Edge>({readStorage.labeler()},{},{}));
+    printer.printDot(dir / "final_dbg.dot", Component(dbg));
+    //printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler()); delete if ok
+    //printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>); delete if ok
     ag::SaveAllReads<DBGTraits>(dir/"final_dbg.aln", {&readStorage, &extra_reads});
     //readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
     readStorage.printReadPaths(logger, dir / "corrected_reads.aln",

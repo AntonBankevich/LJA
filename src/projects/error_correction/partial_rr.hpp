@@ -5,7 +5,7 @@
 #include "diploidy_analysis.hpp"
 
 namespace dbg {
-    std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath &bulgePath, const dbg::ReadAlignmentStorage &reads) {
+    std::vector<dbg::GraphPath> ResolveBulgePath(const BulgePath<DBGTraits> &bulgePath, const dbg::ReadAlignmentStorage &reads) {
         VERIFY(bulgePath.size() > 0);
         if (bulgePath.size() == 1)
             return {dbg::GraphPath() + *bulgePath[0].first};
@@ -86,7 +86,7 @@ namespace dbg {
         BulgePathFinder bulges(dbg, 1);
         logger.trace() << "Bulge collection finished" << std::endl;
         std::vector<dbg::GraphPath> res;
-        for (BulgePath &bulgePath: bulges.paths) {
+        for (BulgePath<DBGTraits> &bulgePath: bulges.paths) {
             std::vector<dbg::GraphPath> resolved = ResolveBulgePath(bulgePath, reads);
             res.insert(res.end(), resolved.begin(), resolved.end());
         }

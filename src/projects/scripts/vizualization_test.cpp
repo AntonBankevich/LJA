@@ -12,10 +12,11 @@ int main(int argc, char **argv) {
     typedef typename ag::BaseVertex<multigraph::MGTraits>::VertexId VID;
     typedef typename ag::BaseEdge<multigraph::MGTraits>::EdgeId EID;
     ag::Component<multigraph::MGTraits> cmp(mdbg);
-    ObjInfo<VID> vertexInfo = VertexPrintStyles<multigraph::MGTraits>::defaultDotInfo(cmp);
-    ObjInfo<EID> edgeInfo = EdgePrintStyles<multigraph::MGTraits>::defaultDotInfo();
+    ObjInfo<multigraph::Vertex> vertexInfo = VertexPrintStyles<multigraph::MGTraits>::defaultDotInfo();
+    ObjInfo<multigraph::Edge> edgeInfo = EdgePrintStyles<multigraph::MGTraits>::defaultDotInfo();
     Printer<multigraph::MGTraits> printer(vertexInfo, edgeInfo);
-    printer.printDot("printer_test.dot", cmp);
-    printer.printGFA("printer_test.gfa", cmp);
+    printer.printDot("printer_test.dot", mdbg);
+    printer.printGFA("printer_test.gfa", mdbg);
+    printer.printExtendedGFA("printer_test_ext.gfa", mdbg);
     return 0;
 }

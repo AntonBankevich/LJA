@@ -1,4 +1,6 @@
 #include "mult_correction.hpp"
+
+#include "assembly_graph/visualization.hpp"
 using namespace dbg;
 void printAl(logging::Logger &logger, std::unordered_map<const dbg::Edge *, CompactPath> &unique_extensions,
              const dbg::GraphPath &al) {
@@ -349,7 +351,7 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
               ReadAlignmentStorage &reads_storage, AbstractUniquenessStorage &uniquenessStorage) {
     std::vector<Component> split = ag::LengthSplitter<DBGTraits>(unique_threshold).splitGraph(dbg);
     recreate_dir(dir);
-    const std::function<std::string(Edge &)> colorer = [&uniquenessStorage](Edge &edge) {
+    const std::function<std::string(const Edge &)> colorer = [&uniquenessStorage](const Edge &edge) {
         if(uniquenessStorage.isUnique(edge))
             return "black";
         if(uniquenessStorage.isError(edge))
@@ -358,8 +360,11 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
             return "orange";
         return "blue";
     };
+    Printer<dbg::DBGTraits> printer;
+    printer.addEdgeInfo(ObjInfo<dbg::Edge>({reads_storage.labeler()}, {colorer}, {}));
     for(size_t i = 0; i < split.size(); i++) {
-        printDot(dir / (itos(i) + ".dot"), split[i], reads_storage.labeler(), colorer);
+        // printDot(dir / (itos(i) + ".dot"), split[i], reads_storage.labeler(), colorer); delete if ok
+        printer.printDot(dir / (itos(i) + ".dot"), split[i]);
     }
 }
 

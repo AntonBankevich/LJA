@@ -28,6 +28,8 @@
 #include <wait.h>
 #include <common/id_index.hpp>
 
+#include "assembly_graph/visualization.hpp"
+
 using namespace dbg;
 
 void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file,
@@ -454,9 +456,13 @@ int main(int argc, char **argv) {
 //            printAssembly(dir / "graph.fasta", Component(dbg));
         }
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
-        printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage, &ag::SaveEdgeName<DBGTraits>);
+        Printer<DBGTraits> printer;
+        printer.addEdgeInfo(ObjInfo<Edge>({&SaveEdgeName}, {}, {}));
+        printer.printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage);
+        // printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage, &ag::SaveEdgeName<DBGTraits>); delete if ok
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
-        printDot(dir / "graph.dot", Component(dbg), &ag::SaveEdgeName<DBGTraits>);
+        printer.printDot(dir / "graph.dot", Component(dbg));
+        // printDot(dir / "graph.dot", Component(dbg), &ag::SaveEdgeName<DBGTraits>); delete if ok
     }
 
     if (params.getCheck("tip-correct")) {

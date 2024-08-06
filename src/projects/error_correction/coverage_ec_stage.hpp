@@ -11,6 +11,8 @@
 #include <dbg/graph_stats.hpp>
 #include <sequences/seqio.hpp>
 
+#include "assembly_graph/visualization.hpp"
+
 namespace dbg {
     std::unordered_map<std::string, std::experimental::filesystem::path>
     CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &dir,
@@ -39,7 +41,10 @@ namespace dbg {
         refStorage.setReadLogger(readLogger);
         io::SeqReader reader(reads_lib);
         readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
-        printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
+        Printer<DBGTraits> printer;
+        printer.setEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
+        printer.printDot(dir / "initial_dbg.dot", Component(dbg));
+        //printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
         coverageStats(logger, dbg);
         if (debug) {
             PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
@@ -79,9 +84,14 @@ namespace dbg {
                                    dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);
         if (debug)
             DrawSplit(Component(dbg), dir / "split");
-//    dbg.printFastaOld(dir / "final_dbg.fasta");
-        printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
-        printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
+//    dbg.printFastaOld(dir / "final_dbg.fasta"); ???
+
+        printer.setEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
+        printer.printGFA(dir / "final_dbg.gfa", Component(dbg), true);
+        printer.setEdgeInfo(ObjInfo<Edge>({readStorage.labeler()},{},{}));
+        printer.printDot(dir / "final_dbg.dot", Component(dbg));
+        //printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::SaveEdgeName<DBGTraits>);
+        //printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler());
         std::experimental::filesystem::path res;
         res = dir / "corrected_reads.paths";
         logger.info() << "Initial correction results with k = " << k << " printed to " << res << std::endl;

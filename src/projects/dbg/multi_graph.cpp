@@ -207,6 +207,24 @@ namespace multigraph {
         os.close();
     }
 
+    void MultiGraphHelper::printDot2(const MultiGraph &mg, const std::experimental::filesystem::path &f) {
+        std::ofstream os;
+        os.open(f);
+        os << "digraph {\nnodesep = 0.5;\n";
+        std::unordered_map<const MGVertex *, int> vmap;
+        for (const MGVertex &vertex: mg.vertices()) {
+            os << vertex.getId() << " [label=\"" << vertex.getId() << " : " << vertex.size() << "\" style=filled fillcolor=\"white\"]\n";
+        }
+        std::unordered_map<EdgeId, std::string> eids;
+        for (const MGEdge &edge: mg.edges()) {
+            os << "\"" << edge.getStart().getId() << "\" -> \"" << edge.getFinish().getId() <<
+               "\" [label=\"" << edge.getId() << "(" << edge.fullSize() << ")\" color = \"black\"]\n";
+
+        }
+        os << "}\n";
+        os.close();
+    }
+
     void
     MultiGraphHelper::printEdgeGFA(const std::experimental::filesystem::path &f,
                                    const std::vector<ConstVertexId> &component,

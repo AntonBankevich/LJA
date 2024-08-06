@@ -230,6 +230,7 @@ namespace ag {
         const Vertex &getStart() const {return *start;}
         Vertex &getStart() {return *start;}
 
+
         bool isOuter() const { return getStart().outDeg() > 1 && getFinish().inDeg() > 1; }
         bool isInner() const { return getStart().outDeg() == 1 && getFinish().inDeg() == 1; }
 
@@ -359,7 +360,7 @@ namespace ag {
     }
 
     template<class T>
-    inline std::string SaveEdgeName(BaseEdge<T> &edge) {
+    std::string SaveEdgeName(BaseEdge<T> &edge) {
         VERIFY((edge.getFinish().rc().getInnerId() > 0) == edge.getFinish().rc().isCanonical());
         return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
     }

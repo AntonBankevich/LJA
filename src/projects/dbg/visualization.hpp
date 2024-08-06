@@ -7,6 +7,7 @@
 #include <assembly_graph/splitters.hpp>
 #include "assembly_graph/component.hpp"
 #include "dbg_graph_aligner.hpp"
+#include "assembly_graph/visualization.hpp"
 
 //TODO rewrite for AssemblyGraph
 class GraphPathStorage {
@@ -79,7 +80,7 @@ public:
         }
     }
 
-    std::function<std::string(dbg::Edge &edge)> labeler() const {
+    std::function<std::string(const dbg::Edge &edge)> labeler() const {
         std::function<std::string(const dbg::Edge &edge)> res = [this](const dbg::Edge &edge) {
             if (alignments.find(edge.getId()) == alignments.end())
                 return std::string("");
@@ -124,7 +125,7 @@ namespace std {
     }
 }
 
-
+/*
 inline void printDot(std::ostream &os, const dbg::Component &component, const std::function<std::string(dbg::Edge &)> &labeler,
               const std::function<std::string(dbg::Edge &)> &edge_colorer) {
     os << "digraph {\nnodesep = 0.5;\n";
@@ -182,30 +183,35 @@ inline void printDot(const std::experimental::filesystem::path &f, const dbg::Co
     printDot(os, component, labeler);
     os.close();
 }
-
+*/
 inline void DrawSplit(const dbg::Component &component, const std::experimental::filesystem::path &dir,
-               const std::function<std::string(dbg::Edge &)> &labeler, const std::function<std::string(dbg::Edge &)> &colorer,
+               const std::function<std::string(const dbg::Edge &)> &labeler, const std::function<std::string(const dbg::Edge &)> &colorer,
                size_t len = 100000) {
+    Printer<dbg::DBGTraits> printer;
+    printer.setEdgeInfo(ObjInfo<dbg::Edge>({labeler}, {colorer}, {}));
     ensure_dir_existance(dir);
     std::vector<dbg::Component> split = ag::LengthSplitter<dbg::DBGTraits>(len).split(component);
     for(size_t i = 0; i < split.size(); i++) {
         std::experimental::filesystem::path f = dir / (std::to_string(i) + ".dot");
         std::ofstream os;
         os.open(f);
-        printDot(os, split[i], labeler, colorer);
+        printer.printDot(os, split[i]);
+        //printDot(os, split[i], labeler, colorer);
         os.close();
     }
 }
 
 inline void DrawSplit(const dbg::Component &component, const std::experimental::filesystem::path &dir,
-                      const std::function<std::string(dbg::Edge &)> &labeler, size_t len = 100000) {
-    std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &){return "black";};
+                      const std::function<std::string(const dbg::Edge &)> &labeler, size_t len = 100000) {
+    std::function<std::string(const dbg::Edge &)> colorer = [](const dbg::Edge &){return "black";};
     DrawSplit(component, dir, labeler, colorer, len);
 }
+
 inline void DrawSplit(const dbg::Component &component, const std::experimental::filesystem::path &dir, size_t len = 100000) {
-    std::function<std::string(dbg::Edge &)> labeler = [](dbg::Edge &){return "";};
-    std::function<std::string(dbg::Edge &)> colorer = [](dbg::Edge &){return "black";};
+    std::function<std::string(const dbg::Edge &)> labeler = [](const dbg::Edge &){return "";};
+    std::function<std::string(const dbg::Edge &)> colorer = [](const dbg::Edge &){return "black";};
     DrawSplit(component, dir, labeler, colorer, len);
 }
+
 void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
                dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &readStorage, const io::Library &paths_lib, bool small);

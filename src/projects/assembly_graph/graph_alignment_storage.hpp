@@ -300,7 +300,7 @@ namespace ag {
 
         size_t size() const { return reads.size(); }
 
-        std::function<std::string(Edge &)> labeler() const;
+        std::function<std::string(const Edge &)> labeler() const;
 
         void addSubpath(const CompactPath<Traits> &cpath);
 
@@ -583,9 +583,9 @@ namespace ag {
 
 
     template<class Traits>
-    std::function<std::string(typename Traits::Edge & )> RecordStorage<Traits>::labeler() const {
+    std::function<std::string(const typename Traits::Edge &)> RecordStorage<Traits>::labeler() const {
         if (track_suffixes)
-            return [this](Edge &edge) {
+            return [this](const Edge &edge) {
                 const VertexRecord<Traits> &rec = getRecord(edge.getStart());
                 std::stringstream ss;
                 size_t cnt = 0;
@@ -602,8 +602,8 @@ namespace ag {
                 return ss.str();
             };
         else
-            return [](Edge &) {
-                return "";
+            return [](const Edge &edge) {
+                return std::string();
             };
     }
 

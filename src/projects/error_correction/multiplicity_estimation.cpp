@@ -2,6 +2,7 @@
 #include "diploidy_analysis.hpp"
 #include "multiplicity_estimation.hpp"
 #include "correction_utils.hpp"
+#include "assembly_graph/visualization.hpp"
 
 using namespace dbg;
 size_t BoundRecord::inf = 1000000000000ul;
@@ -160,10 +161,14 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     std::vector<Component> split = UniqueSplitter(*this).split(Component(dbg));
     logger.info() << "Processing " << split.size() << " components" << std::endl;
     size_t component_cnt = 0;
+    Printer<dbg::DBGTraits> printer;
     for(Component &component : split) {
         component_cnt += 1;
-        if(debug)
-            printDot(dir / (std::to_string(component_cnt) + ".dot"), component, reads_storage.labeler());
+        if(debug) {
+            //printDot(dir / (std::to_string(component_cnt) + ".dot"), component, reads_storage.labeler());
+            printer.setEdgeInfo(ObjInfo<dbg::Edge>({reads_storage.labeler()}, {}, {}));
+            printer.printDot(dir / (std::to_string(component_cnt) + ".dot"), component);
+        }
         //TODO make parallel trace
         logger.trace() << "Component parameters: size=" << component.uniqueSize() << " border=" << component.countBorderEdges() <<
                       " tips=" << component.countTips() <<
@@ -175,8 +180,11 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         cnt += processComponent(logger, component);
         if(debug) {
             logger.trace() << "Printing component to " << (dir / (std::to_string(component_cnt) + ".dot")) << std::endl;
-            printDot(dir / (std::to_string(component_cnt) + ".dot"), component,
-                     this->labeler() + reads_storage.labeler(), this->colorer());
+            printer.setEdgeInfo(ObjInfo<dbg::Edge>({this->labeler(), reads_storage.labeler()},
+                                                   {this->colorer()}, {}));
+            printer.printDot(dir / (std::to_string(component_cnt) + ".dot"), component);
+            //printDot(dir / (std::to_string(component_cnt) + ".dot"), component,
+            //         this->labeler() + reads_storage.labeler(), this->colorer());
         }
     }
     logger.info() << "Finished unique edges search. Found " << cnt << " unique edges" << std::endl;

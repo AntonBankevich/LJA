@@ -53,7 +53,7 @@ public:
 
 class SetUniquenessStorage : public AbstractUniquenessStorage{
 private:
-    std::unordered_set<const dbg::Edge *> unique;
+    std::unordered_set<dbg::ConstEdgeId> unique;
 public:
     SetUniquenessStorage() = default;
 
@@ -71,20 +71,20 @@ public:
     }
 
     bool isUnique(const dbg::Edge &edge) const override {
-        return unique.find(&edge) != unique.end();
+        return unique.find(edge.getId()) != unique.end();
     }
 
     void addUnique(const dbg::Edge &edge) {
-        unique.emplace(&edge);
-        unique.emplace(&edge.rc());
+        unique.emplace(edge.getId());
+        unique.emplace(edge.rc().getId());
     }
 
     template<class I>
     void addUnique(I begin, I end) {
         while(begin != end) {
-            const dbg::Edge &edge = **begin;
-            unique.emplace(&edge);
-            unique.emplace(&edge.rc());
+            const ag::BaseEdge<dbg::DBGTraits> &edge = **begin;
+            unique.emplace(edge.getId());
+            unique.emplace(edge.rc().getId());
             ++begin;
         }
     }
@@ -92,8 +92,8 @@ public:
     void fillFromOther(const dbg::Component &component, const AbstractUniquenessStorage &other) {
         for(dbg::Edge &edge : component.edgesUnique()) {
             if(other.isUnique(edge)) {
-                unique.emplace(&edge);
-                unique.emplace(&edge.rc());
+                unique.emplace(edge.getId());
+                unique.emplace(edge.rc().getId());
             }
         }
     }

@@ -3,6 +3,7 @@
 #include "graph_alignment_storage.hpp"
 #include "visualization.hpp"
 #include "graph_printing.hpp"
+#include "assembly_graph/visualization.hpp"
 
 namespace dbg {
     struct Subdataset {
@@ -13,13 +14,17 @@ namespace dbg {
         std::string id = "";
 
         void Save(const std::experimental::filesystem::path &dir,
-                  const std::function<std::string(dbg::Edge &edge)> &labeler) const {
+                  const std::function<std::string(const dbg::Edge &edge)> &label_func) const {
             recreate_dir(dir);
             std::experimental::filesystem::path reads_file = dir / "reads.fasta";
             std::experimental::filesystem::path graph_file = dir / "graph.gfa";
             std::experimental::filesystem::path dot_file = dir / "graph.dot";
-            dbg::printGFA(graph_file, component, true);
-            printDot(dot_file, component, labeler);
+            Printer<DBGTraits> printer;
+            printer.addEdgeInfo(ObjInfo<Edge>({label_func},{}, {}));
+            printer.printDot(dot_file, component);
+            printer.printGFA(graph_file, component);
+            //dbg::printGFA(graph_file, component, true);
+            //printDot(dot_file, component, labeler);
             std::ofstream os;
             os.open(reads_file);
             for (ag::AlignedRead<DBGTraits> *read: reads) {
