@@ -30,14 +30,12 @@ public:
         logger << "starting DBG build\n";
         dbg::SparseDBG dbg = DBGPipeline(logger, hasher, w, {contigs_path}, dir, threads);
         logger << "graph built";
-        typedef typename ag::BaseVertex<DBGTraits>::VertexId VID;
-        typedef typename ag::BaseEdge<DBGTraits>::EdgeId EID;
-        ObjInfo<VID> vertexInfo = VertexPrintStyles<dbg::DBGTraits>::defaultDotInfo();
-        ObjInfo<EID> edgeInfo = EdgePrintStyles<dbg::DBGTraits>::defaultDotInfo();
+        ObjInfo<dbg::Vertex> vertexInfo = VertexPrintStyles<dbg::DBGTraits>::defaultDotInfo();
+        ObjInfo<dbg::Edge> edgeInfo = EdgePrintStyles<dbg::DBGTraits>::defaultDotInfo();
         Printer<DBGTraits> printer(vertexInfo, edgeInfo);
         printer.printGFA(dir / "graph.gfa", dbg::Component(dbg));
         printer.printDot(dir / "graph.dot", dbg::Component(dbg));
-        dbg::BulgePathFinder finder(dbg, -1.0);
+        BulgePathFinder finder(dbg, -1.0);
         KSWAligner kswAligner(1, 5, 5, 3);
         logger << "paths found: " << finder.paths.size() << std::endl;
         std::ofstream outfile;
@@ -52,9 +50,9 @@ public:
             std::vector<edgerec> statrecs(path.size());
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(path, pathDivergence, statrecs, kswAligner)
             for(int i = 0; i < path.size(); ++i) {
-                const std::pair<ag::BaseEdge<DBGTraits> *, ag::BaseEdge<DBGTraits> *> &edge_pair = path[i];
-                ag::BaseEdge<DBGTraits> &edge1 = *edge_pair.first;
-                ag::BaseEdge<DBGTraits> &edge2 = *edge_pair.second;
+                const std::pair<dbg::EdgeId, dbg::EdgeId> &edge_pair = path[i];
+                dbg::Edge &edge1 = *edge_pair.first;
+                dbg::Edge &edge2 = *edge_pair.second;
                 if(edge1 == edge2) {
                     pathDivergence[i] = std::vector<bool>(edge1.truncSize(), false);
                     statrecs[i] = {false, edge1.truncSize(), edge1.truncSize(),

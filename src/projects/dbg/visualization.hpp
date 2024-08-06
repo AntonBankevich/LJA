@@ -114,8 +114,10 @@ inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extr
 }
 
 namespace std {
-    inline std::function<std::string(dbg::Edge &)> operator+(const std::function<std::string(dbg::Edge &)> &l1, const std::function<std::string(dbg::Edge &)> &l2) {
-        return [l1, l2](dbg::Edge &edge) ->std::string {
+    inline std::function<std::string(const dbg::Edge &)>
+    operator+(const std::function<std::string(const dbg::Edge &)> &l1,
+              const std::function<std::string(const dbg::Edge &)> &l2) {
+        return [l1, l2](const dbg::Edge &edge) ->std::string {
             std::string s1 = l1(edge);
             std::string s2 = l2(edge);
             if(s1.empty())

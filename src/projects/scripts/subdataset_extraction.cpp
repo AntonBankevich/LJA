@@ -111,7 +111,10 @@ int main(int argc, char **argv) {
     storage.Fill(threads, index);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
-    printDot(dir / "graph.dot", dbg::Component(dbg), storage.labeler() + readStorage.labeler());
+    Printer<DBGTraits> printer;
+    printer.setEdgeInfo(ObjInfo<dbg::Edge>({storage.labeler(), readStorage.labeler()}, {}, {}));
+    printer.printDot(dir / "graph.dot", Component(dbg));
+    //printDot(dir / "graph.dot", dbg::Component(dbg), storage.labeler() + readStorage.labeler());
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
         logger.info() << "Printing subdataset " << cnt << " " << subdataset.id << ":";
         for(dbg::Vertex &v : subdataset.component.verticesUnique()) {
