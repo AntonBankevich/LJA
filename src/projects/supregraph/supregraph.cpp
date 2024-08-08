@@ -29,23 +29,23 @@ spg::VertexResolutionResult
 spg::SupreGraph::resolveVertex(spg::SPGVertex &core, const spg::VertexResolutionPlan &resolution) {
     VERIFY(core.isCore() && core.inDeg() > 0 && core.outDeg() > 0);
     VertexResolutionResult result(core);
-    for(const EdgePair &p : resolution.connectionsUnique()) {
-        VERIFY(p.first->getFinish() == core);
+    for(const InOutEdgePair &p : resolution.connectionsUnique()) {
+        VERIFY(p.incoming().getFinish() == core);
         if(p.middle() != core)
             continue;
-        VERIFY(p.second->getStart() == core);
-        VERIFY(p.first->isSuffix());
-        VERIFY(p.second->isPrefix());
+        VERIFY(p.outgoing().getStart() == core);
+        VERIFY(p.incoming().isSuffix());
+        VERIFY(p.outgoing().isPrefix());
         Sequence seq = p.getSeq();
         Vertex &newv = addSPGVertex(seq, false, false, false);
         result.add(newv, p);
 //        for(Vertex &v : ag::ThisAndRC(newv))
 //            fireAddVertex(v);
-        Edge &out = p.first->getStart().addSPEdgeLockFree(newv);
+        Edge &out = p.incoming().getStart().addSPEdgeLockFree(newv);
         for(Edge &e : ag::ThisAndRC(out))
             fireAddEdge(e);
         if(newv != newv.rc()) {
-            Edge &inc = newv.addSPEdgeLockFree(p.second->getFinish());
+            Edge &inc = newv.addSPEdgeLockFree(p.outgoing().getFinish());
             for(Edge &e : ag::ThisAndRC(inc))
                 fireAddEdge(e);
         }

@@ -20,7 +20,7 @@ VertexResolutionResult Multiplexer::multiplex(logging::Logger &logger, size_t th
     if(!rr.empty()) {
         logger.trace() << "Starting to resolve" << std::endl;
         for(auto it : rr.connectionsUnique()) {
-            logger.trace() << it.first << " " << it.second << std::endl;
+            logger.trace() << it.incoming().getId() << " " << it.outgoing().getId() << std::endl;
         }
         VERIFY(index.checkReadIndexConsistency());
         VertexResolutionResult res = graph.resolveVertex(vertex, rr);

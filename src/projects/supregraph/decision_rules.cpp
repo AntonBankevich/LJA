@@ -125,7 +125,7 @@ spg::VertexResolutionPlan spg::AndreyRule::judge(spg::Vertex &v) {
     VertexResolutionPlan res(v);
     const std::vector<std::pair<spg::ReadDirection, PathIterator>> &tmp = storage->getReadPositions(*v.incoming().begin());
     for(auto it : storage->getPassing(v)) {
-        res.add(*it.edges.first, *it.edges.second);
+        res.add(it.edges.incoming(), it.edges.outgoing());
     }
     std::cout << "Passing: " << res << std::endl;
     loopHeuristic(res);

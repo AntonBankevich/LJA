@@ -104,7 +104,6 @@ namespace spg {
 
         ReadRecord &operator[](size_t ind) {return reads[ind];}
         const ReadRecord &operator[](size_t ind) const {return reads[ind];}
-        ReadRecord &Oppa();
 
 //        auto passingReads(Vertex &v) const {
 //            for(auto &it : getReadPositions(inc.rc())) {
@@ -191,7 +190,7 @@ namespace spg {
         void prepareIndex() const;
     public:
         struct PassingRead {
-            EdgePair edges;
+            InOutEdgePair edges;
             ReadDirection direction;
             PathIterator position;
 

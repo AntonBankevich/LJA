@@ -18,8 +18,6 @@ spg::ReadRecord &spg::PathStorage::addRead(std::string name, spg::GraphPath path
     return reads.back();
 }
 
-ReadRecord &PathStorage::Oppa() {return reads[4078];}
-
 void spg::PathIndex::processPassing(Edge &edge, const spg::VertexResolutionResult &resolution) {
     std::vector<std::pair<size_t, PathIterator>> res;
     for(auto &p : read_index[edge.getId()]) {
@@ -31,7 +29,7 @@ void spg::PathIndex::processPassing(Edge &edge, const spg::VertexResolutionResul
         if(*it != edge) {
             VERIFY(it->getStart() == edge.getStart());
         }
-        Edge &nedge = (*it == edge) ? *nit : *resolution.get(it->getFinish()).second;
+        Edge &nedge = (*it == edge) ? *nit : resolution.get(it->getFinish()).outgoing();
         ++nit;
         VERIFY(resolution.contains(edge, nedge));
         Vertex &new_vertex = resolution.get(edge ,nedge);
