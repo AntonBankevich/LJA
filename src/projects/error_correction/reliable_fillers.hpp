@@ -96,15 +96,21 @@ inline std::vector<float> loadInferenceResultProbability(const std::experimental
     return prob_vec;
 }
 
-inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &cur_path, std::string config_name) {
+inline void inference2(dbg::SparseDBG &dbg, std::experimental::filesystem::path &cur_path, std::string config_name) {
+    /*
     std::string docker_cmd = "docker run -v /tmp/models:/tmp/models -v /data/cconfigs:/configs -v ";
     // and local dir for files
     docker_cmd += cur_path.string();
     docker_cmd += ":";
     docker_cmd += cur_path.string() + " dbg:latest ";
+    */
     // run inference using lja_regression_cfg and set data dir to the current dir
-    docker_cmd += "src/inference.py --config-name=";
-    docker_cmd += config_name + " --config-path /configs";
+    std::string docker_cmd;
+    docker_cmd += "PYTHONPATH=/home/marijo/ws/genomic/fictional-pancake/src; ";
+    docker_cmd += "PROJECT_ROOT=/home/marijo/ws/genomic/fictional-pancake; ";
+    docker_cmd += "mamba run -n fenv python3";
+    docker_cmd += " /home/marijo/ws/genomic/fictional-pancake/src/inference.py --config-name=";
+    docker_cmd += config_name + " --config-path /data/cconfigs";
     docker_cmd += " paths.data_dir=";
     docker_cmd += cur_path.string();
     //logger.info() << "Calling docker with cmd " << docker_cmd << std::endl;
@@ -112,6 +118,72 @@ inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &
     //logger.info() << "Docker exited with status " << result << std::endl;
 
 }
+
+// Function to trim leading and trailing whitespaces, backslashes, and quotes
+std::string trimAndRemoveQuotes(const std::string& str) {
+    std::string trimmedStr = str;
+    
+    // Remove leading whitespace, backslashes, and quotes
+    trimmedStr.erase(trimmedStr.begin(), std::find_if(trimmedStr.begin(), trimmedStr.end(), [](unsigned char ch) {
+        return !std::isspace(ch) && ch != '\\' && ch != '"' && ch != '\'';
+    }));
+    
+    // Remove trailing whitespace, backslashes, and quotes
+    trimmedStr.erase(std::find_if(trimmedStr.rbegin(), trimmedStr.rend(), [](unsigned char ch) {
+        return !std::isspace(ch) && ch != '\\' && ch != '"' && ch != '\'';
+    }).base(), trimmedStr.end());
+
+    return trimmedStr;
+}
+
+std::string readDockerCmd(std::string config_name) {
+    std::string filename;
+    if(config_name == "lja_regression_cfg") {
+        filename = "/data/docker/regression_cmd.sh";
+    } else if(config_name == "lja_classification_cfg") {
+        filename = "/data/docker/classification_cmd.sh";
+    } else {
+        std::cerr << "Failed with wrong config_name: " << config_name << std::endl;
+        return "";
+    }
+    std::ifstream inputFile(filename.c_str()); // Replace with your filename
+    if (!inputFile.is_open()) {
+        std::cerr << "Failed to open the file: " << filename << std::endl;
+        return "";
+    }
+    std::string line;
+    std::stringstream result;
+    bool firstLine = true;
+
+    while (std::getline(inputFile, line)) {
+        std::string trimmedLine = trimAndRemoveQuotes(line);
+
+        if (!trimmedLine.empty()) {
+            if (!firstLine) {
+                result << " ";
+            }
+            result << trimmedLine;
+            firstLine = false;
+        }
+    }
+
+    inputFile.close();
+
+    std::string finalResult = result.str();
+    std::cout << "Concatenated string: " << finalResult << std::endl;
+
+    return finalResult;
+}
+
+inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &cur_path, std::string config_name) {
+    std::string docker_cmd = readDockerCmd(config_name);
+    docker_cmd += " paths.data_dir=";
+    docker_cmd += cur_path.string();
+    //logger.info() << "Calling docker with cmd " << docker_cmd << std::endl;
+    auto result = std::system(docker_cmd.c_str());
+    //logger.info() << "Docker exited with status " << result << std::endl;
+}
+
 #endif // USE_LIBTORCH
 
     class MLReliableFiller : public AbstractReliableFillingAlgorithm {
