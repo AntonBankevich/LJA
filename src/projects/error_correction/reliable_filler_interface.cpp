@@ -20,7 +20,7 @@ size_t AbstractReliableFillingAlgorithm::LoggedReFill(logging::Logger &logger, S
 size_t AbstractReliableFillingAlgorithm::LoggedFill(logging::Logger &logger, SparseDBG &dbg) {
     logger.info() << "Running reliable marker " << name() << std::endl;
     size_t res = Fill(dbg);
-    logger.info() << "Marked " << res << " edges as reliable" << std::endl;
+    logger.info() << name() << " marked " << res << " edges as reliable" << std::endl;
     return res;
 }
 

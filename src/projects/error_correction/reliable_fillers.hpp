@@ -120,14 +120,12 @@ inline void inference2(dbg::SparseDBG &dbg, std::experimental::filesystem::path 
 }
 
 // Function to trim leading and trailing whitespaces, backslashes, and quotes
-std::string trimAndRemoveQuotes(const std::string& str) {
+inline std::string trimAndRemoveQuotes(const std::string& str) {
     std::string trimmedStr = str;
-    
     // Remove leading whitespace, backslashes, and quotes
     trimmedStr.erase(trimmedStr.begin(), std::find_if(trimmedStr.begin(), trimmedStr.end(), [](unsigned char ch) {
         return !std::isspace(ch) && ch != '\\' && ch != '"' && ch != '\'';
     }));
-    
     // Remove trailing whitespace, backslashes, and quotes
     trimmedStr.erase(std::find_if(trimmedStr.rbegin(), trimmedStr.rend(), [](unsigned char ch) {
         return !std::isspace(ch) && ch != '\\' && ch != '"' && ch != '\'';
@@ -136,7 +134,7 @@ std::string trimAndRemoveQuotes(const std::string& str) {
     return trimmedStr;
 }
 
-std::string readDockerCmd(std::string config_name) {
+inline std::string readDockerCmd(std::string config_name) {
     std::string filename;
     if(config_name == "lja_regression_cfg") {
         filename = "/data/docker/regression_cmd.sh";
@@ -179,9 +177,9 @@ inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &
     std::string docker_cmd = readDockerCmd(config_name);
     docker_cmd += " paths.data_dir=";
     docker_cmd += cur_path.string();
-    //logger.info() << "Calling docker with cmd " << docker_cmd << std::endl;
+    std::cerr << "Calling Docker with cmd " << docker_cmd << std::endl;
     auto result = std::system(docker_cmd.c_str());
-    //logger.info() << "Docker exited with status " << result << std::endl;
+    std::cerr << "Docker exit with status " << result << std::endl;
 }
 
 #endif // USE_LIBTORCH
@@ -203,7 +201,8 @@ inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &
             cnt++;
             std::experimental::filesystem::path cur_path = dir / itos(cnt);
             ensure_dir_existance(cur_path);
-            printPT(cur_path, Component(dbg));
+            //printPT(cur_path, Component(dbg));
+            printPTDBG(cur_path, dbg);
 
             std::vector<float> inference_results;
 
@@ -213,17 +212,31 @@ inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &
             } else if(mode == "multiplicity") {
                 inference(dbg, cur_path, "lja_regression_cfg");
                 inference_results = loadInferenceResultMultiplicity(cur_path / "container.pt");
-            } else
+            } else {
                 VERIFY_MSG(false, "Unknown reliability checking mode " << mode);
+            }
             size_t i = 0;
-            Component comp(dbg);
-            for(dbg::Edge &edge : comp.edges()) {
-                if(inference_results[i] >= threshold) {
+            size_t i_un = 0;
+            std::cerr << "Using mode " << mode << " with ML threshold " << threshold << std::endl;
+            size_t index = 0;
+            std::ofstream dbg_edges(cur_path / "edge_attrs_post.txt");
+            for(dbg::Edge &edge : dbg.edges()) {
+                double coverage = edge.getCoverage();
+                int size = edge.truncSize();
+                dbg_edges << coverage << " " << size << std::endl;
+                if(inference_results[index] >= threshold) {
                     edge.is_reliable = true;
                     edge.rc().is_reliable = true;
                     i++;
+                } else {
+                    edge.is_reliable = false;
+                    edge.rc().is_reliable = false;
+                    i_un++;
                 }
+                index++;
             }
+            dbg_edges.close();
+            std::cerr << "Found total " << i << " reliable edges and " << i_un << " unreliable edges" << std::endl;
             return i;
 #endif // USE_LIBTORCH
         }

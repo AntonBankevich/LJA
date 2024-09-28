@@ -106,7 +106,7 @@ public:
 
 inline void printEdge(std::ostream &os, dbg::Edge &edge, const std::string &extra_label = "",
                const std::string &color = "black") {
-    dbg:: Vertex &end = edge.getFinish();
+    dbg::Vertex &end = edge.getFinish();
     os << "\"" << edge.getStart().getId() << "\" -> \"" << end.getId() <<
        "\" [label=\"" << edge.getInnerId() << " " << edge.nuclLabel() << " " << edge.truncSize() << "(" << edge.getCoverage() << ")\"";
     if(!extra_label.empty()) {
@@ -129,6 +129,66 @@ namespace std {
 }
 
 #ifdef USE_LIBTORCH
+inline void printPTDBG(const std::experimental::filesystem::path &dir, dbg::SparseDBG &dbg) {
+    std::unordered_set<dbg::VertexId> extended;
+    for(dbg::Edge &edge : dbg.edges()) {
+        extended.emplace(edge.getFinish().getId());
+        extended.emplace(edge.getStart().getId());
+    }
+    std::unordered_map<int64_t, int64_t> node_map;
+    std::vector<int64_t> node_data;
+    int new_id = 0;
+    for(dbg::VertexId vid : extended) {
+        dbg::Vertex &vert = *vid;
+        // TODO: implement direct converstion to integer ids
+        std::stringstream stream;
+        stream << vert.getId();
+        int node;
+        stream >> node;
+        node_map[node] = new_id++;
+        node_data.push_back(node);
+    }
+    std::vector<int64_t> edge_index_data;
+    std::vector<float> edge_attr_data;
+    for(dbg::Edge &edge : dbg.edges()) {
+        dbg::Vertex &end = edge.getFinish();
+        // TODO: implement direct converstion to integer ids
+        std::stringstream ss_src, ss_dst;
+        int64_t src, dst;
+        ss_src << edge.getStart().getId();
+        ss_src >> src;
+        ss_dst << end.getId();
+        ss_dst >> dst;
+        edge_index_data.push_back(node_map[src]);
+        edge_index_data.push_back(node_map[dst]);
+        auto cov = edge.getCoverage();
+        auto len = edge.truncSize();
+        edge_attr_data.push_back(cov);
+        edge_attr_data.push_back(len);
+    }
+
+    int64_t edge_index_len = edge_index_data.size() / 2;
+    auto options_int = torch::TensorOptions().dtype(torch::kInt64);
+    torch::Tensor edge_index = torch::from_blob(edge_index_data.data(), {edge_index_len, 2}, options_int).clone();
+    // TODO: implement serialization as a function
+    auto pickled_ei = torch::pickle_save(edge_index);
+    std::ofstream ei_out(dir / "edge_index.pt", std::ios::out | std::ios::binary);
+    ei_out.write(pickled_ei.data(), pickled_ei.size());
+    ei_out.close();
+    int64_t nodes_len = node_data.size();
+    torch::Tensor nodes = torch::from_blob(node_data.data(), {1, nodes_len}, options_int).clone();
+    auto pickled_n = torch::pickle_save(node_data);
+    std::ofstream n_out(dir / "nodes.pt", std::ios::out | std::ios::binary);
+    n_out.write(pickled_n.data(), pickled_n.size());
+    int64_t edge_attr_len = edge_attr_data.size() / 2;
+    auto options_float = torch::TensorOptions().dtype(torch::kFloat32);
+    torch::Tensor edge_attrs = torch::from_blob(edge_attr_data.data(), {edge_attr_len, 2}, options_float).clone();
+    auto pickled_ea = torch::pickle_save(edge_attrs);
+    std::ofstream ea_out(dir / "edge_attrs.pt", std::ios::out | std::ios::binary);
+    ea_out.write(pickled_ea.data(), pickled_ea.size());
+    ea_out.close();
+}
+
 inline void printPT(const std::experimental::filesystem::path &dir, const dbg::Component &component) {
     std::unordered_set<dbg::VertexId> extended;
     for(dbg::Edge &edge : component.edges()) {
@@ -151,7 +211,7 @@ inline void printPT(const std::experimental::filesystem::path &dir, const dbg::C
     std::vector<int64_t> edge_index_data;
     std::vector<float> edge_attr_data;
     for(dbg::Edge &edge : component.edges()) {
-        dbg:: Vertex &end = edge.getFinish();
+        dbg::Vertex &end = edge.getFinish();
         // TODO: implement direct converstion to integer ids
         std::stringstream ss_src, ss_dst;
         int64_t src, dst;
