@@ -49,16 +49,14 @@ findJunctions(logging::Logger &logger, const std::vector<Sequence> &disjointigs,
             if (kmer.isFirst() || kmer.isLast()) {
                 junctions.emplace_back(kmer.hash(), kmer.getSeq() == kmer.getSeq().rc());
             } else {
-                size_t cnt1 = 0;
-                size_t cnt2 = 0;
-                for (unsigned char c = 0; c < 4u; c++) {
-                    cnt1 += filter.contains(kmer.extendRight(c));
-                    cnt2 += filter.contains(kmer.extendLeft(c));
+                unsigned char nn = kmer.nextNucl();
+                unsigned char pn = kmer.prevNucl();
+                for (unsigned char c = 1; c < 4; c++) {
+                    if(     filter.contains(kmer.extendRight((c + nn) & 3u)) ||
+                            filter.contains(kmer.extendLeft( (c + pn) & 3u))) {
+                        junctions.emplace_back(kmer.hash(), kmer.getSeq() == kmer.getSeq().rc());
+                    }
                 }
-                if (cnt1 != 1 || cnt2 != 1) {
-                    junctions.emplace_back(kmer.hash(), kmer.getSeq() == kmer.getSeq().rc());
-                }
-                VERIFY(cnt1 <= 4 && cnt2 <= 4);
             }
         }
     };
