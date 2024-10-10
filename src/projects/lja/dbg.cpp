@@ -27,6 +27,7 @@
 #include <unordered_set>
 #include <wait.h>
 #include <common/id_index.hpp>
+#include <assembly_graph/ag_algorithms.hpp>
 
 using namespace dbg;
 

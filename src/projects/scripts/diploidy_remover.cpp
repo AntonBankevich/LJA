@@ -5,6 +5,7 @@
 #include <experimental/filesystem>
 #include <unordered_map>
 #include <common/pipeline_tools.hpp>
+#include <assembly_graph/ag_algorithms.hpp>
 
 using namespace multigraph;
 
