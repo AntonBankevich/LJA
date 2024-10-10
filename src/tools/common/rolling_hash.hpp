@@ -109,6 +109,8 @@ namespace hashing {
 
 
         Sequence getSeq() const {return KWH::getSeq(hasher->getK());}
+        unsigned char nextNucl() const {return seq[getPos() + hasher->getK()];}
+        unsigned char prevNucl() const {return seq[getPos() - 1];}
 
         bool isLast() const {return pos + hasher->getK() == seq.size();}
 

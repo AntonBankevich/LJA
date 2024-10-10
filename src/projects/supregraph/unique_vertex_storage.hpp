@@ -1,12 +1,12 @@
 #pragma once
 
 #include "supregraph.hpp"
-#include "listeners.hpp"
+#include "assembly_graph/listeners.hpp"
 #include <unordered_set>
 
 namespace spg {
 //    TODO: make this concurrent by moving uniqueness indicator into vertex itself and locking it every time we need access.
-    class UniqueVertexStorage : ResolutionListener {
+    class UniqueVertexStorage : ag::ResolutionListener<SPGTraits> {
     private:
         std::unordered_set<ConstVertexId> unique;
 

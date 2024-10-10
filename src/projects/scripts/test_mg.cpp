@@ -11,8 +11,8 @@ int main(int argc, char **argv) {
     //multigraph::MultiGraph mg = mmg.DBG();
 
     multigraph::MGVertex &v = mg.addVertex(Sequence("AT"), multigraph::MGVertexData("getVertex"), 23);
-    auto &e1 = v.addEdge(v, Sequence("ATATAT"), multigraph::MGEdgeData("e1"));
-    auto &e2 = v.addEdge(v, Sequence("ATCAT"), multigraph::MGEdgeData("e2"));
+    auto &e1 = mg.addEdge(v, v, Sequence("ATATAT"), multigraph::MGEdgeData("e1"));
+    auto &e2 = mg.addEdge(v, v, Sequence("ATCAT"), multigraph::MGEdgeData("e2"));
     IdIndex<multigraph::Vertex> index(mg.vertices().begin(), mg.vertices().end());
     std::cerr <<v.getId() << " "<< index.getById(23).getId() <<std::endl;
     std::cerr << index.getById(23).getId() <<std::endl;
@@ -27,6 +27,6 @@ int main(int argc, char **argv) {
     std::cout <<"in/out degs" << index.getById(23).inDeg() << " " << index.getById(23).outDeg() <<std::endl;
     std::cout << eindex.getById(e1.getInnerId()).getStart().getId() << " " << eindex.getById(e1.getInnerId()).getFinish().getId() << std::endl;
     multigraph::MultiGraphHelper::printExtractedContigs(mg, "edges.fasta", false);
-    eindex.getById(e1.getInnerId()).getStart().removeEdge(eindex.getById(e1.getInnerId()));
+    mg.removeEdge(eindex.getById(e1.getInnerId()));
     multigraph::MultiGraphHelper::printEdgeGFA(mg, "ad.gfa");
 }

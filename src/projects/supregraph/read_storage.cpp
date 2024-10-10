@@ -1,5 +1,5 @@
 #include "read_storage.hpp"
-#include "listeners.hpp"
+#include "assembly_graph/listeners.hpp"
 
 using namespace spg;
 

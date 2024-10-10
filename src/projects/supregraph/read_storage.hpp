@@ -5,7 +5,7 @@
 #include "vertex_resolution.hpp"
 #include "supregraph.hpp"
 #include "unique_vertex_storage.hpp"
-#include "listeners.hpp"
+#include "assembly_graph/listeners.hpp"
 
 namespace spg {
 
@@ -173,7 +173,7 @@ namespace spg {
             return res;
         }
     };
-    class PathIndex : ResolutionListener {
+    class PathIndex : public ag::ResolutionListener<SPGTraits> {
     private:
 //        When reads_ready==false these two, as well as the path storage itself are invalidated
         mutable std::unordered_map<EdgeId, std::vector<std::pair<ReadDirection, PathIterator>>> read_index;

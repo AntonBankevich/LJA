@@ -44,8 +44,8 @@ namespace dbg {
                 vmap[rc_oldv.rc().getId()] = newv.rc().getId();
             }
             if(seg.left == 0 && rcSeg.left == 0)
-                vmap[seg.contig().getStart().getId()]->addEdge(*vmap[seg.contig().getFinish().getId()], seg.fullSeq(),
-                                                               DBGEdgeData(), seg.contig().getInnerId(), rcSeg.contig().getInnerId());
+                res.addEdge(*vmap[seg.contig().getStart().getId()], *vmap[seg.contig().getFinish().getId()],
+                            seg.fullSeq(),DBGEdgeData(), seg.contig().getInnerId(), rcSeg.contig().getInnerId());
 
         }
         for(Segment<Edge> &seg : pieces) {
@@ -65,7 +65,7 @@ namespace dbg {
             } else {
                 right = res.addKmerVertex(rcSeg.contig().kmerSeq(rcSeg.left)).getId();
             }
-            left->addEdge(right->rc(), seg.fullSeq());
+            res.addEdge(*left, right->rc(), seg.fullSeq());
         }
         return std::move(res);
     }
@@ -182,13 +182,15 @@ namespace dbg {
                 kmers[i + 1].getPos() - kmers[i].getPos() < k) {
                 continue;
             }
-            vertices[i]->addEdge(*vertices[i + 1], seq.Subseq(kmers[i].getPos(), kmers[i + 1].getPos() + k));
+            dbg.addEdge(*vertices[i], *vertices[i + 1], seq.Subseq(kmers[i].getPos(), kmers[i + 1].getPos() + k));
         }
         if (kmers.front().getPos() > 0) {
             vertices.front()->rc().addOutgoingSequence( !(seq.Subseq(0, kmers[0].getPos())));
+            VERIFY(false);
         }
         if (kmers.back().getPos() + k < seq.size()) {
             vertices.back()->addOutgoingSequence(seq.Subseq(kmers.back().getPos() + k, seq.size()));
+            VERIFY(false);
         }
     }
 
@@ -211,7 +213,7 @@ namespace dbg {
                 kmers[i + 1].getPos() - kmers[i].getPos() < hasher().getK()) {
                 continue;
             }
-            vertices[i]->addEdge(*vertices[i + 1], full_seq.Subseq(kmers[i].getPos(), kmers[i + 1].getPos() + hasher().getK()));
+            dbg.addEdge(*vertices[i], *vertices[i + 1], full_seq.Subseq(kmers[i].getPos(), kmers[i + 1].getPos() + hasher().getK()));
         }
     }
 
@@ -244,6 +246,7 @@ namespace dbg {
                                           const size_t w) {
         logger.info() << "Starting construction of sparse de Bruijn graph" << std::endl;
         SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
+        ag::LoggingListener<DBGTraits> operationLog(sdbg, logger.getLoggerStream(logging::LogLevel::trace));
         logger.info() << "Vertex map constructed." << std::endl;
         io::SeqReader reader(reads_file, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
         logger.info() << "Filling edge sequences." << std::endl;
@@ -293,97 +296,6 @@ namespace dbg {
         logger.info() << "Refilling graph edges." << std::endl;
         RefillSparseDBGEdges(logger, threads, sdbg, new_edges.begin(), new_edges.end(), index);
         logger.info() << "Finished fixing sparse de Bruijn graph to include all hanging vertices." << std::endl;
-    }
-
-    void MergeMarkAndDetachPath(dbg::GraphPath path) {
-        if(path.size() == 1)
-            return;
-        ag::Locker<Vertex> locker({&path.start(), &path.finish().rc()});
-        Sequence newSeq(path.Seq());
-        bool self_rc = path.frontEdge() == path.backEdge().rc();
-        size_t cov = 0;
-        for (Edge &edge : path.edges()) {
-            cov += edge.intCov();
-        }
-        for(size_t i = 1; i < path.size(); i++) {
-            path.getVertex(i).mark();
-            path.getVertex(i).rc().mark();
-        }
-        Edge &new_edge = path.start().addEdgeLockFree(path.finish(), newSeq, DBGTraits::EdgeData());
-        new_edge.incCov(cov - new_edge.intCov());
-        new_edge.rc().incCov(cov - new_edge.rc().intCov());
-        if(!self_rc) {
-            path.finish().rc().innerRemoveEdge(path.backEdge().rc());
-        }
-        path.start().innerRemoveEdge(path.frontEdge());
-    }
-
-    void mergeLoop(Vertex &start) {
-        dbg::GraphPath path = dbg::GraphPath::WalkForward(start.front());
-        VERIFY(path.start() == path.finish())
-        for(size_t i = 1; i < path.size(); i++) {
-            if(path.getVertex(i) == start.rc()) {
-                MergeMarkAndDetachPath(path.subPath(0, i));
-                MergeMarkAndDetachPath(path.subPath(i, path.size()));
-                return;
-            }
-        }
-        MergeMarkAndDetachPath(path);
-    }
-
-//    TODO: this method should return mapping from removed vertex ids to their positions in merged graph
-    void mergeLinearPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
-        logger.trace() << "Merging linear unbranching paths" << std::endl;
-        std::function<void(size_t, Vertex &)> task =
-                [&sdbg](size_t pos, Vertex &start) {
-                    if (!start.isJunction())
-                        return;
-                    start.lock();
-                    std::vector<dbg::GraphPath> to_merge;
-                    for (Edge &edge: start) {
-                        dbg::GraphPath path = dbg::GraphPath::WalkForward(edge);
-                        if (path.size() > 1 && (path.finish().rc() > start || (path.finish().rc() == start && path.Seq() <= !path.Seq()))) {
-                            to_merge.emplace_back(std::move(path));
-                        }
-                    }
-                    start.unlock();
-                    for(dbg::GraphPath &path : to_merge) {
-                        MergeMarkAndDetachPath(path);
-                    }
-                };
-        processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, task);
-        logger.trace() << "Finished merging linear unbranching paths" << std::endl;
-    }
-
-    void mergeCyclicPaths(logging::Logger &logger, SparseDBG &sdbg, size_t threads) {
-        logger.trace() << "Merging cyclic paths" << std::endl;
-        ParallelRecordCollector<Vertex *> loops(threads);
-        std::function<void(size_t, Vertex &)> task =
-                [&loops](size_t pos, Vertex &start) {
-                    if (start.isJunction() || start.marked()) {
-                        return;
-                    }
-                    dbg::GraphPath path = dbg::GraphPath::WalkForward(start.front());
-                    VERIFY(path.finish() == start);
-                    bool ismin = true;
-                    for (const Vertex &v: path.vertices()) {
-                        if (v < start) {
-                            ismin = false;
-                            break;
-                        }
-                    }
-                    if (ismin) {
-                        loops.emplace_back(&start);
-                    }
-                    start.unlock();
-                };
-        processObjects(sdbg.vertices().begin(), sdbg.vertices().end(), logger, threads, task);
-        logger.trace() << "Found " << loops.size() << " perfect loops" << std::endl;
-        std::function<void(size_t, Vertex *)> mergeTask = [](size_t, Vertex *vit){
-            mergeLoop(*vit);
-        };
-        processObjects(loops.begin(), loops.end(), logger, threads, mergeTask);
-        logger.trace() << "Finished merging cyclic paths" << std::endl;
     }
 
     void CalculateCoverage(logging::Logger &logger, size_t threads, SparseDBG &dbg, KmerIndex &index,
@@ -503,7 +415,7 @@ namespace dbg {
             Edge::id_type rceid = std::get<2>(edge);
             Vertex &start = index.getVertex(std::get<3>(edge));
             Vertex &rcend = index.getVertex(std::get<4>(edge));
-            start.addEdge(rcend.rc(), std::get<0>(edge), {}, eid, rceid);
+            res.addEdge(start, rcend.rc(), std::get<0>(edge), {}, eid, rceid);
         }
         logger.info() << "Finished loading graph" << std::endl;
         return std::move(res);

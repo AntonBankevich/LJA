@@ -74,6 +74,7 @@ RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental
     logger.info() << "Converting graph" << std::endl;
     spg::SPGConverter<dbg::DBGTraits> converter;
     spg::SupreGraph graph = converter.convert(dbg);
+    ag::LoggingListener<SPGTraits> modificationLogger(graph, logger.getLoggerStream(logging::LogLevel::trace));
 //    TODO: remove after listener system is normalized
 //    for(Vertex &v : graph.vertices()) graph.fireAddVertex(v);
     for(Edge &edge : graph.edges()) graph.fireAddEdge(edge);
@@ -138,8 +139,6 @@ RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental
     multiplexer2.fullMultiplex(logger, threads, path_index);
     logger.info() << "Printing final graph" << std::endl;
     ag::printDot(dir/"supregraph4.dot", graph);
-    for(Vertex &v : graph.verticesUnique())
-        graph.IsolateAndMark(v);
     return {{"supregraph_initial", dir / "supregraph1.dot"}, {"supregraph_final", dir / "supregraph4.dot"}};
 }
 

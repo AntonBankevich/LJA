@@ -32,7 +32,7 @@ namespace multigraph {
             } else {
                 end = emap[v.begin()->getId()];
             }
-            start->addEdgeLockFree(*end, v.getSeq(), MGEdgeData(v.getLabel()));
+            dbg.addEdgeLockFree(*start, *end, v.getSeq(), MGEdgeData(v.getLabel()));
         }
         return std::move(dbg);
     }
@@ -53,7 +53,7 @@ namespace multigraph {
                 continue;
             if (to_delete_vertices.find(edge.getStart().getId()) == to_delete_vertices.end() ||
                 to_delete_vertices.find(edge.getFinish().getId()) == to_delete_vertices.end())
-                vmap[edge.getStart().getId()]->addEdgeLockFree(*vmap[edge.getFinish().getId()], edge.getSeq(), edge);
+                res.addEdgeLockFree(*vmap[edge.getStart().getId()], *vmap[edge.getFinish().getId()], edge.getSeq(), edge);
         }
         return std::move(res);
     }
@@ -367,7 +367,7 @@ namespace multigraph {
                     v1 = v1->rc().getId();
                 }
                 VERIFY(v1->getSeq().Subseq(v1->getSeq().size() - overlap) == v2->getSeq().Subseq(0, overlap));
-                v1->addEdge(*v2, v1->getSeq() + v2->getSeq().Subseq(overlap), MGEdgeData(""));
+                res.addEdge(*v1, *v2, v1->getSeq() + v2->getSeq().Subseq(overlap), MGEdgeData(""));
             }
         }
         is.close();
@@ -456,7 +456,7 @@ namespace multigraph {
             if(vertexMap.find(erec) == vertexMap.end())
                 vertexMap[erec] = res.addVertex(eseq.Subseq(eseq.size() - elen, eseq.size())).getId();
             VertexId endId = vertexMap[erec];
-            startId->addEdge(endId->rc(), eseq, {eid.str()}, eid, rceid);
+            res.addEdge(*startId, endId->rc(), eseq, {eid.str()}, eid, rceid);
         }
         return std::move(res);
     }

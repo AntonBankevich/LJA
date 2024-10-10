@@ -1,6 +1,6 @@
 #pragma once
 
-#include "assembly_graph/assembly_graph.hpp"
+#include "assembly_graph/assembly_graph_base.hpp"
 #include "sequences/contigs.hpp"
 
 namespace ag {

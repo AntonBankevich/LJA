@@ -20,8 +20,6 @@ namespace spg {
         bool inf_left;
         bool inf_right;
     public:
-        bool fire_create = false;
-        bool fire_destroy = false;
         SPGVertexData(bool cyclic, bool inf_left, bool inf_right) : cyclic(cyclic), inf_left(inf_left),
                                                                     inf_right(inf_right) {
         }
@@ -39,8 +37,6 @@ namespace spg {
 
     class SPGEdgeData {
     public:
-        bool fire_create = false;
-        bool fire_destroy = false;
         SPGEdgeData RC() const { return {}; }
     };
 
@@ -66,11 +62,6 @@ namespace spg {
         ~SPGVertex() override {
             VERIFY_MSG(fire_destroy, getId());
         }
-
-        Edge &addSPEdgeLockFree(Vertex &end, ag::BaseEdge<SPGTraits>::id_type eid = {},
-                                ag::BaseEdge<SPGTraits>::id_type rcid = {});
-
-        Edge &addSPEdge(Vertex &end, ag::BaseEdge<SPGTraits>::id_type eid = {}, ag::BaseEdge<SPGTraits>::id_type rcid = {});
 
         bool isCore();
 

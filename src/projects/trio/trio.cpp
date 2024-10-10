@@ -10,6 +10,7 @@
 #include <array>
 #include <algorithm>
 #include <dbg/graph_algorithms.hpp>
+#include <assembly_graph/ag_algorithms.hpp>
 
 using namespace trio;
 using std::vector;
@@ -39,7 +40,7 @@ HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, size_t threads, mult
 
 void HaplotypeRemover::deleteEdgeHaplo(EdgeId eid) {
     logger_.debug() << "Removing " << eid <<std::endl;
-    eid->getStart().removeEdge(*eid);
+    mg.removeEdge(*eid);
 //    mg.internalRemoveEdge(*eid);
 }
 
@@ -66,7 +67,7 @@ void HaplotypeRemover::compressAllVertices() {
             }
             new_haplo.appendKmerStats(haplotype_info[eid]);
         }
-        Edge &merged = ag::CompressPath(path);
+        Edge &merged = mg.mergePathToEdge(path);
         new_haplo.label = std::move(ids);
         haplotype_info[merged.getInnerId()] = new_haplo;
         new_haplo.label = std::move(rcids);

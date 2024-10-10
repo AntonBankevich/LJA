@@ -4,25 +4,11 @@
 spg::SPGVertex &spg::SupreGraph::outerEdgeToVertex(spg::SPGEdge &edge) {
     VERIFY(edge.isOuter());
     Vertex &newv = addSPGVertex(edge.getSeq(), false, false, false);
-    edge.getStart().addSPEdgeLockFree(newv);
+    addSPEdgeLockFree(edge.getStart(), newv);
     if(newv != newv.rc())
-        newv.addSPEdgeLockFree(edge.getFinish());
-    edge.getStart().removeEdgeLockFree(edge);
+        addSPEdgeLockFree(newv, edge.getFinish());
+    removeEdgeLockFree(edge);
     return newv;
-}
-
-void spg::SupreGraph::IsolateAndMark(spg::SPGVertex &vertex) {
-    VERIFY(!vertex.marked());
-    for(Vertex &v : ag::ThisAndRC(vertex))
-        while(v.outDeg() != 0) {
-            fireDeleteEdge(v.front());
-            fireDeleteEdge(v.front().rc());
-            v.removeEdgeLockFree(v.front());
-        }
-    for(Vertex &v : ag::ThisAndRC(vertex)) {
-        fireDeleteVertex(v);
-        v.mark();
-    }
 }
 
 spg::VertexResolutionResult
@@ -41,11 +27,11 @@ spg::SupreGraph::resolveVertex(spg::SPGVertex &core, const spg::VertexResolution
         result.add(newv, p);
 //        for(Vertex &v : ag::ThisAndRC(newv))
 //            fireAddVertex(v);
-        Edge &out = p.incoming().getStart().addSPEdgeLockFree(newv);
+        Edge &out = addSPEdgeLockFree(p.incoming().getStart(), newv);
         for(Edge &e : ag::ThisAndRC(out))
             fireAddEdge(e);
         if(newv != newv.rc()) {
-            Edge &inc = newv.addSPEdgeLockFree(p.outgoing().getFinish());
+            Edge &inc = addSPEdgeLockFree(newv, p.outgoing().getFinish());
             for(Edge &e : ag::ThisAndRC(inc))
                 fireAddEdge(e);
         }
@@ -53,7 +39,7 @@ spg::SupreGraph::resolveVertex(spg::SPGVertex &core, const spg::VertexResolution
     fireResolveVertex(core, result);
     if(core != core.rc())
         fireResolveVertex(core.rc(), result.RC());
-    IsolateAndMark(core);
+    isolateAndMark(core);
     return std::move(result);
 }
 
@@ -74,25 +60,21 @@ spg::SPGVertex &spg::SupreGraph::mergePath(const spg::GraphPath &path) {
         resId = path.finish().getId();
     Vertex &res = resId.valid() ? *resId : addSPGVertex(seq, false, false, false);
     if(res != path.start()) {
-        Edge &new_edge = path.start().addSPEdgeLockFree(res);
-        for(Edge &e : ag::ThisAndRC(new_edge))
-            fireAddEdge(e);
+        Edge &new_edge = addSPEdgeLockFree(path.start(), res);
     }
     if(res != path.finish() && res != res.rc()) {
-        Edge &new_edge = res.addSPEdgeLockFree(path.finish());
-        for(Edge &e : ag::ThisAndRC(new_edge))
-            fireAddEdge(e);
+        Edge &new_edge = addSPEdgeLockFree(res, path.finish());
     }
     fireMergePath(path, res);
     if(res != res.rc())
         fireMergePath(path.RC(), res.rc());
     if(res != res.rc())
         for(size_t i = path.size() - 1; i > 0; i--) {
-            IsolateAndMark(path.getVertex(i));
+            isolateAndMark(path.getVertex(i));
         }
     else
         for(size_t i = path.size() - 1; 2 * i > path.size(); i--) {
-            IsolateAndMark(path.getVertex(i));
+            isolateAndMark(path.getVertex(i));
         }
     return res;
 }
@@ -109,11 +91,26 @@ spg::SPGVertex &spg::SupreGraph::mergeLoop(const spg::GraphPath &path) {
         fireMergeLoop(path.RC(), res.rc());
     if(res != res.rc())
         for(size_t i = path.size() - 1; i > 0; i--) {
-            IsolateAndMark(path.getVertex(i));
+            isolateAndMark(path.getVertex(i));
         }
     else
         for(size_t i = path.size() - 1; 2 * i > path.size(); i--) {
-            IsolateAndMark(path.getVertex(i));
+            isolateAndMark(path.getVertex(i));
         }
     return res;
+}
+
+spg::SPGEdge &spg::SupreGraph::addSPEdgeLockFree(spg::SPGVertex &start, spg::SPGVertex &end,
+                                                 ag::BaseEdge<spg::SPGTraits>::id_type eid,
+                                                 ag::BaseEdge<spg::SPGTraits>::id_type rcid) {
+    Sequence tseq = end.getSeq().Subseq(std::min(start.size(), end.size()));
+    Sequence rctseq = start.rc().getSeq().Subseq(std::min(start.size(), end.size()));
+    return addEdgeLockFree(start, end, tseq, rctseq, EdgeData(), eid, rcid);
+}
+
+spg::SPGEdge & spg::SupreGraph::addSPEdge(spg::SPGVertex &start, spg::SPGVertex &end, ag::BaseEdge<spg::SPGTraits>::id_type eid,
+                           ag::BaseEdge<spg::SPGTraits>::id_type rcid) {
+    Sequence tseq = end.getSeq().Subseq(std::min(start.size(), end.size()));
+    Sequence rctseq = start.rc().getSeq().Subseq(std::min(start.size(), end.size()));
+    return addEdge(start, end, tseq, rctseq, EdgeData(), eid, rcid);
 }

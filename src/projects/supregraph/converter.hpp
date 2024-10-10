@@ -23,16 +23,10 @@ namespace spg {
         std::unordered_map<OEdgeId, Segment<spg::Vertex>> outer_map;
 
         OPath maxExtension(OVertex &vertex) const;
-
         spg::VertexId processUnbranching(spg::SupreGraph &g, const OVertex &v) const;
-
         void constructInnerVertices(OGraph &other, spg::SupreGraph &g);
-
         void constructOuterVertices(SPGConverter::OGraph &other, spg::SupreGraph &g);
-
-        void addSPEdges(OGraph &other) const;
-
-        void addOuterEdges(OGraph &other);
+        void addSPEdges(spg::SupreGraph &g, OGraph &other) const;
 
     public:
         SPGConverter() = default;
@@ -99,7 +93,7 @@ namespace spg {
             VERIFY(v.rc().front() == v.rc().front().rc())
         }
         spg::Vertex &newv = g.addSPGVertex(loop, true, false, false);
-        newv.addSPEdgeLockFree(newv);
+        g.addSPEdgeLockFree(newv, newv);
         return newv.getId();
     }
 
@@ -154,7 +148,7 @@ namespace spg {
     }
 
     template<class Traits>
-    void SPGConverter<Traits>::addSPEdges(SPGConverter::OGraph &other) const {
+    void SPGConverter<Traits>::addSPEdges(spg::SupreGraph &g, SPGConverter::OGraph &other) const {
         for (OVertex &v: other.vertices()) {
             if (v.inDeg() == 1 || v.outDeg() != 1)
                 continue;
@@ -170,9 +164,9 @@ namespace spg {
                 size_t shift = v.front().rc().truncSize();
                 VERIFY(to.getSeq().startsWith(from.getSeq().Subseq(shift)));
                 Sequence seq = from.getSeq().Subseq(0, shift) + to.getSeq();
-                from.addEdgeLockFree(to, seq);
+                g.addEdgeLockFree(from, to, seq);
             } else
-                from.addSPEdgeLockFree(to);
+                g.addSPEdgeLockFree(from, to);
         }
         for (OEdge &e: other.edgesUnique()) {
             if(!e.isOuter())
@@ -180,24 +174,9 @@ namespace spg {
             Vertex &outer = outer_map.at(e.getId()).contig();
             Vertex &start = vmap.at(e.getStart().getId()).contig();
             Vertex &finish = vmap.at(e.getFinish().getId()).contig();
-            start.addSPEdgeLockFree(outer);
+            g.addSPEdgeLockFree(start, outer);
             if(start != start.rc())
-                outer.addSPEdgeLockFree(finish);
-        }
-    }
-
-    template<class Traits>
-    void SPGConverter<Traits>::addOuterEdges(SPGConverter::OGraph &other) {
-        for (OEdge &e: other.edgesUnique()) {
-            if (e.getStart().outDeg() != 1 && e.getFinish().inDeg() != 1) {
-                VERIFY(vmap.find(e.getStart().rc().getId()) != vmap.end());
-                VERIFY(vmap.find(e.getFinish().getId()) != vmap.end());
-                spg::Vertex &rcfrom = vmap[e.getStart().rc().getId()].contig();
-                spg::Vertex &from = rcfrom.rc();
-                spg::Vertex &to = vmap[e.getFinish().getId()].contig();
-                Sequence seq = from.getSeq() + e.truncSeq() + to.getSeq().Subseq(e.getFinish().size());
-                spg::Edge &new_edge = from.addEdgeLockFree(to, seq);
-            }
+                g.addSPEdgeLockFree(outer, finish);
         }
     }
 
@@ -209,8 +188,7 @@ namespace spg {
         for (spg::Vertex &v: g.vertices()) {
             VERIFY(!v.getSeq().empty());
         }
-        addSPEdges(other);
-//        addOuterEdges(other);
+        addSPEdges(g, other);
         return std::move(g);
     }
 

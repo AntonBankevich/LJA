@@ -1,3 +1,4 @@
+#include <assembly_graph/ag_algorithms.hpp>
 #include "graph_stats.hpp"
 #include "dbg_construction.hpp"
 

@@ -3,6 +3,7 @@
 #include "dbg_graph_aligner.hpp"
 #include "graph_algorithms.hpp"
 #include "graph_stats.hpp"
+#include "assembly_graph/ag_algorithms.hpp"
 namespace dbg {
     dbg::GraphPath realignRead(const dbg::GraphPath &al,
                                const std::unordered_map<EdgeId, std::vector<ag::AlignmentChain<Edge, Edge>>> &embedding) {
@@ -84,7 +85,7 @@ namespace dbg {
                 if (edge.intCov() > 0) {
                     Vertex &start = index.getVertex(edge.getStart());
                     Vertex &end = index.getVertex(edge.getFinish());
-                    start.addEdge(end, edge.getSeq());
+                    subgraph.addEdge(start, end, edge.getSeq());
                 }
             }
         }
@@ -313,9 +314,9 @@ namespace dbg {
             std::vector<hashing::MovingKWH> kmers = index.extractVertexPositions(edge.getSeq());
             if (kmers.size() == 2) {
                 VERIFY(kmers.front().getPos() == 0 && kmers.back().getPos() == edge.truncSize());
-                Edge &new_edge = index.getVertex(kmers.front()).addEdge(index.getVertex(kmers.back()), edge.truncSeq(),
-                                                                        edge.rc().truncSeq(), edge, edge.getInnerId(),
-                                                                        edge.rc().getInnerId());
+                Edge &new_edge = res.addEdge(index.getVertex(kmers.front()), index.getVertex(kmers.back()),
+                                             edge.truncSeq(),edge.rc().truncSeq(), edge,
+                                             edge.getInnerId(), edge.rc().getInnerId());
 //                new_edge.incCov(-new_edge.intCov());
 //                new_edge.rc().incCov(-new_edge.rc().intCov());
             } else {

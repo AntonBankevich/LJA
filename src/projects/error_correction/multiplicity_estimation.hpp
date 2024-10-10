@@ -23,7 +23,7 @@ public:
 std::pair<double, double> minmaxCov(const dbg::Component &subcomponent, const dbg::ReadAlignmentStorage &reads_storage,
                                     const std::function<bool(const dbg::Edge &)> &is_unique);
 
-    class UniqueClassificator : public MultiplicityBounds {
+class UniqueClassificator : public MultiplicityBounds {
 private:
     dbg::SparseDBG &dbg;
     bool diploid;

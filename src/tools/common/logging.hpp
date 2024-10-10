@@ -10,6 +10,7 @@
 #include <sys/resource.h>
 #include <omp.h>
 #include <experimental/filesystem>
+#include <unordered_map>
 #include <ctime>
 #include <string>
 #include <sstream>
@@ -110,12 +111,30 @@ namespace logging {
                 os = nullptr;
             }
         };
+        class FixedLevelLogger : public std::streambuf , public std::ostream {
+        private:
+            Logger &logger;
+            LogLevel level;
+        public:
+            explicit FixedLevelLogger(Logger &logger, LogLevel level) : std::ostream(this), logger(logger), level(level) {
+            }
+
+            FixedLevelLogger(const FixedLevelLogger &) = delete;
+
+            int overflow(int c) override {
+                LogLevel prev = logger.getLevel();
+                logger.setLevel(level);
+                logger.overflow(c);
+                logger.setLevel(prev);
+                return 0;
+            }
+        };
 
         std::vector<LogStream> oss;
         TimeSpace time;
-        Logger *empty_logger = nullptr;
         LogLevel curlevel;
         bool add_cout;
+        std::unordered_map<LogLevel, FixedLevelLogger> fll;
     public:
         explicit Logger(bool _add_cout = true) :
                     std::ostream(this), curlevel(LogLevel::trace), add_cout(_add_cout) {
@@ -123,18 +142,19 @@ namespace logging {
 
         Logger(const Logger &) = delete;
 
+        LogLevel getLevel() {return curlevel;}
+        void setLevel(LogLevel level) {curlevel = level;}
+        std::ostream &getLoggerStream(LogLevel level) {
+            if(fll.find(level) == fll.end())
+                fll.emplace(std::piecewise_construct,
+                            std::forward_as_tuple(level),
+                            std::forward_as_tuple(*this, level));
+            return fll.at(level);
+        }
+
         void addLogFile(const std::experimental::filesystem::path &fn, LogLevel level = LogLevel::trace) {
             oss.emplace_back(fn, level);
         }
-
-    //    template<class T>
-    //    DummyLogger &operator<<(const T &val) {
-    //        std::cout << time.get() << val;
-    //        for(std::ofstream *os : oss) {
-    //            *os << time.get() << val;
-    //        }
-    //        return dummyLogger;
-    //    }
 
         int overflow(int c) override {
             if(curlevel <= LogLevel::info)
@@ -181,10 +201,6 @@ namespace logging {
             curlevel = LogLevel::debug;
             *this << time.get() << " DEBUG: ";
             return *this;
-        }
-
-        ~Logger() override {
-            delete empty_logger;
         }
     };
 
