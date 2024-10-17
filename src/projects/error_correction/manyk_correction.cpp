@@ -188,16 +188,16 @@ namespace dbg {
     }
 
     dbg::GraphPath ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
-        dbg::GraphPath correction = correctTipWithExtension(tip);
-        VERIFY(tip.tip.start() == correction.start());
-        if (correction != tip.tip) {
-            message = "te";
-            return std::move(correction);
-        }
-        correction = correctTipWithReliable(tip);
+        dbg::GraphPath correction = correctTipWithReliable(tip);
         VERIFY(tip.tip.start() == correction.start());
         if (correction != tip.tip) {
             message = "tr";
+            return std::move(correction);
+        }
+        correction = correctTipWithExtension(tip);
+        VERIFY(tip.tip.start() == correction.start());
+        if (correction != tip.tip) {
+            message = "te";
             return std::move(correction);
         }
         message = "";
@@ -229,6 +229,11 @@ namespace dbg {
 
     dbg::GraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
         dbg::GraphPath corrected;
+        corrected = correctBulgeWithReliable(bulge);
+        if (corrected != bulge.bulge) {
+            message = "br";
+            return corrected;
+        }
         if (bulge.bulge.truncLen() + 100 < K) {
             corrected = correctBulgeByBridging(bulge);
             if (corrected != bulge.bulge) {
@@ -239,11 +244,6 @@ namespace dbg {
         corrected = correctBulgeAsDoubleTip(bulge);
         if (corrected != bulge.bulge) {
             message = "bd";
-            return corrected;
-        }
-        corrected = correctBulgeWithReliable(bulge);
-        if (corrected != bulge.bulge) {
-            message = "br";
             return corrected;
         }
         message = "";

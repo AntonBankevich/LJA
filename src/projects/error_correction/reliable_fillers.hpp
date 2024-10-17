@@ -220,23 +220,31 @@ inline void inference(dbg::SparseDBG &dbg, std::experimental::filesystem::path &
             std::cerr << "Using mode " << mode << " with ML threshold " << threshold << std::endl;
             size_t index = 0;
             std::ofstream dbg_edges(cur_path / "edge_attrs_post.txt");
+            size_t remark = 0;
             for(dbg::Edge &edge : dbg.edges()) {
                 double coverage = edge.getCoverage();
                 int size = edge.truncSize();
                 dbg_edges << coverage << " " << size << std::endl;
+
                 if(inference_results[index] >= threshold) {
                     edge.is_reliable = true;
                     edge.rc().is_reliable = true;
                     i++;
                 } else {
-                    edge.is_reliable = false;
-                    edge.rc().is_reliable = false;
-                    i_un++;
+                    if(edge.rc().is_reliable) {
+                      //already marked through RC link
+                      i++;
+                      remark++;
+                    } else {
+                      edge.is_reliable = false;
+                      edge.rc().is_reliable = false;
+                      i_un++;
+                    }
                 }
                 index++;
             }
             dbg_edges.close();
-            std::cerr << "Found total " << i << " reliable edges and " << i_un << " unreliable edges" << std::endl;
+            std::cerr << "Found total " << i << " reliable edges and " << i_un << " unreliable edges, remark attempts " << remark << std::endl;
             return i;
 #endif // USE_LIBTORCH
         }

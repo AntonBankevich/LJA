@@ -17,13 +17,15 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     if(!small)
         readStorage.printFullAlignments(logger, dir / (stage_name + ".als"));
     std::vector<Contig> paths;
-    for(StringContig sc : io::SeqReader(paths_lib)) {
-        Contig contig = sc.makeContig();
-        if(contig.truncSize() > 100000) {
-            paths.emplace_back(contig.getSeq().Subseq(0, 50000), contig.getInnerId() + "_start");
-            paths.emplace_back(contig.getSeq().Subseq(contig.truncSize() - 50000), contig.getInnerId() + "_end");
-        } else {
-            paths.emplace_back(std::move(contig));
+    if(paths_lib.size() > 0) {
+        for(StringContig sc : io::SeqReader(paths_lib)) {
+            Contig contig = sc.makeContig();
+            if(contig.truncSize() > 100000) {
+                paths.emplace_back(contig.getSeq().Subseq(0, 50000), contig.getInnerId() + "_start");
+                paths.emplace_back(contig.getSeq().Subseq(contig.truncSize() - 50000), contig.getInnerId() + "_end");
+            } else {
+                paths.emplace_back(std::move(contig));
+            }
         }
     }
     GraphPathStorage storage(dbg);

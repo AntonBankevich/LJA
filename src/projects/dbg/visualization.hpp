@@ -150,7 +150,9 @@ inline void printPTDBG(const std::experimental::filesystem::path &dir, dbg::Spar
     }
     std::vector<int64_t> edge_index_data;
     std::vector<float> edge_attr_data;
+    std::ofstream dbg_edge_ids(dir / "edge_id.txt");
     for(dbg::Edge &edge : dbg.edges()) {
+        dbg_edge_ids << edge.getId() << "," << edge.rc().getId() << std::endl;
         dbg::Vertex &end = edge.getFinish();
         // TODO: implement direct converstion to integer ids
         std::stringstream ss_src, ss_dst;
@@ -166,6 +168,7 @@ inline void printPTDBG(const std::experimental::filesystem::path &dir, dbg::Spar
         edge_attr_data.push_back(cov);
         edge_attr_data.push_back(len);
     }
+    dbg_edge_ids.close();
 
     int64_t edge_index_len = edge_index_data.size() / 2;
     auto options_int = torch::TensorOptions().dtype(torch::kInt64);
@@ -210,7 +213,10 @@ inline void printPT(const std::experimental::filesystem::path &dir, const dbg::C
     }
     std::vector<int64_t> edge_index_data;
     std::vector<float> edge_attr_data;
+    std::ofstream dbg_edge_ids(dir / "edge_id.txt");
+
     for(dbg::Edge &edge : component.edges()) {
+        dbg_edge_ids << edge.getId() << "," << edge.rc().getId() << std::endl;
         dbg::Vertex &end = edge.getFinish();
         // TODO: implement direct converstion to integer ids
         std::stringstream ss_src, ss_dst;
@@ -226,6 +232,7 @@ inline void printPT(const std::experimental::filesystem::path &dir, const dbg::C
         edge_attr_data.push_back(cov);
         edge_attr_data.push_back(len);
     }
+    dbg_edge_ids.close();
 
     int64_t edge_index_len = edge_index_data.size() / 2;
     auto options_int = torch::TensorOptions().dtype(torch::kInt64);

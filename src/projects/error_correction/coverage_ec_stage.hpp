@@ -64,10 +64,14 @@ namespace dbg {
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.Print(logger);
+        if (debug)
+            PrintPaths(logger, threads, dir / "state_dump", "before_mk800", dbg, readStorage, paths_lib, true);
         ManyKCorrect(logger, threads, dbg, readStorage, *reliableFiller, threshold, reliable_coverage, 800, 4, diploid);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk800", dbg, readStorage, paths_lib, true);
         RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, std::max<size_t>(k * 5 / 2, 3000));
+        if (debug)
+            PrintPaths(logger, threads, dir / "state_dump", "before_mk2000", dbg, readStorage, paths_lib, true);
         ManyKCorrect(logger, threads, dbg, readStorage, *reliableFiller, threshold, reliable_coverage, 2000, 4, diploid);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk2000", dbg, readStorage, paths_lib, true);
