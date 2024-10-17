@@ -70,6 +70,7 @@ namespace hashing {
         htype fHash() const {return fhash;}
         htype rHash() const {return rhash;}
         Sequence getSeq(size_t k) const {return seq.Subseq(getPos(), getPos() + k);}
+        unsigned char prevNucl() const {return seq[getPos() - 1];}
 
         bool isFirst() const {return pos == 0;}
 
@@ -118,6 +119,7 @@ namespace hashing {
         bool hasPrev() const {return pos > 0;}
         bool isValid() const {return pos + hasher->getK() <= seq.size();}
 
+        unsigned char nextNucl() const {return seq[getPos() + hasher->getK()];}
         MovingKWH next() const;
         MovingKWH prev() const;
     };
