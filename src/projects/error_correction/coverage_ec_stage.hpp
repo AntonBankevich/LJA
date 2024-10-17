@@ -18,7 +18,7 @@ namespace dbg {
     CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &dir,
                const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib,
                size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-               bool diploid, bool debug, bool load) {
+               bool diploid, bool dump_reads, bool debug, bool load) {
         logger.info() << "Performing coverage-based error correction with k = " << k << std::endl;
         if (k % 2 == 0) {
             logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -79,7 +79,8 @@ namespace dbg {
         coverageStats(logger, dbg);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk3500", dbg, readStorage, paths_lib, false);
-        //readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
+        if(dump_reads)
+            readStorage.printReadFasta(logger, dir / "corrected_reads.fasta");
         readStorage.printReadPaths(logger, dir / "corrected_reads.aln",
                                    dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);
         if (debug)
@@ -103,7 +104,7 @@ namespace dbg {
     class CoverageCorrectionStage : public Stage {
     public:
         CoverageCorrectionStage() : Stage(AlgorithmParameters(
-                {"k-mer-size=501", "window=2000", "coverage-threshold=3", "reliable-coverage=10", "diploid", "load"},
+                {"k-mer-size=501", "window=2000", "coverage-threshold=3", "reliable-coverage=10", "diploid", "load", "dump-reads"},
                 {}, ""), {"reads", "pseudo_reads", "paths"}, {"corrected_reads", "pseudo_reads", "final_dbg"}) {
         }
 
@@ -120,8 +121,8 @@ namespace dbg {
             bool diploid = parameterValues.getCheck("diploid");
             bool load = parameterValues.getCheck("load");
             return CoverageEC(logger, dir, input.find("reads")->second, input.find("pseudo_reads")->second,
-                              input.find("paths")->second, threads, k, w, threshold, reliable_coverage, diploid, debug,
-                              load);
+                              input.find("paths")->second, threads, k, w, threshold, reliable_coverage, diploid,
+                              parameterValues.getCheck("dump-reads"), debug, load);
         }
     };
 }
