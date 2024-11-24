@@ -35,6 +35,8 @@ int main(int argc, char **argv) {
                               "Hello! You are running MLGraph, a tool for genome assembly from PacBio HiFi reads.",
                               "MLGraph pipeline finished.",
                               {{"Final assembly graph", "graph_dot", "graph.dot"},
-                               {"Final assembly graph", "graph_gfa", "graph.gfa"}});
+                               {"Final assembly graph", "graph_gfa", "graph.gfa"},
+                               {"Multiplicity", "mult_info", "mult.info"},
+                               {"RefInfo", "ref_info", "ref.info"}});
     return mlgraph_program.run(command_line);
 }

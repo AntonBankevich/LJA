@@ -137,7 +137,7 @@ public:
     static ObjInfo<Edge> defaultDotLabeler() {
         std::function<std::string(const Edge &e)> f = [](const Edge &e) {
             std::stringstream ss;
-            ss << e.getStart().getInnerId() << " " << e.nuclLabel() << " " << e.truncSize();
+            ss << e.getInnerId() << " " << e.nuclLabel() << " " << e.truncSize();
             if (std::is_same<Traits, dbg::DBGTraits>::value) {
                 ss << "(" << e.getCoverage() << ")";
             }
@@ -148,6 +148,19 @@ public:
 
     static ObjInfo<Edge> defaultDotInfo () {
         return simpleColorer("black") + defaultDotLabeler();
+    }
+
+    static ObjInfo<Edge> defaultGFALabeler() {
+        std::function<std::string(const Edge &e)> f = [](const Edge &e) {
+            std::stringstream ss;
+            ss << e.getInnerId();
+            return ss.str();
+        };
+        return ObjInfo<Edge>::Labeler(f);
+    }
+
+    static ObjInfo<Edge> defaultGFAInfo () {
+        return defaultGFALabeler();
     }
 };
 
@@ -216,7 +229,7 @@ public:
             os << "\"" << edge.getStart().getInnerId() << "\" -> \"" << edge.getFinish().getInnerId() << "\" ";
             os << "[";
             if (! label.empty()) os << "label=\"" + label + "\" ";
-            if (! color.empty()) os << "color= \"" + color + "\" ";
+            if (! color.empty()) os << "color=\"" + color + "\" ";
             if (! tooltip.empty()) os << "tooltip=\"" + tooltip + "\"";
             os << "]\n";
         }

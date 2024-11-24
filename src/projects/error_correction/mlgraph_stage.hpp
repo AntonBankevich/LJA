@@ -27,17 +27,13 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
     std::unordered_map<Edge *, size_t> mult;
     size_t num = 0;
     for(StringContig & contig : ref) {
-        logger.info() << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
         Sequence seq = contig.makeSequence();
-        logger.info() << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
         os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
         logger.info() << seq.size() << " : " << index.minReadLen() << "\n";
         if(seq.size() < index.minReadLen()) {
-            logger.info() << "Skipping\n";
             continue;
         }
         auto tmp = index.align(seq);
-        logger.info() << "Iterating " << tmp.size() << " times\n";
         for(size_t i = 0; i < tmp.size(); i++) {
             const Segment<Edge> &seg = tmp[i];
             mult[&seg.contig()]++;
@@ -152,22 +148,24 @@ MLGraphEC(logging::Logger &logger, const std::experimental::filesystem::path &di
     RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
     DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
     params.Print(logger);
-    printer.printGFA(dir / "graph.gfa", Component(dbg), true);
     logger.info() << "Saving to dot file\n";
     printer.printDot(dir / "graph.dot", Component(dbg));
+    ObjInfo<dbg::Edge> edgeGFAInfo = EdgePrintStyles<dbg::DBGTraits>::defaultGFAInfo();
+    Printer<DBGTraits> printer2(vertexInfo, edgeGFAInfo);
+    printer2.printGFA(dir / "graph.gfa", Component(dbg), true);
     KmerIndex index2(dbg);
     index2.fillAnchors(logger, threads, dbg, w);
     if(reference != "none") {
         analyseGenome(dbg, index2, reference, dir / "ref.info", dir / "cov.info", dir / "mult.info", logger);
     }
-    return {{"graph_dot", dir/ "graph.dot"}, {"graph_gfa", dir/ "graph.gfa"}};
+    return {{"graph_dot", dir/ "graph.dot"}, {"graph_gfa", dir/ "graph.gfa"}, {"mult_info", dir / "mult.info"}, {"ref_info", dir / "ref.info" }};
 }
 
 class MLGraphCorrectionStage : public Stage {
 public:
     MLGraphCorrectionStage() : Stage(AlgorithmParameters(
             {"k-mer-size=501", "window=2000", "reference=none", "coverage-threshold=3", "reliable-coverage=10", "diploid", "load", "dump-reads"},
-            {}, ""), {"reads", "pseudo_reads", "paths"}, {"graph_dot", "graph_gfa"}) {
+            {}, ""), {"reads", "pseudo_reads", "paths"}, {"graph_dot", "graph_gfa", "mult_info", "ref_info"}) {
     }
 protected:
     std::unordered_map<std::string, std::experimental::filesystem::path> innerRun(logging::Logger &logger, size_t threads,
