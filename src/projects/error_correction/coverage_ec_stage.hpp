@@ -44,6 +44,7 @@ namespace dbg {
         Printer<DBGTraits> printer;
         printer.setEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
         printer.printDot(dir / "initial_dbg.dot", Component(dbg));
+        printer.printGFA(dir / "initial_dbg.gfa", Component(dbg), true);
         //printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
         coverageStats(logger, dbg);
         if (debug) {

@@ -40,6 +40,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     Printer<dbg::DBGTraits> printer;
     printer.setEdgeInfo(ObjInfo<dbg::Edge>({&SaveEdgeName}, {}, {}));
     printer.printDot(dir / "initial_dbg.dot", Component(dbg));
+    printer.printGFA(dir / "initial_dbg.gfa", Component(dbg), true);
     //printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.labeler(), 25000);
