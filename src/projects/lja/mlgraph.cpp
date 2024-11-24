@@ -10,7 +10,7 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
     StringContig::homopolymer_compressing = true;
     StringContig::SetDimerParameters(input_values.getValue("dimer-compress"));
     bool noec = input_values.getCheck("noec");
-    ComplexStage lja(input_types, {"noec", "dimer-compress=32,32,1"});
+    ComplexStage lja(input_types, {"noec", "compress", "dimer-compress=32,32,1"});
     if(noec) {
         SubstageRun &constructionStage = lja.addStage(NoCorrectionStage(), "Construction");
         constructionStage.bindInput("reads", "", "reads");
