@@ -127,7 +127,6 @@ namespace std {
     }
 }
 
-/*
 inline void printDot(std::ostream &os, const dbg::Component &component, const std::function<std::string(dbg::Edge &)> &labeler,
               const std::function<std::string(dbg::Edge &)> &edge_colorer) {
     os << "digraph {\nnodesep = 0.5;\n";
@@ -185,7 +184,7 @@ inline void printDot(const std::experimental::filesystem::path &f, const dbg::Co
     printDot(os, component, labeler);
     os.close();
 }
-*/
+
 inline void DrawSplit(const dbg::Component &component, const std::experimental::filesystem::path &dir,
                const std::function<std::string(const dbg::Edge &)> &labeler, const std::function<std::string(const dbg::Edge &)> &colorer,
                size_t len = 100000) {
