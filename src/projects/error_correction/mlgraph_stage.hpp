@@ -139,12 +139,12 @@ MLGraphEC(logging::Logger &logger, const std::experimental::filesystem::path &di
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
     }
     Precorrector precorrector(4);
-    DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
+    //DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
     BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
     ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
     RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
     readStorage.trackSuffixes(logger, threads);
-    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
+    //ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
     RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
     DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
     params.Print(logger);
