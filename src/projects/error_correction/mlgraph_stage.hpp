@@ -20,36 +20,31 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
     logger.info() << "Reading reference " << ref_file << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
-    std::vector<dbg::GraphPath> paths;
+    std::vector<std::vector<ag::AlignmentChain<Contig, dbg::Edge>>> paths;
     std::ofstream os;
     os.open(path_dump);
-    size_t cur = 0;
     std::unordered_map<Edge *, size_t> mult;
     size_t num = 0;
     for(StringContig & contig : ref) {
-        Sequence seq = contig.makeSequence();
+        Contig genome_contig = contig.makeContig();
         os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
-        logger.info() << seq.size() << " : " << index.minReadLen() << "\n";
-        if(seq.size() < index.minReadLen()) {
-            continue;
+        logger.info() << contig.size() << " : " << index.minReadLen() << "\n";
+        std::vector<ag::AlignmentChain<Contig, dbg::Edge>> genome_path = index.carefulAlign(genome_contig);
+        for(size_t i = 0; i < genome_path.size(); i++) {
+            const Segment<Edge> &seg = genome_path[i].seg_to;
+            mult[&seg.contig()] += seg.size();
+            mult[&seg.contig().rc()] += seg.size();
+            os << genome_path[i] << "\n";
         }
-        auto tmp = index.align(seq);
-        for(size_t i = 0; i < tmp.size(); i++) {
-            const Segment<Edge> &seg = tmp[i];
-            mult[&seg.contig()]++;
-            mult[&seg.contig().rc()]++;
-            os << "[" << cur << ", " << cur + seg.size() << "] -> " << tmp[i].contig().getInnerId() << " [" << seg.left << ", " << seg.right << "]\n";
-            cur += seg.size();
-        }
-        logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.size() << std::endl;
-        num += tmp.size();
-        paths.emplace_back(std::move(tmp));
+        logger.info() << "Aligned chromosome " << contig.id << " . Path length " << genome_path.size() << std::endl;
+        num += genome_path.size();
+        paths.emplace_back(std::move(genome_path));
     }
     os.close();
     std::ofstream mos;
     mos.open(mult_dump);
     for(Edge &edge: dbg.edges()) {
-        mos << edge.getInnerId() << " " << mult[&edge] << "\n";
+        mos << edge.getInnerId() << " " << (double(mult[&edge]) / edge.truncSize()) << "\n";
     }
     mos.close();
     logger.info() << "Reference path consists of " << num << " edges" << std::endl;
@@ -61,9 +56,9 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
     std::vector<size_t> cov_good(max_cov + 1);
     std::vector<size_t> cov_good_len(max_cov + 1);
     std::unordered_map<Edge const *, size_t> eset;
-    for(dbg::GraphPath &path: paths)
-        for(Edge &edge : path.edges())
-            eset[&edge] += 1;
+    for(auto &path: paths)
+        for(auto &rec : path)
+            eset[&rec.seg_to.contig()] += 1;
     std::ofstream os_mult;
     os_mult.open(cov_dump);
     for(auto & it : eset) {
