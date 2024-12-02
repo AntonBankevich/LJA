@@ -100,12 +100,7 @@ MLGraphEC(logging::Logger &logger, const std::experimental::filesystem::path &di
     }
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k);
-    io::Library genome_lib = {};
-    if (reference != "none") {
-        logger.info() << "Added reference to graph construction. Careful, some edges may have coverage 0" << std::endl;
-        genome_lib = {std::experimental::filesystem::path(reference)};
-    }
-    io::Library construction_lib = reads_lib + pseudo_reads_lib + genome_lib;
+    io::Library construction_lib = reads_lib + pseudo_reads_lib;
     dbg::SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
                                             (dir / "disjointigs.fasta").string(), (dir / "vertices.save").string())
                               :
@@ -117,14 +112,8 @@ MLGraphEC(logging::Logger &logger, const std::experimental::filesystem::path &di
     ag::ReadLogger readLogger(threads, dir / "read_log.txt");
     dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true, false);
     readStorage.setReadLogger(readLogger);
-    dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
-    refStorage.setReadLogger(readLogger);
     io::SeqReader reader(reads_lib);
     readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
-    if(reference != "none") {
-        io::SeqReader refReader(genome_lib);
-        refStorage.FillAlignments(logger, threads, refReader.begin(), refReader.end(), dbg, index);
-    }
     ObjInfo<dbg::Vertex> vertexInfo = VertexPrintStyles<dbg::DBGTraits>::defaultDotInfo();
     ObjInfo<dbg::Edge> edgeInfo = EdgePrintStyles<dbg::DBGTraits>::defaultDotInfo();
     Printer<DBGTraits> printer(vertexInfo, edgeInfo);
@@ -134,13 +123,13 @@ MLGraphEC(logging::Logger &logger, const std::experimental::filesystem::path &di
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, true);
     }
     Precorrector precorrector(4);
-    //DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
+    DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
     BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
     ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
-    RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
+    RemoveUncovered(logger, threads, dbg, {&readStorage}, extension_size);
     readStorage.trackSuffixes(logger, threads);
-    //ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
-    RemoveUncovered(logger, threads, dbg, {&readStorage, &refStorage}, extension_size);
+    ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
+    RemoveUncovered(logger, threads, dbg, {&readStorage}, extension_size);
     DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
     params.Print(logger);
     logger.info() << "Saving to dot file\n";
