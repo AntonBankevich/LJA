@@ -4,6 +4,7 @@
 #include "parameter_estimator.hpp"
 #include "precorrection.hpp"
 #include "dimer_correction.hpp"
+#include "manyk_correction.hpp"
 #include <dbg/dbg_construction.hpp>
 #include <dbg/graph_printing.hpp>
 #include <dbg/graph_stats.hpp>
@@ -132,6 +133,10 @@ MLGraphEC(logging::Logger &logger, const std::experimental::filesystem::path &di
     RemoveUncovered(logger, threads, dbg, {&readStorage}, extension_size);
     DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
     params.Print(logger);
+    ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 800, 4, diploid);
+    RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 5 / 2, 3000));
+    ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 2000, 4, diploid);
+    RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 7 / 2, 10000000));
     logger.info() << "Saving to dot file\n";
     printer.printDot(dir / "graph.dot", Component(dbg));
     ObjInfo<dbg::Edge> edgeGFAInfo = EdgePrintStyles<dbg::DBGTraits>::defaultGFAInfo();
