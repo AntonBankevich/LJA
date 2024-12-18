@@ -5,7 +5,7 @@ Requirements
 ---------------------
 
 * 64 bit Linux OS
-* CMake version 3.1 or above
+* CMake version 3.12 or above
 * C++ compiler with C++17 support (GCC-7+)
 * GNU make
 * zlib
@@ -14,8 +14,16 @@ Requirements
 Downloading and compiling from source code
 -------------------------------------
 
-You can download LJA source code [here](https://github.com/AntonBankevich/LJA).
-To build from source code run the following commands from code directory.
+You can download LJA source code [here](https://github.com/AntonBankevich/LJA),
+or using the following command:
+
+``` bash
+
+    git clone https://github.com/AntonBankevich/LJA.git
+```
+
+To build from source code, run the following commands from the root directory
+of the LJA repository:
 
 
 ``` bash
@@ -24,9 +32,12 @@ To build from source code run the following commands from code directory.
     make
 ```
 
-Binary files will be stored in the bin subdirectory.
-We will further assume that you added bin directory to your PATH variable.
-Otherwise, you need to use full path to the executable instead of lja in the command line.
+Binary files will be stored in the `bin/` subdirectory, which will be created
+in the root directory of LJA's repository.
+We will further assume that you have added `bin/` to your
+`PATH` environment variable.
+Otherwise, you need to use full path to the executable (e.g. `./bin/lja`)
+instead of just `lja` when running LJA.
 
 Running La Jolla Assembler
 =================
