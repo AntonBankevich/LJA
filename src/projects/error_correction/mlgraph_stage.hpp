@@ -134,12 +134,24 @@ MLGraphEC(logging::Logger &logger, const std::experimental::filesystem::path &di
     DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
     params.Print(logger);
     ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 800, 4, diploid);
+    auto cdbg = Component(dbg);
+    std::ofstream dbg_edges(dir / ".." / "edges_reliable.csv");
+    size_t remark = 0;
+    for(dbg::Edge &edge : cdbg.edges()) {
+        double coverage = edge.getCoverage();
+        int size = edge.truncSize();
+        dbg_edges << edge.getInnerId() << "," << coverage << "," << size << "," << int(edge.is_reliable) << std::endl;
+    }
+    dbg_edges.close();
+
+    /*
     RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 5 / 2, 3000));
     ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 2000, 4, diploid);
     RemoveUncovered(logger, threads, dbg, {&readStorage}, std::max<size_t>(k * 7 / 2, 10000000));
     ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
     ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 3500, 3, diploid);
     RemoveUncovered(logger, threads, dbg, {&readStorage});
+    */
     logger.info() << "Saving to dot file\n";
     printer.printDot(dir / "graph.dot", Component(dbg));
     ObjInfo<dbg::Edge> edgeGFAInfo = EdgePrintStyles<dbg::DBGTraits>::defaultGFAInfo();
