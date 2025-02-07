@@ -9,6 +9,9 @@ target_link_libraries(jumboDBG lja_ec lja_dbg lja_common lja_sequence m)
 add_executable(mlgraph mlgraph.cpp)
 target_link_libraries(mlgraph lja_ec lja_dbg lja_common lja_sequence m)
 
+add_executable(mlgraph2 mlgraph2.cpp)
+target_link_libraries(mlgraph2 lja_ec lja_dbg lja_common lja_sequence m)
+
 install(PROGRAMS "${PYTHON_DIR}/run_rr.py"
         DESTINATION bin
         COMPONENT runtime)
