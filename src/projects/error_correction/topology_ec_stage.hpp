@@ -28,9 +28,11 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     size_t extension_size = 10000000;
     ag::ReadLogger readLogger(threads, dir/"read_log.txt");
     dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, debug);
-    readStorage.setReadLogger(readLogger);
+    if(debug)
+        readStorage.setReadLogger(readLogger);
     dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
-    refStorage.setReadLogger(readLogger);
+    if(debug)
+        refStorage.setReadLogger(readLogger);
     dbg::SeqReader reader(reads_lib, logger, threads);
     {
         KmerIndex index(dbg);

@@ -18,7 +18,7 @@ namespace dbg {
     chooseBulgeCandidate(const dbg::GraphPath &bulge, const dbg::ReadAlignmentStorage &reads_storage, double threshold,
                          std::vector<dbg::GraphPath> &read_alternatives, std::string &message);
 
-    std::pair<dbg::GraphPath, size_t> BestAlignmentPrefix(const dbg::GraphPath &al, const Sequence &seq);
+    std::pair<dbg::GraphPath, size_t> BestAlignmentPrefix(const dbg::GraphPath &al, const Sequence &seq, size_t max_diff);
 
     dbg::GraphPath processTip(const dbg::GraphPath &tip,
                               const std::vector<dbg::GraphPath> &alternatives,

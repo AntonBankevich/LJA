@@ -9,17 +9,17 @@ namespace dbg {
     size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump) {
         size_t winner = 0;
         std::vector<size_t> dists;
+        size_t max_dist = std::max<size_t>(20, bulge.size() / 100);
         for (size_t i = 0; i < candidates.size(); i++) {
-            dists.push_back(edit_distance(bulge, candidates[i]));
+            dists.push_back(edit_distance(bulge, candidates[i], max_dist));
             if (dists.back() < dists[winner])
                 winner = i;
         }
-        size_t max_dist = std::max<size_t>(20, bulge.size() / 100);
         if (dists[winner] > max_dist)
             return -1;
         for (size_t i = 0; i < candidates.size(); i++) {
-            if (i != winner) {
-                size_t diff = edit_distance(candidates[winner], candidates[i]);
+            if (i != winner && dists[i] <= max_dist) {
+                size_t diff = edit_distance(candidates[winner], candidates[i], max_dist);
                 VERIFY(dists[winner] <= dists[i] + diff);
                 VERIFY(dists[i] <= dists[winner] + diff);
                 if (dists[i] < max_dist && dists[i] != dists[winner] + diff)
@@ -89,9 +89,9 @@ namespace dbg {
         }
     }
 
-    std::pair<dbg::GraphPath, size_t> BestAlignmentPrefix(const dbg::GraphPath &al, const Sequence &seq) {
+    std::pair<dbg::GraphPath, size_t> BestAlignmentPrefix(const dbg::GraphPath &al, const Sequence &seq, size_t max_diff) {
         Sequence candSeq = al.truncSeq();
-        std::pair<size_t, size_t> bp = bestPrefix(seq, candSeq);
+        std::pair<size_t, size_t> bp = bestPrefix(seq, candSeq, max_diff);
         size_t len = bp.first;
         Sequence prefix = candSeq.Subseq(0, len);
         dbg::GraphPath res(al.start());
@@ -108,7 +108,7 @@ namespace dbg {
         std::vector<dbg::GraphPath> trunc_alignments;
         Sequence old = tip.truncSeq();
         for (const dbg::GraphPath &al: read_alternatives_filtered) {
-            std::pair<dbg::GraphPath, size_t> tres = BestAlignmentPrefix(al, old);
+            std::pair<dbg::GraphPath, size_t> tres = BestAlignmentPrefix(al, old, 10 + (al.truncLen() / 50));
             if (tres.second < 10 + (al.truncLen() / 50))
                 trunc_alignments.emplace_back(std::move(tres.first));
         }

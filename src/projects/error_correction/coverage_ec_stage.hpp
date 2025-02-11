@@ -36,9 +36,11 @@ namespace dbg {
         size_t extension_size = std::max<size_t>(k * 2, 1000);
         ag::ReadLogger readLogger(threads, dir / "read_log.txt");
         dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true, false);
-        readStorage.setReadLogger(readLogger);
+        if(debug)
+            readStorage.setReadLogger(readLogger);
         dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
-        refStorage.setReadLogger(readLogger);
+        if(debug)
+            refStorage.setReadLogger(readLogger);
         io::SeqReader reader(reads_lib);
         readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
         Printer<DBGTraits> printer;
