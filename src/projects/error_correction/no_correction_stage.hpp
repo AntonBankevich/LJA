@@ -11,7 +11,8 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
     hashing::RollingHash hasher(k);
     ensure_dir_existance(dir);
     io::Library construction_lib = reads_lib + pseudo_reads_lib;
-    SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string()) :
+    SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
+                                       (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string(), debug) :
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
     size_t extension_size = std::max<size_t>(k * 2, 1000);
     ag::ReadLogger readLogger(threads, dir/"read_log.txt");

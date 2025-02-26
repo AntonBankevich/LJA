@@ -215,7 +215,7 @@ int main(int argc, char **argv) {
     std::string vertices_file = params.getValue("vertices");
     std::string dbg_file = params.getValue("dbg");
     SparseDBG dbg = dbg_file == "none" ?
-                    DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
+                    DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file, true) :
                     LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher);
 
     bool calculate_alignments = params.getCheck("initial-correct") ||
@@ -290,7 +290,9 @@ int main(int argc, char **argv) {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "paths.dot");
-            printDot(coordinates_dot, Component(dbg), storage.labeler());
+            Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
+                                       EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
+            printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
         {
@@ -334,7 +336,9 @@ int main(int argc, char **argv) {
             std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(contig);
             Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
-            printDot(coordinates_dot, Component(comp), storage.labeler());
+            Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
+                                       EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
+            printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
     }
@@ -407,6 +411,8 @@ int main(int argc, char **argv) {
             }
         }
         storage.Fill(threads, index);
+        Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
+                                   EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
         for(Contig &seg : segs) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.getInnerId()) + ".dot");
             logger.info() << "Printing segment " << seg.getInnerId() << " to dot file " << (seg_file) << std::endl;
@@ -414,7 +420,7 @@ int main(int argc, char **argv) {
             std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(seg);
             Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
-            printDot(coordinates_dot, Component(dbg), storage.labeler());
+            printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
     }
@@ -433,7 +439,9 @@ int main(int argc, char **argv) {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "genome_path.dot");
-            printDot(coordinates_dot, Component(dbg), storage.labeler());
+            Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
+                                       EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
+            printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
         {
@@ -543,10 +551,12 @@ int main(int argc, char **argv) {
                 edge.incCov(other.rc().getOutgoing(edge.truncSeq()[0]).intCov());
             }
         }
-        printDot(dir / "simp_graph1.dot", Component(simp_dbg));
+        Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
+                                   EdgePrintStyles<DBGTraits>::defaultDotInfo());
+        printer.printDot(dir / "simp_graph1.dot", Component(simp_dbg));
         ag::MergeAll<DBGTraits>(logger, threads, simp_dbg);
         printFasta(dir / "simp_graph.fasta", Component(simp_dbg));
-        printDot(dir / "simp_graph.dot", Component(simp_dbg));
+        printer.printDot(dir / "simp_graph.dot", Component(simp_dbg));
     }
     logger.info() << "DBG construction finished" << std::endl;
     logger.info() << "Please cite our paper if you use jumboDBG in your research: https://www.biorxiv.org/content/10.1101/2020.12.10.420448" << std::endl;

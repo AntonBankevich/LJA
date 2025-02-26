@@ -130,15 +130,15 @@ inline std::vector<std::pair<hashing::htype, bool>> readHashs(std::istream &is) 
 
 SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t w, const io::Library &lib,
                       const std::experimental::filesystem::path &dir, size_t threads, const string &disjointigs_file,
-                      const string &vertices_file) {
-    std::experimental::filesystem::path df;
+                      const string &vertices_file, bool dump) {
     logger.info() << "Starting DBG construction pipeline" << std::endl;
+    std::vector<Sequence> disjointigs;
     if (disjointigs_file == "none") {
-        std::function<void()> task = [&logger, &lib, &threads, &w, &dir, &hasher]() {
-            std::vector<hashing::htype> hash_list;
-            hash_list = constructMinimizers(logger, lib, threads, hasher, w);
-            std::vector<Sequence> disjointigs = constructDisjointigs(logger, threads, hasher, w, lib, hash_list);
-            hash_list.clear();
+        std::vector<hashing::htype> hash_list;
+        hash_list = constructMinimizers(logger, lib, threads, hasher, w);
+        disjointigs = constructDisjointigs(logger, threads, hasher, w, lib, hash_list);
+        hash_list.clear();
+        if(dump) {
             std::ofstream df;
             df.open(dir / "disjointigs.fasta");
             for (size_t i = 0; i < disjointigs.size(); i++) {
@@ -146,25 +146,23 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
                 df << disjointigs[i] << std::endl;
             }
             df.close();
-        };
-        runInFork(task);
-        df = dir / "disjointigs.fasta";
+        }
+        malloc_trim(0);
     } else {
-        df = disjointigs_file;
-    }
-    logger.info() << "Loading disjointigs from file " << df << std::endl;
-    io::SeqReader reader(df);
-    std::vector<Sequence> disjointigs;
-    while(!reader.eof()) {
-        disjointigs.push_back(reader.read().makeSequence());
+        logger.info() << "Loading disjointigs from file " << disjointigs_file << std::endl;
+        io::SeqReader reader(disjointigs_file);
+        for(StringContig stringContig: io::SeqReader(disjointigs_file))
+            disjointigs.push_back(stringContig.makeSequence());
     }
     std::vector<std::pair<hashing::htype, bool>> vertices;
     if (vertices_file == "none") {
         vertices = findJunctions(logger, disjointigs, hasher, threads);
-        std::ofstream os;
-        os.open(dir / "vertices.save");
-        writeHashs(os, vertices);
-        os.close();
+        if(dump) {
+            std::ofstream os;
+            os.open(dir / "vertices.save");
+            writeHashs(os, vertices);
+            os.close();
+        }
     } else {
         logger.info() << "Loading vertex hashs from file " << vertices_file << std::endl;
         std::ifstream is;

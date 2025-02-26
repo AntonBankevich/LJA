@@ -15,10 +15,10 @@ namespace dbg {
             if (dists.back() < dists[winner])
                 winner = i;
         }
-        if (dists[winner] > max_dist)
+        if (dists[winner] >= max_dist)
             return -1;
         for (size_t i = 0; i < candidates.size(); i++) {
-            if (i != winner && dists[i] <= max_dist) {
+            if (i != winner && dists[i] < max_dist) {
                 size_t diff = edit_distance(candidates[winner], candidates[i], max_dist);
                 VERIFY(dists[winner] <= dists[i] + diff);
                 VERIFY(dists[i] <= dists[winner] + diff);

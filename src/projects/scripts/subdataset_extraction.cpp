@@ -8,12 +8,13 @@
 #include <assembly_graph/component.hpp>
 #include <dbg/graph_alignment_storage.hpp>
 #include <dbg/subdatasets.hpp>
+#include <dbg/aln_reads_reader.hpp>
 #include "dbg/dbg_graph_aligner.hpp"
 
 using namespace dbg;
 int main(int argc, char **argv) {
-    AlgorithmParameters params({"vertices=none", "unique=none", "dbg=none", "output-dir=",
-                               "threads=16", "k-mer-size=", "window=2000", "debug", "disjointigs=none",
+    AlgorithmParameters params({"unique=none", "dbg=none", "output-dir=",
+                               "threads=16", "k-mer-size=", "window=2000", "debug",
                                "reference=none", "compress", "dimer-compress=1000000000,1000000000,1",
                                "unique-threshold=40000", "radius=1000", "bad-cov=7", "track-paths", "add-paths"},
                                {"paths", "reads", "pseudo-reads", "contigs"}, "");
@@ -56,17 +57,15 @@ int main(int argc, char **argv) {
     io::Library ref_lib;
     if(parameterValues.getValue("reference") != "none")
         ref_lib =  oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("reference"));
-    std::string disjointigs_file = parameterValues.getValue("disjointigs");
-    std::string vertices_file = parameterValues.getValue("vertices");
     std::string dbg_file = parameterValues.getValue("dbg");
     hashing::RollingHash hasher(k);
     size_t threads = std::stoi(parameterValues.getValue("threads"));
     dbg::SparseDBG dbg = dbg_file == "none" ?
-                    DBGPipeline(logger, hasher, w, construction_lib, dir, threads, disjointigs_file, vertices_file) :
+                    DBGPipeline(logger, hasher, w, construction_lib, dir, threads) :
                          dbg::LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher); //Create dbg
     size_t extension_size = 100000;
     dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, false, track_paths);//Structure for read alignments
-    io::SeqReader reader(reads_lib);//Reader that can read reads from file
+    dbg::SeqReader reader(reads_lib, logger, threads);//Reader that can read reads from file
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, w);
     readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);//Align reads to the graph
@@ -74,7 +73,7 @@ int main(int argc, char **argv) {
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
     GraphPathStorage storage(dbg);
-    for(StringContig stringContig : io::SeqReader(ref_lib)) {
+    for(StringContig stringContig : dbg::SeqReader(ref_lib, logger, threads)) {
         storage.addContig(stringContig.makeContig());
     }
     if(paths_lib.empty()) {

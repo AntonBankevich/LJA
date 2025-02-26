@@ -23,7 +23,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     SparseDBG dbg =
             load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
                                (dir/"disjointigs.fasta").string(),
-                               (dir/"vertices.save").string())
+                               (dir/"vertices.save").string(), debug)
                  : DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
     size_t extension_size = 10000000;
     ag::ReadLogger readLogger(threads, dir/"read_log.txt");

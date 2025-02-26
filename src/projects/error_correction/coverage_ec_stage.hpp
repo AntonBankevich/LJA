@@ -28,7 +28,7 @@ namespace dbg {
         hashing::RollingHash hasher(k);
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
         dbg::SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
-                                                (dir / "disjointigs.fasta").string(), (dir / "vertices.save").string())
+                                    (dir / "disjointigs.fasta").string(), (dir / "vertices.save").string(), debug)
                                   :
                              DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         KmerIndex index(dbg);

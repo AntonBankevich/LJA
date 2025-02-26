@@ -22,7 +22,7 @@ inline size_t edit_distance(Sequence s1, Sequence s2, size_t max_diff) {
     for(unsigned int j = 0; j <= s2.size(); ++j) cur[j] = j;
     for(unsigned int i = 1; i <= s1.size(); ++i) {
         if(from > to)
-            return std::max(s1.size(), s2.size());
+            return max_diff;
         std::swap(prev, cur);
         cur[from] = prev[from] + 1;
         for(unsigned int j = from + 1; j <= to; ++j)
@@ -39,7 +39,7 @@ inline size_t edit_distance(Sequence s1, Sequence s2, size_t max_diff) {
     if(from >= s2.size() && to <= s2.size())
         return cur[s2.size()];
     else
-        return std::max(s1.size(), s2.size());
+        return max_diff;
 }
 
 inline std::pair<size_t, size_t> bestPrefix(const Sequence &s1, const Sequence &_s2, size_t max_diff = -1) {

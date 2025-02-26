@@ -16,7 +16,7 @@ int main(int argc, char* argv[]){
     hashing::RollingHash hasher(3000);
     dbg::SparseDBG dbg = dbg::LoadDBGFromEdgeSequences(logger, threads, lib, hasher);
     std::cout << "graph was read";
-    dbg::BulgePathFinder finder(dbg, -1.0);
+    BulgePathFinder finder(dbg, -1.0);
     KSWAligner kswAligner(1, 5, 5, 3);
     logger << "paths found: " << finder.paths.size() << std::endl;
     int path_id = 1;
@@ -27,7 +27,7 @@ int main(int argc, char* argv[]){
         size_t second;
     };
     std::ofstream os("bulge_paths.stats");
-    for(dbg::BulgePath<dbg::DBGTraits> &path : finder.paths) {
+    for(BulgePath<dbg::DBGTraits> &path : finder.paths) {
         if(path.size() == 1)
             continue;
         std::vector<edgerec> output;
@@ -35,7 +35,7 @@ int main(int argc, char* argv[]){
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(path, output, kswAligner)
         for(int i = 0; i < path.size(); ++i) {
             bool bulge;
-            const std::pair<ag::BaseEdge<dbg::DBGTraits> *, ag::BaseEdge<dbg::DBGTraits> *> &edge_pair = path[i];
+            const std::pair<dbg::EdgeId, dbg::EdgeId> &edge_pair = path[i];
             ag::BaseEdge<dbg::DBGTraits> &edge1 = *edge_pair.first;
             ag::BaseEdge<dbg::DBGTraits> &edge2 = *edge_pair.second;
             if (edge1 == edge2) bulge = false;
