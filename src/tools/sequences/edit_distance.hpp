@@ -36,7 +36,7 @@ inline size_t edit_distance(Sequence s1, Sequence s2, size_t max_diff) {
         while(from <= to && cur[to] > max_diff)
             to--;
     }
-    if(from >= s2.size() && to <= s2.size())
+    if(from <= s2.size() && to >= s2.size())
         return cur[s2.size()];
     else
         return max_diff;
