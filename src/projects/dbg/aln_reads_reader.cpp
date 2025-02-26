@@ -43,7 +43,8 @@ dbg::SeqReader::SeqReader(io::Library _lib, logging::Logger &_logger, size_t _th
     ISeqReader(_lib, _min_read_size, _overlap),
     logger(_logger), threads(_threads) {
     nextFile();
-    dbg::SeqReader::inner_read();
+    if(subreader != nullptr)
+        dbg::SeqReader::inner_read();
 }
 
 dbg::SeqReader::SeqReader(const std::experimental::filesystem::path &file_name, logging::Logger &_logger, size_t _threads,

@@ -138,7 +138,8 @@ void io::SeqReader::initReader(const std::experimental::filesystem::path &file_n
 io::SeqReader::SeqReader(Library _lib, size_t _min_read_size, size_t _overlap):
 io::ISeqReader::ISeqReader(_lib, _min_read_size, _overlap) {
     nextFile();
-    SeqReader::inner_read();
+    if(subreader != nullptr)
+        SeqReader::inner_read();
 }
 
 io::SeqReader::SeqReader(const std::experimental::filesystem::path &file_name, size_t _min_read_size, size_t _overlap):
