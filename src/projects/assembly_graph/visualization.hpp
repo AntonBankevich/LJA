@@ -137,7 +137,7 @@ public:
     static ObjInfo<Edge> defaultDotLabeler() {
         std::function<std::string(const Edge &e)> f = [](const Edge &e) {
             std::stringstream ss;
-            ss << e.getStart().getInnerId() << " " << e.nuclLabel() << " " << e.truncSize();
+            ss << e.getInnerId().eid << e.nuclLabel() << " " << e.truncSize();
             if (std::is_same<Traits, dbg::DBGTraits>::value) {
                 ss << "(" << e.getCoverage() << ")";
             }

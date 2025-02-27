@@ -14,13 +14,13 @@ namespace dbg {
         std::string id = "";
 
         void Save(const std::experimental::filesystem::path &dir,
-                  const std::function<std::string(const dbg::Edge &edge)> &label_func) const {
+                  const ObjInfo<Edge> &extra_info) const {
             recreate_dir(dir);
             std::experimental::filesystem::path reads_file = dir / "reads.fasta";
             std::experimental::filesystem::path graph_file = dir / "graph.gfa";
             std::experimental::filesystem::path dot_file = dir / "graph.dot";
             Printer<DBGTraits> printer;
-            printer.addEdgeInfo(ObjInfo<Edge>({label_func},{}, {}));
+            printer.addEdgeInfo(EdgePrintStyles<DBGTraits>::defaultDotInfo() + extra_info);
             printer.printDot(dot_file, component);
             printer.printGFA(graph_file, component);
             //dbg::printGFA(graph_file, component, true);

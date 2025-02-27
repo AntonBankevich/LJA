@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
         std::string name = itos(cnt);
         if(!subdataset.id.empty())
             name += "_" + name;
-        subdataset.Save(subdir / name, storage.labeler() + readStorage.labeler());
+        subdataset.Save(subdir / name, ObjInfo<Edge>::Labeler(storage.labeler()) + ObjInfo<Edge>::Tooltiper(readStorage.labeler()));
         cnt++;
     }
     logger.info() << "Finished extracting subdatasets" << std::endl;
