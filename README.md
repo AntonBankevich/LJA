@@ -22,6 +22,8 @@ For LJA installation and running instructions please refer to [LJA manual](docs/
 We also provide jumboDBG module for de Bruijn graph construction as a separate script.
 For jumboDBG running instructions please refer to [jumboDBG manual](docs/jumbodbg_manual.md).
 
+For LJA-GnnDebugger instructions please refer to [LJA-GnnDebugger manual](docs/LJA-ML-Interface.md)
+
 License
 -------
 

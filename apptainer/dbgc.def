@@ -1,0 +1,43 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%files
+    $HOME/work/LJA/ /work/
+    $HOME/work/gnndebugger /work
+
+%post
+    apt update -y
+    apt autoremove -y
+    DEBIAN_FRONTEND=noninteractive apt install -y python3.11 python3.11-venv vim curl unzip wget
+    DEBIAN_FRONTEND=noninteractive TZ="Europe/Berlin" apt install -y tzdata zlib1g zlib1g-dev build-essential cmake
+
+    mkdir /data && mkdir /config
+
+    curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+    bash Miniforge3-$(uname)-$(uname -m).sh -b
+    /root/miniforge3/bin/mamba env create --file=/work/gnndebugger/docker/environment.yaml
+    /root/miniforge3/bin/mamba init
+
+    cd /work/LJA && wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.3.1%2Bcpu.zip
+    unzip libtorch-cxx11-abi-shared-with-deps-2.3.1+cpu.zip
+    TORCH_CMAKE_PATH=/work/LJA/libtorch && cmake -DCMAKE_PREFIX_PATH=$TORCH_CMAKE_PATH . && make -j lja
+
+
+    # clear warnings
+    touch /etc/environment
+    mkdir -p /lustre/group
+
+%environment
+    export LC_ALL=C
+    export PYTHONPATH="/work/gnndebugger/src"
+    export PROJECT_ROOT="/work/gnndebugger"
+    export WANDB_DIR="/data"
+    export PATH="/root/miniforge3/bin/envs/fenv:$PATH"
+
+%runscript
+    cd $PROJECT_ROOT
+    /work/LJA/bin/lja $@
+
+%labels
+    Author m5imunovic
+    Version v0.0.1

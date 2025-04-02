@@ -1,0 +1,91 @@
+loggers:
+  wandb:
+    _target_: pytorch_lightning.loggers.wandb.WandbLogger
+    save_dir: ${paths.log_dir}
+    offline: true
+    id: null
+    anonymous: null
+    project: dbg-ec
+    log_model: false
+    prefix: ''
+    group: inference_${baseline}_T${models.threshold}
+    tags:
+    - resgated_mdg
+    reinit: false
+    name: inference_${dataset_name}
+paths:
+  root_dir: ${oc.env:PROJECT_ROOT}
+  data_dir: /data
+  storage_dir: ${paths.data_dir}/storage
+  dataset_dir: ${paths.data_dir}/datasets
+  model_dir: ${paths.storage_dir}/models
+  output_dir: ${hydra:runtime.output_dir}
+  log_dir: ${paths.storage_dir}/logs
+  lja_dir: ${paths.data_dir}
+datamodules:
+  _target_: data.dbg_datamodule.DBGDataModule
+  dataset_path: ${paths.dataset_dir}/${dataset_name}
+  batch_size: 1
+  num_workers: 4
+  transform:
+    _target_: torch_geometric.transforms.compose.Compose
+    transforms:
+    - _target_: transforms.degree_features.DegreeFeatures
+      in_degree: true
+    - _target_: transforms.degree_features.DegreeFeatures
+      in_degree: false
+    - _target_: transforms.col_zscore_len.ColZscoreLen
+      col: 1
+    - _target_: transforms.tip_feature.TipFeature
+    - _target_: transforms.multi_edge_feature.MultiEdgeFeature
+    - _target_: transforms.cov_histogram.CovHistogram
+      use_range: true
+models:
+  net:
+    _target_: models.net.resgated_multidigraph.ResGatedMultiDiGraphNet
+    num_layers: 4
+    node_features: 2
+    edge_features: 4
+    hidden_features: 92
+    gate: bidirect
+    graph_features: 10
+  criterion:
+    _target_: torch.nn.HuberLoss
+    reduction: mean
+    delta: 1.0
+  _target_: models.dbg_regression_module.DBGRegressionModule
+  storage_path: null
+  threshold: 0.0
+  optimizer:
+    _target_: torch.optim.Adam
+    _partial_: true
+    lr: 0.001
+    weight_decay: 0.0
+  scheduler:
+    _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+    _partial_: true
+    mode: min
+    factor: 0.95
+    patience: 10
+    min_lr: 1.0e-06
+    verbose: true
+  postprocess: false
+  low: 0.6
+  high: 0.85
+  mincov: 2.5
+trainer:
+  _target_: pytorch_lightning.Trainer
+  default_root_dir: ${paths.output_dir}
+  min_epochs: 1
+  max_epochs: 300
+  accelerator: cpu
+  devices: 1
+  log_every_n_steps: 3
+  check_val_every_n_epoch: 1
+  deterministic: false
+dataset_name: hg002_k1_lc_dataset
+baseline: E${trainer.max_epochs}_L${models.net.num_layers}_H${models.net.hidden_features}
+model_path: ${paths.data_dir}/models/best_model.ckpt
+task_name: inference
+lja_mode: true
+train_id: 25023070
