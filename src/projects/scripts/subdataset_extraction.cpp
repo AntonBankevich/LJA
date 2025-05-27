@@ -69,6 +69,7 @@ int main(int argc, char **argv) {
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, w);
     readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);//Align reads to the graph
+    readStorage.trackSuffixes(logger, threads);
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
