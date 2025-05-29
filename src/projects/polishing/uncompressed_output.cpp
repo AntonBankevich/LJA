@@ -5,6 +5,7 @@
 #include <common/omp_utils.hpp>
 #include <alignment/ksw_wrapper.hpp>
 #include <utility>
+#include <assembly_graph/visualization.hpp>
 #include "dbg/multi_graph.hpp"
 #include "alignment/ksw_aligner.hpp"
 
@@ -139,6 +140,9 @@ AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left
 
 std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
                               const std::vector<Contig> &uncompressed, const std::experimental::filesystem::path &out_dir, bool debug) {
+    logger.info() << "Printing compressed graph with final ids" << std::endl;
+    Printer<MGTraits> printer;
+    printer.printGFA(out_dir/"mdbg.final_names.hpc.gfa", graph);
     logger.info() << "Calculating overlaps between adjacent uncompressed edges" << std::endl;
     std::unordered_map<EdgeId , Sequence> uncompression_results;
     IdIndex<MGEdge> index(graph.edges().begin(), graph.edges().end());
