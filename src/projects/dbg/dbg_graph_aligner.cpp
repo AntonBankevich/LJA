@@ -206,23 +206,19 @@ std::vector<ag::AlignmentChain<Contig, dbg::Edge>> dbg::KmerIndex::carefulAlign(
 //                TODO replace this code with a call to expand method of PerfectAlignment class after each edge is marked by its full sequence
                 Edge &edge = *pos.edge;
                 Vertex &start = pos.edge->getStart();
-                CompositeSequence edge_seq({start.getSeq(), edge.truncSeq()});
-                size_t left_from = kwh.getPos();
-                size_t right_from = kwh.getPos() + k;
-                size_t left_to = pos.pos;
-                size_t right_to = pos.pos + k;
-                while (left_from > 0 && left_to > 0 && edge_seq[left_to - 1] == seq[left_from - 1]) {
-                    left_from -= 1;
-                    left_to -= 1;
+                size_t extend_right = 0;
+                size_t extend_left = 0;
+                while(pos.pos + extend_right < edge.truncSize() && kwh.getPos()+extend_right + k < seq.size() &&
+                                    edge.truncSeq()[pos.pos + extend_right] == seq[kwh.getPos()+extend_right+k]) {
+                    extend_right++;
                 }
-                while (right_from < seq.size() && right_to < edge_seq.size() &&
-                       seq[right_from] == edge_seq[right_to]) {
-                    right_from += 1;
-                    right_to += 1;
+                while(pos.pos > extend_left && kwh.getPos() > extend_left &&
+                                edge.rc().truncSeq()[edge.rc().truncSize() - pos.pos + extend_left] == (seq[kwh.getPos() - extend_left] ^ 3)) {
+                    extend_left++;
                 }
-                if (left_to - left_from > k) {
-                    res.emplace_back(Segment<Contig>(contig, left_from, right_from - k),
-                                     Segment<Edge>(edge, left_to, right_to - k));
+                if (extend_left + extend_right > 0) {
+                    res.emplace_back(Segment<Contig>(contig, kwh.getPos()-extend_left, kwh.getPos()+extend_right),
+                                     Segment<Edge>(edge, pos.pos - extend_left, pos.pos + extend_right));
                 }
             }
         }

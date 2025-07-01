@@ -36,6 +36,7 @@ public:
     }
 
     void Fill(size_t threads, dbg::KmerIndex &index) {
+        omp_set_num_threads(threads);
         ParallelRecordCollector<ag::AlignmentChain<Contig, dbg::Edge>> records(threads);
 #pragma omp parallel for schedule(dynamic, 10) default(none) shared(stored_contigs, records, index)
         for(size_t i = 0; i < stored_contigs.size(); i++) {
@@ -96,6 +97,14 @@ public:
                 ss << "\\n" << al.seg_from << "->" << al.seg_to.coordinaresStr();
             }
             return ss.str();
+        };
+        return res;
+    }
+
+    std::function<std::string(const dbg::Edge &edge)> colorer(const std::string &color = "green") const {
+        std::function<std::string(const dbg::Edge &edge)> res = [this, &color](const dbg::Edge &edge) {
+            return alignments.find(edge.getId()) == alignments.end() || alignments.find(edge.getId())->second.empty() ?
+                        "black" : color;
         };
         return res;
     }

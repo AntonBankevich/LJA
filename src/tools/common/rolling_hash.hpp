@@ -129,6 +129,8 @@ namespace hashing {
         bool is_end;
         MovingKWH kwh;
     public:
+        typedef MovingKWH value_type;
+        typedef MovingKWH reference;
         KWHIterator(const RollingHash &hasher, Sequence _seq, size_t pos) :
                 is_end(pos == _seq.size() - hasher.getK() + 1), kwh(hasher, std::move(_seq), is_end ? pos - 1 : pos) {
         }

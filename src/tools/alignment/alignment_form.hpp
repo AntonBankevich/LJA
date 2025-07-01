@@ -127,6 +127,7 @@ public:
         size_t qpos;
         size_t tpos;
     public:
+        typedef AlignmentColumn value_type;
         AlignmentColumnIterator(AlignmentForm &form, size_t cigar_pos, size_t block_pos, size_t qpos, size_t tpos) :
                 alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(qpos), tpos(tpos) {
         }
@@ -150,6 +151,7 @@ public:
         size_t qpos;
         size_t tpos;
     public:
+        typedef AlignmentColumn value_type;
         ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos, size_t qpos, size_t tpos) :
                 alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), qpos(qpos), tpos(tpos) {
         }

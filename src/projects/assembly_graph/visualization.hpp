@@ -206,7 +206,7 @@ public:
             os << VertexId.innerId();
             os << " [";
             os << "label=\"" + label + "\" ";
-            os << "tooltip=\"" + tooltip + "\" ";
+            os << "labeltooltip=\"" + tooltip + "\" ";
             os << "style=filled fillcolor=\"" << (component.covers(v) ? color : "yellow") << "\"]\n";
         }
         for(Edge &edge : component.edges()) {
@@ -217,7 +217,7 @@ public:
             os << "[";
             if (! label.empty()) os << "label=\"" + label + "\" ";
             if (! color.empty()) os << "color= \"" + color + "\" ";
-            if (! tooltip.empty()) os << "tooltip=\"" + tooltip + "\"";
+            if (! tooltip.empty()) os << "labeltooltip=\"" + tooltip + "\"";
             os << "]\n";
         }
         os << "}\n";

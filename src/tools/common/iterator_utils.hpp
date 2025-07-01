@@ -305,6 +305,15 @@ public:
     Iterator end() const {
         return _end;
     }
+
+    std::vector<typename Iterator::value_type> asVector() && {
+        std::vector<typename Iterator::value_type> res;
+        while(_begin != _end) {
+            res.template emplace_back(*_begin);
+            ++_begin;
+        }
+        return std::move(res);
+    }
 };
 
 template<class Iterator>

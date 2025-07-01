@@ -8,9 +8,11 @@ size_t stage_num = 0;
 void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const string &stage,
            dbg::SparseDBG &dbg, dbg::ReadAlignmentStorage &readStorage, const io::Library &paths_lib,
            bool small) {
-    Printer<dbg::DBGTraits> printer;
-    printer.setEdgeInfo(ObjInfo<dbg::Edge>({readStorage.labeler()}, {}, {}));
     stage_num += 1;
+    Printer<dbg::DBGTraits> printer;
+    ObjInfo<dbg::Edge> edge_printing_style = ObjInfo<dbg::Edge>::Tooltiper(readStorage.labeler()) + EdgePrintStyles<dbg::DBGTraits>::defaultDotLabeler();
+    printer.setEdgeInfo(edge_printing_style);
+    printer.setVertexInfo(VertexPrintStyles<dbg::DBGTraits>::defaultDotInfo());
     std::string stage_name = itos(stage_num) + "_" + stage;
     logger.info() << "Dumping current state. Stage id: " << stage_name << std::endl;
     ensure_dir_existance(dir);
@@ -39,14 +41,13 @@ void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, 500);
     storage.Fill(threads, index);
+    edge_printing_style = ObjInfo<dbg::Edge>::Tooltiper(storage.labeler()) + edge_printing_style;
+    printer.setEdgeInfo(edge_printing_style);
     for(Contig &contig : paths) {
         ensure_dir_existance(dir / "paths" / contig.getInnerId());
         const std::vector<ag::AlignmentChain<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
         dbg::Component comp = small ? dbg::Component::neighbourhood(dbg, contig_al, 1000) :
                               dbg::Component::longEdgeNeighbourhood(dbg, contig_al, 20000);
-        //std::function<std::string(dbg::Edge &)> labeler = readStorage.labeler() + storage.labeler();
-        printer.setEdgeInfo(ObjInfo<dbg::Edge>({readStorage.labeler(), storage.labeler()}, {}, {}));
         printer.printDot(dir / "paths" / contig.getInnerId() / (stage_name + ".dot"), comp);
-        //printDot(dir / "paths" / contig.getInnerId() / (stage_name + ".dot"), comp, labeler);
     }
 }
