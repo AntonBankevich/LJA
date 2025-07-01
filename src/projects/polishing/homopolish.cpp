@@ -109,6 +109,7 @@ struct ContigInfo {
     vector <int> num_dinucleotide;
     vector<vector<size_t>> dinucleotide_read_voting;
 */
+//Find dinucleotide repeats with multiplicity at least 10 (20 nucleotides), expand segment by 5 and unite
     void FillComplex() {
         size_t current_id = 0;
         auto dinucleotide_coords = GetDinucleotideRepeats(sequence);
