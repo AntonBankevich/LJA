@@ -137,7 +137,7 @@ namespace logging {
     //    }
 
         int overflow(int c) override {
-            if(curlevel <= LogLevel::info)
+            if(add_cout && curlevel <= LogLevel::info)
                 std::cout << char(c);
             for(LogStream &os : oss) {
                 if(curlevel <= os.level)
