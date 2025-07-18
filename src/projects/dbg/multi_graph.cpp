@@ -1,9 +1,10 @@
 #include <common/disjoint_sets.hpp>
+#include <common/logging.hpp>
 #include "multi_graph.hpp"
 
 namespace multigraph {
 
-    MultiGraph MultiGraphHelper::TransformToEdgeGraph(const MultiGraph &mg, size_t tip_size) {
+    MultiGraph MultiGraphHelper::TransformToEdgeGraph(logging::Logger &logger, const MultiGraph &mg, size_t tip_size) {
         MultiGraph dbg;
         std::unordered_map<ConstEdgeId, VertexId> emap;
         for (const MGVertex &v: mg.vertices()) {
@@ -32,7 +33,8 @@ namespace multigraph {
             } else {
                 end = emap[v.begin()->getId()];
             }
-            start->addEdgeLockFree(*end, v.getSeq(), MGEdgeData(v.getLabel()));
+            Edge &edge = start->addEdgeLockFree(*end, v.getSeq(), MGEdgeData(v.getLabel()));
+            logger.trace() << "Edge id changed from: " << edge.getId() << " to " << v.getId() << std::endl;
         }
         return std::move(dbg);
     }

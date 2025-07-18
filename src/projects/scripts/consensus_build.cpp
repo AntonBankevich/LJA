@@ -17,7 +17,8 @@ typedef typename ag::BaseEdge<multigraph::MGTraits>::EdgeId EID;
 
 int main(int argc, char **argv) {
     MultiGraph mdbg = MultiGraphHelper::LoadGFA(argv[1], true);
-    mdbg = MultiGraphHelper::TransformToEdgeGraph(mdbg, 5001);
+    logging::Logger logger;
+    mdbg = MultiGraphHelper::TransformToEdgeGraph(logger, mdbg, 5001);
     /*MultiGraphHelper::printDot2(mdbg, "test.dot");
     std::ofstream os("graph.txt");
     for (auto &v: mdbg.vertices()) {

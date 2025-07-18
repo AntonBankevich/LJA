@@ -7,7 +7,8 @@
 
 int main(int argc, char **argv) {
     multigraph::MultiGraph mdbg = multigraph::MultiGraphHelper::LoadGFA(argv[1], true);
-    mdbg = multigraph::MultiGraphHelper::TransformToEdgeGraph(mdbg, 5001);
+    logging::Logger logger;
+    mdbg = multigraph::MultiGraphHelper::TransformToEdgeGraph(logger, mdbg, 5001);
     multigraph::MultiGraphHelper::printDot2(mdbg, "print2dot.dot");
     typedef typename ag::BaseVertex<multigraph::MGTraits>::VertexId VID;
     typedef typename ag::BaseEdge<multigraph::MGTraits>::EdgeId EID;

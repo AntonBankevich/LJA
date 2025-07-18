@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
 
     bool reuse = parameterValues.getCheck("reuse-alignment");
     multigraph::MultiGraph mg = multigraph::MultiGraphHelper::LoadGFA(graph, false);
-    mg = multigraph::MultiGraphHelper::TransformToEdgeGraph(mg);
+    mg = multigraph::MultiGraphHelper::TransformToEdgeGraph(logger, mg);
 
     logger.info() << "Performing alignment" << std::endl;
     std::unordered_map<std::string, std::vector<nano::GraphContig>> result = AlignOnt(logger, threads, dir, mg, reads, reuse);

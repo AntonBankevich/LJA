@@ -380,7 +380,7 @@ protected:
              const std::unordered_map<std::string, io::Library> &input) override {
         const std::experimental::filesystem::path &graph_path = input.find("graph")->second.front();
         MultiGraph mg = MultiGraphHelper::LoadGFA(graph_path, true);
-        mg = MultiGraphHelper::TransformToEdgeGraph(mg, 501);
+        mg = MultiGraphHelper::TransformToEdgeGraph(logger, mg, 501);
         logger << "DBG parameters: " << mg.size() << " vertices, " << mg.edgeCount() << " edges" << std::endl;
         CollapseSimpleBulges(logger, threads, mg);
         ChooseShortcuts(logger, threads, mg);

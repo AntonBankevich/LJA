@@ -8,6 +8,7 @@
 #include <common/string_utils.hpp>
 #include <common/iterator_utils.hpp>
 #include <common/object_id.hpp>
+#include <common/logging.hpp>
 #include <experimental/filesystem>
 #include <unordered_set>
 #include <unordered_map>
@@ -139,7 +140,7 @@ namespace multigraph {
 
         static MultiGraph LoadGFA(const std::experimental::filesystem::path &gfa_file, bool int_ids);
         static MultiGraph LoadEdgeGFA(const std::experimental::filesystem::path &gfa_file, size_t K);
-        static MultiGraph TransformToEdgeGraph(const MultiGraph &mg, size_t tip_size = 4001);
+        static MultiGraph TransformToEdgeGraph(logging::Logger &logger, const MultiGraph &mg, size_t tip_size = 4001);
         static MultiGraph Delete(const MultiGraph &mg, const std::unordered_set<ConstEdgeId> &to_delete, const std::unordered_set<ConstVertexId> &to_delete_vertices = {});
 
         static std::vector<EdgeId> uniquePathForward(MGEdge &edge);

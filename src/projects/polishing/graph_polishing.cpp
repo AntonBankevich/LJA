@@ -18,7 +18,7 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
     MultiGraph mg = MultiGraphHelper::LoadGFA(graph_gfa.front(), true);
     MultiGraphHelper::checkConsistency(mg);
     logger.info() << "Preparing graph" << std::endl;
-    mg = MultiGraphHelper::TransformToEdgeGraph(mg, 5001);
+    mg = MultiGraphHelper::TransformToEdgeGraph(logger, mg, 5001);
     MultiGraphHelper::checkConsistency(mg);
     logger.info() << "Linking positions" << std::endl;
     DisjointSet<EdgePosition> linked_positions;
