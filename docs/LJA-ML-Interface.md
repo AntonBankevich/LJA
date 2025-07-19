@@ -48,7 +48,7 @@ TORCH_CMAKE_PATH=`pwd`/libtorch
 Next we build the LJA with libtorch
 ```Bash
 git clone https://github.com/AntonBankevich/LJA
-git checkout -t origin/gnndbg
+git checkout -t origin/gnndebugger # alternatively, use tag `gnndebuggerpaper` for the commit version published with the paper
 cmake -DCMAKE_PREFIX_PATH=$TORCH_CMAKE_PATH .
 make -j lja jumboDBG
 ```
