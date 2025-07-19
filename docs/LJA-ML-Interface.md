@@ -41,7 +41,7 @@ User can load the results through `loadInferenceResultsProbability` and `loadInf
 The easiest way to install libtorch library is to download zipped version of `libtorch` with required dependencies:
 ```Bash
 wget https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.3.1%2Bcpu.zip
-unzip libtorch-cxx11-abi-shared-with-deps-2.2.2.zip
+unzip libtorch-cxx11-abi-shared-with-deps-2.3.1+cpu.zip
 TORCH_CMAKE_PATH=`pwd`/libtorch
 ```
 
