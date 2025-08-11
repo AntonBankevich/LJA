@@ -37,7 +37,7 @@ namespace dbg {
         dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
                                                AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
                                                true);
-        readStorage.logReads(threads, dir/"read_log.txt");
+        if(debug) readStorage.logReads(threads, dir/"read_log.txt");
         dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::vector<ag::AlignedRead<DBGTraits>>(), false);
 //        printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
 //        coverageStats(logger, dbg);

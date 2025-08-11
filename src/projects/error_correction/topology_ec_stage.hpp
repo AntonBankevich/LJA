@@ -30,7 +30,7 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
                                            AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
                                            true);
-    readStorage.logReads(threads, dir/"read_log.txt");
+    if(debug) readStorage.logReads(threads, dir/"read_log.txt");
     readStorage.trackSuffixes(logger, threads, dbg, 0, extension_size);
     dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::vector<ag::AlignedRead<DBGTraits>>(), false); //0, extension_size, false, false);
     Printer<dbg::DBGTraits> printer;
