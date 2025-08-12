@@ -55,7 +55,7 @@ namespace dbg {
             bool diploid = parameterValues.getCheck("diploid");
             return MDBGConstruction(logger, threads, k, max_k, unique_threshold, diploid, dir,
                                     input.find("graph")->second.front(), input.find("read_aln")->second.front(),
-                                    input.find("extra_read_aln")->second.front(), debug);
+                                    input.find("extra_read_aln")->second.front(), false);
         }
     };
 }
