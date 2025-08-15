@@ -20,7 +20,7 @@ namespace spg {
         template<class I>
         UniqueVertexStorage(SupreGraph &spg, I begin, I end);
         UniqueVertexStorage(SupreGraph &spg, const std::function<bool(Vertex &)> &is_unique);
-        explicit UniqueVertexStorage(SupreGraph &spg) : ResolutionListener(spg) {}
+        explicit UniqueVertexStorage(SupreGraph &spg) : ag::ResolutionListener<SPGTraits>(spg, "UniqueVertexStorage") {}
         UniqueVertexStorage(UniqueVertexStorage &&) = default;
         UniqueVertexStorage(const UniqueVertexStorage &) = delete;
 
@@ -43,7 +43,7 @@ namespace spg {
 }
 
 template<class I>
-spg::UniqueVertexStorage::UniqueVertexStorage(spg::SupreGraph &spg, I begin, I end) : ResolutionListener(spg) {
+spg::UniqueVertexStorage::UniqueVertexStorage(spg::SupreGraph &spg, I begin, I end) : ag::ResolutionListener<SPGTraits>(spg, "UniqueVertexStorage") {
     for(;begin != end; ++begin) {
         add(*begin);
     }

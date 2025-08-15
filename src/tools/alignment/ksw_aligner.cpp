@@ -89,8 +89,14 @@ AlignmentForm KSWAligner::extendAlignment(const char *tseq, const char *qseq) co
         }
         AlignmentForm::AlignmentColumnIterator iter = AlignmentHelper::LastComplexLongMatch(newTarget, newQuery,
                                                                                             extension, match);
+        std::cout << "Extend\n" << newQuery << "\n" << newTarget << std::endl;
+        if(iter == extension.columns().begin()) {
+            std::cout << "Break" << std::endl;
+            std::cout << join("\n", extension.toString(newTarget, newQuery))<< std::endl;
+        }
         if(iter == extension.columns().begin())
             break;
+        std::cout << "Continue" << std::endl;
         extension = extension.Prefix(iter);
         res += extension;
     }

@@ -135,7 +135,16 @@ AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left
         right_seq = right_seq.Subseq(0, right_seq.size() - (rightHomoSize(right_seq) - rightHomoSize(left_seq)));
     }
     KSWAligner kswAligner(1, 5, 10, 2);
-    return kswAligner.globalAlignment(left_seq.str(), right_seq.str());
+    AlignmentForm res;
+#pragma omp critical
+    {
+        res = kswAligner.globalAlignment(left_seq.str(), right_seq.str());
+        if(res.empty()) {
+            std::cout << left_seq << "\n" << right_seq << std::endl;
+        }
+
+    };
+    return std::move(res);
 }
 
 std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,

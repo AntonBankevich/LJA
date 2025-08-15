@@ -40,7 +40,8 @@ protected:
             std::string name = f.filename().string();
             name = name.substr(0,name.find_last_of('.')) + ".dot";
             logger.info() << "Printing result to file " << (dir / name) << std::endl;
-            printDot(dir/name, dbg::Component(dbg));
+            Printer<dbg::DBGTraits> printer;
+            printer.printDot(dir/name, dbg::Component(dbg));
         }
         std::experimental::filesystem::remove_all(dir/"tmp");
         return {};

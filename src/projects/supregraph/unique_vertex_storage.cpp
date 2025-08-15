@@ -70,7 +70,7 @@ void spg::UniqueVertexStorage::fireMergePath(const std::vector<EdgeId> &path, Ve
 void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath<SPGTraits> &path, Vertex &vertex) {
     fireMergePath(path.asEdgeIds(), vertex);
 }
-spg::UniqueVertexStorage::UniqueVertexStorage(spg::SupreGraph &spg, const std::function<bool(Vertex &)> &is_unique) : ResolutionListener(spg){
+spg::UniqueVertexStorage::UniqueVertexStorage(spg::SupreGraph &spg, const std::function<bool(Vertex &)> &is_unique) : ag::ResolutionListener<SPGTraits>(spg, "UniqueVertexStorage"){
     for(Vertex &vertex : spg.vertices()) {
         if(is_unique(vertex))
             add(vertex);

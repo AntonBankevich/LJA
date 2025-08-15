@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
                                            false);
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, w);
-    readStorage.trackSuffixes(logger, threads);
+    readStorage.trackSuffixes(logger, threads, dbg, 0, 1000000);
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
     Printer<DBGTraits> printer;
-    printer.setEdgeInfo(ObjInfo<dbg::Edge>({storage.labeler(), readStorage.labeler()}, {}, {}));
+    printer.setEdgeInfo(ObjInfo<dbg::Edge>({storage.labeler(), readStorage.getSuffixes().labeler()}, {}, {}));
     printer.printDot(dir / "graph.dot", Component(dbg));
     //printDot(dir / "graph.dot", dbg::Component(dbg), storage.labeler() + readStorage.getSuffixes().labeler());
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
