@@ -136,15 +136,7 @@ AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left
     }
     KSWAligner kswAligner(1, 5, 10, 2);
     AlignmentForm res;
-#pragma omp critical
-    {
-        res = kswAligner.globalAlignment(left_seq.str(), right_seq.str());
-        if(res.empty()) {
-            std::cout << left_seq << "\n" << right_seq << std::endl;
-        }
-
-    };
-    return std::move(res);
+    return kswAligner.globalAlignment(left_seq.str(), right_seq.str());
 }
 
 std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
