@@ -49,11 +49,12 @@ namespace dbg {
 //        std::ofstream os;
 //        os.open(dir / "graph.log");
 //        ag::LoggingListener<DBGTraits> graph_log(dbg, os);
-        Precorrector precorrector(4);
+        Precorrector precorrector_early(4);
+        Precorrector precorrector_late(1.01);
         DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
         TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
-        ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(precorrector_early).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         readStorage.stopTrackSuffixes();
         dbg.resetEdgeCodes(logger, threads);
@@ -83,6 +84,7 @@ namespace dbg {
         ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
         if (diploid)
             ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(precorrector_late).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         {
             std::vector<dbg::GraphPath> pseudo_reads = PartialRR(logger, threads, dbg, readStorage.getSuffixes());

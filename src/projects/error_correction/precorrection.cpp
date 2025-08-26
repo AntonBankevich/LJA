@@ -42,6 +42,10 @@ dbg::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_cove
         return {seg};
     }
 }
+bool isSimplestBulge(dbg::Vertex &start, dbg::Vertex &finish) {
+    return start.outDeg() == 2 && finish.inDeg() == 2 && start.front().getFinish() == finish &&
+        start.back().getFinish() == finish && start.front().getCoverage() == 1 && finish.back().getCoverage() == 1;
+}
 
 dbg::GraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
     dbg::GraphPath res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.truncSize() + 20,
@@ -87,8 +91,19 @@ std::string Precorrector::correctRead(const std::string &name, dbg::GraphPath &p
             correction = PrecorrectTip(path.back(), reliable_threshold);
             m = "pot";
         } else {
-            correction = PrecorrectBulge(pp.nextEdge(), reliable_threshold);
-            m = "pb";
+            if(isSimplestBulge(pp.getVertex(), ppp1.getVertex())) {
+                dbg::Edge &other = pp.getVertex().front() == pp.nextEdge() ? pp.getVertex().back() : pp.getVertex().front();
+                dbg::EdgeId other_canonical = other.rc().getId() < other.getId() ? other.rc().getId() : other.getId();
+                dbg::EdgeId cur = pp.nextEdge().getId();
+                if(cur->rc().getId() < cur) cur = cur->rc().getId();
+                if(other_canonical < cur) {
+                    correction = {other};
+                    m = "p1b";
+                }
+            } else {
+                correction = PrecorrectBulge(pp.nextEdge(), reliable_threshold);
+                m = "pb";
+            }
         }
         if(!correction.isSingleton() || correction.front() != pp.nextEdge()) {
             ncor += 1;
