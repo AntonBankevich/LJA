@@ -39,6 +39,7 @@ namespace io{
         virtual ~IContigReader();
         const StringContig& get();
         std::vector<StringContig> readAll();
+        std::vector<Contig> readAllAsContigs();
         bool eof();
         virtual void inner_read() = 0;
         ContigIterator begin();

@@ -24,128 +24,26 @@
 #include <assembly_graph/ag_algorithms.hpp>
 
 namespace dbg {
+    using ag::Vertex;
+    using ag::Edge;
+    using ag::VertexId;
+    using ag::EdgeId;
+    using ag::VertexData;
+    using ag::EdgeData;
 
-//    TODO: this class should be constructed as a mixture of multiple classes each representing possible piece of informations
-//that is to be stored in the edge. Corresponding information should be able to support itself during various graph
-//operations.
-    class DBGEdgeData {
-    protected:
-        size_t cov = 0;
-    public:
-        DBGEdgeData RC() const {
-            return *this;
-        }
+    class SparseDBG;
 
-        template<class I>
-        static DBGEdgeData Merge(I begin, I end) {
-            size_t cov = 0;
-            for(;begin != end; ++begin) {
-                cov += begin->cov;
-            }
-            DBGEdgeData res;
-            res.cov = cov;
-            return std::move(res);
-        }
-
-    };
-
-    class HashListener;
-    class DBGVertexData {
-        friend class HashListener;
-    protected:
-        std::list<Sequence> hanging{};
-        hashing::htype hash;
-    public:
-        static const hashing::htype default_hash;
-        DBGVertexData(hashing::htype hash = default_hash) : hash(hash) {}
-        DBGVertexData RC() const {
-            return *this;
-        }
-        hashing::htype getHash() const {return hash;}
-    };
-
-    class DBGVertex;
-    class DBGEdge;
-
-    struct DBGTraits {
-        typedef DBGVertexData VertexData;
-        typedef DBGEdgeData EdgeData;
-        typedef DBGVertex Vertex;
-        typedef DBGEdge Edge;
-    };
-
-
-    class DBGEdge : public ag::BaseEdge<DBGTraits>, public DBGEdgeData {
-    public:
-        DBGEdge(id_type id, Vertex &_start, Vertex &_end, Sequence _seq, DBGEdgeData data) :
-                BaseEdge<DBGTraits>(id, _start, _end, std::move(_seq)), DBGEdgeData(std::move(data)) {}
-        DBGEdge() {
-//            TODO: Remove this!!! It exists only for Andreys code compilation but that code should be purged
-        }
-        DBGEdge(DBGEdge &&) = delete;
-        DBGEdge(const DBGEdge &) = delete;
-        mutable bool is_reliable = false;
-        void incCov(int64_t delta) {
-#pragma omp atomic
-            cov += delta;
-            VERIFY(cov < size_t(-1) >> 2)
-        }
-        size_t intCov() const {return cov;}
-        void setCov(size_t val) {cov = val;}
-        double getCoverage() const {return double(cov) / truncSize();}
-    };
-
-    class DBGVertex : public ag::BaseVertex<DBGTraits>, public DBGVertexData {
-    public:
-        DBGVertex(id_type id, bool canonical, DBGVertexData data) : BaseVertex<DBGTraits>(id, canonical), DBGVertexData(std::move(data)) {}
-        DBGVertex(id_type id, Sequence seq, DBGVertexData data) : BaseVertex<DBGTraits>(id, std::move(seq)), DBGVertexData(std::move(data)) {}
-    };
-
-//    class DBGMaintainence : public ag::ResolutionListener<DBGTraits> {
-//    private:
-//        hashing::RollingHash hasher;
-//    public:
-//        DBGMaintainence(ag::ResolutionFire<DBGTraits> &dbg, hashing::RollingHash &hasher) :
-//                                ag::ResolutionListener<DBGTraits>(dbg), hasher(hasher) {}
-//        void fireAddVertex(Vertex &v) override {
-//            VERIFY(!v.getSeq().empty() || v.getHash() != Vertex::default_hash);
-//            if(v.getHash() == Vertex::default_hash) {
-//                v.hash = hasher.hash(v.getSeq(), 0);
-//            }
-//        }
-//        void fireMergePath(const std::vector<EdgeId> &path, Vertex &new_vertex) override {VERIFY(false);}
-//        void fireMergeLoop(const ag::GraphPath <DBGTraits> &path, Vertex &new_vertex) override {VERIFY(false);}
-//        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult<DBGTraits> &resolution) override {VERIFY(false);};
-//        void fireAddSupreVertex(Vertex &v, Edge &e) override {VERIFY(false);}
-//    };
-
-    class HashListener : ag::ResolutionListener<DBGTraits> {
+    class HashListener : public ag::ResolutionListener {
     private:
         hashing::RollingHash hasher;
     public:
-        HashListener(ag::ResolutionFire<DBGTraits> &fire, const hashing::RollingHash &hasher) :
-                            ag::ResolutionListener<DBGTraits>(fire, "HashListener"), hasher(hasher) {}
+        HashListener(SparseDBG &dbg, const hashing::RollingHash &hasher);
 
-        void fireAddVertex(Vertex &v) override {
-            if(v.getHash() == DBGVertexData::default_hash && !v.getSeq().empty()) {
-                v.hash = hashing::MovingKWH(hasher, v.getSeq(), 0).hash();
-            }
-        }
+        void fireAddVertex(ag::Vertex &v) override;
     };
 
-    typedef DBGEdge Edge;
-    typedef DBGVertex Vertex;
-    typedef ag::EdgePosition<DBGTraits> EdgePosition;
-    typedef DBGEdge::EdgeId EdgeId;
-    typedef DBGVertex::VertexId VertexId;
-    typedef DBGEdge::ConstEdgeId ConstEdgeId;
-    typedef DBGVertex::ConstVertexId ConstVertexId;
-    typedef ag::GraphPath<DBGTraits> GraphPath;
-    typedef ag::Component<DBGTraits> Component;
-    typedef ag::PathHelper<DBGTraits> PathHelper;
-    typedef ag::PathPosition<DBGTraits> PathPosition;
-
-    class SparseDBG : public ag::AssemblyGraph<DBGTraits> {
+    class SparseDBG : public ag::AssemblyGraph {
+        friend class HashListener;
     private:
         hashing::RollingHash hasher_;
         HashListener hashListener;
@@ -164,11 +62,14 @@ namespace dbg {
             }
         }
 
+        void disableHashing() {hashListener.detach();}
+
         const hashing::RollingHash &hasher() const {return hasher_;}
         size_t getK() const {return hasher().getK();}
 
         Vertex &addKmerVertex(const hashing::KWH &kwh, Vertex::id_type id = 0) {
-            return AssemblyGraph<DBGTraits>::addVertex(kwh.getSeq(getK()), VertexData(kwh.hash()), id);
+            Vertex &res = AssemblyGraph::addVertex(kwh.getSeq(getK()), VertexData::DBGData(kwh.hash()), id);
+            return res;
         }
 
         Vertex &addKmerVertex(const Sequence &kmer, Vertex::id_type id = 0) {
@@ -176,10 +77,8 @@ namespace dbg {
         }
 
         Vertex &addKmerVertex(hashing::htype hash, Vertex::id_type id = 0) {
-            return AssemblyGraph<DBGTraits>::addVertexPair(VertexData(hash), id);
+            return this->addVertexPair(VertexData::DBGData(hash), id);
         }
     };
-
-
 
 }

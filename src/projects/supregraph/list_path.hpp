@@ -1,7 +1,7 @@
 #pragma once
 
 //#include "vertex_resolution.hpp"
-//#include "supregraph.hpp"
+//
 //#include "unique_vertex_storage.hpp"
 //#include "common/double_linked_list.hpp"
 //

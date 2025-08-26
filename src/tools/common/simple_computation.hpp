@@ -19,9 +19,9 @@ T CountSum(T const * from, const T * const to) {
 }
 
 template<class T>
-size_t total_size(const std::vector<T> &data) {
+size_t total_size(T &data) {
     size_t res = 0;
-    for(const T & val : data) {
+    for(auto & val : data) {
         res += val.size();
     }
     return res;

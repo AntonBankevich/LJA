@@ -1,33 +1,30 @@
 #pragma once
 
 #include "dbg_read_alignment_storage.hpp"
-#include "visualization.hpp"
 #include "graph_printing.hpp"
 #include "assembly_graph/visualization.hpp"
 
 namespace dbg {
     struct Subdataset {
-        Subdataset(dbg::Component component) : component(std::move(component)) {}
+        Subdataset(ag::Component component) : component(std::move(component)) {}
 
-        dbg::Component component;
-        std::vector<ag::AlignedRead<DBGTraits> *> reads;
+        ag::Component component;
+        std::vector<ag::AlignedRead *> reads;
         std::string id = "";
 
         void Save(const std::experimental::filesystem::path &dir,
-                  const ObjInfo<Edge> &extra_info) const {
+                  const ag::Printer &printer) const {
             recreate_dir(dir);
             std::experimental::filesystem::path reads_file = dir / "reads.fasta";
             std::experimental::filesystem::path graph_file = dir / "graph.gfa";
             std::experimental::filesystem::path dot_file = dir / "graph.dot";
-            Printer<DBGTraits> printer;
-            printer.addEdgeInfo(EdgePrintStyles<DBGTraits>::defaultDotInfo() + extra_info);
             printer.printDot(dot_file, component);
             printer.printGFA(graph_file, component);
             //dbg::printGFA(graph_file, component, true);
             //printDot(dot_file, component, labeler);
             std::ofstream os;
             os.open(reads_file);
-            for (ag::AlignedRead<DBGTraits> *read: reads) {
+            for (ag::AlignedRead *read: reads) {
                 os << ">" << read->getId() << "\n" << read->getPath().Seq() << "\n";
             }
             os.close();
@@ -44,10 +41,10 @@ namespace dbg {
             }
         }
         for (dbg::DBGAlignedReadStorage *recordStorage: storages)
-            for (ag::AlignedRead<DBGTraits> &read: recordStorage->getReads()) {
+            for (ag::AlignedRead &read: recordStorage->getReads()) {
                 if (!read.valid())
                     continue;
-                dbg::GraphPath al = read.getPath();
+                ag::GraphPath al = read.getPath();
                 std::vector<size_t> cids;
                 for (Vertex & vertex : al.innerVertices()) {
                     if (cmap.find(&vertex) != cmap.end())

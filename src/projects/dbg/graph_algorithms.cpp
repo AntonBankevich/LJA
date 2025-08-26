@@ -113,7 +113,7 @@ namespace dbg {
         for(Vertex &vertex: dbg.vertices()) {
             std::vector<Sequence> out;
             for(Edge &edge : vertex) {
-                out.emplace_back(edge.firstNucl());
+                out.emplace_back(edge.truncSeq());
             }
             std::sort(out.begin(), out.end());
             for(size_t i = 0; i + 1 < out.size(); i++) {
@@ -155,8 +155,8 @@ namespace dbg {
                                         (kwh.isLast() && index.getVertex(kwh) == edge.getFinish()), "Vertex kmer index corruption");
                         }
                         if(index.isAnchor(kwh.hash())) {
-                            EdgePosition ep = index.getAnchor(kwh);
-                            VERIFY_OMP(ep.edge == &edge && ep.pos == kwh.getPos(), "Anchor kmer index corruption " + itos(ep.pos) + " " +
+                            ag::EdgePosition ep = index.getAnchor(kwh);
+                            VERIFY_OMP(ep.edge == edge.getId() && ep.pos == kwh.getPos(), "Anchor kmer index corruption " + itos(ep.pos) + " " +
                                                                                  itos(ep.edge->truncSize()));
                         }
                     }
@@ -220,7 +220,7 @@ namespace dbg {
         std::function<void(size_t, ContigType &)> task = [&index](size_t pos, ContigType &contig) {
             Sequence seq = std::move(contig.makeSequence());
             if (seq.size() >= index.minReadLen()) {
-                dbg::GraphPath path = index.align(seq);
+                ag::GraphPath path = index.align(seq);
                 for (Segment<Edge> seg: path) {
                     seg.contig().incCov(seg.size());
                     seg.contig().rc().incCov(seg.size());
@@ -236,7 +236,7 @@ namespace dbg {
                                           const size_t w) {
         logger.info() << "Starting construction of sparse de Bruijn graph" << std::endl;
         SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
-//        ag::LoggingListener<DBGTraits> operationLog(sdbg, logger.getLoggerStream(logging::LogLevel::trace));
+//        ag::LoggingListener operationLog(sdbg, logger.getLoggerStream(logging::LogLevel::trace));
         logger.info() << "Vertex map constructed." << std::endl;
         dbg::SeqReader reader(reads_file, logger, threads, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
         logger.info() << "Filling edge sequences." << std::endl;
@@ -256,10 +256,10 @@ namespace dbg {
         for (Vertex &v: dbg.verticesUnique()) {
             os << v.getInnerId() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
             for (const Edge &edge: v) {
-                os << edge.firstNucl() << " " << edge.intCov() << std::endl;
+                os << edge.getCode() << " " << edge.intCov() << std::endl;
             }
             for (const Edge &edge: v.rc()) {
-                os << edge.firstNucl() << " " << edge.intCov() << std::endl;
+                os << edge.getCode() << " " << edge.intCov() << std::endl;
             }
         }
 //    dbg.printCoverageStats(logger);
@@ -277,19 +277,19 @@ namespace dbg {
             Contig read = contig.makeContig();
             if (read.truncSize() < index.minReadLen())
                 return;
-            dbg::GraphPath path = index.align(read.getSeq());
+            ag::GraphPath path = index.align(read.getSeq());
             std::stringstream ss;
             ss << read.getInnerId() << " " << path.getStart().getInnerId() << " ";
             for (Edge &edge : path.edges()) {
-                ss << edge.firstNucl();
+                ss << edge.getCode();
             }
             alignment_results.emplace_back(ss.str());
             Contig rc_read = read.RC();
-            dbg::GraphPath rc_path = index.align(rc_read.getSeq());
+            ag::GraphPath rc_path = index.align(rc_read.getSeq());
             std::stringstream rc_ss;
             rc_ss << rc_read.getInnerId() << " " << rc_path.getStart().getInnerId() << " ";
             for (Edge &edge : rc_path.edges()) {
-                rc_ss << edge.firstNucl();
+                rc_ss << edge.getCode();
             }
             alignment_results.emplace_back(rc_ss.str());
         };

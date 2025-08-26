@@ -19,7 +19,7 @@ namespace dbg {
                     (s1.calculateSize() == 2 && s2.calculateSize() == 2 && s1.frontEdge() == s2.frontEdge() && s1.backEdge() != s2.backEdge());
         }
 
-        bool checkBulgeIdeal(const BulgePath<DBGTraits> &bulgePath, size_t index) {
+        bool checkBulgeIdeal(const ag::BulgePath &bulgePath, size_t index) {
             if (!bulgePath.isBulge(index))
                 return false;
             return checkBulgeForward(bulgePath[index]) &&
@@ -36,7 +36,7 @@ namespace dbg {
         }
 
         void setUniqueMarkers(dbg::SparseDBG &dbg) {
-            for (const BulgePath<DBGTraits> &bulgePath: BulgePathFinder(dbg).paths) {
+            for (const ag::BulgePath &bulgePath: ag::BulgePathFinder(dbg).paths) {
                 if (bulgePath.length() < unique_threshold || bulgePath.getStart() < bulgePath.getFinish().rc()) {
                     continue;
                 }
@@ -51,14 +51,14 @@ namespace dbg {
             }
         }
 
-        std::vector<dbg::Component> split(dbg::SparseDBG &dbg) {
+        std::vector<ag::Component> split(dbg::SparseDBG &dbg) {
             std::function<bool(const dbg::Edge &)> splitEdge = [this](const dbg::Edge &edge) {
                 return edge.getMarker() == ag::EdgeMarker::unique;
             };
-            return ag::ConditionSplitter<dbg::DBGTraits>(splitEdge).splitGraph(dbg);
+            return ag::ConditionSplitter(splitEdge).splitGraph(dbg);
         }
 
-        size_t markAcyclicComponent(const dbg::Component &component) {
+        size_t markAcyclicComponent(const ag::Component &component) {
             size_t new_rel = 0;
             if (component.countBorderEdges() != 4 || component.realCC() != 2 || !component.isAcyclic())
                 return 0;
@@ -69,8 +69,8 @@ namespace dbg {
                     if (component.contains(startEdge.getStart()) || used.find(startEdge.getId()) != used.end())
                         continue;
                     std::unordered_map<dbg::VertexId, std::pair<size_t, dbg::EdgeId>> prev;
-                    std::vector<dbg::Vertex *> order = component.topSort();
-                    for (dbg::Vertex *vit: order) {
+                    std::vector<VertexId> order = component.topSort();
+                    for (VertexId vit: order) {
                         size_t best_score = 0;
                         dbg::EdgeId p;
                         for (dbg::Edge &edge: vit->incoming()) {
@@ -116,7 +116,7 @@ namespace dbg {
                     if (best == nullptr)
                         break;
                     found++;
-                    dbg::GraphPath res(best->rc());
+                    ag::GraphPath res(best->rc());
                     while (component.contains(res.getFinish())) {
                         res += prev[res.getFinish().rc().getId()].second->rc();
                     }
@@ -149,7 +149,7 @@ namespace dbg {
         size_t Fill(dbg::SparseDBG &dbg) override {
             size_t cnt = 0;
             setUniqueMarkers(dbg);
-            for (dbg::Component &component: split(dbg)) {
+            for (ag::Component &component: split(dbg)) {
                 for (dbg::Edge &edge: component.edges()) {
                     if (!component.contains(edge.getFinish())) {
                         VERIFY(edge.getMarker() == ag::EdgeMarker::unique);

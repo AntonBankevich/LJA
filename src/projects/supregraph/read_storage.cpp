@@ -120,7 +120,7 @@ using namespace spg;
 //    return std::move(res);
 //}
 //
-//PathIndex::PathIndex(SupreGraph &spg, AlignedReadStorage &storage) : ResolutionListener(spg), storage(&storage) {
+//PathIndex::PathIndex(ag::AssemblyGraph &spg, AlignedReadStorage &storage) : ResolutionListener(spg), storage(&storage) {
 //    for(Edge &edge : spg.edges()) {
 //        read_index[edge.getId()] = {};
 //    }

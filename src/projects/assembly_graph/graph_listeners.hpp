@@ -10,20 +10,13 @@
 
 namespace ag {
 
-    template<class Traits>
     class ResolutionFire;
 
 //    TODO: this could be split into layers and specified for specific graphs' operations.
 //     Looks like too much work that is not necessary and may complicate the code.
-    template<class Traits>
     class ResolutionListener : public AbstractListener {
     public:
-        typedef typename Traits::Edge Edge;
-        typedef typename Traits::Vertex Vertex;
-        typedef typename Edge::EdgeId EdgeId;
-        typedef typename Vertex::VertexId VertexId;
-
-        explicit ResolutionListener(ResolutionFire<Traits> &fire, const std::string &name);
+        ResolutionListener(ResolutionFire &fire, const std::string &name);
         ResolutionListener(ResolutionListener &&other) noexcept = default;
         ResolutionListener &operator=(ResolutionListener &&other) noexcept = default;
         ResolutionListener(const ResolutionListener &other) = delete;
@@ -34,151 +27,153 @@ namespace ag {
         virtual void fireDeleteEdge(Edge &e) {}
         virtual void fireAddSupreVertex(Vertex &v, Edge &e) {}
 
-        virtual void fireMergePath(const std::vector<EdgeId> &path, Vertex &new_vertex) {}
-        virtual void fireMergeLoop(const ag::GraphPath <Traits> &path, Vertex &new_vertex) {}
-        virtual void fireMergePathToEdge(const std::vector<EdgeId> &path, Edge &new_edge) {}
+        virtual void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {}
+        virtual void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) {}
+        virtual void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {}
         virtual void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                          const AlignmentForm &left_al, const AlignmentForm &right_al) {}
-        virtual void fireSplitEdge(Edge &edge, const std::vector<EdgeId> &split) {}
+        virtual void fireSplitEdge(Edge &edge, const RAGraphPath &split) {}
 
-        virtual void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) {}
+        virtual void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {}
 
-        virtual void fireResolveVertex(Vertex &core, const VertexResolutionResult<Traits> &resolution) {};
+        virtual void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {};
     };
 
-    template<class Traits>
     class ResolutionFire : public AbstractFire {
-        std::vector<ResolutionListener<Traits> *> listeners;
-        typedef typename Traits::Edge Edge;
-        typedef typename Edge::EdgeId EdgeId;
-    protected:
-        typedef typename Traits::Vertex Vertex;
+        std::vector<ResolutionListener *> listeners;
     public:
         ResolutionFire() = default;
 
         ResolutionFire(ResolutionFire &&other)   noexcept = default;
         ResolutionFire &operator=(ResolutionFire &&other)  noexcept = default;
 
-        void fireResolveVertex(Vertex &core, const VertexResolutionResult<Traits> &resolution) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+        void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireResolveVertex(core, resolution);
+                if(core != core.rc())
+                    listener->fireResolveVertex(core.rc(), resolution.RC());
             }
         }
 
-        void fireMergePath(const std::vector<EdgeId> &path, Vertex &new_vertex) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergePath(path, new_vertex);
+                if(new_vertex != new_vertex.rc())
+                    listener->fireMergePath(path.RC(), new_vertex.rc());
             }
         }
 
-        void fireMergeLoop(const GraphPath <Traits> &path, Vertex &new_vertex) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+        void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergeLoop(path, new_vertex);
+                if(new_vertex != new_vertex.rc())
+                    listener->fireMergeLoop(path.RC(), new_vertex.rc());
             }
         }
 
-        void fireMergePathToEdge(const std::vector<EdgeId> &path, Edge &new_edge) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+        void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergePathToEdge(path, new_edge);
+                if(new_edge != new_edge.rc())
+                    listener->fireMergePathToEdge(path.RC(), new_edge.rc());
             }
         }
 
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right, const AlignmentForm &left_al, const AlignmentForm &right_al) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergeTipsToEdge(new_edge, left, right, left_al, right_al);
+                if(new_edge != new_edge.rc())
+                    listener->fireMergeTipsToEdge(new_edge.rc(), right.rc(), left.rc(), right_al.RC(), left_al.RC());
             }
         }
 
-        void fireSplitEdge(Edge &edge, const std::vector<EdgeId> &split) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+        void fireSplitEdge(Edge &edge, const RAGraphPath &split) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireSplitEdge(edge, split);
+                if(edge != edge.rc())
+                    listener->fireSplitEdge(edge.rc(), split.RC());
             }
         }
 
         void fireAddVertex(Vertex &vertex) {
-            VERIFY_MSG(!vertex.fire_create, "Vertex already fired: " << vertex);
-            vertex.fire_create = true;
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireAddVertex(vertex);
+                if(vertex != vertex.rc())
+                    listener->fireAddVertex(vertex.rc());
             }
         }
 
         void fireAddEdge(Edge &edge) {
-            VERIFY_MSG(!edge.fire_create, "Edge already fired: " << edge)
-            edge.fire_create = true;
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireAddEdge(edge);
+                if(edge != edge.rc())
+                    listener->fireAddEdge(edge.rc());
             }
         }
 
         void fireDeleteVertex(Vertex &vertex) {
-            VERIFY_MSG(vertex.fire_create, "Vertex not fired: " << vertex);
-            VERIFY_MSG(!vertex.fire_destroy, "Vertex already destroyed: " << vertex);
-            vertex.fire_destroy = true;
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireDeleteVertex(vertex);
+                if(vertex != vertex.rc())
+                    listener->fireDeleteVertex(vertex.rc());
             }
         }
 
         void fireDeleteEdge(Edge &edge) {
-            VERIFY_MSG(edge.fire_create, "Edge not fired: " << edge);
-            VERIFY_MSG(!edge.fire_destroy, "Edge already destroyed: " << edge);
-            edge.fire_destroy = true;
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireDeleteEdge(edge);
+                if(edge != edge.rc())
+                    listener->fireDeleteEdge(edge.rc());
             }
         }
 
         void fireAddSupreVertex(Vertex &v, Edge &e) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireAddSupreVertex(v, e);
+                if(v != v.rc())
+                    listener->fireAddSupreVertex(v.rc(), e.rc());
             }
         }
 
-        void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph<Traits> &graph) {
-            for (ResolutionListener<Traits> *listener: getListeners<ResolutionListener<Traits>>()) {
+        void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireResetEdgeCodes(logger, threads, graph);
             }
         }
     };
 
-    template<class Traits>
-    ResolutionListener<Traits>::ResolutionListener(ResolutionFire<Traits> &fire, const std::string &name) : AbstractListener(fire, name) {}
 //TODO: Make parallel logger with buffers like read logger
-    template<class Traits>
-    class LoggingListener : public ResolutionListener<Traits> {
+
+    class LoggingListener : public ResolutionListener {
     private:
         std::ostream *outp = nullptr;
-        typedef typename Traits::Edge Edge;
-        typedef typename Edge::EdgeId EdgeId;
-        typedef typename Traits::Vertex Vertex;
         omp_lock_t writelock = {};
         void lock() { omp_set_lock(&writelock); }
         void unlock() { omp_unset_lock(&writelock); }
     public:
-        LoggingListener(ResolutionFire<Traits> &fire, std::ostream &out) : ResolutionListener<Traits>(fire, "LoggingListener"), outp(&out) {}
+        LoggingListener(ResolutionFire &fire, std::ostream &out) : ResolutionListener(fire, "LoggingListener"), outp(&out) {}
 
-        void fireResolveVertex(Vertex &core, const VertexResolutionResult<Traits> &resolution) override {
+        void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override {
             lock();
             *outp << "FireResolveVertex " << resolution << std::endl;
             unlock();
         };
 
-        void fireMergePath(const std::vector<EdgeId> &path, Vertex &new_vertex) override {
+        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override {
             lock();
-            *outp << "FireMergePath " << new_vertex << " " << GraphPath<Traits>(path).str() << std::endl;
+            *outp << "FireMergePath " << new_vertex << " " << GraphPath(path).str() << std::endl;
             unlock();
         };
 
-        void fireMergeLoop(const GraphPath <Traits> &path, Vertex &new_vertex) override {
+        void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) override {
             lock();
             *outp << "FireMergeLoop " << new_vertex << " " << path.str() << std::endl;
             unlock();
         };
 
-        void fireMergePathToEdge(const std::vector<EdgeId> &path, Edge &new_edge) override {
+        void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override {
             lock();
-            *outp << "FireMergePathToEdge " << new_edge << " " << GraphPath<Traits>(path).str() << std::endl;
+            *outp << "FireMergePathToEdge " << new_edge << " " << GraphPath(path).str() << std::endl;
             unlock();
         };
 
@@ -189,9 +184,9 @@ namespace ag {
             unlock();
         };
 
-        void fireSplitEdge(Edge &edge, const std::vector<EdgeId> &split) override {
+        void fireSplitEdge(Edge &edge, const RAGraphPath &split) override {
             lock();
-            *outp << "FireSplitEdge " << edge << " " << split << std::endl;
+            *outp << "FireSplitEdge " << edge << " " << split.RC() << std::endl;
             unlock();
         }
 

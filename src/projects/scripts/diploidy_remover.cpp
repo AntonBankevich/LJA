@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <common/pipeline_tools.hpp>
 #include <assembly_graph/ag_algorithms.hpp>
+#include <assembly_graph/visualization.hpp>
 
 using namespace multigraph;
 
@@ -17,24 +18,24 @@ public:
     }
 
 private:
-    void addGoodVertex(MGVertex &v, std::unordered_set<VertexId> &good, std::vector<EdgeId> &candidates) {
+    void addGoodVertex(Vertex &v, std::unordered_set<VertexId> &good, std::vector<EdgeId> &candidates) {
         if(good.find(v.getId()) != good.end())
             return;
         std::cout << "Good vertex " << v.getId() << std::endl;
         good.insert(v.getId());
         good.insert(v.rc().getId());
-        for(MGEdge &e : v) {
+        for(Edge &e : v) {
             if(good.find(e.getFinish().getId()) == good.end())
                 candidates.emplace_back(e.getId());
         }
         if(v != v.rc())
-            for(MGEdge &e : v.rc()) {
+            for(Edge &e : v.rc()) {
                 if(good.find(e.getFinish().getId()) == good.end())
                     candidates.emplace_back(e.getId());
             }
     }
 
-    std::vector<EdgeId> component(MGEdge &initial) {
+    std::vector<EdgeId> component(Edge &initial) {
         std::unordered_set<VertexId> visited;
         std::unordered_set<EdgeId> res;
         std::vector<VertexId> queue;
@@ -43,12 +44,12 @@ private:
         visited.insert(initial.getStart().rc().getId());
         visited.insert(initial.getFinish().getId());
         while(!queue.empty()) {
-            MGVertex &v = *queue.back();
+            Vertex &v = *queue.back();
             queue.pop_back();
             if(visited.find(v.getId()) != visited.end())
                 continue;
             visited.insert(v.getId());
-            for(MGEdge &e: v) {
+            for(Edge &e: v) {
                 if(visited.find(e.getFinish().getId()) == visited.end())
                     queue.emplace_back(e.getFinish().getId());
                 if(visited.find(e.getFinish().rc().getId()) == visited.end())
@@ -57,7 +58,7 @@ private:
         }
         for(VertexId v: visited) {
             if(v != initial.getStart().rc().getId() && v != initial.getFinish().getId())
-                for(MGEdge &e: *v) {
+                for(Edge &e: *v) {
                     if(e != initial && e != initial.rc()) {
                         if (e.getSeq() <= e.rc().getSeq())
                             res.insert(e.getId());
@@ -74,11 +75,11 @@ private:
         std::vector<EdgeId> candidates;
         std::unordered_set<ConstEdgeId> to_remove;
         DisjointSet<VertexId> paths;
-        for(MGVertex &v: mg.vertices()) {
+        for(Vertex &v: mg.vertices()) {
             paths.link(v.getId(), v.rc().getId());
             if(v.outDeg() > 0 && v.outDeg() <= 2) {
                 bool ok = true;
-                for(MGEdge &e : v) {
+                for(Edge &e : v) {
                     if(e.getFinish() != v.front().getFinish()) {
                         ok = false;
                         break;
@@ -134,18 +135,18 @@ private:
         }
         mg = MultiGraphHelper::Delete(mg, {to_remove.begin(), to_remove.end()});
         std::cout << "cleaned " << mg.size() << " " << mg.edgeCount() << std::endl;
-        ag::MergeAll(logger, threads, mg);
+        ag::MergeAllToEdges(logger, threads, mg);
         std::cout << "merged " << mg.size() << " " << mg.edgeCount() << std::endl;
     }
 
     void ChooseShortcuts(logging::Logger &logger, size_t threads, MultiGraph &mg) {
         DisjointSet<VertexId> small_components;
-        for(MGEdge &edge : mg.edges()) {
+        for(Edge &edge : mg.edges()) {
             if(edge.fullSize() < 1000000)
                 small_components.link(edge.getStart().getId(), edge.getFinish().getId());
         }
         std::unordered_set<VertexId> all_vert;
-        for(MGVertex &vertex : mg.vertices()) {
+        for(Vertex &vertex : mg.vertices()) {
             all_vert.insert(vertex.getId());
         }
         auto cmap = small_components.subsets(all_vert);
@@ -159,7 +160,7 @@ private:
             VertexId end;
             std::unordered_set<EdgeId> edges;
             for(VertexId v : cvert) {
-                for(MGEdge &e: *v) {
+                for(Edge &e: *v) {
                     if(cvert.find(e.getFinish().getId()) == cvert.end()) {
                         if(end.valid()) {
                             good = false;
@@ -169,7 +170,7 @@ private:
                         edges.insert(e.getId());
                     }
                 }
-                for(MGEdge &e: v->rc()) {
+                for(Edge &e: v->rc()) {
                     if(cvert.find(e.getFinish().rc().getId()) == cvert.end()) {
                         if(start.valid()) {
                             good = false;
@@ -214,19 +215,19 @@ private:
         }
         mg = MultiGraphHelper::Delete(mg, {to_remove.begin(), to_remove.end()});
         std::cout << "cleaned " << mg.size() << " " << mg.edgeCount() << std::endl;
-        ag::MergeAll<MGTraits>(logger, threads, mg);
+        ag::MergeAllToEdges(logger, threads, mg);
 //    MultiGraphHelper::MergeAllPaths(mg, true);
         std::cout << "merged " << mg.size() << " " << mg.edgeCount() << std::endl;
     }
 
     void PassAcyclic(logging::Logger &logger, size_t threads, MultiGraph &mg) {
         DisjointSet<VertexId> small_components;
-        for(MGEdge &edge : mg.edges()) {
+        for(Edge &edge : mg.edges()) {
             if(edge.fullSize() < 1000000)
                 small_components.link(edge.getStart().getId(), edge.getFinish().getId());
         }
         std::unordered_set<VertexId> all_vert;
-        for(MGVertex &vertex : mg.vertices()) {
+        for(Vertex &vertex : mg.vertices()) {
             all_vert.insert(vertex.getId());
         }
         auto cmap = small_components.subsets(all_vert);
@@ -240,7 +241,7 @@ private:
             VertexId end;
             std::unordered_set<EdgeId> edges;
             for(VertexId v : cvert) {
-                for(MGEdge &e: *v) {
+                for(Edge &e: *v) {
                     if(cvert.find(e.getFinish().getId()) == cvert.end()) {
                         if(end.valid()) {
                             good = false;
@@ -250,7 +251,7 @@ private:
                         edges.emplace(e.getId());
                     }
                 }
-                for(MGEdge &e: v->rc()) {
+                for(Edge &e: v->rc()) {
                     if(cvert.find(e.getFinish().rc().getId()) == cvert.end()) {
                         if(start.valid()) {
                             good = false;
@@ -299,21 +300,21 @@ private:
         }
         mg = MultiGraphHelper::Delete(mg, {to_remove.begin(), to_remove.end()});
         std::cout << "cleaned " << mg.size() << " " << mg.edgeCount() << std::endl;
-        ag::MergeAll(logger, threads, mg);
+        ag::MergeAllToEdges(logger, threads, mg);
 //        mg = MultiGraphHelper::MergeAllPaths(mg, true);
         std::cout << "merged " << mg.size() << " " << mg.edgeCount() << std::endl;
     }
 
     void RemoveSmall(logging::Logger &logger, size_t threads, MultiGraph &mg) {
         DisjointSet<EdgeId> components;
-        for(MGVertex &vertex: mg.vertices()) {
-            for(MGEdge &e1 : vertex)
-                for(MGEdge &e2: vertex.rc()) {
+        for(Vertex &vertex: mg.vertices()) {
+            for(Edge &e1 : vertex)
+                for(Edge &e2: vertex.rc()) {
                     components.link(e1.getId(), e2.rc().getId());
                 }
         }
         std::unordered_set<EdgeId>all;
-        for(MGEdge &edge : mg.edges()) {
+        for(Edge &edge : mg.edges()) {
             all.insert(edge.getId());
         }
         std::unordered_set<EdgeId> to_remove;
@@ -333,7 +334,7 @@ private:
             }
         }
         std::unordered_set<VertexId> vert_to_remove;
-        for(MGVertex &vertex : mg.vertices()) {
+        for(Vertex &vertex : mg.vertices()) {
             if(vertex.inDeg() == 0 && vertex.outDeg() == 0 && vertex.size() < 1000000) {
                 vert_to_remove.insert(vertex.getId());
                 vert_to_remove.insert(vertex.rc().getId());
@@ -341,21 +342,21 @@ private:
         }
         mg = MultiGraphHelper::Delete(mg, {to_remove.begin(), to_remove.end()}, {vert_to_remove.begin(), vert_to_remove.end()});
         std::cout << "cleaned " << mg.size() << " " << mg.edgeCount() << std::endl;
-        ag::MergeAll(logger, threads, mg);
+        ag::MergeAllToEdges(logger, threads, mg);
 //        mg = MultiGraphHelper::MergeAllPaths(mg, true);
         std::cout << "merged " << mg.size() << " " << mg.edgeCount() << std::endl;
     }
 
     void RemoveInversions(logging::Logger &logger, size_t threads, MultiGraph &mg) {
         std::unordered_set<EdgeId> to_remove;
-        for(MGVertex &v : mg.vertices()) {
+        for(Vertex &v : mg.vertices()) {
             if(!v.isCanonical())
                 continue;
             if(v.inDeg()== 2 && v.outDeg() == 2 && v.front() == v.back().rc() && v.front().fullSize() < 300000) {
-                MGEdge &in1 = v.rc().front().rc();
-                MGEdge &in2 = v.rc().front().rc();
-                MGEdge &b1 = v.front();
-                MGEdge &b2 = v.back();
+                Edge &in1 = v.rc().front().rc();
+                Edge &in2 = v.rc().front().rc();
+                Edge &b1 = v.front();
+                Edge &b2 = v.back();
                 if(to_remove.find(b1.getId()) != to_remove.end()|| to_remove.find(b2.getId()) != to_remove.end())
                     continue;
                 Sequence seq = in1.getSeq() + b1.getSeq().Subseq(v.size()) + in2.rc().getSeq().Subseq(v.size());
@@ -368,7 +369,7 @@ private:
         }
         mg = MultiGraphHelper::Delete(mg, {to_remove.begin(), to_remove.end()});
         std::cout << "cleaned " << mg.size() << " " << mg.edgeCount() << std::endl;
-        ag::MergeAll(logger, threads, mg);
+        ag::MergeAllToEdges(logger, threads, mg);
 //        mg = MultiGraphHelper::MergeAllPaths(mg, true);
         std::cout << "merged " << mg.size() << " " << mg.edgeCount() << std::endl;
     }
@@ -388,7 +389,7 @@ protected:
         RemoveSmall(logger, threads, mg);
         PassAcyclic(logger, threads, mg);
         RemoveInversions(logger, threads, mg);
-        MultiGraphHelper::printEdgeGFA(mg, dir / "consensus.gfa");
+        ag::Printer().printGFA(dir / "consensus.gfa", mg);
         MultiGraphHelper::printExtractedContigs(mg, dir / "consensus.fasta", true);
         return {{"graph",    dir / "consensus.gfa"},
                 {"assembly", dir / "consensus.fasta"}};

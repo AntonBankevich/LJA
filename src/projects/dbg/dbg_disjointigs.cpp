@@ -4,7 +4,7 @@
 
 using namespace hashing;
 namespace dbg {
-    Sequence buildDisjointig(old::ag::RAGraphPath<DBGTraits> &path) {
+    Sequence buildDisjointig(ag::RAGraphPath &path) {
         Sequence disjointig = path.Seq();
         const Vertex &last = path.getFinish().rc();
         const Edge &lastEdge = path.backEdge().rc();
@@ -28,7 +28,7 @@ namespace dbg {
     void processVertex(Vertex &rec, ParallelRecordCollector<Sequence> &res) {
         for (Edge &edge: rec) {
             VERIFY(!rec.getSeq().empty());
-            old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(edge);
+            ag::RAGraphPath path = ag::RAGraphPath::WalkForward(edge);
             if (rec < path.getFinish().rc() || (rec == path.getFinish().rc() && path.Seq() <= !path.Seq())) {
                 Sequence disjointig = buildDisjointig(path);
                 if (!disjointig.empty()) {
@@ -44,15 +44,17 @@ namespace dbg {
 
     void prepareVertex(Vertex &vertex) {
         vertex.sortOutgoing();
-        Edge *prev = nullptr;
+        EdgeId prev;
         for (Edge &edge: vertex) {
-            if (prev != nullptr) {
-                edge.incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
+            if (prev.valid()) {
+                VERIFY_MSG(edge.intCov() == 0, edge.intCov());
+                size_t common_prefix = edge.truncSeq().commonPrefix(prev->truncSeq());
+                edge.incCov(common_prefix);
                 if (*prev == vertex.front()) {
-                    prev->incCov(edge.truncSeq().commonPrefix(prev->truncSeq()));
+                    prev->incCov(common_prefix);
                 }
             }
-            prev = &edge;
+            prev = edge.getId();
         }
     }
 
@@ -97,15 +99,15 @@ namespace dbg {
                     if (vertex.isJunction() || vertex.marked())
                         return;
                     Edge &edge = vertex.front();
-                    old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(edge);
+                    ag::RAGraphPath path = ag::RAGraphPath::WalkForward(edge);
                     if(path.getFinish() != vertex) {
                         VERIFY(path.getFinish() == vertex.rc());
-                        path += old::ag::RAGraphPath<DBGTraits>::WalkForward(vertex.rc().front());
+                        path += ag::RAGraphPath::WalkForward(vertex.rc().front());
                     }
                     if (path.getFinish() != vertex) {
                         std::cout << path.getStart().getInnerId() << " " << path.getFinish().getInnerId() << " "
                                   << path.size() <<
-                                  " " << path.getFinish().isJunction() << " " << path.backEdge().rc().firstNucl()
+                                  " " << path.getFinish().isJunction() << " " << path.backEdge().rc().getCode()
                                   << std::endl;
                     }
                     VERIFY(path.getFinish() == vertex);
@@ -128,10 +130,10 @@ namespace dbg {
         sdbg.resetMarkers();
         logger.trace() << "Extracting linear disjointigs." << std::endl;
         extractLinearDisjointigs(sdbg, res, logger, threads);
-        logger.trace() << "Finished extracting linear disjointigs." << std::endl;
+        logger.trace() << "Finished extracting " << res.size() << " linear disjointigs of size " << total_size(res) << "." << std::endl;
         logger.trace() << "Extracting circular disjointigs." << std::endl;
         extractCircularDisjointigs(sdbg, res, logger, threads);
-        logger.trace() << "Finished extracting circular disjointigs." << std::endl;
+        logger.trace() << "Finished extracting circular disjointigs.logger.trace() << \"Finished extracting circular disjointigs. Final count: \" << res.size() << std::endl;" << std::endl;
         std::vector<Sequence> rres = res.collect();
         std::sort(rres.begin(), rres.end(), [](const Sequence &lhs, const Sequence &rhs) {
             return lhs.size() > rhs.size();

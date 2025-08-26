@@ -39,10 +39,10 @@ int main(int argc, char **argv) {
     for(auto &it : result) {
         logger.info() << it.first << " " << it.second.size() << std::endl;
         for (nano::GraphContig &al: it.second) {
-            multigraph::GraphPath path = ContigToPath(al, mg);
+            ag::GraphPath path = ContigToPath(al, mg);
 //            AnalyseAndPrint(al.read_str.seq.Subseq(al.qStart, al.qEnd), GraphSeq(mg, al));
-            multigraph::GraphPath fixed = FixPath(al, bulgeFinder, mg);
-            for(multigraph::MGEdge &edge : fixed.edges()) {
+            ag::GraphPath fixed = FixPath(al, bulgeFinder, mg);
+            for(multigraph::Edge &edge : fixed.edges()) {
                 logger << edge.getInnerId() << " ";
             }
             std::cout << std::endl;

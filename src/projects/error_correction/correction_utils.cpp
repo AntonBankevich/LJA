@@ -1,5 +1,5 @@
 #include "correction_utils.hpp"
-
+using namespace ag;
 namespace dbg {
     std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov, size_t max_dist) {
         typedef std::pair<size_t, Vertex *> StoredValue;
@@ -194,18 +194,18 @@ namespace dbg {
         GraphPath res = FindLongestCoveredForwardExtension(start, max_size, min_rel_cov, max_err_cov);
         if (res.getStart() == res.getFinish())
             return std::move(res);
-        ag::GraphPath<DBGTraits> tmp = FindLongestCoveredForwardExtension(start.rc(), max_size, min_rel_cov, max_err_cov);
+        ag::GraphPath tmp = FindLongestCoveredForwardExtension(start.rc(), max_size, min_rel_cov, max_err_cov);
         tmp.pop_front();
         return tmp.RC() + res;
     }
 
     std::vector<GraphPath>
-    SuffixSupportedBulgeAlternatives(const ag::SuffixTracker<DBGTraits> &tracker, const GraphPath &bulge, size_t threshold) {
+    SuffixSupportedBulgeAlternatives(const ag::SuffixTracker &tracker, const GraphPath &bulge, size_t threshold) {
         Vertex &start = bulge.getStart();
         Vertex &end = bulge.getFinish();
         std::vector<std::pair<Sequence, int>> candidates;
         for(Edge &first_edge : start) {
-            const ag::SuffixRecord<DBGTraits> &record = tracker.getSuffixRecord(first_edge);
+            const ag::SuffixRecord &record = tracker.getSuffixRecord(first_edge);
             for (const auto &extension: record.getSuffixes()) {
                 if (extension.second == 0)
                     continue;
@@ -241,7 +241,7 @@ namespace dbg {
         return oneline::removeValue(res.begin(), res.end(), bulge);
     }
 
-    EdgeId SuffixSupportedExtension(const ag::SuffixRecord<DBGTraits> &record, const GraphPath &start, size_t min_good,
+    EdgeId SuffixSupportedExtension(const ag::SuffixRecord &record, const GraphPath &start, size_t min_good,
                              size_t max_bad) {
         size_t bad = 0;
         size_t good = 0;
@@ -260,11 +260,11 @@ namespace dbg {
     }
 
     GraphPath
-    FullSuffixSupportedExtension(const ag::SuffixRecord<DBGTraits> &record, GraphPath start, size_t min_good_cov,
+    FullSuffixSupportedExtension(const ag::SuffixRecord &record, GraphPath start, size_t min_good_cov,
                                  size_t max_bad_cov, size_t max_size) {
         if(!start.valid())
             start = {record.getEdge().getFinish()};
-        ag::PathPosition<DBGTraits> pos = start.lastPosition();
+        ag::PathPosition pos = start.lastPosition();
         for(size_t i = 0; i < max_size; i++) {
             EdgeId next = SuffixSupportedExtension(record, start, min_good_cov, max_bad_cov);
             if (!next.valid())
@@ -275,13 +275,13 @@ namespace dbg {
     }
 
     std::vector<GraphPath>
-    SuffixSupportedTipAlternatives(const ag::SuffixTracker<DBGTraits> &tracker, const GraphPath &tip, double threshold) {
+    SuffixSupportedTipAlternatives(const ag::SuffixTracker &tracker, const GraphPath &tip, double threshold) {
         Vertex &start = tip.getStart();
         size_t len = tip.truncLen();
         len += std::max<size_t>(30, len / 20);
         std::vector<std::pair<Sequence, int>> candidates;
         for(Edge &first_edge : start) {
-            const ag::SuffixRecord<DBGTraits> &record = tracker.getSuffixRecord(first_edge);
+            const ag::SuffixRecord &record = tracker.getSuffixRecord(first_edge);
             if(first_edge.truncSize() >= len) {
                 candidates.emplace_back(first_edge.getCode(), record.countStartsWith(GraphPath()));
                 continue;

@@ -146,13 +146,14 @@ public:
     };
 
     class ConstAlignmentColumnIterator {
-        const AlignmentForm *alignmentForm;
-        size_t cigar_pos;
-        size_t block_pos;
-        size_t cur_qpos;
-        size_t cur_tpos;
+        const AlignmentForm *alignmentForm = nullptr;
+        size_t cigar_pos = {};
+        size_t block_pos = {};
+        size_t cur_qpos = {};
+        size_t cur_tpos = {};
     public:
         typedef AlignmentColumn value_type;
+        ConstAlignmentColumnIterator() {}
         ConstAlignmentColumnIterator(const AlignmentForm &form, size_t cigar_pos, size_t block_pos, size_t qpos, size_t tpos) :
                 alignmentForm(&form), cigar_pos(cigar_pos), block_pos(block_pos), cur_qpos(qpos), cur_tpos(tpos) {
         }
@@ -175,7 +176,9 @@ public:
     };
 
     AlignmentForm() : qlen(0), tlen(0) {}
-    AlignmentForm(std::vector<CigarPair> _cigar) : cigar(std::move(_cigar)), qlen(0), tlen(0) {calculateLens();}
+    AlignmentForm(std::vector<CigarPair> _cigar) : cigar(std::move(_cigar)), qlen(0), tlen(0) {
+        calculateLens();
+    }
     AlignmentForm(const std::string &s);
     AlignmentForm(ConstAlignmentColumnIterator left, ConstAlignmentColumnIterator right);
     static AlignmentForm Equal(size_t size) {return {{CigarPair(CigarEvent::M, size)}};}

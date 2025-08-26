@@ -61,16 +61,15 @@
 void spg::AndreyRule::loopHeuristic(spg::VertexResolutionPlan &res) const {
     Vertex &core = res.getCore();
     size_t loop_cnt = 0;
-    EdgeId loop_start;
-    EdgeId loop_end;
-    for(Edge &e : core) {
-        ag::GraphPath<SPGTraits> path = ag::PathHelper<SPGTraits>::WalkForward(e);
-        if(path.getFinish() == core) {
-            loop_start = e.getId();
-            loop_end = path.backEdge().getId();
-            break;
-        }
-    }
+    ag::EdgeId loop_start;
+    ag::EdgeId loop_end;
+    for(Edge &eout : core)
+        for(Edge &einc : core.incoming())
+            if(eout.getFinish() == einc.getStart()) {
+                loop_start = eout.getId();
+                loop_end = einc.getId();
+                break;
+            }
     if(loop_start.valid() && loop_end.valid() && unique_storage->isUnique(loop_start->getFinish())) {
         if(core.inDeg() == 2)
             for(Edge &e : core.incoming())
@@ -83,12 +82,13 @@ void spg::AndreyRule::loopHeuristic(spg::VertexResolutionPlan &res) const {
     }
 }
 
-spg::EdgeId spg::AndreyRule::getUniqueDisconnectedInc(const spg::VertexResolutionPlan &plan) {
+//This method checks whether all but one incoming edges are connected in the plan and unique
+ag::EdgeId spg::AndreyRule::getUniqueDisconnectedInc(const spg::VertexResolutionPlan &plan) {
     Vertex &v = plan.getCore();
-    EdgeId res;
+    ag::EdgeId res;
     for(Edge &e: v.incoming()) {
         if(plan.incConnected(e)) {
-            if (!unique_storage->isUnique(e.getFinish()))
+            if (!unique_storage->isUnique(e.getStart()))
                 return {};
         } else {
             if(res.valid())
@@ -101,21 +101,29 @@ spg::EdgeId spg::AndreyRule::getUniqueDisconnectedInc(const spg::VertexResolutio
 }
 
 void spg::AndreyRule::uniqueHeuristic(spg::VertexResolutionPlan &res) {
-    EdgeId disconnected_inc = getUniqueDisconnectedInc(res);
-    EdgeId disconnected_out = getUniqueDisconnectedInc(res.RC());
+    ag::EdgeId disconnected_inc = getUniqueDisconnectedInc(res);
+    ag::EdgeId disconnected_out = getUniqueDisconnectedInc(res.RC());
     if(disconnected_inc.valid() && disconnected_out.valid()) {
         res.add(*disconnected_inc, disconnected_out->rc());
     }
 }
 
+bool checkForwardLoop(ag::Vertex &v) {
+    if(v.outDeg() != 1)
+        return false;
+    ag::Vertex &next = v.front().getFinish();
+    if(next.isJunction())
+        return false;
+    return next.front().getFinish() == v;
+}
 void spg::AndreyRule::noChoiceHeuristic(spg::VertexResolutionPlan &res) {
     Vertex &core = res.getCore();
-    if(core.inDeg() == 1 && !core.isInfLeft()) {
+    if(core.inDeg() == 1 && core.size() < 40000 && !checkForwardLoop(core.rc())) {
         for(Edge &edge : core) {
             res.add(*core.incoming().begin(), edge);
         }
     }
-    if(core.outDeg() == 1 && !core.isInfRight()) {
+    if(core.outDeg() == 1 && core.size() < 40000 && !checkForwardLoop(core)) {
         for(Edge &edge : core.incoming()) {
             res.add(edge, core.front());
         }
@@ -125,21 +133,40 @@ void spg::AndreyRule::noChoiceHeuristic(spg::VertexResolutionPlan &res) {
 spg::VertexResolutionPlan spg::AndreyRule::judge(spg::Vertex &v) {
     VertexResolutionPlan res(v);
     for(Edge &edge : v.incoming()) {
-        const ag::SuffixRecord<SPGTraits> &rec = suffixes->getSuffixRecord(edge);
+        const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
         for(Edge &out : v) {
-            if(rec.countStartsWith(GraphPath(out)) > 0) {
+            if(rec.countStartsWith(ag::GraphPath(out)) > 0) {
                 res.add(edge, out);
             }
         }
     }
-    std::cout << "Passing: " << res << std::endl;
     loopHeuristic(res);
-    std::cout << "Loop: " << res << std::endl;
     uniqueHeuristic(res);
-    std::cout << "Unique: " << res << std::endl;
     noChoiceHeuristic(res);
-    std::cout << "NoChoice: " << res << std::endl;
     if(res.allConnected())
         return std::move(res);
+    return {v};
+}
+
+ag::VertexResolutionPlan spg::ObviousRule::judge(Vertex &v) {
+    VertexResolutionPlan res(v);
+    size_t min_support = -1;
+    bool simmple = true;
+    for(Edge &edge : v.incoming()) {
+        const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
+        size_t connections = 0;
+        for(Edge &out : v) {
+            size_t support = rec.countStartsWith(ag::GraphPath(out));
+            if (support > 0) {
+                res.add(edge, out);
+                min_support = std::min(min_support, support);
+                connections++;
+            }
+        }
+        if (connections == 0) return {v};
+        if (connections != 1) simmple = false;
+    }
+    if (simmple && min_support >= simple_support && v.size() <= max_simple_length) return res;
+    if (!simmple && min_support >= complex_support && v.size() <= max_complex_length) return res;
     return {v};
 }

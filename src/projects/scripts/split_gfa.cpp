@@ -2,6 +2,8 @@
 #include <experimental/filesystem>
 #include <unordered_map>
 #include <common/dir_utils.hpp>
+#include <assembly_graph/data_structures/splitters.hpp>
+#include <assembly_graph/visualization.hpp>
 #include "dbg/multi_graph.hpp"
 using namespace multigraph;
 int main(int argc, char **argv) {
@@ -11,9 +13,10 @@ int main(int argc, char **argv) {
     ensure_dir_existance(dir);
     std::cout << "dbg " << mg.size() << " " << mg.edgeCount() << std::endl;
     std::cout << "component\tsize" << std::endl;
-    for(const std::vector<ConstVertexId> &comp : MultiGraphHelper::split(mg)) {
+    ag::Printer printer;
+    for(const ag::Component &comp : ag::CCSplitter().splitGraph(mg)) {
         std::cout << cnt << ".gfa\t" << comp.size() << std::endl;
-        MultiGraphHelper::printVertexGFA(dir / (itos(cnt) + ".gfa"), comp);
+        printer.printGFA(dir / (itos(cnt) + ".gfa"), comp, false);
         cnt++;
     }
     return 0;

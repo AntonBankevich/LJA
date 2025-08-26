@@ -60,8 +60,8 @@ inline void FillReliableTips(logging::Logger &logger, dbg::SparseDBG &sdbg, doub
     }
 }
 
-inline dbg::GraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
-    dbg::GraphPath path(v);
+inline ag::GraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
+    ag::GraphPath path(v);
     size_t len = 0;
     while(len < max_size) {
         EdgeId next;
@@ -84,8 +84,8 @@ inline dbg::GraphPath ReliablePath(Vertex &v, size_t max_size = 1000000000) {
 
 
 
-inline dbg::GraphPath CorrectSuffix(const dbg::GraphPath &al) {
-    PathPosition first_unreliable = al.lastPosition();
+inline ag::GraphPath CorrectSuffix(const ag::GraphPath &al) {
+    ag::PathPosition first_unreliable = al.lastPosition();
     size_t bad_end_size = 0;
     while(first_unreliable != al.firstPosition() && !first_unreliable.prevEdge().is_reliable) {
         bad_end_size += first_unreliable.prevEdge().truncSize();
@@ -95,7 +95,7 @@ inline dbg::GraphPath CorrectSuffix(const dbg::GraphPath &al) {
         return al;
     }
     size_t max_len = bad_end_size  * 11/10 + 100;
-    dbg::GraphPath alternative = ReliablePath(first_unreliable.getVertex(), max_len);
+    ag::GraphPath alternative = ReliablePath(first_unreliable.getVertex(), max_len);
     if(alternative.getFinish().outDeg() != 0 && alternative.truncLen() + 100 < bad_end_size) {
         return al;
     }
@@ -104,7 +104,7 @@ inline dbg::GraphPath CorrectSuffix(const dbg::GraphPath &al) {
     Sequence projection = alt;
     if(alt.size() > tip.size())
         projection = alt.Subseq(0, bestPrefix(tip, alt).first);
-    dbg::GraphPath res = al.subPath(al.firstPosition(), first_unreliable);
+    ag::GraphPath res = al.subPath(al.firstPosition(), first_unreliable);
     res.extend(projection);
     return res;
 }
@@ -117,12 +117,12 @@ size_t CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
     for(dbg::DBGAlignedReadStorage *storageIt : storages) {
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(storageIt, cnt)
         for (size_t i = 0; i < storageIt->getReads().size(); i++) {
-            ag::AlignedRead<DBGTraits> &read = storageIt->getReads()[i];
+            ag::AlignedRead &read = storageIt->getReads()[i];
             if (!read.valid())
                 continue;
-            dbg::GraphPath al = read.getPath();
-            dbg::GraphPath al1 = CorrectSuffix(al);
-            dbg::GraphPath al2 = CorrectSuffix(al1.RC()).RC();
+            ag::GraphPath al = read.getPath();
+            ag::GraphPath al1 = CorrectSuffix(al);
+            ag::GraphPath al2 = CorrectSuffix(al1.RC()).RC();
             if (al != al2 && al2.truncLen() > 500) {
                 cnt += 1;
                 storageIt->getReads().rerouteRead(read, al2, "Tip corrected");

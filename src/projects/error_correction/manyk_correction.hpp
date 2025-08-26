@@ -9,34 +9,34 @@ namespace dbg {
     class ManyKCorrector : public AbstractCorrectionAlgorithm {
     private:
         struct Bulge {
-            dbg::GraphPath left;
-            dbg::GraphPath right;
-            dbg::GraphPath bulge;
+            ag::GraphPath left;
+            ag::GraphPath right;
+            ag::GraphPath bulge;
 
-            Bulge(dbg::GraphPath &&left, dbg::GraphPath &&right, dbg::GraphPath &&bulge) :
+            Bulge(ag::GraphPath &&left, ag::GraphPath &&right, ag::GraphPath &&bulge) :
                     left(left), right(right), bulge(bulge) {}
         };
 
         struct Tip {
-            dbg::GraphPath left;
-            dbg::GraphPath tip;
+            ag::GraphPath left;
+            ag::GraphPath tip;
 
-            Tip(dbg::GraphPath &&left, dbg::GraphPath &&tip) : left(left), tip(tip) {}
+            Tip(ag::GraphPath &&left, ag::GraphPath &&tip) : left(left), tip(tip) {}
         };
 
         struct PathSegment {
-            PathPosition from;
-            PathPosition to;
-            PathSegment(PathPosition from, PathPosition to) : from(from), to(to) {}
+            ag::PathPosition from;
+            ag::PathPosition to;
+            PathSegment(ag::PathPosition from, ag::PathPosition to) : from(from), to(to) {}
         };
 
         class ReadRecord {
         private:
-            const dbg::GraphPath &read;
+            const ag::GraphPath &read;
         public:
             std::vector<PathSegment> goodRegions;
 
-            ReadRecord(const dbg::GraphPath &read, std::vector<PathSegment> goodRegions) :
+            ReadRecord(const ag::GraphPath &read, std::vector<PathSegment> goodRegions) :
                     read(read), goodRegions(std::move(goodRegions)) {}
 
             bool isPerfect() const { return blockNum() == 1 && !hasIncomingTip() && !hasOutgoingTip(); }
@@ -45,7 +45,7 @@ namespace dbg {
 
             size_t blockNum() const { return goodRegions.size(); }
 
-            dbg::GraphPath getBlock(size_t num) const;
+            ag::GraphPath getBlock(size_t num) const;
 
             size_t bulgeNum() const { return goodRegions.size() - 1; }
 
@@ -60,14 +60,14 @@ namespace dbg {
             Tip getIncomingTip();
         };
 
-        void calculateReliable(const dbg::GraphPath &read_path, std::vector<PathPosition> &last_reliable,
-                               std::vector<PathPosition> &next_reliable) const;
+        void calculateReliable(const ag::GraphPath &read_path, std::vector<ag::PathPosition> &last_reliable,
+                               std::vector<ag::PathPosition> &next_reliable) const;
 
-        std::vector<PathSegment> calculateLowRegions(const std::vector<PathPosition> &last_reliable,
-                                                     const std::vector<PathPosition> &next_reliable,
-                                                     const dbg::GraphPath &read_path) const;
+        std::vector<PathSegment> calculateLowRegions(const std::vector<ag::PathPosition> &last_reliable,
+                                                     const std::vector<ag::PathPosition> &next_reliable,
+                                                     const ag::GraphPath &read_path) const;
 
-        void mergeLow(const dbg::GraphPath &read_path, std::vector<PathSegment> &positions, size_t bad_length) const;
+        void mergeLow(const ag::GraphPath &read_path, std::vector<PathSegment> &positions, size_t bad_length) const;
 
         dbg::SparseDBG &dbg;
         DBGAlignedReadStorage &reads;
@@ -93,25 +93,25 @@ namespace dbg {
 
         void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads) override;
 
-        ReadRecord splitRead(const dbg::GraphPath &read_path) const;
+        ReadRecord splitRead(const ag::GraphPath &read_path) const;
 
-        dbg::GraphPath uniqueExtension(const dbg::GraphPath &base, size_t max_len) const;
+        ag::GraphPath uniqueExtension(const ag::GraphPath &base, size_t max_len) const;
 
-        dbg::GraphPath correctBulgeByBridging(const Bulge &bulge) const;
+        ag::GraphPath correctBulgeByBridging(const Bulge &bulge) const;
 
-        dbg::GraphPath correctBulgeAsDoubleTip(const Bulge &bulge) const;
+        ag::GraphPath correctBulgeAsDoubleTip(const Bulge &bulge) const;
 
-        dbg::GraphPath correctBulgeWithReliable(const Bulge &bulge) const;
+        ag::GraphPath correctBulgeWithReliable(const Bulge &bulge) const;
 
-        dbg::GraphPath correctBulge(const Bulge &bulge, std::string &message) const;
+        ag::GraphPath correctBulge(const Bulge &bulge, std::string &message) const;
 
-        dbg::GraphPath correctTipWithExtension(const Tip &tip) const;
+        ag::GraphPath correctTipWithExtension(const Tip &tip) const;
 
-        dbg::GraphPath correctTipWithReliable(const Tip &tip) const;
+        ag::GraphPath correctTipWithReliable(const Tip &tip) const;
 
-        dbg::GraphPath correctTip(const Tip &tip, std::string &message) const;
+        ag::GraphPath correctTip(const Tip &tip, std::string &message) const;
 
-        std::string correctRead(const std::string &name, dbg::GraphPath &read_path) override;
+        std::string correctRead(const std::string &name, ag::GraphPath &read_path) override;
     };
 
     size_t ManyKCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads_storage,

@@ -5,22 +5,22 @@
 #include <array>
 #include <vector>
 #include <unordered_map>
+#include <assembly_graph/visualization.hpp>
 
 int main(int argc, char **argv) {
     multigraph::MultiGraph mg;
     //multigraph::MultiGraph mg = mmg.DBG();
 
-    multigraph::MGVertex &v = mg.addVertex(Sequence("AT"), 23);
+    multigraph::Vertex &v = mg.addVertex(Sequence("AT"), 23);
     auto &e1 = mg.addEdge(v, v, Sequence("ATATAT"));
     auto &e2 = mg.addEdge(v, v, Sequence("ATCAT"));
     IdIndex<multigraph::Vertex> index(mg.vertices().begin(), mg.vertices().end());
     std::cerr <<v.getId() << " "<< index.getById(23).getId() <<std::endl;
     std::cerr << index.getById(23).getId() <<std::endl;
-    for (multigraph::MGEdge &edge : index.getById(23)){
+    for (multigraph::Edge &edge : index.getById(23)){
         std::cerr<<"EEEdge " <<edge.getId() <<std::endl;
     }
-    multigraph::MultiGraphHelper::printEdgeGFA(mg, "bd.gfa");
-    multigraph::MultiGraphHelper::printVertexGFA(mg, "getVertex.gfa");
+    ag::Printer().printGFA("bd.gfa", mg);
     IdIndex<multigraph::Edge> eindex(mg.edges().begin(), mg.edges().end());
     std::cout << mg.size() << " v/e " << mg.edgeCount() << std::endl;
     std::cout.flush();
@@ -28,5 +28,5 @@ int main(int argc, char **argv) {
     std::cout << eindex.getById(e1.getInnerId()).getStart().getId() << " " << eindex.getById(e1.getInnerId()).getFinish().getId() << std::endl;
     multigraph::MultiGraphHelper::printExtractedContigs(mg, "edges.fasta", false);
     mg.removeEdge(eindex.getById(e1.getInnerId()));
-    multigraph::MultiGraphHelper::printEdgeGFA(mg, "ad.gfa");
+    ag::Printer().printGFA("ad.gfa", mg);
 }

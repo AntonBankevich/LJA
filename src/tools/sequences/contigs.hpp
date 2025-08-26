@@ -25,13 +25,128 @@ namespace basic {
     }
 }
 
-class RawSequence {
+template<class T, typename I>
+class NamedSequence;
+
+class AbstractSegment {
 public:
-    size_t id;
-    const std::string seq;
-    RawSequence(size_t _id, std::string _seq): id(_id), seq(std::move(_seq)) {
+    std::string contig_name;
+    size_t contig_size;
+    size_t left;
+    size_t right;
+    AbstractSegment(std::string contig_name, size_t contig_size, size_t left_, size_t right_) :
+                        contig_name(std::move(contig_name)), contig_size(contig_size), left(left_), right(right_){
+        VERIFY(0 <= left && left <= right && right <= contig_size);
+    }
+
+    template<class T>
+    AbstractSegment(const NamedSequence<T, std::string> &contig, size_t left_, size_t right_);
+
+    size_t size() const {return right - left;}
+    size_t cutLeft() const {return left;}
+    size_t cutRight() const {return contig_size - right;}
+
+    size_t dist(const AbstractSegment &other) const {
+        if (right <= other.left)
+            return other.left - right;
+        else if (other.right <= left)
+            return left - other.right;
+        else
+            return 0;
+    }
+
+    AbstractSegment RC() const {
+        if(contig_name[0] == '-')
+            return {contig_name.substr(1), contig_size, contig_size - right, contig_size - left};
+        else
+            return {"-" + contig_name, contig_size, contig_size - right, contig_size - left};
+    }
+
+    bool inter(const AbstractSegment &other) const {
+        return !(right <= other.left or left >= other.right);
+    }
+
+    int interSize(const AbstractSegment &other) const {
+        if (not inter(other))
+            return -1;
+        else
+            return int(std::min(right, other.right) - std::max(left, other.left));
+    }
+
+    bool operator<(const AbstractSegment &other) const {
+        return left < other.left || (left == other.left && right < other.right);
+    }
+
+    bool operator>(const AbstractSegment &other) const {
+        return left > other.left || (left == other.left && right > other.right);
+    }
+
+    AbstractSegment operator+(const AbstractSegment &other) const {
+        VERIFY(right == other.left);
+        return {contig_name, contig_size, left, other.right};
+    }
+
+    bool operator==(const AbstractSegment &other) const {
+        return contig_name == other.contig_name && left == other.left && right == other.right;
+    }
+
+    bool operator!=(const AbstractSegment &other) const {
+        return contig_name != other.contig_name || left != other.left || right != other.right;
+    }
+
+    AbstractSegment shrinkRightBy(size_t len) const {
+        VERIFY(len <= size());
+        return {contig_name, contig_size, left, right - len};
+    }
+
+    AbstractSegment shrinkLeftBy(size_t len) const {
+        VERIFY(len <= size());
+        return {contig_name, contig_size, left + len, right};
+    }
+
+    AbstractSegment shrinkRightToLen(size_t len) const {
+        return {contig_name, contig_size, left, left + len};
+    }
+
+    AbstractSegment shrinkLeftToLen(size_t len) const {
+        return {contig_name, contig_size, right - len, right};
+    }
+
+    AbstractSegment extendBy(size_t len) const {
+        return {contig_name, contig_size, left - std::min(left, len), std::min(contig_size, right + len)};
+    }
+
+    AbstractSegment extendRight(size_t len) const {
+        return {contig_name, contig_size, left, std::min(contig_size, right + len)};
+    }
+
+    AbstractSegment extendLeft(size_t len) const {
+        return {contig_name, contig_size, left - std::min(left, len), right};
+    }
+
+    AbstractSegment unite(const AbstractSegment &other) const {
+        return {contig_name, contig_size, std::min(left, other.left), std::max(right, other.right)};
+    }
+
+    AbstractSegment nest(const AbstractSegment &other) const {return {other.contig_name, other.contig_size, other.left + left, other.left + right};}
+
+    std::string coordinatesStr() const {
+        std::stringstream ss;
+        ss << "[" << left << ":";
+        if (right > contig_size * 3 / 4)
+            ss << contig_size << "-" << (contig_size - right);
+        else
+            ss << right;
+        ss << "]";
+        return ss.str();
     }
 };
+
+template<class T>
+AbstractSegment::AbstractSegment(const NamedSequence<T, std::string> &contig, size_t left_, size_t right_) :
+        contig_name(std::move(contig.getInnerId())), contig_size(contig.fullSize()), left(left_), right(right_){
+    VERIFY(0 <= left && left <= right && right <= contig_size);
+}
 
 //TODO: store cut_left and cut_right instead of left and right and merge with IdSegment
 template<class T>
@@ -50,7 +165,7 @@ public:
 
     Segment() : contig_ptr(nullptr), left(0), right(0) {}
 
-    bool valid() const {return contig_ptr == nullptr;}
+    bool valid() const {return contig_ptr != nullptr;}
     T &contig() const {return *contig_ptr;}
     size_t size() const {return right - left;}
     size_t cutLeft() const {return left;}

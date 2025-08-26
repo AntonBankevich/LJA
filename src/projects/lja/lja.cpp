@@ -1,10 +1,10 @@
+#include <supregraph/multiplexing_stage.hpp>
 #include "common/pipeline_tools.hpp"
 #include "trio/trio_stages.hpp"
 #include "error_correction/coverage_ec_stage.hpp"
 #include "error_correction/no_correction_stage.hpp"
 #include "error_correction/topology_ec_stage.hpp"
 #include "polishing/polishing_stage.hpp"
-#include "repeat_resolution/mdbg_stage.hpp"
 
 std::string constructMessage() {
     std::stringstream ss;
@@ -54,16 +54,27 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
         correctionStage2.bindInput("references", "", "references");
         corrected_reads = {"TopologyBasedCorrection", "corrected_reads"};
     };
-    SubstageRun &rr = lja.addStage(MDBGStage(), "MDBG");
+//    SubstageRun &rr = lja.addStage(MDBGStage(), "MDBG");
+//    if(noec) {
+//        rr.bindInput("read_aln", "Construction", "final_aln");
+//        rr.bindInput("extra_read_aln", "Construction", "extra_read_aln");
+//        rr.bindInput("graph", "Construction", "final_dbg");
+//    } else {
+//        rr.bindInput("read_aln", "TopologyBasedCorrection", "final_aln");
+//        rr.bindInput("extra_read_aln", "TopologyBasedCorrection", "extra_read_aln");
+//        rr.bindInput("graph", "TopologyBasedCorrection", "final_dbg");
+//    }
+    SubstageRun &rr = lja.addStage(spg::SupreGraphPhase(), "Multiplexing");
     if(noec) {
-        rr.bindInput("read_aln", "Construction", "final_aln");
-        rr.bindInput("extra_read_aln", "Construction", "extra_read_aln");
+        rr.bindInput("reads", "Construction", "final_aln");
+        rr.bindInput("extra_reads", "Construction", "extra_read_aln");
         rr.bindInput("graph", "Construction", "final_dbg");
     } else {
-        rr.bindInput("read_aln", "TopologyBasedCorrection", "final_aln");
-        rr.bindInput("extra_read_aln", "TopologyBasedCorrection", "extra_read_aln");
+        rr.bindInput("reads", "TopologyBasedCorrection", "final_aln");
+        rr.bindInput("extra_reads", "TopologyBasedCorrection", "extra_read_aln");
         rr.bindInput("graph", "TopologyBasedCorrection", "final_dbg");
     }
+    rr.bindInput("paths", "", "paths");
     if(trio) {
         SubstageRun &trioPreprocessing = lja.addStage(TrioPreprocessingPhase(), "TrioPreprocessing");
         trioPreprocessing.bindInput("paternal", "", "paternal");
@@ -79,10 +90,11 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
         trioSimplification.bindInput("reads", "", "reads");
     } else {
         SubstageRun & polishing = lja.addStage(PolishingPhase(), "Polishing");
-        polishing.bindInput("graph", "MDBG", "graph");
+        polishing.bindInput("graph", "Multiplexing", "supregraph_final");
         polishing.bindInput("corrected_reads", corrected_reads.first, corrected_reads.second);
         polishing.bindInput("reads", "", "reads");
     }
+//    TODO: create postprocessing stage with statistics
     return std::move(lja);
 }
 
@@ -91,13 +103,18 @@ int main(int argc, char **argv) {
     ComplexStage lja = ConstructLJApipeline(command_line);
     CLParser parser(lja.getStandaloneParameters(),
                     {"o=output-dir", "t=threads", "k=CoverageBasedCorrection.k-mer-size", "K=K-mer-size"},
-                    {"K-mer-size=TopologyBasedCorrection.k-mer-size", "K-mer-size=MDBG.k-mer-size",
-                     "diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid",
-                     "load=CoverageBasedCorrection.load", "load=TopologyBasedCorrection.load", "load=Construction.load"});
+                    {"K-mer-size=TopologyBasedCorrection.k-mer-size", "K-mer-size=Multiplexing.k-mer-size",
+                     "diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid"});
     LoggedProgram lja_program("lja", std::move(lja), std::move(parser),
                               "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads.",
                               "LJA pipeline finished.",
                               {{"Final assembly", "assembly", "assembly.fasta"},
                                {"Final assembly graph", "graph", "mdbg.gfa"}});
-    return lja_program.run(command_line);
+    // try {
+        return lja_program.run(command_line);
+    // } catch (const std::exception &e) {
+    //     std::cerr << "Error: " << e.what() << std::endl;
+    //     print_stacktrace();
+    //     throw e;
+    // }
 }

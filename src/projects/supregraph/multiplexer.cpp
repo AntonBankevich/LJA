@@ -3,73 +3,90 @@
 
 using namespace spg;
 
-Multiplexer::Multiplexer(SupreGraph &graph, ag::AlignedReadStorage<SPGTraits> &reads, DecisionRule &rule, size_t max_core_length) :
+Multiplexer::Multiplexer(ag::AssemblyGraph &graph, ag::AlignedReadStorage &reads, DecisionRule &rule, size_t max_core_length) :
                             graph(graph), reads(reads), rule(rule), max_core_length(max_core_length) {
     for(Vertex &v : graph.verticesUnique()) {
         VERIFY(v.isCanonical());
         if(v.isCore() && v.outDeg() > 0 && v.inDeg() > 0) {
-            core_queue.insert(v.getId());
+            pushCore(v);
         }
     }
 }
 
-VertexResolutionResult Multiplexer::multiplex(logging::Logger &logger, size_t threads, Vertex &vertex) {
+std::vector<VertexId> Multiplexer::multiplex(logging::Logger &logger, size_t threads, Vertex &vertex) {
 //            VERIFY(vertex.inDeg() > 1 && vertex.outDeg() > 1);
-    core_queue.erase(vertex.getId());
-    if(vertex.marked())
-        return {vertex};
-    if(vertex.inDeg() == 1 && vertex.outDeg() == 1 &&
-                (!vertex.front().getFinish().isJunction() || !vertex.rc().front().getFinish().isJunction())) {
-        GraphPath path = ag::PathHelper<SPGTraits>::WalkForward(vertex.front());
-        if(path.getFinish() != vertex) {
-            path = ag::PathHelper<SPGTraits>::WalkForward(vertex.rc().front()).RC() + path;
-        }
-        Vertex &res = path.getStart().isJunction() ? graph.mergePath(path) : graph.mergeLoop(path);
-        return {res};
-    }
-    logger.trace() << "Multiplexing step " << vertex.getId() << std::endl;
+            logger.trace() << "Premultiplexing " << vertex.getId() << " " << vertex.inDeg() << " " << vertex.outDeg() << " " << vertex.isCore() << std::endl;
+    if(!vertex.isCore())
+        return {vertex.getId()};
+    logger.trace() << "Multiplexing vertex " << vertex.getId() << std::endl;
     VertexResolutionPlan rr = rule.judge(vertex);
     logger.trace() << "Judgement: " << rr << std::endl;
-    if(!rr.empty()) {
+    if (!rr.empty()) {
         logger.trace() << "Starting to resolve" << std::endl;
-        for(auto it : rr.connectionsUnique()) {
+        for (auto it: rr.connectionsUnique()) {
             logger.trace() << it.incoming().getId() << " " << it.outgoing().getId() << std::endl;
         }
-        VertexResolutionResult res = graph.resolveVertex(vertex, rr);
+        ag::VertexResolutionResult vrres = graph.resolveVertex(vertex, rr);
         std::vector<VertexId> candidates;
-        for(Vertex &new_vertex : res.newVertices()) {
-            for(Vertex &v : ag::ThisAndRC(new_vertex)) {
-                candidates.emplace_back(v.getId());
-                for (Edge &edge: v) {
-                    candidates.emplace_back(edge.getFinish().getId());
-                    candidates.emplace_back(edge.getFinish().rc().getId());
-                }
-            }
-        }
-        for(VertexId vid : candidates) {
-            if(vid->marked())
-                continue;
-            if(vid->isCanonical() && vid->isCore() && vid->outDeg() > 0 && vid->inDeg() > 0 && vid->size() < max_core_length &&
-               (vid->isJunction() || ag::PathHelper<SPGTraits>::WalkForward(vid->front()).getFinish().isJunction()))
-                core_queue.insert(vid);
+        std::vector<VertexId> res;
+        for (Vertex &new_vertex: vrres.newVertices()) {
+            res.emplace_back(new_vertex.getId());
+	    logger.trace() << "Push merge " << new_vertex.getId() << std::endl;
+            merge_queue.emplace_back(new_vertex.getId());
         }
         logger.trace() << "Result: " << res << std::endl;
-        return res;
+        return std::move(res);
     } else {
-        logger.trace() << "Skipped" << std::endl;
-        return {vertex};
+        logger.trace() << "Could not resolve" << std::endl;
+        return {};
     }
 }
 
-VertexResolutionResult Multiplexer::multiplex(logging::Logger &logger, size_t threads) {
-    Vertex &next = **core_queue.begin();
-    core_queue.erase(core_queue.begin());
-    return multiplex(logger, threads, next);
+std::vector<VertexId> Multiplexer::merge(logging::Logger &logger, size_t threads, Vertex &vertex) {
+//            VERIFY(vertex.inDeg() > 1 && vertex.outDeg() > 1);
+    if(vertex.marked())
+        return {};
+    VERIFY(!vertex.isJunction());
+    logger.trace() << "Processing vertex " << vertex.getId() << std::endl;
+    ag::GraphPath path = ag::PathHelper::WalkForward(vertex.front());
+    if(path.getFinish() != vertex) {
+        path = ag::PathHelper::WalkForward(vertex.rc().front()).RC() + path;
+    }
+    logger.trace() << "Push " << path.getStart().getId() << " " << path.getFinish().getId() << std::endl;
+    pushCore(path.getStart());
+    pushCore(path.getFinish());
+    if(path.calculateSize() > 2 || (path.calculateSize() == 2 && (!path.frontEdge().isPrefix() || !path.backEdge().isSuffix()))) {
+        logger.trace() << "Merging path " << path.str() << std::endl;
+        // TODO: switch to Supregraph and move this functionality to it!!!
+        Vertex &res = ag::MergePathSPG(path, graph);
+        // Vertex &res = path.getStart().isJunction() ? graph.mergePath(path) : graph.mergeLoop(path);
+        return {res.getId()};
+    } else {
+        return {};
+    }
+}
+
+std::vector<VertexId> Multiplexer::process(logging::Logger &logger, size_t threads) {
+    if(merge_queue.empty()) {
+        return multiplex(logger, threads, popCore());
+    } else {
+        Vertex &next = *merge_queue.back();
+        merge_queue.pop_back();
+        return merge(logger, threads, next);
+    }
 }
 
 void Multiplexer::fullMultiplex(logging::Logger &logger, size_t threads) {
     while(!finished()) {
-        multiplex(logger, threads);
+        process(logger, threads);
     }
     graph.removeMarked();
 }
+
+Vertex &Multiplexer::popCore() {
+    Vertex &res = *core_queue.begin()->second;
+    core_queue.erase(core_queue.begin());
+    return res;
+}
+
+void Multiplexer::pushCore(Vertex &vertex) {core_queue.emplace(vertex.size(), vertex.getCanonical().getId());}

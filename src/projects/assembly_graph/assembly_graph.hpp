@@ -11,17 +11,10 @@
 
 namespace ag {
 //    TODO: assume VertexData and EdgeData have default constructors. Remove them from addVertex, addEdge.
-//     Fill their contents in lesteners instead.
+//     Fill their contents in listeners instead.
 //TODO: Make marked vertex be considered deleted immidiately (e.g. run fireDeleteVertex)
-    template<class Traits>
-    class AssemblyGraph : public ResolutionFire<Traits> {
+    class AssemblyGraph : public ResolutionFire {
     public:
-        typedef typename Traits::Vertex Vertex;
-        typedef typename Traits::Edge Edge;
-        typedef typename Vertex::VertexId VertexId;
-        typedef typename Edge::EdgeId EdgeId;
-        typedef typename Traits::VertexData VertexData;
-        typedef typename Traits::EdgeData EdgeData;
         typedef std::list<Vertex> vertex_storage_type;
         typedef typename std::list<Vertex>::iterator vertex_iterator_type;
         typedef typename std::list<Vertex>::const_iterator const_vertex_iterator_type;
@@ -30,7 +23,7 @@ namespace ag {
 //    TODO: replace with perfect hash map? It is parallel, maybe faster and compact.
         vertex_storage_type vertex_list;
         int maxVId = 0;
-        EdgeCodeListener<Traits> edgeCodeListener;
+        EdgeCodeListener edgeCodeListener;
 
         Vertex &innerAddVertex(typename Vertex::id_type id, bool canonical, VertexData data);
 
@@ -38,10 +31,11 @@ namespace ag {
 
     protected:
         Vertex &addVertex(const Sequence &seq, const VertexData &data, typename Vertex::id_type id = 0);
-        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &full_sequence, EdgeData data, BaseEdgeId eid = {}, BaseEdgeId rcid = {});
-        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data, BaseEdgeId eid = {}, BaseEdgeId rcid = {});
-        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &full_seq, EdgeData data, BaseEdgeId eid = {}, BaseEdgeId rcid = {});
-        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data, BaseEdgeId eid = {}, BaseEdgeId rcid = {});
+        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &full_sequence, EdgeData data, EdgeIdType eid = {}, EdgeIdType rcid = {});
+        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data, EdgeIdType eid = {}, EdgeIdType rcid = {});
+        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &full_seq, EdgeData data, EdgeIdType eid = {}, EdgeIdType rcid = {});
+        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data, EdgeIdType eid = {}, EdgeIdType rcid = {});
+        void setHash(ag::Vertex &v, hashing::htype hash) { v.hash = hash; }
     public:
 
         explicit AssemblyGraph() : edgeCodeListener(*this) {}
@@ -58,26 +52,21 @@ namespace ag {
         void removeMarked();
         void resetMarkers();
 
-        Vertex &addVertexPair(const VertexData &data, typename Vertex::id_type id = 0);
+        Vertex &addVertexPair(VertexData data, typename Vertex::id_type id = 0);
         Vertex &addSelfRCVertex(VertexData data);
         Vertex &addVertex(const Sequence &seq, typename Vertex::id_type id = 0) {return addVertex(seq, {}, id);}
         Vertex &addVertex(const Vertex &other_graph_vertex);
+        Vertex &addSPGVertex(Sequence seq, bool cyclic, bool inf_left, bool inf_right, Vertex::id_type id = Vertex::id_type());
+        Edge &addSPEdgeLockFree(Vertex &start, Vertex &end, ag::Edge::id_type eid = {}, ag::Edge::id_type rcid = {});
+        Edge &addSPEdge(Vertex &start, Vertex &end, ag::Edge::id_type eid = {}, ag::Edge::id_type rcid = {});
         //        This method should only be invoked if no graph modification is performed in parallel or if both start and
 //        rc end vertices are locked by this process or otherwise prevented from modification by other processes
-        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &full_sequence, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
-            return addEdgeLockFree(start, end, full_sequence, EdgeData(), eid, rcid);
-        }
-        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
-            return addEdgeLockFree(start, end, tseq, rctseq, EdgeData(), eid, rcid);
-        }
+        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &full_sequence, EdgeIdType eid = {}, EdgeIdType rcid = {});
+        Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeIdType eid = {}, EdgeIdType rcid = {});
+        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &full_seq, EdgeIdType eid = {}, EdgeIdType rcid = {});
+        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeIdType eid = {}, EdgeIdType rcid = {});
         void removeEdgeLockFree(Edge &edge);
         void removeEdge(Edge &edge);
-        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &full_seq, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
-            return addEdge(start, end, full_seq, EdgeData(), eid, rcid);
-        }
-        Edge &addEdge(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, BaseEdgeId eid = {}, BaseEdgeId rcid = {}) {
-            return addEdge(start, end, tseq, rctseq, EdgeData(), eid, rcid);
-        }
         void isolateAndMark(Vertex &vertex);
         template<class I>
         void isolateAndMark(I begin, I end);
@@ -86,24 +75,17 @@ namespace ag {
 
         //        Make sure not to perform any other graph modifications in parallel with this method since it only blocks
 //        the first and the last vertices
-        Edge &mergePathToEdge(const GraphPath<Traits> &path);
+        Edge &mergePathToEdge(const GraphPath &path);
         Edge &mergeTipsToEdge(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
 //        TODO: make it usable in parallel when parallel vertex adding is implemented
-        GraphPath<Traits> splitEdge(Edge &edge, const std::vector<EdgePosition<Traits>> &split_positions);
-        Vertex &addSupreVertex(Edge &edge) {
-            Locker<VertexId> locker({edge.getStart().getId(), edge.getFinish().rc().getId()});
-            VERIFY(!edge.isSuffix());
-            VERIFY(!edge.isPrefix());
-            Sequence seq = edge.fullSeq();
-            Vertex &res = addVertex(seq);
-            addEdgeLockFree(res, edge.getFinish(), Sequence(), edge.rc().truncSeq());
-            if(edge != edge.rc())
-                addEdgeLockFree(res.rc(), edge.getStart().rc(), Sequence(), edge.truncSeq());
-            fireAddSupreVertex(res, edge);
-            if(edge != edge.rc())
-                fireAddSupreVertex(res.rc(), edge.rc());
-            removeEdgeLockFree(edge);
-        }
+        GraphPath splitEdge(Edge &edge, const std::vector<EdgePosition> &split_positions);
+
+        Edge &chooseSplitColumn(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
+
+        Vertex &addSupreVertex(Edge &edge);
+        ag::VertexResolutionResult resolveVertex(Vertex &core, const VertexResolutionPlan &resolution);
+        Vertex &mergePath(const GraphPath &path);
+        Vertex &mergeLoop(const GraphPath &path);
 
 
         IterableStorage<SkippingIterator<AssemblyGraph::vertex_iterator_type>> vertices(bool unique = false) &;
@@ -124,287 +106,15 @@ namespace ag {
         IterableStorage<ApplyingIterator<const_vertex_iterator_type, const Edge, 4>> edgesUnique() const && = delete;
     };
 
-    template<class Traits>
-    typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addSelfRCVertex(VertexData data) {
-        typename Vertex::id_type id = maxVId + 1;
-        Vertex &res = innerAddVertex(id, true, std::move(data));
-        res.setRC(res);
-        this->fireAddVertex(res);
-        return res;
-    }
-    template<class Traits>
-    typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addVertexPair(const VertexData &data, typename Vertex::id_type id) {
-        VERIFY(id >= 0);
-        if(id == 0)
-            id = maxVId + 1;
-        Vertex &rc = innerAddVertex(-id, false, data.RC());
-        Vertex &res = innerAddVertex(id, true, std::move(data));
-        res.setRC(rc);
-        this->fireAddVertex(res);
-        this->fireAddVertex(rc);
-        return res;
-    }
-
-    template<class Traits>
-    typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addVertex(const Vertex &other_graph_vertex) {
-        typename AssemblyGraph<Traits>::Vertex &res = addVertex(other_graph_vertex.getSeq(), other_graph_vertex, other_graph_vertex.getInnerId());
-        res.updateMaxOutId(other_graph_vertex.getMaxOutId());
-        res.rc().updateMaxOutId(other_graph_vertex.rc().getMaxOutId());
-        return res;
-    }
-
-    template<class Traits>
-    IterableStorage<SkippingIterator<typename AssemblyGraph<Traits>::vertex_iterator_type>> AssemblyGraph<Traits>::vertices(bool unique) & {
-        std::function<bool(Vertex &)> use =
-                [unique](Vertex &vertex) -> bool {
-                    return !unique || vertex.isCanonical();
-                };
-        SkippingIterator<vertex_iterator_type> begin(vertex_list.begin(), vertex_list.end(), use);
-        SkippingIterator<vertex_iterator_type> end(vertex_list.end(), vertex_list.end(), use);
-        return {begin, end};
-    }
-
-    template<class T>
-    std::string GetEdgeNameForSaving(const BaseEdge<T> &edge) {
+    inline std::string GetEdgeNameForSaving(const Edge &edge) {
         VERIFY((edge.getFinish().rc().getInnerId() > 0) == edge.getFinish().rc().isCanonical());
         if(!edge.isCanonical())
             return GetEdgeNameForSaving(edge.rc());
         return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
     }
 
-    template<class Traits>
-    IterableStorage<SkippingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type>> AssemblyGraph<Traits>::vertices(bool unique) const & {
-        std::function<bool(const Vertex &)> use =
-                [unique](const Vertex &vertex) -> bool {
-                    return !unique || vertex.isCanonical();
-                };
-        SkippingIterator<const_vertex_iterator_type> begin(vertex_list.begin(), vertex_list.end(), use);
-        SkippingIterator<const_vertex_iterator_type> end(vertex_list.end(), vertex_list.end(), use);
-        return {begin, end};
-    }
-
-    template<class Traits>
-    IterableStorage<SkippingIterator<typename AssemblyGraph<Traits>::vertex_iterator_type>> AssemblyGraph<Traits>::verticesUnique() &{
-        return vertices(true);
-    }
-
-    template<class Traits>
-    IterableStorage<SkippingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type>> AssemblyGraph<Traits>::verticesUnique() const &{
-        return vertices(true);
-    }
-
-    template<class Traits>
-    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::vertex_iterator_type, typename Traits::Edge, 4>> AssemblyGraph<Traits>::edges(bool unique) & {
-        std::function<std::array<Edge*, 4>(Vertex &)> apply = [unique](Vertex &vertex) {
-            if(vertex.outDeg() > 4) {
-                std::cout << vertex.getSeq() << std::endl;
-                for(Edge &e : vertex) {
-                    std::cout << e.truncSeq() << std::endl;
-                }
-            }
-            VERIFY(vertex.outDeg() <= 4);
-            std::array<Edge*, 4> res = {};
-            size_t cur = 0;
-            for(Edge &edge : vertex) {
-                if(!unique || edge <= edge.rc()) {
-                    res[cur] = &edge;
-                    cur++;
-                }
-            }
-            return res;
-        };
-        ApplyingIterator<vertex_iterator_type, Edge, 4> begin(vertex_list.begin(), vertex_list.end(), apply);
-        ApplyingIterator<vertex_iterator_type, Edge, 4> end(vertex_list.end(), vertex_list.end(), apply);
-        return {begin, end};
-    }
-
-    template<class Traits>
-    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type, const typename Traits::Edge, 4>> AssemblyGraph<Traits>::edges(bool unique) const & {
-        std::function<std::array<const Edge*, 4>(const Vertex &)> apply = [unique](const Vertex &vertex) {
-            std::array<const Edge*, 4> res = {};
-            size_t cur = 0;
-            for(const Edge &edge : vertex) {
-                if(!unique || edge <= edge.rc()) {
-                    res[cur] = &edge;
-                    cur++;
-                }
-            }
-            return res;
-        };
-        ApplyingIterator<const_vertex_iterator_type, const Edge, 4> begin(vertex_list.begin(), vertex_list.end(), apply);
-        ApplyingIterator<const_vertex_iterator_type, const Edge, 4> end(vertex_list.end(), vertex_list.end(), apply);
-        return {begin, end};
-    }
-
-    template<class Traits>
-    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::vertex_iterator_type, typename Traits::Edge, 4>> AssemblyGraph<Traits>::edgesUnique() &{
-        return edges(true);
-    }
-
-    template<class Traits>
-    IterableStorage<ApplyingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type, const typename Traits::Edge, 4>> AssemblyGraph<Traits>::edgesUnique() const &{
-        return edges(true);
-    }
-
-    template<class Traits>
-    void AssemblyGraph<Traits>::removeIsolated() {
-        vertex_storage_type newv;
-        for(Vertex &v: verticesUnique())
-            if(v.inDeg() == 0 && v.outDeg() == 0)
-                this->isolateAndMark(v);
-        removeMarked();
-    }
-
-    template<class Traits>
-    void AssemblyGraph<Traits>::removeMarked() {
-        for (auto it = vertex_list.begin(); it != vertex_list.end();) {
-            if (it->marked()) {
-                this->fireDeleteVertex(*it);
-                it = vertex_list.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
-
-    template<class Traits>
-    void AssemblyGraph<Traits>::resetMarkers() {
-        for(Vertex &vertex : vertices()) {
-            for(Edge &edge : vertex) {
-                edge.mark(EdgeMarker::common);
-            }
-            vertex.unmark();
-        }
-    }
-
-    template<class Traits>
-    typename AssemblyGraph<Traits>::Vertex &AssemblyGraph<Traits>::addVertex(const Sequence &seq, const VertexData &data, typename Vertex::id_type id) {
-        if (id == 0) {
-            if(seq <= !seq)
-                id = maxVId + 1;
-            else
-                id = -maxVId - 1;
-        }
-        maxVId = std::max(std::abs(id), maxVId);
-        Vertex & res = innerAddVertex(id, seq, data);
-        Vertex & rc = seq == !seq ? res : innerAddVertex(-id, !seq, data.RC());
-        res.setRC(rc);
-        res.setSeq(seq);
-        this->fireAddVertex(res);
-        if(res != rc)
-            this->fireAddVertex(rc);
-        return res;
-    }
-
-    template<class Traits>
-    size_t AssemblyGraph<Traits>::edgeCount() const {
-        size_t res = 0;
-        for(auto &v : vertices())
-            res += v.outDeg();
-        return res;
-    }
-
-    template<class Traits>
-    AssemblyGraph<Traits>::~AssemblyGraph() {
-        for(Vertex &v : verticesUnique())
-            if(!v.marked())
-                isolateAndMark(v);
-        removeMarked();
-    }
-
-    template<class Traits>
-    typename Traits::Vertex &AssemblyGraph<Traits>::innerAddVertex(typename Vertex::id_type id, bool canonical, VertexData data) {
-        VERIFY(canonical == (id > 0));
-        maxVId = std::max(std::abs(id), maxVId);
-        vertex_list.emplace_back(id, canonical, std::move(data));
-        return vertex_list.back();
-    }
-
-    template<class Traits>
-    typename Traits::Vertex &AssemblyGraph<Traits>::innerAddVertex(typename Vertex::id_type id, Sequence seq, VertexData data) {
-        VERIFY(seq.isCanonical() == (id > 0));
-        maxVId = std::max(std::abs(id), maxVId);
-        vertex_list.emplace_back(id, std::move(seq), std::move(data));
-        return vertex_list.back();
-    }
-
-    template<class Traits>
-    typename Traits::Edge &
-    AssemblyGraph<Traits>::addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &full_sequence, EdgeData data,
-                                           BaseEdgeId eid, BaseEdgeId rcid) {
-        return addEdgeLockFree(start, end, full_sequence.Subseq(start.size()), full_sequence.rc().Subseq(end.size()), data, eid, rcid);
-    }
-
-    template<class Traits>
-    typename Traits::Edge &AssemblyGraph<Traits>::addEdgeLockFree(Vertex &start, Vertex &end,
-                                          const Sequence &tseq, const Sequence &rctseq,
-                                          EdgeData data, BaseEdgeId eid, BaseEdgeId rcid) {
-        for(Edge &edge: start) {
-            if(edge.getFinish() == end && edge.truncSeq() == tseq) {
-                return edge;
-            }
-        }
-        Edge &res = start.innerAddEdge(end, tseq, data, eid);
-        if(end.rc() != start || (tseq.size() > start.size() && tseq.rc().Subseq(end.size()) != rctseq.rc().Subseq(start.size()))) {
-            Edge &rc_edge = end.rc().innerAddEdge(start.rc(), rctseq, data.RC(), rcid);
-            res._rc = &rc_edge;
-            rc_edge._rc = &res;
-        } else {
-            res._rc = &res;
-        }
-        VERIFY(res.fullSize() == res.rc().fullSize());
-        this->fireAddEdge(res);
-        if(res != res.rc())
-            this->fireAddEdge(res.rc());
-        return res;
-
-        return addEdgeLockFree(start, end, tseq, rctseq, data, eid, rcid);
-    }
-
-    template<class Traits>
-    void AssemblyGraph<Traits>::removeEdgeLockFree(Edge &edge) {
-        this->fireDeleteEdge(edge);
-        if(edge != edge.rc())
-            this->fireDeleteEdge(edge.rc());
-        if(edge != edge.rc())
-            edge.getFinish().rc().innerRemoveEdge(edge.rc());
-        edge.getStart().innerRemoveEdge(edge);
-    }
-
-    template<class Traits>
-    void AssemblyGraph<Traits>::removeEdge(Edge &edge) {
-        Locker<VertexId> locker({edge.getStart().getId(), edge.getFinish().rc().getId()});
-        removeEdgeLockFree(edge);
-    }
-
-    template<class Traits>
-    typename Traits::Edge &
-    AssemblyGraph<Traits>::addEdge(Vertex &start, Vertex &end, const Sequence &full_seq, EdgeData data, BaseEdgeId eid,
-                                   BaseEdgeId rcid) {
-        return addEdge(start, end, full_seq.Subseq(start.size()), full_seq.rc().Subseq(end.size()), data, eid, rcid);
-    }
-
-    template<class Traits>
-    typename Traits::Edge &AssemblyGraph<Traits>::addEdge(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq,
-                                         EdgeData data, BaseEdgeId eid, BaseEdgeId rcid) {
-        Locker<VertexId> locker({start.getId(), end.rc().getId()});
-        return addEdgeLockFree(start, end, tseq, rctseq, std::move(data), eid, rcid);
-    }
-
-    template<class Traits>
-    void AssemblyGraph<Traits>::isolateAndMark(Vertex &vertex) {
-        VERIFY(!vertex.marked());
-        for(Vertex &v : ThisAndRC(vertex)) {
-            while (v.outDeg() != 0) {
-                removeEdgeLockFree(v.front());
-            }
-            v.mark();
-        }
-    }
-
-    template<class Traits>
     template<class I>
-    void AssemblyGraph<Traits>::isolateAndMark(I begin, I end) {
+    void AssemblyGraph::isolateAndMark(I begin, I end) {
         std::vector<VertexId> to_mark;
         while(begin != end) {
             to_mark.emplace_back(begin->getId());
@@ -416,180 +126,4 @@ namespace ag {
             }
         }
     }
-
-//    TODO: when TAGraphPath is thoroughly damned, put it back here as a parameter.
-    template<class Traits>
-    typename Traits::Edge &AssemblyGraph<Traits>::mergePathToEdge(const GraphPath<Traits> &path) {
-        VERIFY(!path.empty());
-        VERIFY(path.endClosed() && path.startClosed());
-        ag::Locker<typename Traits::Vertex::VertexId> locker({path.getStart().getId(), path.getRCStart().getId()});
-        for(Vertex &v : path.innerVertices()) {
-            VERIFY(!v.marked());
-        }
-        VERIFY(!path.isSingleton());
-        VERIFY(path.getStart() == path.getFinish() || path.getStart() == path.getFinish().rc() || (path.getStart().isJunction() && path.getFinish().isJunction()));
-        SequenceBuilder sb;
-        Sequence new_seq = path.Seq();
-        Edge &new_edge = addEdgeLockFree(path.getStart(), path.getFinish(), new_seq);
-        new_edge.setCorporeal(false);
-        new_edge.rc().setCorporeal(false);
-        VERIFY((path == path.RC()) == (new_edge == new_edge.rc()));
-        this->fireMergePathToEdge(path.asEdgeIds(), new_edge);
-        if(new_edge != new_edge.rc())
-            this->fireMergePathToEdge(path.RC().asEdgeIds(), new_edge.rc());
-
-        std::vector<typename Traits::Vertex::VertexId> inner_vertices;
-        for(Vertex & v: path.innerVertices()){
-            inner_vertices.emplace_back(v.getId());
-        }
-        for(typename Traits::Vertex::VertexId &vid : inner_vertices) {
-            if(!vid->marked()||vid->outDeg() > 0 || vid->inDeg() > 0)
-                isolateAndMark(*vid);
-        }
-        new_edge.setCorporeal(true);
-        new_edge.rc().setCorporeal(true);
-        return new_edge;
-    }
-
-    template<class Traits>
-    GraphPath<Traits>
-    AssemblyGraph<Traits>::splitEdge(Edge &edge, const std::vector<EdgePosition<Traits>> &split_positions) {
-        VERIFY(!split_positions.empty());
-        ag::Locker<typename Traits::Vertex::VertexId> locker({edge.getStart().getId(), edge.getFinish().getId()});
-        VERIFY(split_positions.front().pos > 0);
-        VERIFY(split_positions.back().pos < edge.truncSize());
-        for(size_t i = 0; i + 1 < split_positions.size(); i++)
-            VERIFY(split_positions[i].pos < split_positions[i+1].pos);
-        std::vector<EdgeId> res;
-        VertexId last_vertex = edge.getStart().getId();
-        EdgePosition<Traits> last_pos = EdgePosition<Traits>(edge, 0);
-        bool self_rc = edge == edge.rc();
-        if(self_rc) {
-            for(size_t i = 0; i < split_positions.size(); i++) {
-                VERIFY(split_positions[i].pos + split_positions[split_positions.size() - 1 - i].pos == edge.truncSize())
-            }
-        }
-        for(EdgePosition<Traits> pos: split_positions) {
-            if(!self_rc || pos.pos * 2 <= edge.truncSize()) {
-                Vertex &new_vertex = addVertex(pos.kmerSeq());
-                Edge & new_edge = addEdgeLockFree(*last_vertex, new_vertex,
-                                                  edge.truncSeq().Subseq(last_pos.pos, pos.pos),
-                                                  edge.rc().truncSeq().Subseq(pos.RC().pos, last_pos.RC().pos));
-                new_edge.setCorporeal(false);
-                new_edge.rc().setCorporeal(false);
-                if(new_vertex == new_vertex.rc() || new_edge == new_edge.rc()) {
-                    self_rc = true;
-                }
-                last_vertex = new_vertex.getId();
-                res.emplace_back(new_edge.getId());
-            } else {
-                if(last_vertex->outDeg() == 0) {
-                    VERIFY(last_pos.pos * 2 < edge.truncSize());
-                    addEdgeLockFree(*last_vertex, last_vertex->rc(), edge.truncSeq().Subseq(last_pos.pos, pos.pos),
-                                    edge.rc().truncSeq().Subseq(pos.RC().pos, last_pos.RC().pos));
-                }
-                Edge &new_edge = last_vertex->front();
-                res.emplace_back(new_edge.getId());
-                last_vertex = new_edge.getFinish().getId();
-            }
-            last_pos = pos;
-        }
-        if(!self_rc) {
-            res.emplace_back(addEdgeLockFree(*last_vertex, edge.getFinish(),
-                                             edge.truncSeq().Subseq(last_pos.pos),
-                                             edge.rc().truncSeq().Subseq(0, last_pos.RC().pos)).getId());
-            res.back()->setCorporeal(false);
-            res.back()->rc().setCorporeal(false);
-        } else {
-            res.emplace_back(last_vertex->front().getId());
-        }
-        this->fireSplitEdge(edge, res);
-        if(edge != edge.rc()) {
-            std::vector<EdgeId> rc_res = oneline::map<EdgeId, EdgeId, typename std::vector<EdgeId>::reverse_iterator>(res.rbegin(), res.rend(), [](EdgeId &eid){return eid->rc().getId();});
-            this->fireSplitEdge(edge.rc(), rc_res);
-        }
-//        if(edge != edge.rc()) {
-//            std::vector<EdgeId> rcRes;
-//            for(EdgeId eid : res) rcRes.template emplace_back(eid->rc().getId());
-//            std::reverse(rcRes.begin(), rcRes.end());
-//            this->fireSplitEdge(edge.rc(), rcRes);
-//        }
-        removeEdgeLockFree(edge);
-        for(EdgeId edgeId : res) {
-            edgeId->setCorporeal(true);
-            edgeId->rc().setCorporeal(true);
-        }
-        return GraphPath<Traits>(res);
-    }
-
-    template<class Traits>
-    typename Traits::Edge &AssemblyGraph<Traits>::mergeTipsToEdge(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment) {
-        VERIFY(leftEdge != rightEdge);
-        VERIFY(alignment.queryLength() <= leftEdge.fullSize());
-        VERIFY(alignment.targetLength() <= rightEdge.rc().fullSize());
-        VERIFY(leftEdge.getFinish().outDeg() == 0);
-        VERIFY(leftEdge.getFinish().inDeg() == 1);
-        VERIFY(rightEdge.getStart().outDeg() == 1);
-        VERIFY(rightEdge.getStart().inDeg() == 0);
-        size_t skip_left = leftEdge.fullSize() - alignment.queryLength();
-        std::vector<AlignmentForm::ConstAlignmentColumnIterator> columns;
-        for(AlignmentForm::ConstAlignmentColumnIterator it = alignment.columns().begin(); it != alignment.columns().end(); ++it) {
-            if(it.getQpos() + leftEdge.truncSize() >= alignment.queryLength() && it.getTpos() <= rightEdge.rc().truncSize()) {
-                columns.emplace_back(it);
-            }
-        }
-        AlignmentForm::ConstAlignmentColumnIterator split_column = columns[columns.size() / 2];
-        AlignmentForm right_sub_alignment(split_column, alignment.columns().end());
-        AlignmentForm left_sub_alignment(alignment.columns().begin(), split_column);
-        Sequence left_part = leftEdge.fullSubseq(0, skip_left + split_column.getQpos());
-        Sequence right_part = rightEdge.fullSubseq(split_column.getTpos(), rightEdge.fullSize());
-//        Making sure that the sequence is properly collapsed
-        StringContig tmp((left_part + right_part).str(), "tmp");
-        Sequence new_seq = tmp.makeSequence();
-        VERIFY(new_seq.startsWith(left_part));
-        VERIFY(new_seq.endsWith(right_part));
-        for(size_t i = 0; i < left_part.size() + right_part.size() - new_seq.size(); i++) {
-            if (left_part[left_part.size() - 1] == right_part[0]) {
-                if (right_sub_alignment.front().type == CigarEvent::D) {
-                    right_sub_alignment.front().length -= 1;
-                    if (right_sub_alignment.front().length == 0)
-                        right_sub_alignment.pop_front();
-                } else if (left_sub_alignment.back().type == CigarEvent::D) {
-                    left_sub_alignment.back().length -= 1;
-                    if (left_sub_alignment.back().length == 0)
-                        left_sub_alignment.pop_back();
-                } else {
-                    right_sub_alignment = AlignmentForm({CigarPair(CigarEvent::I, 1)}) + right_sub_alignment;
-                }
-            }
-        }
-        AlignmentForm left_alignment = AlignmentForm::Equal(left_sub_alignment.queryLength()) + right_sub_alignment;
-        AlignmentForm right_alignment = left_sub_alignment.Reverse() + AlignmentForm::Equal(right_sub_alignment.targetLength());
-        Edge &new_edge = addEdge(leftEdge.getStart(), rightEdge.getFinish(), new_seq);
-        new_edge.setCorporeal(false);
-        new_edge.rc().setCorporeal(false);
-        this->fireMergeTipsToEdge(new_edge, leftEdge, rightEdge, left_alignment, right_alignment);
-        if(new_edge != new_edge.rc())
-            this->fireMergeTipsToEdge(new_edge.rc(), rightEdge.rc(), leftEdge.rc(), right_alignment.RC(), left_alignment.RC());
-        if(leftEdge != rightEdge.rc())
-            isolateAndMark(rightEdge.getStart());
-        isolateAndMark(leftEdge.getFinish());
-        new_edge.setCorporeal(true);
-        new_edge.rc().setCorporeal(true);
-        return new_edge;
-    }
-
-//    TODO: Make it run in parallel
-    template<class Traits>
-    void AssemblyGraph<Traits>::resetEdgeCodes(logging::Logger &logger, size_t threads) {
-        logger.info() << "Resetting edge codes" << std::endl;
-        this->fireResetEdgeCodes(logger, threads, *this);
-        size_t code_size = 0;
-        for(BaseEdge<Traits> &edge : edges()) {
-            code_size += edge.edge_code.size();
-            edge.edge_code = edge.firstNucl();
-        }
-        logger.info() << "Finished resetting edge codes. Reduced total code size from " << code_size << " to " << edgeCount() << std::endl;
-    }
-
 }

@@ -7,10 +7,12 @@ class AbstractCorrectionAlgorithm {
 private:
     std::string name;
 public:
+    virtual ~AbstractCorrectionAlgorithm() = default;
+
     explicit AbstractCorrectionAlgorithm(const std::string &name) : name(name) {};
     std::string getName() const {return name;}
     virtual void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads) {};
-    virtual std::string correctRead(const std::string &name, dbg::GraphPath &) = 0;
+    virtual std::string correctRead(const std::string &name, ag::GraphPath &) = 0;
 };
 
 class ErrorCorrectionEngine {
@@ -20,7 +22,7 @@ public:
     explicit ErrorCorrectionEngine(AbstractCorrectionAlgorithm &algorithm) : algorithm(algorithm) {}
 
     size_t run(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &storage) {
-        ag::AlignedReadStorage<dbg::DBGTraits> &reads_storage = storage.getReads();
+        ag::AlignedReadStorage &reads_storage = storage.getReads();
         algorithm.initialize(logger, threads, dbg, storage);
         logger.info() << "Correcting reads using algorithm " << algorithm.getName() << std::endl;
         ParallelCounter cnt(threads);
@@ -28,16 +30,22 @@ public:
         logging::ProgressBar progressBar(logger, reads_storage.size(), threads);
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, reads_storage, logger, cnt, progressBar)
         for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {
-            ag::AlignedRead<dbg::DBGTraits> &alignedRead = reads_storage[read_ind];
+            ag::AlignedRead &alignedRead = reads_storage[read_ind];
             progressBar.tick();
             if (!alignedRead.valid())
                 continue;
-            dbg::GraphPath corrected = alignedRead.getPath();
+            ag::GraphPath corrected = alignedRead.getPath();
             std::string message = algorithm.correctRead(alignedRead.getId(), corrected);
             if(!message.empty()) {
-                VERIFY(alignedRead.getPath() != corrected);
-                reads_storage.rerouteRead(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message);
-                cnt += 1;
+                if (corrected.truncLen() >= 500) {
+                    VERIFY_MSG(alignedRead.getPath() != corrected, message);
+                    reads_storage.rerouteRead(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message);
+                    cnt += 1;
+                } else {
+#pragma omp critical
+                    logger.trace() << "Removed read " << alignedRead.getId() << " due to its size: " << alignedRead.getPath().truncLen() <<"->" << corrected.truncLen() << std::endl;
+                    reads_storage.delayedInvalidateRead(alignedRead, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message + "_" + "invalidated_as_short");
+                }
             }
         }
         progressBar.finish();

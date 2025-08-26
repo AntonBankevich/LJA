@@ -1,7 +1,7 @@
 #pragma once
-#include "supregraph.hpp"
+
 #include "list_path.hpp"
-#include "vertex_resolution.hpp"
+#include "abstract_decision_rule.hpp"
 #include "unique_vertex_storage.hpp"
 #include <assembly_graph/data_structures/read_alignment_storage.hpp>
 #include "assembly_graph/graph_listeners.hpp"
@@ -95,7 +95,7 @@ namespace spg {
 //            return res;
 //        }
 //    };
-//    class PathIndex : public ag::ResolutionListener<SPGTraits> {
+//    class PathIndex : public ag::ResolutionListener {
 //    private:
 ////        When reads_ready==false these two, as well as the path storage itself are invalidated
 //        mutable std::unordered_map<EdgeId, std::vector<std::pair<ReadDirection, PathIterator>>> read_index;
@@ -104,7 +104,7 @@ namespace spg {
 //
 ////        remapping is used only when reads_ready=false and allows to reconstruct read paths when necessary
 //        mutable Embedding embedding;
-//        ag::AlignedReadStorage<SPGTraits> *storage;
+//        ag::AlignedReadStorage *storage;
 //        mutable bool reads_ready = false;
 //
 //        void prepareIndex() const;
@@ -120,7 +120,7 @@ namespace spg {
 //
 ////        Contract! No read from storage is fully contained within more than one core vertex.
 ////        This is always true if all reads have length at least K and spg was converted from DBG with K.
-//        PathIndex(SupreGraph &spg, AlignedReadStorage &storage);
+//        PathIndex(ag::AssemblyGraph &spg, AlignedReadStorage &storage);
 //
 //        void unprepare() const {
 //            if(reads_ready) {

@@ -1,7 +1,7 @@
 # Note: CMake support is community-based. The maintainers do not use CMake
 # internally.
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.5)
 
 project(googletest-distribution)
 set(GOOGLETEST_VERSION 1.14.0)

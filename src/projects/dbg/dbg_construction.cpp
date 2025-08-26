@@ -76,9 +76,9 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<std::pair<hash
     SparseDBG dbg(hasher);
     for(auto & hash : vertices) {
         if(hash.second)
-            dbg.addSelfRCVertex({hash.first});
+            dbg.addSelfRCVertex(VertexData::DBGData(hash.first));
         else
-            dbg.addVertexPair({hash.first});
+            dbg.addVertexPair(VertexData::DBGData(hash.first));
     }
     {
         KmerIndex index(dbg);
@@ -90,7 +90,7 @@ SparseDBG constructDBG(logging::Logger &logger, const std::vector<std::pair<hash
     }
 
     logger.trace() << "Filled dbg edges. Merging unbranching paths." << std::endl;
-    ag::MergeAll(logger, threads, dbg);
+    ag::MergeAllToEdges(logger, threads, dbg);
     dbg.resetEdgeCodes(logger, threads);
     logger.info() << "Ended merging edges. Resulting size " << dbg.size() << std::endl;
     logger.trace() << "Statistics for de Bruijn graph:" << std::endl;

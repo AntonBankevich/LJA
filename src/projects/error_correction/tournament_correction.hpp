@@ -9,18 +9,18 @@
 namespace dbg {
     size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false);
 
-    std::vector<dbg::GraphPath>
-    FilterAlternatives(const dbg::GraphPath &initial, const std::vector<dbg::GraphPath> &als,
+    std::vector<ag::GraphPath>
+    FilterAlternatives(const ag::GraphPath &initial, const std::vector<ag::GraphPath> &als,
                        size_t max_diff, double threshold);
 
-    dbg::GraphPath
-    chooseBulgeCandidate(const dbg::GraphPath &bulge, const dbg::DBGAlignedReadStorage &reads_storage, double threshold,
-                         std::vector<dbg::GraphPath> &read_alternatives, std::string &message);
+    ag::GraphPath
+    chooseBulgeCandidate(const ag::GraphPath &bulge, const dbg::DBGAlignedReadStorage &reads_storage, double threshold,
+                         std::vector<ag::GraphPath> &read_alternatives, std::string &message);
 
-    std::pair<dbg::GraphPath, size_t> BestAlignmentPrefix(const dbg::GraphPath &al, const Sequence &seq, size_t max_diff);
+    std::pair<ag::GraphPath, size_t> BestAlignmentPrefix(const ag::GraphPath &al, const Sequence &seq, size_t max_diff);
 
-    dbg::GraphPath processTip(const dbg::GraphPath &tip,
-                              const std::vector<dbg::GraphPath> &alternatives,
+    ag::GraphPath processTip(const ag::GraphPath &tip,
+                              const std::vector<ag::GraphPath> &alternatives,
                               double threshold, std::string &message);
 
     void initialCorrect(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
@@ -40,7 +40,7 @@ namespace dbg {
         size_t unique_threshold;
         size_t max_size;
 
-        bool checkTipSize(const dbg::GraphPath &tip);
+        bool checkTipSize(const ag::GraphPath &tip);
 
     public:
         TournamentPathCorrector(dbg::SparseDBG &sdbg, DBGAlignedReadStorage &reads_storage,
@@ -49,7 +49,7 @@ namespace dbg {
 
         void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads) override;
 
-        std::string correctRead(const std::string &name, dbg::GraphPath &path) override;
+        std::string correctRead(const std::string &name, ag::GraphPath &path) override;
     };
 
     class PrimitiveBulgeCorrector : public AbstractCorrectionAlgorithm {
@@ -58,7 +58,7 @@ namespace dbg {
     public:
         PrimitiveBulgeCorrector(double threshold);
 
-        std::string correctRead(const std::string &name, dbg::GraphPath &path) override;
+        std::string correctRead(const std::string &name, ag::GraphPath &path) override;
     };
 
 }

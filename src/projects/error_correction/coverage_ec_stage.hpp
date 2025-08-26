@@ -10,6 +10,7 @@
 #include <dbg/graph_printing.hpp>
 #include <dbg/graph_stats.hpp>
 #include <dbg/aln_reads_reader.hpp>
+#include "dbg/path_dumping.hpp"
 
 namespace dbg {
     std::unordered_map<std::string, std::experimental::filesystem::path>
@@ -25,42 +26,51 @@ namespace dbg {
         ensure_dir_existance(dir);
         hashing::RollingHash hasher(k);
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        dbg::SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
-                                    (dir / "disjointigs.fasta").string(), (dir / "vertices.save").string(), debug)
-                                  :
+        dbg::SparseDBG dbg = load ? LoadDBGFromEdgeSequences(logger, threads, {dir/"initial_dbg.gfa"}, hasher) :
                              DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
-        Printer<DBGTraits> printer;
-        printer.setEdgeInfo(ObjInfo<Edge>({&ag::GetEdgeNameForSaving<DBGTraits>},{}, {}));
-        printer.printDot(dir / "initial_dbg.dot", Component(dbg));
+        ag::Printer gfa_printer;
+        ag::Printer dot_printer(ag::VertexPrintStyles::defaultDotInfo(), ag::EdgePrintStyles::defaultDotInfo());
+        gfa_printer.setEdgeInfo(ag::EdgeInfo({&ag::GetEdgeNameForSaving},{}, {}));
+        if(debug && !load) {
+            logger.info() << "Printing graph to " << (dir/"initial_dbg.gfa") << std::endl;
+            gfa_printer.printGFA(dir/"initial_dbg.gfa", dbg);
+            logger.info() << "Finished printing graph" << std::endl;
+        }
         size_t extension_size = 800;
+        std::experimental::filesystem::path al_file = dir / "initial_alignments.aln";
         dbg::SeqReader reader(reads_lib, logger, threads);
-        dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
-                                               AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
+        dbg::DBGAlignedReadStorage readStorage = load ?
+                dbg::DBGAlignedReadStorage::Load(logger, threads, al_file, dbg, true) :
+                dbg::DBGAlignedReadStorage(logger, threads, dbg,
+                    AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
                                                true);
-        if(debug) readStorage.logReads(threads, dir/"read_log.txt");
-        dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::vector<ag::AlignedRead<DBGTraits>>(), false);
-//        printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
-//        coverageStats(logger, dbg);
-        //printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
+        if (debug && !load) {
+            logger.info() << "Printing read alignments to " << al_file << std::endl;
+            readStorage.Save(al_file);
+            logger.info() << "Finished printing read alignments to " << al_file << std::endl;
+        }
+        dot_printer.printDot(dir / "initial_dbg.dot", dbg);
+        if(debug) {
+            readStorage.logReads(threads, dir/"read_log.txt");
+            readStorage.logGraph(dbg, logger.getLoggerStream(logging::LogLevel::trace));
+        }
+        dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::vector<ag::AlignedRead>(), false);
         coverageStats(logger, dbg);
         if (debug) {
             PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, references_lib, true);
         }
-//        std::ofstream os;
-//        os.open(dir / "graph.log");
-//        ag::LoggingListener<DBGTraits> graph_log(dbg, os);
-        Precorrector precorrector(4);
+        Precorrector precorrector_early(4);
+        Precorrector precorrector_late(1.01);
         DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
         TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
-        ErrorCorrectionEngine(precorrector).run(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(precorrector_early).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         readStorage.stopTrackSuffixes();
         dbg.resetEdgeCodes(logger, threads);
         readStorage.trackSuffixes(logger, threads, dbg, 0, extension_size);
-//        readStorage.checkConsistency();
+        if(debug) readStorage.getReads().checkConsistency();
         ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
-//        readStorage.checkConsistency();
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.PrintBasic(logger.getLoggerStream(logging::LogLevel::info));
@@ -83,13 +93,16 @@ namespace dbg {
         ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
         if (diploid)
             ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
+        ErrorCorrectionEngine(precorrector_late).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         {
-            std::vector<dbg::GraphPath> pseudo_reads = PartialRR(logger, threads, dbg, readStorage.getSuffixes());
-            printGraphAlignments(dir / "pseudo_reads.fasta", pseudo_reads);
+            std::vector<ag::AlignedRead> pseudo_reads = PartialRR(logger, threads, dbg, readStorage.getSuffixes());
+            ag::AlignedReadStorage pseudo_reads_storage(dbg, std::move(pseudo_reads));
+            pseudo_reads_storage.printSequences(dir / "pseudo_reads.fasta");
         }
         readStorage.stopTrackSuffixes();
         dbg.resetEdgeCodes(logger, threads);
+        if(debug) readStorage.getReads().checkConsistency();
         coverageStats(logger, dbg);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk3500", dbg, readStorage, paths_lib, references_lib, false);
@@ -98,14 +111,11 @@ namespace dbg {
         std::experimental::filesystem::path corrected_reads = dir / "corrected_reads.paths";
         readStorage.getReads().printReadPaths(logger, dir / "corrected_reads.aln",
                                    dir / "final_dbg.gfa", corrected_reads, k);
-        if (debug)
-            DrawSplit(Component(dbg), dir / "split");
 //    dbg.printFastaOld(dir / "final_dbg.fasta"); ???
-
-        printer.setEdgeInfo(ObjInfo<Edge>({&ag::GetEdgeNameForSaving<DBGTraits>},{}, {}));
-        printer.printGFA(dir / "final_dbg.gfa", Component(dbg), true);
-        printer.setEdgeInfo(ObjInfo<Edge>({&ag::GetEdgeNameForSaving<DBGTraits>}, {}, {}));
-        printer.printDot(dir / "final_dbg.dot", Component(dbg));
+        gfa_printer.setEdgeInfo(ag::EdgeInfo({&ag::GetEdgeNameForSaving},{}, {}));
+        gfa_printer.printGFA(dir / "final_dbg.gfa", ag::Component(dbg), true);
+        gfa_printer.setEdgeInfo(ag::EdgeInfo({&ag::GetEdgeNameForSaving}, {}, {}));
+        dot_printer.printDot(dir / "final_dbg.dot", ag::Component(dbg));
         logger.info() << "Initial correction results with k = " << k << " printed to " << corrected_reads << std::endl;
         return {{"corrected_reads", corrected_reads},
                 {"pseudo_reads",    dir / "pseudo_reads.fasta"},

@@ -2,16 +2,18 @@
 #include "diploidy_analysis.hpp"
 #include "multiplicity_estimation.hpp"
 #include "correction_utils.hpp"
+#include "assembly_graph/visualization.hpp"
 
 using namespace dbg;
+using namespace ag;
 size_t BoundRecord::inf = 1000000000000ul;
 
 MappedNetwork::MappedNetwork(const Component &component, const std::function<bool(const dbg::Edge &)> &unique,
                              double rel_coverage, double unique_coverage, double double_coverage) {
     for(dbg::Vertex &v : component.vertices()) {
-        vertex_mapping[&v] = addVertex();
+        vertex_mapping[v.getId()] = addVertex();
     }
-    std::vector<std::pair<int, dbg::Edge *>> edgeids;
+    std::vector<std::pair<int, dbg::EdgeId>> edgeids;
     for(dbg::Vertex &v : component.vertices()) {
         for(dbg::Edge &edge : v) {
             if (!unique(edge)) {
@@ -21,40 +23,40 @@ MappedNetwork::MappedNetwork(const Component &component, const std::function<boo
                     max_flow = 2;
                 if(edge.truncSize() > 1000 && edge.getCoverage() < unique_coverage)
                     max_flow = 1;
-                int eid = addEdge(vertex_mapping[&v], vertex_mapping[&edge.getFinish()], min_flow, max_flow);
+                int eid = addEdge(vertex_mapping[v.getId()], vertex_mapping[edge.getFinish().getId()], min_flow, max_flow);
                 VERIFY(eid > 0);
-                edgeids.emplace_back(eid, &edge);
+                edgeids.emplace_back(eid, edge.getId());
             } else {
-                addSink(vertex_mapping[&v], 1);
-                addSource(vertex_mapping[&v.rc()], 1);
+                addSink(vertex_mapping[v.getId()], 1);
+                addSource(vertex_mapping[v.rc().getId()], 1);
             }
         }
     }
     if(edgeids.empty())
         return;
-    edge_mapping.resize(std::max_element(edgeids.begin(), edgeids.end())->first + 1, nullptr);
-    for(std::pair<int, dbg::Edge *> &p : edgeids) {
+    edge_mapping.resize(std::max_element(edgeids.begin(), edgeids.end())->first + 1, EdgeId());
+    for(std::pair<int, dbg::EdgeId> &p : edgeids) {
         edge_mapping[p.first] = p.second;
     }
 }
 
-std::vector<dbg::Edge *> MappedNetwork::getUnique(logging::Logger &logger) {
-    std::vector<dbg::Edge*> res;
+std::vector<dbg::EdgeId> MappedNetwork::getUnique(logging::Logger &logger) {
+    std::vector<dbg::EdgeId> res;
     std::unordered_map<int, size_t> multiplicities = findFixedMultiplicities();
     for (auto &rec : multiplicities) {
 //        logger << "Edge " << edge_mapping[rec.first]->start()->hash() << edge_mapping[rec.first]->start()->isCanonical()
 //               << "ACGT"[edge_mapping[rec.first]->seq[0]]
 //               << " has fixed multiplicity " << rec.second << std::endl;
-        if(rec.second == 1 && rec.first < edge_mapping.size() && edge_mapping[rec.first] != nullptr)
+        if(rec.second == 1 && rec.first < edge_mapping.size() && edge_mapping[rec.first].valid())
             res.emplace_back(edge_mapping[rec.first]);
     }
     return std::move(res);
 }
 
-std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> MappedNetwork::findBounds() {
-    std::unordered_map<dbg::Edge *, std::pair<size_t, size_t>> res;
+std::unordered_map<dbg::EdgeId, std::pair<size_t, size_t>> MappedNetwork::findBounds() {
+    std::unordered_map<dbg::EdgeId, std::pair<size_t, size_t>> res;
     for(const auto &rec : Network::findBounds()) {
-        if(rec.first < edge_mapping.size() && edge_mapping[rec.first] != nullptr) {
+        if(rec.first < edge_mapping.size() && edge_mapping[rec.first].valid()) {
             res.emplace(edge_mapping[rec.first], rec.second);
         }
     }
@@ -70,10 +72,10 @@ void UniqueClassificator::markPseudoHets() const {
         Edge &incorrect = start.front().getCoverage() <= start.back().getCoverage() ? start.front() : start.back();
         incorrect.is_reliable = false;
         incorrect.rc().is_reliable = false;
-        dbg::GraphPath cor_ext =
+        ag::GraphPath cor_ext =
                 FullSuffixSupportedExtension(reads_storage.getSuffixes().getSuffixRecord(correct),
                                              GraphPath(correct.getFinish()), 1, 0);
-        dbg::GraphPath incor_ext =
+        ag::GraphPath incor_ext =
                 FullSuffixSupportedExtension(reads_storage.getSuffixes().getSuffixRecord(incorrect),
                                              GraphPath(incorrect.getFinish()), 1, 0);
         for(Segment<Edge> seg : incor_ext) {
@@ -113,7 +115,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         for (Edge &edge : dbg.edges()) {
             if(this->isUnique(edge))
                 continue;
-            dbg::GraphPath al = FindLongestCoveredExtension(edge, 20000, 3, 1);
+            ag::GraphPath al = FindLongestCoveredExtension(edge, 20000, 3, 1);
             if(al.truncLen() > unique_len) {
                 for(Segment<Edge> seg : al) {
                     updateBounds(seg.contig(), 1, 1);
@@ -131,7 +133,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
         if(isUnique(edge) || edge.getFinish().outDeg() > 1) {
             continue;
         }
-        const ag::SuffixRecord<DBGTraits> &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
+        const ag::SuffixRecord &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
         GraphPath path = FullSuffixSupportedExtension(rec, GraphPath(edge.getFinish()), 1, 0);
         size_t len = 0;
         for(PathPosition pp = path.firstPosition(); pp != path.lastPosition(); ++pp) {
@@ -162,11 +164,11 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     std::vector<Component> split = UniqueSplitter(*this).split(Component(dbg));
     logger.info() << "Processing " << split.size() << " components" << std::endl;
     size_t component_cnt = 0;
-    Printer<dbg::DBGTraits> printer;
+    ag::Printer printer;
     for(Component &component : split) {
         component_cnt += 1;
         if(debug) {
-            printer.setEdgeInfo(ObjInfo<dbg::Edge>({reads_storage.getSuffixes().labeler()}, {}, {}));
+            printer.setEdgeInfo(ag::EdgeInfo({reads_storage.getSuffixes().labeler()}, {}, {}));
             printer.printDot(dir / (std::to_string(component_cnt) + ".dot"), component);
         }
         //TODO make parallel trace
@@ -192,7 +194,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     std::function<bool(const dbg::Edge &)> mult2 = [this](const dbg::Edge &edge) {
         return MultiplicityBounds::lowerBound(edge) == 2 && MultiplicityBounds::lowerBound(edge) == 2;
     };
-    split = ag::ConditionSplitter<DBGTraits>(mult2).splitGraph(dbg);
+    split = ag::ConditionSplitter(mult2).splitGraph(dbg);
     cnt = 0;
     for(Component &component : split) {
         if(component.uniqueSize() != 4 || !component.isAcyclic() || component.realCC() != 2 || component.borderVertices().size() != 2) {
@@ -213,7 +215,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
 }
 
 bool UniqueClassificator::processSimpleRepeat(const Component &component) {
-    std::vector<Vertex *> border = component.borderVertices();
+    std::vector<VertexId> border = component.borderVertices();
     VERIFY(border.size() == 2);
     Vertex &start = border[0]->rc();
     Vertex &end = *border[1];
@@ -369,7 +371,7 @@ std::pair<double, double> minmaxCov(const Component &subcomponent, const dbg::DB
     double min_cov= 100000;
     for(Edge &edge : subcomponent.edges()) {
         if(is_unique(edge) && subcomponent.contains(edge.getFinish())) {
-            const ag::SuffixRecord<DBGTraits> & record = reads_storage.getSuffixes().getSuffixRecord(edge);
+            const ag::SuffixRecord & record = reads_storage.getSuffixes().getSuffixRecord(edge);
             GraphPath s(edge);
             size_t cnt = 0;
             for(Edge &next : edge.getFinish()) {
@@ -483,7 +485,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
     bool res = net.fillNetwork();
     if(res) {
         logger.trace() << "Found unique edges in component" << std::endl;
-        for(Edge * edge : net.getUnique(logger)) {
+        for(EdgeId edge : net.getUnique(logger)) {
             updateBounds(*edge, 1, 1);
             ucnt++;
         }
@@ -495,7 +497,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
         res = net1.fillNetwork();
         if(res) {
             logger.trace() << "Found unique edges in component" << std::endl;
-            for(Edge * edge : net1.getUnique(logger)) {
+            for(EdgeId edge : net1.getUnique(logger)) {
                 updateBounds(*edge, 1, 1);
                 ucnt++;
             }
@@ -504,7 +506,7 @@ size_t UniqueClassificator::processComponent(logging::Logger &logger, const Comp
         }
     }
     if(res) {
-        std::vector<Component> subsplit = ag::ConditionSplitter<DBGTraits>(this->asFunction()).split(component);
+        std::vector<Component> subsplit = ag::ConditionSplitter(this->asFunction()).split(component);
         logger.trace() << "Component was split into " << subsplit.size() << " subcompenents" << std::endl;
         for(Component &subcomponent : subsplit) {
             ucnt += ProcessUsingCoverage(logger, subcomponent, this->asFunction(), rel_coverage);
@@ -540,9 +542,9 @@ std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
     return {&forward_edge, &back_edge};
 }
 
-ag::AlignedReadStorage<DBGTraits> ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads_storage,
+ag::AlignedReadStorage ResolveLoops(logging::Logger &logger, size_t threads, SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads_storage,
                            const AbstractUniquenessStorage &more_unique) {
-    std::vector<ag::AlignedRead<DBGTraits>> res;
+    std::vector<ag::AlignedRead> res;
     for(const Component &comp : UniqueSplitter(more_unique).splitGraph(dbg)) {
         std::pair<Edge *, Edge *> check = CheckLoopComponent(comp);
         if(check.first == nullptr)
@@ -562,7 +564,7 @@ ag::AlignedReadStorage<DBGTraits> ResolveLoops(logging::Logger &logger, size_t t
         size_t vote2 = floor(back_edge.getCoverage() / med_cov + 0.5);
         if(vote1 * dev * 2 > med_cov || vote1 != vote2 + 1)
             continue;
-        dbg::GraphPath longest = GraphPath(in) + FullSuffixSupportedExtension(reads_storage.getSuffixes().getSuffixRecord(in),
+        ag::GraphPath longest = GraphPath(in) + FullSuffixSupportedExtension(reads_storage.getSuffixes().getSuffixRecord(in),
                                                                               GraphPath(in.getFinish()), 1, 0);
         size_t pos = 0;
         for(Edge &edge : longest.edges()) {
@@ -585,7 +587,7 @@ ag::AlignedReadStorage<DBGTraits> ResolveLoops(logging::Logger &logger, size_t t
                            << back_edge.getInnerId() << " with size " << forward_edge.truncSize() + back_edge.truncSize()
                         << " and multiplicity " << vote2 << std::endl;
         }
-        dbg::GraphPath alignment;
+        ag::GraphPath alignment;
         alignment += Segment<Edge>(in, in.truncSize() - std::min<size_t>(in.truncSize(), 1000), in.truncSize());
         alignment += forward_edge;
         for(size_t i = 0; i < vote2; i++) {

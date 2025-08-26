@@ -1,5 +1,8 @@
 #include <common/disjoint_sets.hpp>
 #include <common/logging.hpp>
+#include <assembly_graph/data_structures/component.hpp>
+#include <assembly_graph/data_structures/splitters.hpp>
+#include <assembly_graph/visualization.hpp>
 #include "multi_graph.hpp"
 
 namespace multigraph {
@@ -7,20 +10,20 @@ namespace multigraph {
     MultiGraph MultiGraphHelper::TransformToEdgeGraph(logging::Logger &logger, const MultiGraph &mg, size_t tip_size) {
         MultiGraph dbg;
         std::unordered_map<ConstEdgeId, VertexId> emap;
-        for (const MGVertex &v: mg.vertices()) {
+        for (const Vertex &v: mg.vertices()) {
             if (v.outDeg() == 0 || emap.find(v.front().getId()) != emap.end()) {
                 continue;
             }
-            MGVertex &newv = dbg.addVertex(v.getSeq().Subseq(v.size() - v.front().overlapSize()));
-            for (const MGEdge &edge: v) {
-                const MGVertex &right = edge.getFinish();
-                for (const MGEdge &edge1: right.rc()) {
+            Vertex &newv = dbg.addVertex(v.getSeq().Subseq(v.size() - v.front().overlapSize()));
+            for (const Edge &edge: v) {
+                const Vertex &right = edge.getFinish();
+                for (const Edge &edge1: right.rc()) {
                     emap[edge1.getId()] = newv.rc().getId();
                     emap[edge1.rc().getId()] = newv.getId();
                 }
             }
         }
-        for (const MGVertex &v: mg.verticesUnique()) {
+        for (const Vertex &v: mg.verticesUnique()) {
             VertexId start;
             VertexId end;
             if (v.inDeg() == 0) {
@@ -44,13 +47,13 @@ namespace multigraph {
         MultiGraph res;
         std::unordered_map<ConstVertexId, VertexId> vmap;
         std::unordered_set<ConstEdgeId> visited;
-        for (const MGVertex &v: initial.verticesUnique()) {
+        for (const Vertex &v: initial.verticesUnique()) {
             if (to_delete_vertices.find(v.getId()) != to_delete_vertices.end())
                 continue;
             vmap[v.getId()] = res.addVertex(v).getId();
             vmap[v.rc().getId()] = vmap[v.getId()]->rc().getId();
         }
-        for (const MGEdge &edge: initial.edgesUnique()) {
+        for (const Edge &edge: initial.edgesUnique()) {
             if (to_delete.find(edge.getId()) != to_delete.end())
                 continue;
             if (to_delete_vertices.find(edge.getStart().getId()) == to_delete_vertices.end() ||
@@ -60,41 +63,41 @@ namespace multigraph {
         return std::move(res);
     }
 
-    std::vector<EdgeId> MultiGraphHelper::uniquePathForward(MGEdge &edge) {
-        std::vector<EdgeId> res = {edge.getId()};
-        VertexId cur = edge.getFinish().getId();
-        while (cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
-            res.emplace_back(cur->begin()->getId());
-            cur = res.back()->getFinish().getId();
-        }
-        return std::move(res);
-    }
-
-    std::vector<ConstEdgeId> MultiGraphHelper::uniquePathForward(const MGEdge &edge) {
-        std::vector<ConstEdgeId> res = {edge.getId()};
-        ConstVertexId cur = edge.getFinish().getId();
-        while (cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
-            res.emplace_back(cur->begin()->getId());
-            cur = res.back()->getFinish().getId();
-        }
-        return std::move(res);
-    }
-
-    std::vector<ConstEdgeId> MultiGraphHelper::uniquePath(const MGEdge &edge) {
-        std::vector<ConstEdgeId> path = uniquePathForward(edge.rc());
-        return uniquePathForward(path.back()->rc());
-    }
-
-    std::vector<EdgeId> MultiGraphHelper::uniquePath(MGEdge &edge) {
-        std::vector<EdgeId> path = uniquePathForward(edge.rc());
-        return uniquePathForward(path.back()->rc());
-    }
+//    std::vector<EdgeId> MultiGraphHelper::uniquePathForward(Edge &edge) {
+//        std::vector<EdgeId> res = {edge.getId()};
+//        VertexId cur = edge.getFinish().getId();
+//        while (cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
+//            res.emplace_back(cur->begin()->getId());
+//            cur = res.back()->getFinish().getId();
+//        }
+//        return std::move(res);
+//    }
+//
+//    std::vector<ConstEdgeId> MultiGraphHelper::uniquePathForward(const Edge &edge) {
+//        std::vector<ConstEdgeId> res = {edge.getId()};
+//        ConstVertexId cur = edge.getFinish().getId();
+//        while (cur != edge.getStart().getId() && cur->inDeg() == 1 && cur->outDeg() == 1) {
+//            res.emplace_back(cur->begin()->getId());
+//            cur = res.back()->getFinish().getId();
+//        }
+//        return std::move(res);
+//    }
+//
+//    std::vector<ConstEdgeId> MultiGraphHelper::uniquePath(const Edge &edge) {
+//        std::vector<ConstEdgeId> path = uniquePathForward(edge.rc());
+//        return uniquePathForward(path.back()->rc());
+//    }
+//
+//    std::vector<EdgeId> MultiGraphHelper::uniquePath(Edge &edge) {
+//        std::vector<EdgeId> path = uniquePathForward(edge.rc());
+//        return uniquePathForward(path.back()->rc());
+//    }
 
 //    MultiGraph MultiGraphHelper::MergeAllPaths(const MultiGraph &mg, bool verbose) {
 //        MultiGraph res;
 //        std::unordered_set<ConstEdgeId> used;
 //        std::unordered_map<ConstVertexId, VertexId> old_to_new;
-//        for(const MGEdge &edge: mg.edges()) {
+//        for(const Edge &edge: mg.edges()) {
 //            if(used.find(edge.getId()) != used.end())
 //                continue;
 //            std::vector<ConstEdgeId> tmp = MultiGraphHelper::uniquePath(edge);
@@ -129,7 +132,7 @@ namespace multigraph {
 //                for(size_t i = 1; i < path.size(); i++) {
 //                    sb.append(path[i]->getSeq().Subseq(path[i]->getStart().size()));
 //                }
-//                MGEdge &new_edge = new_start->addEdge(*new_end, sb.BuildSequence());
+//                Edge &new_edge = new_start->addEdge(*new_end, sb.BuildSequence());
 //                if(verbose) {
 //                    std::cout << "New getEdge " << new_edge.getId() << " consists of old edges: ";
 //                    for(auto e : path) {
@@ -139,7 +142,7 @@ namespace multigraph {
 //                }
 //            }
 //        }
-//        for(const MGVertex &vertex : mg.vertices()) {
+//        for(const Vertex &vertex : mg.vertices()) {
 //            if(vertex.inDeg() == 0 && vertex.outDeg() == 0 && vertex.isCanonical()) {
 //                res.addVertex(vertex.getSeq());
 //            }
@@ -150,7 +153,7 @@ namespace multigraph {
 
     std::vector<Contig> MultiGraphHelper::extractContigs(const MultiGraph &mg, bool cut_overlaps) {
         std::unordered_map<ConstVertexId, size_t> cut;
-        for (const MGVertex &v: mg.vertices()) {
+        for (const Vertex &v: mg.vertices()) {
             if (v.isCanonical()) {
                 if (v.outDeg() == 1) {
                     cut[v.getId()] = 0;
@@ -162,7 +165,7 @@ namespace multigraph {
         }
         std::vector<Contig> res;
         size_t cnt = 1;
-        for (const MGEdge &edge: mg.edges()) {
+        for (const Edge &edge: mg.edges()) {
             if (edge.isCanonical()) {
                 size_t cut_left = edge.getStart().size() * cut[edge.getStart().getId()];
                 size_t cut_right = edge.getFinish().size() * (1 - cut[edge.getFinish().getId()]);
@@ -195,12 +198,12 @@ namespace multigraph {
         std::ofstream os;
         os.open(f);
         os << "digraph {\nnodesep = 0.5;\n";
-        std::unordered_map<const MGVertex *, int> vmap;
-        for (const MGVertex &vertex: mg.vertices()) {
+        std::unordered_map<const Vertex *, int> vmap;
+        for (const Vertex &vertex: mg.vertices()) {
             os << vertex.getId() << " [label=\"" << vertex.size() << "\" style=filled fillcolor=\"white\"]\n";
         }
         std::unordered_map<EdgeId, std::string> eids;
-        for (const MGEdge &edge: mg.edges()) {
+        for (const Edge &edge: mg.edges()) {
             os << "\"" << edge.getStart().getId() << "\" -> \"" << edge.getFinish().getId() <<
                "\" [label=\"" << edge.getId() << "(" << edge.fullSize() << ")\" color = \"black\"]\n";
 
@@ -213,12 +216,12 @@ namespace multigraph {
         std::ofstream os;
         os.open(f);
         os << "digraph {\nnodesep = 0.5;\n";
-        std::unordered_map<const MGVertex *, int> vmap;
-        for (const MGVertex &vertex: mg.vertices()) {
+        std::unordered_map<const Vertex *, int> vmap;
+        for (const Vertex &vertex: mg.vertices()) {
             os << vertex.getId() << " [label=\"" << vertex.getId() << " : " << vertex.size() << "\" style=filled fillcolor=\"white\"]\n";
         }
         std::unordered_map<EdgeId, std::string> eids;
-        for (const MGEdge &edge: mg.edges()) {
+        for (const Edge &edge: mg.edges()) {
             os << "\"" << edge.getStart().getId() << "\" -> \"" << edge.getFinish().getId() <<
                "\" [label=\"" << edge.getId() << "(" << edge.fullSize() << ")\" color = \"black\"]\n";
 
@@ -227,128 +230,6 @@ namespace multigraph {
         os.close();
     }
 
-    void
-    MultiGraphHelper::printEdgeGFA(const std::experimental::filesystem::path &f,
-                                   const std::vector<ConstVertexId> &component,
-                                   bool labels) {
-        std::ofstream os;
-        os.open(f);
-        os << "H\tVN:Z:1.0" << std::endl;
-        std::unordered_map<ConstEdgeId, std::string> eids;
-        for (ConstVertexId v: component) {
-            for (const MGEdge &edge: *v) {
-                if (edge.isCanonical()) {
-                    if (labels) {
-                        eids[edge.getId()] = edge.stringLabel();
-                        eids[edge.rc().getId()] = edge.stringLabel();
-                    } else {
-                        eids[edge.getId()] = edge.getId().innerId().str();
-                        eids[edge.rc().getId()] = edge.getId().innerId().str();
-                    }
-                    os << "S\t" << eids[edge.getId()] << "\t" << edge.getSeq() << "\n";
-                }
-            }
-        }
-        for (ConstVertexId vertex: component) {
-            if (!vertex->isCanonical())
-                continue;
-            for (const MGEdge &out_edge: *vertex) {
-                std::string outid = eids[out_edge.getId()];
-                bool outsign = out_edge.isCanonical();
-                for (const MGEdge &inc_edge: vertex->rc()) {
-                    std::string incid = eids[inc_edge.getId()];
-                    bool incsign = inc_edge.rc().isCanonical();
-                    os << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
-                       << (outsign ? "+" : "-") << "\t" << vertex->getSeq().size() << "M" << "\n";
-                }
-            }
-        }
-        os.close();
-    }
-
-    void
-    MultiGraphHelper::
-    printEdgeGFA(const MultiGraph &mg, const std::experimental::filesystem::path &f, bool labels) {
-        std::vector<ConstVertexId> component;
-        for (const MGVertex &vertex: mg.vertices()) {
-            component.push_back(vertex.getId());
-        }
-        printEdgeGFA(f, component, labels);
-    }
-
-    void MultiGraphHelper::printVertexGFA(const std::experimental::filesystem::path &f,
-                                          const std::vector<ConstVertexId> &component) {
-        std::ofstream os;
-        os.open(f);
-        os << "H\tVN:Z:1.0" << std::endl;
-        size_t cnt = 1;
-        std::unordered_map<ConstVertexId, std::string> vids;
-        for (ConstVertexId v: component)
-            if (v->isCanonical()) {
-                vids[v] = itos(v.innerId());
-                vids[v->rc().getId()] = itos(v.innerId());
-                os << "S\t" << vids[v] << "\t" << v->getSeq() << "\n";
-                cnt++;
-            }
-        for (ConstVertexId v: component)
-            for (const MGEdge &edge: *v) {
-                if (edge.isCanonical()) {
-                    VERIFY(edge.fullSize() < edge.getStart().size() + edge.getFinish().size());
-                    bool incsign = v->isCanonical();
-                    bool outsign = edge.getFinish().isCanonical();
-                    os << "L\t" << vids[v] << "\t" << (incsign ? "+" : "-") << "\t"
-                       << vids[edge.getFinish().getId()] << "\t" << (outsign ? "+" : "-") << "\t"
-                       << (v->size() + edge.getFinish().size() - edge.fullSize()) << "M" << "\n";
-                }
-            }
-        os.close();
-    }
-
-    void MultiGraphHelper::printVertexGFA(const MultiGraph &mg, const std::experimental::filesystem::path &f) {
-        std::vector<ConstVertexId> component;
-        for (const MGVertex &vertex: mg.vertices())
-            component.push_back(vertex.getId());
-        printVertexGFA(f, component);
-    }
-
-    std::vector<std::vector<ConstVertexId>> MultiGraphHelper::split(const MultiGraph &mg) {
-        std::vector<std::vector<ConstVertexId>> res;
-        std::unordered_set<ConstVertexId> visited;
-        for (const MGVertex &start: mg.vertices()) {
-            if (visited.find(start.getId()) != visited.end())
-                continue;
-            std::vector<ConstVertexId> stack = {start.getId()};
-            res.emplace_back(std::vector<ConstVertexId>());
-            while (!stack.empty()) {
-                ConstVertexId v = stack.back();
-                stack.pop_back();
-                if (visited.find(v) != visited.end())
-                    continue;
-                visited.emplace(v);
-                visited.emplace(v->rc().getId());
-                res.back().emplace_back(v);
-                res.back().emplace_back(v->rc().getId());
-                for (const MGEdge &e: *v)
-                    stack.emplace_back(e.getFinish().getId());
-                for (const MGEdge &e: v->rc())
-                    stack.emplace_back(e.getFinish().getId());
-            }
-        }
-        return std::move(res);
-    }
-
-//    deleted_edges_map MultiGraph::deleteAndCompress(Edge &edge) {
-//        Vertex &start = edge.getStart();
-//        Vertex &end = edge.end();
-//        internalRemoveEdge(edge);
-//
-//        deleted_edges_map result;
-//        if(end != start && end != start.rc()) {
-//            result = attemptCompressVertex(end);
-//        }
-//        deleted_edges_map res2 = attemptCompressVertex(end);
-//        result.insert(res2.begin(), res2.end());
-//
 ////this compression may contain edges that result from first one, so additional ugly processing required.
 ////            auto comp_res = attemprCompressVertex(end_v->id);
 ////            for (auto p: comp_res) {
@@ -373,7 +254,7 @@ namespace multigraph {
             if (tokens[0] == "S") {
                 std::string name = tokens[1];
 		Sequence seq(tokens[2]);
-		MGVertex &newV = int_ids ? res.addVertex(seq, seq.isCanonical() ? std::stoi(name) : -std::stoi(name)) : res.addVertex(seq);
+		Vertex &newV = int_ids ? res.addVertex(seq, seq.isCanonical() ? std::stoi(name) : -std::stoi(name)) : res.addVertex(seq);
 
                 vmap[name] = newV.getId();
             } else if (tokens[0] == "L") {
@@ -412,6 +293,11 @@ namespace multigraph {
             return edgeId == other.edgeId && start == other.start && rc == other.rc;
         }
     };
+
+    LabelStorage::LabelStorage(ag::AssemblyGraph &fire) : ag::ResolutionListener(fire, "LabelStorage") {
+        for(Edge &e : fire.edges())
+            labels[e.getId()] = {e.getId()};
+    }
 }
 template<>
 struct std::hash<multigraph::GFAVertexRecord> {

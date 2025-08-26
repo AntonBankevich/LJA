@@ -94,7 +94,7 @@ void NuclBuffer::InitFromNucls(const S &s, size_t sz, bool rc) {
         }
     } else {
         for (size_t i = 0; i < sz; ++i) {
-            VERIFY_MSG(is_dignucl(s[i]) || is_nucl(s[i]), "Non-ACGTacgt symbols in the input sequences");
+            VERIFY_MSG(is_dignucl(s[i]) || is_nucl(s[i]), "Non-ACGTacgt symbols in the input sequences " << char(s[i]) << " " << (int)s[i]);
             char c = dignucl(s[i]);
 
             data = data | (ST(c) << cnt);
@@ -248,9 +248,10 @@ public:
     bool empty() const {return left == right;}
     std::string str() const;
     bool operator==(const NuclDeck &other) const;
-
-    bool startsWith(const NuclDeck &other) const;
-    bool endsWith(const NuclDeck &other) const;
+    template<class S>
+    bool startsWith(const S &other) const;
+    template<class S>
+    bool endsWith(const S &other) const;
 };
 
 template<class I>
@@ -306,4 +307,30 @@ inline std::ostream &operator<<(std::ostream &os, const NuclDeck &nucls) {
         os << nucl(char(c));
     }
     return os;
+}
+
+template<class S>
+bool NuclDeck::startsWith(const S &other) const {
+    if(size() < other.size())
+        return false;
+    Iterator it = begin();
+    for(size_t i = 0; i < other.size(); i++) {
+        if(other[i] != *it)
+            return false;
+        ++it;
+    }
+    return true;
+}
+
+template<class S>
+bool NuclDeck::endsWith(const S &other) const {
+    if(size() < other.size())
+        return false;
+    Iterator it1 = end();
+    for(size_t i = 0; i < other.size(); i++) {
+        --it1;
+        if(*it1 != other[other.size() - 1 - i])
+            return false;
+    }
+    return true;
 }

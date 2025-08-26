@@ -1,32 +1,38 @@
 #pragma once
 
-#include "vertex_resolution.hpp"
-#include "supregraph.hpp"
+#include "abstract_decision_rule.hpp"
+
 #include "read_storage.hpp"
 #include <unordered_set>
 #include <common/logging.hpp>
 #include <assembly_graph/data_structures/suffix_tracker.hpp>
+#include <set>
 
 namespace spg {
 
     class Multiplexer {
     private:
-        SupreGraph &graph;
+        ag::AssemblyGraph &graph;
         DecisionRule &rule;
         size_t max_core_length;
-        std::unordered_set<VertexId> core_queue;//Store only canonical vertices
+        std::set<std::pair<size_t, VertexId>> core_queue;//Store only canonical vertices
+        std::deque<VertexId> merge_queue;
 //        TODO: remove reads parameter
-        ag::AlignedReadStorage<SPGTraits> &reads;
+        ag::AlignedReadStorage &reads;
     public:
-        Multiplexer(SupreGraph &graph, ag::AlignedReadStorage<SPGTraits> &reads, DecisionRule &rule, size_t max_core_length);
+        Multiplexer(ag::AssemblyGraph &graph, ag::AlignedReadStorage &reads, DecisionRule &rule, size_t max_core_length);
         Multiplexer(Multiplexer &&) = delete;
         Multiplexer(Multiplexer &) = delete;
 
-        VertexResolutionResult multiplex(logging::Logger &logger, size_t threads, Vertex &vertex);
+        void pushCore(Vertex &vertex);
+        Vertex &popCore();
 
-        VertexResolutionResult multiplex(logging::Logger &logger, size_t threads);
+        std::vector<VertexId> multiplex(logging::Logger &logger, size_t threads, Vertex &vertex);
+        std::vector<VertexId> merge(logging::Logger &logger, size_t threads, Vertex &vertex);
 
-        bool finished() const {return core_queue.empty();}
+        std::vector<VertexId> process(logging::Logger &logger, size_t threads);
+
+        bool finished() const {return core_queue.empty() && merge_queue.empty();}
 
         // No outer edges permitted
         void fullMultiplex(logging::Logger &logger, size_t threads);

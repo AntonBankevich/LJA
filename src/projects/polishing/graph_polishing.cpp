@@ -16,15 +16,13 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
                   const io::Library &graph_gfa, const io::Library &corrected_edges, bool debug) {
     logger.info() << "Loading graph" << std::endl;
     MultiGraph mg = MultiGraphHelper::LoadGFA(graph_gfa.front(), true);
-    MultiGraphHelper::checkConsistency(mg);
     logger.info() << "Preparing graph" << std::endl;
     mg = MultiGraphHelper::TransformToEdgeGraph(logger, mg, 5001);
-    MultiGraphHelper::checkConsistency(mg);
     logger.info() << "Linking positions" << std::endl;
     DisjointSet<EdgePosition> linked_positions;
     std::vector<EdgePosition> queue;
     std::unordered_set<EdgePosition> visited;
-    for(MGEdge &edge : mg.edges()) {
+    for(Edge &edge : mg.edges()) {
         queue.emplace_back(edge, 0);
         queue.emplace_back(edge, edge.fullSize());
     }
@@ -35,9 +33,9 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
             continue;
         visited.insert(ep);
         if(ep.getPos() <= ep.contig().getStart().size()) {
-            MGVertex &start = ep.contig().getStart();
-            for(MGEdge &rcedge2: start.rc()) {
-                MGEdge &edge2 = rcedge2.rc();
+            Vertex &start = ep.contig().getStart();
+            for(Edge &rcedge2: start.rc()) {
+                Edge &edge2 = rcedge2.rc();
                 EdgePosition other(edge2, edge2.fullSize() - start.size() + ep.getPos());
                 if(visited.find(other) == visited.end()) {
                     if(ep.getPos() < start.size())
@@ -45,7 +43,7 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
                     queue.emplace_back(other);
                 }
             }
-            for(MGEdge &edge2: start) {
+            for(Edge &edge2: start) {
                 EdgePosition other(edge2, ep.getPos());
                 if(visited.find(other) == visited.end()) {
                     if(ep.getPos() < start.size())
@@ -55,8 +53,8 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
             }
         }
         if(ep.getPos() >= ep.contig().fullSize() - ep.contig().getFinish().size()) {
-            MGVertex &end = ep.contig().getFinish();
-            for(MGEdge &edge2 : end) {
+            Vertex &end = ep.contig().getFinish();
+            for(Edge &edge2 : end) {
                 EdgePosition other(edge2, ep.getPos() - ep.contig().fullSize() + end.size());
                 if(visited.find(other) == visited.end()) {
                     if(ep.getPos() < ep.contig().fullSize())
@@ -64,8 +62,8 @@ RunGraphPolishing(logging::Logger &logger, size_t threads, const std::experiment
                     queue.emplace_back(other);
                 }
             }
-            for(MGEdge &rcedge2 : end.rc()) {
-                MGEdge &edge2 = rcedge2.rc();
+            for(Edge &rcedge2 : end.rc()) {
+                Edge &edge2 = rcedge2.rc();
                 EdgePosition other(edge2, edge2.fullSize() - ep.contig().fullSize() + ep.getPos());
                 if(visited.find(other) == visited.end()) {
                     if(ep.getPos() < ep.contig().fullSize())

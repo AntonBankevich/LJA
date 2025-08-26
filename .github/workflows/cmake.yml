@@ -11,8 +11,23 @@ jobs:
     
     strategy:
       matrix:
-        os: [ ubuntu-latest ]
-        gcc: [ 9, 10, 11, 12 ]
+        include:
+          # Ubuntu 22.04 (Jammy)
+          - os: ubuntu-22.04
+            gcc: 10
+    
+          - os: ubuntu-22.04
+            gcc: 11
+    
+          - os: ubuntu-22.04
+            gcc: 12
+    
+          # Ubuntu 24.04 (Noble)
+          - os: ubuntu-24.04
+            gcc: 13
+    
+          - os: ubuntu-24.04
+            gcc: 14
         
     env:
       # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)

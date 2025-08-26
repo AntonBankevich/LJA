@@ -50,7 +50,7 @@ struct HaplotypeStats {
     HaplotypeStats(std::string s) {
         std::vector<std::string> tokens = ::split(s);
         haplotype = Haplotype(tokens[1][0]);
-        label = {Parse<multigraph::MGEdge::id_type>(tokens[0])};
+        label = {Parse<multigraph::Edge::id_type>(tokens[0])};
 //Numbers of distinctive kmers in strips longer than k - eps
         decisive_strips = std::array<int, 2>{stoi(tokens[2]), stoi(tokens[3])};
 //Numbers of distinctive kmers

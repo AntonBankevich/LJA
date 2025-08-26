@@ -6,7 +6,7 @@
 #include <assembly_graph/visualization.hpp>
 #include "dbg/graph_printing.hpp"
 using namespace dbg;
-
+using namespace ag;
 struct edgerec {
     bool bulge;
     size_t first;
@@ -30,11 +30,11 @@ public:
         logger << "starting DBG build\n";
         dbg::SparseDBG dbg = DBGPipeline(logger, hasher, w, {contigs_path}, dir, threads);
         logger << "graph built";
-        ObjInfo<dbg::Vertex> vertexInfo = VertexPrintStyles<dbg::DBGTraits>::defaultDotInfo();
-        ObjInfo<dbg::Edge> edgeInfo = EdgePrintStyles<dbg::DBGTraits>::defaultDotInfo();
-        Printer<DBGTraits> printer(vertexInfo, edgeInfo);
-        printer.printGFA(dir / "graph.gfa", dbg::Component(dbg));
-        printer.printDot(dir / "graph.dot", dbg::Component(dbg));
+        ObjInfo<dbg::Vertex> vertexInfo = VertexPrintStyles::defaultDotInfo();
+        ObjInfo<dbg::Edge> edgeInfo = EdgePrintStyles::defaultDotInfo();
+        Printer printer(vertexInfo, edgeInfo);
+        printer.printGFA(dir / "graph.gfa", ag::Component(dbg));
+        printer.printDot(dir / "graph.dot", ag::Component(dbg));
         BulgePathFinder finder(dbg, -1.0);
         KSWAligner kswAligner(1, 5, 5, 3);
         logger << "paths found: " << finder.paths.size() << std::endl;
@@ -43,7 +43,7 @@ public:
         outfile.open(dir / "divergence.psmcfa");
         int path_id = 1;
         omp_set_num_threads(threads);
-        for(BulgePath<dbg::DBGTraits> &path : finder.paths){
+        for(BulgePath &path : finder.paths){
             if(path.size() == 1)
                 continue;
             std::vector<std::vector<bool>> pathDivergence(path.size());

@@ -29,7 +29,20 @@ AbstractListener::AbstractListener(AbstractListener &&other) noexcept: fire(null
     *this = std::move(other);
 }
 
-AbstractListener::AbstractListener(AbstractFire &fire, const std::string &name) : fire(&fire), name(name) {fire.addListener(*this);}
+AbstractListener::AbstractListener(AbstractFire &fire, const std::string &name) : fire(&fire), name(name) {attach();}
+
+void AbstractListener::attach() {
+    VERIFY(fire != nullptr);
+    fire->addListener(*this);
+}
+
+void AbstractListener::detach() {
+    if (fire != nullptr)
+        fire->removeListener(*this);
+    fire = nullptr;
+}
+
+bool AbstractListener::active() const {return fire != nullptr;}
 
 AbstractListener &AbstractListener::operator=(AbstractListener &&other) noexcept {
     if(fire != nullptr)
@@ -42,7 +55,5 @@ AbstractListener &AbstractListener::operator=(AbstractListener &&other) noexcept
 }
 
 AbstractListener::~AbstractListener() {
-    if (fire != nullptr)
-        fire->removeListener(*this);
-    fire = nullptr;
+    detach();
 }

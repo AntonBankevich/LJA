@@ -1,130 +1,10 @@
 #include "diploidy_analysis.hpp"
 
-//BulgePath::BulgePath(std::vector<std::pair<dbg::Edge *, dbg::Edge *>> &&path_) : path(path_), start_(nullptr) {
-//    VERIFY(path.size() > 0);
-//    start_ = &path.front().first->getStart();
-//}
-//
-//dbg::Vertex &BulgePath::getFinish() const {
-//    if(path.empty())
-//        return *start_;
-//    return path.back().first->getFinish();
-//}
-//
-//dbg::Vertex &BulgePath::getStart() const {
-//    return *start_;
-//}
-//
-//dbg::Vertex &BulgePath::getVertex(size_t ind) const {
-//    VERIFY(ind <= size());
-//    if(ind == size())
-//        return getFinish();
-//    return path[ind].first->getStart();
-//}
-//
-//void BulgePath::extend(double threshold) {
-//    dbg::Vertex &last = getFinish();
-//    size_t deg = last.outDeg();
-//    if(last.front().getCoverage() > threshold && last.back().getCoverage() > threshold)
-//        path.emplace_back(&last.front(), &last.back());
-//    else {
-//        for(dbg::Edge &edge: last) {
-//            if(edge.getCoverage() > threshold) {
-//                path.emplace_back(&edge, &edge);
-//                return;
-//            }
-//        }
-//        VERIFY(last.outDeg() == 2 && last.front().getFinish() == last.back().getFinish());
-//        path.emplace_back(&last.front(), &last.back());
-//    }
-//}
-//
-//BulgePath BulgePath::RC() {
-//    if(path.empty()) {
-//        return BulgePath(start_->rc());
-//    }
-//    std::vector<std::pair<dbg::Edge *, dbg::Edge *>> rc;
-//    for(size_t i = 0; i < path.size(); i++) {
-//        rc.emplace_back(&path[path.size() - 1 - i].first->rc(), &path[path.size() - 1 - i].second->rc());
-//    }
-//    return BulgePath(std::move(rc));
-//}
-//
-//BulgePath BulgePath::operator+(const BulgePath &other) const {
-//    VERIFY(getFinish() == other.getStart())
-//    std::vector<std::pair<dbg::Edge *, dbg::Edge *>> sum(path);
-//    sum.insert(sum.end(), other.path.begin(), other.path.end());
-//    return BulgePath(std::move(sum));
-//}
-//
-//dbg::Vertex &BulgePath::vertexAt(size_t ind) {
-//    if(ind == 0)
-//        return *start_;
-//    return path[ind - 1].first->getFinish();
-//}
-//
-//size_t BulgePath::length() const {
-//    size_t res = 0;
-//    for(auto & p : path) {
-//        res += std::max(p.first->truncSize(), p.second->truncSize());
-//    }
-//    return res;
-//}
-//
-//size_t BulgePath::bulgeLength() const {
-//    size_t res = 0;
-//    for(auto & p : path) {
-//        if(p.first != p.second)
-//            res += std::max(p.first->truncSize(), p.second->truncSize());
-//    }
-//    return res;
-//}
-//
-//size_t BulgePath::conservativeLength() const {
-//    size_t res = 0;
-//    for(auto & p : path) {
-//        if(p.first == p.second)
-//            res += std::max(p.first->truncSize(), p.second->truncSize());
-//    }
-//    return res;
-//}
-//
-//std::string BulgePath::str() const {
-//    std::stringstream ss;
-//    ss << getStart().getShortId();
-//    for(const auto &p : path) {
-//        if(p.first == p.second) {
-//            ss << "-" << p.first->truncSize() << p.first->firstNucl() << "-" << p.first->getFinish().getShortId();
-//        } else {
-//            ss << "-(" << p.first->truncSize() << p.first->firstNucl() << "," <<
-//               p.second->truncSize() << p.second->firstNucl() << ")-" << p.first->getFinish().getShortId();
-//        }
-//    }
-//    return ss.str();
-//}
-//
-//bool BulgePath::isBad(size_t bad_bulge_inner_size) const {
-//    if(path.size() < 2)
-//        return false;
-//    for(const auto &p : path) {
-//        if(p.first != p.second)
-//            if(p.first->innerSize() > bad_bulge_inner_size || p.second->truncSize() > bad_bulge_inner_size) {
-//                return false;
-//            }
-//    }
-//    return true;
-//}
-//
-//dbg::GraphPath BulgePath::randomPath() const {
-//    dbg::GraphPath res(getStart());
-//    for(const std::pair<dbg::Edge *, dbg::Edge *> &pair: path) {
-//        res += *pair.first;
-//    }
-//    return std::move(res);
-//}
+using namespace ag;
+using namespace dbg;
 
-BulgePath<dbg::DBGTraits> BulgePathFinder::forwardPath(dbg::Vertex &start) {
-    BulgePath<dbg::DBGTraits> res(start);
+BulgePath BulgePathFinder::forwardPath(dbg::Vertex &start) {
+    BulgePath res(start);
     dbg::Vertex * cur = &start;
     while(isBulgePathInner(*cur)) {
         res.extend(threshold);
@@ -135,7 +15,7 @@ BulgePath<dbg::DBGTraits> BulgePathFinder::forwardPath(dbg::Vertex &start) {
     return std::move(res);
 }
 
-BulgePathFinder::BulgePathFinder(ag::AssemblyGraph<dbg::DBGTraits> &dbg, double threshold) : dbg(dbg), threshold(threshold) {
+BulgePathFinder::BulgePathFinder(ag::AssemblyGraph &dbg, double threshold) : dbg(dbg), threshold(threshold) {
     std::unordered_set<dbg::Vertex *> visited;
     for(auto &vertex : dbg.verticesUnique()) {
         if(visited.find(&vertex) != visited.end())
@@ -168,7 +48,7 @@ BulgePathFinder::BulgePathFinder(ag::AssemblyGraph<dbg::DBGTraits> &dbg, double 
 
 SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
     std::vector<dbg::EdgeId> res;
-    for(const BulgePath<dbg::DBGTraits> &bp : paths) {
+    for(const BulgePath &bp : paths) {
         if(bp.size() == 1) {
             dbg::Edge &edge = *bp[0].first;
             if(edge.truncSize() > min_len || (
@@ -190,10 +70,10 @@ SetUniquenessStorage BulgePathFinder::uniqueEdges(size_t min_len) const {
     return {res.begin(), res.end()};
 }
 
-std::pair<std::vector<dbg::EdgeId>, std::vector<dbg::EdgeId>>
-BulgePathCorrector::resolveBulgePath(const dbg::DBGAlignedReadStorage &reads, const BulgePath<dbg::DBGTraits> &path) const {
-    dbg::GraphPath p1; dbg::GraphPath p2;
-    dbg::GraphPath repeat;
+std::pair<ag::RAGraphPath, ag::RAGraphPath>
+BulgePathCorrector::resolveBulgePath(const dbg::DBGAlignedReadStorage &reads, const BulgePath &path) const {
+    ag::GraphPath p1; ag::GraphPath p2;
+    ag::GraphPath repeat;
     for (size_t i = 0; i < path.size(); i++) {
         if (path.isBulge(i)) {
             if (p1.empty() && p2.empty()) {
@@ -201,25 +81,25 @@ BulgePathCorrector::resolveBulgePath(const dbg::DBGAlignedReadStorage &reads, co
             } else {
                 dbg::Edge & e1 = *path[i].first;
                 dbg::Edge & e2 = *path[i].second;
-                const ag::SuffixRecord<dbg::DBGTraits> &rec1 = reads.getSuffixes().getSuffixRecord(p1.backEdge());
-                const ag::SuffixRecord<dbg::DBGTraits> &rec2 = reads.getSuffixes().getSuffixRecord(p2.backEdge());
+                const ag::SuffixRecord &rec1 = reads.getSuffixes().getSuffixRecord(p1.backEdge());
+                const ag::SuffixRecord &rec2 = reads.getSuffixes().getSuffixRecord(p2.backEdge());
                 size_t straight_score = rec1.countStartsWith(repeat + e1) + rec2.countStartsWith(repeat + e2);
                 size_t switch_score = rec1.countStartsWith(repeat + e2) + rec2.countStartsWith(repeat + e1);
                 p1 += repeat; p2 += repeat;
                 if (straight_score >= switch_score) { p1 += e1; p2 += e2; }
                 else { p1 += e2; p2 += e1; }
             }
-            repeat = dbg::GraphPath();
+            repeat = ag::GraphPath();
         } else {
             repeat += *path[i].first;
         }
     }
     p1 += repeat; p2 += repeat;
-    return {p1.asEdgeIds(), p2.asEdgeIds()};
+    return {p1.asRAPath(), p2.asRAPath()};
 }
 
 //    TODO: get rid of this or at least do alignment of ends.
-std::string BulgePathCorrector::correctRead(const std::string &name, dbg::GraphPath &read_path) {
+std::string BulgePathCorrector::correctRead(const std::string &name, ag::GraphPath &read_path) {
     std::vector<Case> cases;
     std::vector<std::string> messages;
     std::vector<Segment<dbg::Edge>> path = oneline::initialize<Segment<dbg::Edge>>(read_path.begin(), read_path.end());
@@ -227,17 +107,17 @@ std::string BulgePathCorrector::correctRead(const std::string &name, dbg::GraphP
         if(!cases.empty() && cases.back().read_to == i && cases.back().path_to != paths[cases.back().path_ind].size() &&
            (paths[cases.back().path_ind][cases.back().path_to].first == path[i].contig().getId() ||
            paths[cases.back().path_ind][cases.back().path_to].second == path[i].contig().getId())) {
-            if(resolved[cases.back().path_ind].first[cases.back().path_to] != path[i].contig().getId())
+            if(resolved[cases.back().path_ind].first[cases.back().path_to] != path[i].contig())
                 cases.back().score1 += 1;
-            if(resolved[cases.back().path_ind].second[cases.back().path_to] != path[i].contig().getId())
+            if(resolved[cases.back().path_ind].second[cases.back().path_to] != path[i].contig())
                     cases.back().score2 += 1;
                 cases.back().read_to += 1;
                 cases.back().path_to += 1;
             } else {
                 auto it = pathPoses.find(path[i].contig().getId());
                 if (it != pathPoses.end()) {
-                    size_t score1 = (resolved[it->second.path_ind].first[it->second.pos] != path[i].contig().getId());
-                    size_t score2 = (resolved[it->second.path_ind].second[it->second.pos] != path[i].contig().getId());
+                    size_t score1 = (resolved[it->second.path_ind].first[it->second.pos] != path[i].contig());
+                    size_t score2 = (resolved[it->second.path_ind].second[it->second.pos] != path[i].contig());
                     cases.emplace_back(it->second.path_ind, it->second.pos, it->second.pos + 1, i, i + 1, score1,
                                        score2);
                 }
@@ -245,7 +125,7 @@ std::string BulgePathCorrector::correctRead(const std::string &name, dbg::GraphP
     }
     if(cases.empty())
         return "";
-    dbg::GraphPath res;
+    ag::GraphPath res;
     for(Case & bp : cases) {
         for(size_t i = res.calculateSize(); i < bp.read_from; i++)
             res += path[i];
@@ -256,10 +136,10 @@ std::string BulgePathCorrector::correctRead(const std::string &name, dbg::GraphP
             messages.emplace_back("bpc" + itos(std::min(bp.score1, bp.score2)));
             if(bp.score1 <= bp.score2) {
                 for(size_t i = bp.read_from; i < bp.read_to; i++)
-                    res += *resolved[bp.path_ind].first[i - bp.read_from + bp.path_from];
+                    res += resolved[bp.path_ind].first[i - bp.read_from + bp.path_from];
             } else {
                 for(size_t i = bp.read_from; i < bp.read_to; i++)
-                    res += *resolved[bp.path_ind].second[i - bp.read_from + bp.path_from];
+                    res += resolved[bp.path_ind].second[i - bp.read_from + bp.path_from];
             }
         }
     }
@@ -278,13 +158,13 @@ std::string BulgePathCorrector::correctRead(const std::string &name, dbg::GraphP
 void BulgePathCorrector::initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                                     dbg::DBGAlignedReadStorage &reads) {
     paths = BulgePathFinder(dbg, threshold).paths;
-    for(BulgePath<dbg::DBGTraits> &path: BulgePathFinder(dbg, threshold).paths) {
+    for(BulgePath &path: BulgePathFinder(dbg, threshold).paths) {
         if (path.size() > 1 && path.length() > unique_length) {
             paths.emplace_back(path);
         }
     }
     for(size_t path_ind = 0; path_ind < paths.size(); path_ind++) {
-        BulgePath<dbg::DBGTraits> &path = paths[path_ind];
+        BulgePath &path = paths[path_ind];
         for(size_t i = 0; i < path.size(); i++) {
             std::pair<dbg::EdgeId, dbg::EdgeId> pair = path[i];
             pathPoses[pair.first] = {path_ind, i};

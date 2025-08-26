@@ -3,25 +3,16 @@
 #include "unordered_map"
 
 namespace ag {
-    template<class Traits>
     class InOutEdgePair;
-    template<class Traits>
-    inline std::ostream &operator<<(std::ostream &stream, const InOutEdgePair<Traits> &pair);
+    inline std::ostream &operator<<(std::ostream &stream, const InOutEdgePair &pair);
 
-        template<class Traits>
     struct InOutEdgePair {
-        friend std::ostream &operator<<<Traits>(std::ostream &, const InOutEdgePair<Traits> &);
+        friend std::ostream &operator<<(std::ostream &, const InOutEdgePair &);
     private:
-        typedef typename Traits::Edge::EdgeId EdgeId;
-        typedef typename Traits::Edge Edge;
-        typedef typename Traits::Vertex Vertex;
-
         EdgeId first;
         EdgeId second;
     public:
-        InOutEdgePair(Edge & first, Edge &second) : first(first.getId()), second(second.getId()) {
-            VERIFY(this->first->getFinish() == this->second->getStart());
-        }
+        InOutEdgePair(Edge & first, Edge &second);
         Edge & incoming() const {return *first;};
         Edge & outgoing() const {return *second;};
         InOutEdgePair RC() const {return {second->rc(), first->rc()};}
@@ -36,79 +27,54 @@ namespace ag {
         bool operator>=(const InOutEdgePair &other) const {return first >= other.first || (first == other.first && second >= other.second);}
     };
 
-    template<class Traits>
-    inline std::ostream &operator<<(std::ostream &stream, const InOutEdgePair<Traits> &pair) {
-        return stream << "(" << pair.first << "|" << pair.second << ")";
-    }
+    std::ostream &operator<<(std::ostream &stream, const InOutEdgePair &pair);
 
-    template<class Traits>
-    class VertexResolutionResult {
+    class VertexResolutionPlan {
     private:
-        typedef typename Traits::Edge::EdgeId EdgeId;
-        typedef typename Traits::Edge Edge;
-        typedef typename Traits::Vertex::VertexId VertexId;
-        typedef typename Traits::Vertex Vertex;
+        VertexId v;
+        mutable bool sorted = true;
+        mutable std::vector<InOutEdgePair> edge_pairs;
 
-        VertexId core;
-        std::unordered_map<VertexId, InOutEdgePair<Traits>> new_vertices;
-        std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> edge_mapping;
-        void innerAdd(Vertex &new_vertex, const InOutEdgePair<Traits> &edgePair) {
-            VERIFY(new_vertices.find(new_vertex.getId()) == new_vertices.end());
-            new_vertices.emplace(new_vertex.getId(), edgePair);
-            edge_mapping[edgePair.incoming().getId()][edgePair.outgoing().getId()] = new_vertex.getId();
-        }
+        void sort() const;
     public:
-        VertexResolutionResult(Vertex &core) : core(core.getId()) {}
-        VertexResolutionResult RC() const {
-            VertexResolutionResult res(core->rc());
-            for(auto it : new_vertices) {
-                res.innerAdd(it.first->rc(), it.second.RC());
-            }
-            return std::move(res);
-        }
+        VertexResolutionPlan(Vertex &v) : v(v.getId()) {} // NOLINT(google-explicit-constructor)
+        VertexResolutionPlan RC() const;
 
-        bool contains(Edge &edge1, Edge &edge2) const {
-            VERIFY(edge1.getFinish() == *core);
-            VERIFY(edge2.getStart() == *core);
-            return edge_mapping.find(edge1.getId()) != edge_mapping.end() &&
-                   edge_mapping.at(edge1.getId()).find(edge2.getId()) != edge_mapping.at(edge1.getId()).end();
-        }
+        Vertex &getCore() const {return *v;}
+        void add(const InOutEdgePair &edgePair);
+        void add(Edge &edge1, Edge &edge2) {add({edge1, edge2});}
 
-        Vertex &getCore() const {return *core;}
-
-        Vertex &get(Edge &edge1, Edge &edge2) const {
-            return *edge_mapping.at(edge1.getId()).at(edge2.getId());
-        }
-
-        const InOutEdgePair<Traits> &get(Vertex &new_vertex) const {
-            return new_vertices.at(new_vertex.getId());
-        }
-
-        void add(Vertex &new_vertex, const InOutEdgePair<Traits> &edgePair) {
-            innerAdd(new_vertex, edgePair);
-            if(*core == core->rc() && new_vertex != new_vertex.rc()) {
-                innerAdd(new_vertex.rc(), edgePair.RC());
-            }
-        }
-
-        void add(Vertex &new_vertex, Edge &edge1, Edge &edge2) {add(new_vertex, {edge1, edge2});}
-
-        IterableStorage<TransformingIterator<typename std::unordered_map<VertexId, InOutEdgePair<Traits>>::const_iterator, Vertex>> newVertices() const {
-            std::function<Vertex &(const std::pair<VertexId, InOutEdgePair<Traits>> &)> transform = [](const std::pair<VertexId, InOutEdgePair<Traits>> &val) ->Vertex& {
-                return *val.first;
-            };
-            return {{new_vertices.begin(), new_vertices.end(), transform},
-                    {new_vertices.end(),   new_vertices.end(), transform}};
-        }
+        bool empty() const {return edge_pairs.empty();}
+        bool incConnected(Edge &edge) const;
+        bool outConnected(Edge &edge) const;
+        bool allConnected() const;
+        IterableStorage<std::vector<InOutEdgePair>::const_iterator> connections() const;
+        IterableStorage<SkippingIterator<std::vector<InOutEdgePair>::const_iterator>> connectionsUnique() const;
     };
 
-    template<class Traits>
-    inline std::ostream &operator<<(std::ostream &stream, const VertexResolutionResult<Traits> &vr) {
-        stream << "VRResult." << vr.getCore().getId() << ":";
-        for(typename Traits::Vertex & it : vr.newVertices()) {
-            stream << it.getId() << vr.get(it);
-        }
-        return stream;
-    }
+    std::ostream &operator<<(std::ostream &stream, const VertexResolutionPlan &vr);
 
+    class VertexResolutionResult {
+    private:
+        VertexId core;
+        std::unordered_map<VertexId, InOutEdgePair> new_vertices;
+        std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> edge_mapping;
+        void innerAdd(Vertex &new_vertex, const InOutEdgePair &edgePair);
+    public:
+        VertexResolutionResult(Vertex &core) : core(core.getId()) {} // NOLINT(google-explicit-constructor)
+        VertexResolutionResult RC() const;
+        bool empty() {
+            return !core->marked();
+        }
+
+        bool contains(Edge &edge1, Edge &edge2) const;
+        Vertex &getCore() const {return *core;}
+        Vertex &get(Edge &edge1, Edge &edge2) const;
+        const InOutEdgePair &get(Vertex &new_vertex) const;
+        void add(Vertex &new_vertex, const InOutEdgePair &edgePair);
+        void add(Vertex &new_vertex, Edge &edge1, Edge &edge2);
+        IterableStorage<TransformingIterator<typename std::unordered_map<VertexId, InOutEdgePair>::const_iterator, Vertex>> newVertices() const;
+    };
+
+    std::ostream &operator<<(std::ostream &stream, const VertexResolutionResult &vr);
 }

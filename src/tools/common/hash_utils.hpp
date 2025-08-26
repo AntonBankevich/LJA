@@ -18,16 +18,18 @@ namespace hashing {
     };
 }
 
-inline std::ostream &operator<<(std::ostream &os, hashing::htype val) {
-    std::vector<size_t> res;
-    while (val != 0) {
-        res.push_back(val % 10);
-        val /= 10;
+namespace std {
+    inline std::ostream &operator<<(std::ostream &os, hashing::htype val) {
+        std::vector<size_t> res;
+        while (val != 0) {
+            res.push_back(val % 10);
+            val /= 10;
+        }
+        for (auto it = res.rbegin(); it != res.rend(); ++it) {
+            os << *it;
+        }
+        return os;
     }
-    for (auto it = res.rbegin(); it != res.rend(); ++it) {
-        os << *it;
-    }
-    return os;
 }
 
 inline hashing::htype stohtype(const std::string &s) {

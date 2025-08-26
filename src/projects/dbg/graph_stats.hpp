@@ -38,7 +38,7 @@ namespace dbg {
         std::vector<size_t> inout(25);
         for (auto &tmp: dbg.verticesUnique()) {
             if (tmp.inDeg() == 0 && tmp.outDeg() == 1) {
-                old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(tmp.front());
+                ag::RAGraphPath path = ag::RAGraphPath::WalkForward(tmp.front());
                 if (path.getFinish().outDeg() == 0 && path.getFinish().inDeg() == 1) {
                     isolated += 1;
                     for (dbg::Edge &edge: path.edges()) {
@@ -48,7 +48,7 @@ namespace dbg {
                 }
             }
             if (tmp.inDeg() == 1 && tmp.outDeg() == 0) {
-                old::ag::RAGraphPath<DBGTraits> path = old::ag::RAGraphPath<DBGTraits>::WalkForward(tmp.rc().front());
+                ag::RAGraphPath path = ag::RAGraphPath::WalkForward(tmp.rc().front());
                 if (path.getFinish().outDeg() == 0 && path.getFinish().inDeg() == 1) {
                     isolated += 1;
                     for (dbg::Edge &edge: path.edges()) {
@@ -86,7 +86,7 @@ namespace dbg {
         logger << "Total vertices: " << dbg.size() << std::endl;
         logger << "Number of end vertices: " << n01 << std::endl;
         logger << "Number of unbranching vertices: " << n11 << std::endl;
-        logger << "Number of connected components: " << ag::CCSplitter<DBGTraits>().split(Component(dbg)).size()
+        logger << "Number of connected components: " << ag::CCSplitter().split(ag::Component(dbg)).size()
                << std::endl;
         logger << "Number of isolated edges " << isolated / 2 << " " << isolatedSize / 2 << std::endl;
 //    logger << "Distribution of degrees:" << std::endl;

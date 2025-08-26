@@ -2,36 +2,30 @@
 // Created by anton on 17.07.2020.
 //
 #define _GLIBCXX_PARALLEL
-#include "error_correction/diploidy_analysis.hpp"
 #include "error_correction/mult_correction.hpp"
-#include "error_correction/parameter_estimator.hpp"
-#include "dbg/visualization.hpp"
 #include "dbg/graph_algorithms.hpp"
 #include "dbg/dbg_construction.hpp"
-#include "dbg/dbg_disjointigs.hpp"
-#include "dbg/minimizer_selection.hpp"
 #include "dbg/sparse_dbg.hpp"
 #include "common/rolling_hash.hpp"
-#include "common/hash_utils.hpp"
 #include "common/hash_utils.hpp"
 #include "error_correction/tournament_correction.hpp"
 #include "sequences/seqio.hpp"
 #include "common/dir_utils.hpp"
 #include "common/cl_parser.hpp"
 #include "common/logging.hpp"
-#include "../dbg/graph_printing.hpp"
+#include "dbg/graph_printing.hpp"
 #include "dbg/dbg_graph_aligner.hpp"
 #include <iostream>
-#include <queue>
 #include <omp.h>
 #include <unordered_set>
-#include <wait.h>
 #include <common/id_index.hpp>
 #include <assembly_graph/ag_algorithms.hpp>
 #include <dbg/aln_reads_reader.hpp>
 #include "assembly_graph/visualization.hpp"
+#include "dbg/path_dumping.hpp"
 
 using namespace dbg;
+using namespace ag;
 
 void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file,
                    const std::experimental::filesystem::path &path_dump,
@@ -40,7 +34,7 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
     logger.info() << "Reading reference" << std::endl;
     std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
-    std::vector<dbg::GraphPath> paths;
+    std::vector<ag::GraphPath> paths;
     std::ofstream os;
     os.open(path_dump);
     size_t cur = 0;
@@ -79,7 +73,7 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
     std::vector<size_t> cov_good(max_cov + 1);
     std::vector<size_t> cov_good_len(max_cov + 1);
     std::unordered_map<Edge const *, size_t> eset;
-    for(dbg::GraphPath &path: paths)
+    for(ag::GraphPath &path: paths)
         for(Edge &edge : path.edges())
             eset[&edge] += 1;
     std::ofstream os_mult;
@@ -244,8 +238,8 @@ int main(int argc, char **argv) {
     if(params.getValue("extension-size") != "none")
         extension_size = std::stoull(params.getValue("extension-size"));
 
-    std::vector<ag::AlignedRead<DBGTraits>> read_als;
-    std::vector<ag::AlignedRead<DBGTraits>> ref_als;
+    std::vector<ag::AlignedRead> read_als;
+    std::vector<ag::AlignedRead> ref_als;
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;
         dbg::SeqReader reader(reads_lib, logger, threads);
@@ -272,13 +266,12 @@ int main(int argc, char **argv) {
         initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable, false, 60000, params.getCheck("dump"));
         Component comp(dbg);
-        DrawSplit(comp, dir / "split");
     }
 
     if(!paths_lib.empty()) {
         logger << "Printing additional figures with paths" << std::endl;
         logger << "Aligning contigs from paths files" << std::endl;
-        GraphAlignedReadStorage storage(dbg);
+        AlignedContigStorage storage(dbg);
         dbg::SeqReader reader(paths_lib, logger, threads);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -289,8 +282,8 @@ int main(int argc, char **argv) {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "paths.dot");
-            Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
-                                       EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
+            Printer printer(VertexPrintStyles::defaultDotInfo(),
+                                       EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
             printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
@@ -314,7 +307,7 @@ int main(int argc, char **argv) {
     if(params.getCheck("print-all")) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        GraphAlignedReadStorage storage(dbg);
+        AlignedContigStorage storage(dbg);
         dbg::SeqReader reader1(paths_lib, logger, threads);
         for(StringContig scontig : reader1) {
             Contig contig = scontig.makeContig();
@@ -335,8 +328,8 @@ int main(int argc, char **argv) {
             std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(contig);
             Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
-            Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
-                                       EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
+            Printer printer(VertexPrintStyles::defaultDotInfo(),
+                                       EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
             printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
@@ -349,7 +342,7 @@ int main(int argc, char **argv) {
         logger.info() << "Aligning paths" << std::endl;
         std::vector<Component> comps;
         std::vector<std::ofstream *> os;
-        GraphAlignedReadStorage storage(dbg);
+        AlignedContigStorage storage(dbg);
         dbg::SeqReader reader(paths_lib, logger, threads);
         size_t cnt = 0;
         size_t radius = std::stoull(params.getValue("subdataset-radius"));
@@ -367,7 +360,7 @@ int main(int argc, char **argv) {
             Contig contig = scontig.makeContig();
             if(contig.truncSize() < hasher.getK() + w - 1)
                 return;
-            dbg::GraphPath al = index.align(contig.getSeq());
+            ag::GraphPath al = index.align(contig.getSeq());
             for(size_t j = 0; j < comps.size(); j++) {
                 for(Vertex &v : al.vertices()) {
                     if(comps[j].contains(v)) {
@@ -390,7 +383,7 @@ int main(int argc, char **argv) {
     if(!path_segments.empty()) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        GraphAlignedReadStorage storage(dbg);
+        AlignedContigStorage storage(dbg);
         std::vector<std::tuple<std::string, size_t, size_t, std::string>> seg_recs;
         for(const std::string& s : path_segments) {
             std::vector<std::string> parsed = split(s, "[,]");
@@ -410,8 +403,8 @@ int main(int argc, char **argv) {
             }
         }
         storage.Fill(threads, index);
-        Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
-                                   EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
+        Printer printer(VertexPrintStyles::defaultDotInfo(),
+                                   EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
         for(Contig &seg : segs) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.getInnerId()) + ".dot");
             logger.info() << "Printing segment " << seg.getInnerId() << " to dot file " << (seg_file) << std::endl;
@@ -427,7 +420,7 @@ int main(int argc, char **argv) {
     if(params.getCheck("genome-path")) {
         logger.info() << "Printing additional figures with reference alignments" << std::endl;
         logger.info() << "Aligning genome" << std::endl;
-        GraphAlignedReadStorage storage(dbg);
+        AlignedContigStorage storage(dbg);
         dbg::SeqReader reader(genome_lib, logger, threads);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
@@ -438,8 +431,8 @@ int main(int argc, char **argv) {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "genome_path.dot");
-            Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
-                                       EdgePrintStyles<DBGTraits>::defaultDotInfo() + ObjInfo<Edge>::Labeler(storage.labeler()));
+            Printer printer(VertexPrintStyles::defaultDotInfo(),
+                                       EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
             printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
@@ -455,21 +448,15 @@ int main(int argc, char **argv) {
         if(debug) {
             logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
             printFasta(dir / "graph.fasta", Component(dbg));
-            logger.info() << "Printing assembly to fasta file " << (dir / "assembly.fasta") << std::endl;
-            printAssembly(dir / "assembly.fasta", Component(dbg));
         } else {
             logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
-            printFasta(dir/"graph.fasta" , dbg, &ag::GetEdgeNameForSaving<DBGTraits>);
-//            printAssembly(dir / "graph.fasta", Component(dbg));
+            printFasta(dir/"graph.fasta" , dbg, &ag::GetEdgeNameForSaving);
         }
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
-        Printer<DBGTraits> printer;
-        printer.addEdgeInfo(ObjInfo<Edge>({&ag::GetEdgeNameForSaving<DBGTraits>}, {}, {}));
+        Printer printer(EdgeInfo({&ag::GetEdgeNameForSaving}, {}, {}));
         printer.printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage);
-        // printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage, &ag::GetEdgeNameForSaving<DBGTraits>); delete if ok
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         printer.printDot(dir / "graph.dot", Component(dbg));
-        // printDot(dir / "graph.dot", Component(dbg), &ag::GetEdgeNameForSaving<DBGTraits>); delete if ok
     }
 
     if (params.getCheck("tip-correct")) {
@@ -481,7 +468,7 @@ int main(int argc, char **argv) {
             Contig read = contig.makeContig();
             if(read.truncSize() < w + hasher.getK() - 1)
                 return;
-            dbg::GraphPath gal = index.align(read.getSeq());
+            ag::GraphPath gal = index.align(read.getSeq());
             if (!gal.empty() > 0 && gal.front().contig().getCoverage() < 2 && gal.getStart().inDeg() == 0 && gal.getStart().outDeg() == 1) {
                 gal.pop_front();
             }
@@ -550,10 +537,10 @@ int main(int argc, char **argv) {
                 edge.incCov(other.rc().getOutgoing(edge.truncSeq()[0]).intCov());
             }
         }
-        Printer<DBGTraits> printer(VertexPrintStyles<DBGTraits>::defaultDotInfo(),
-                                   EdgePrintStyles<DBGTraits>::defaultDotInfo());
+        Printer printer(VertexPrintStyles::defaultDotInfo(),
+                                   EdgePrintStyles::defaultDotInfo());
         printer.printDot(dir / "simp_graph1.dot", Component(simp_dbg));
-        ag::MergeAll<DBGTraits>(logger, threads, simp_dbg);
+        ag::MergeAllToEdges(logger, threads, simp_dbg);
         printFasta(dir / "simp_graph.fasta", Component(simp_dbg));
         printer.printDot(dir / "simp_graph.dot", Component(simp_dbg));
     }

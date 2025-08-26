@@ -10,6 +10,7 @@
 #include <dbg/subdatasets.hpp>
 #include <dbg/aln_reads_reader.hpp>
 #include "dbg/dbg_graph_aligner.hpp"
+#include "dbg/path_dumping.hpp"
 
 using namespace dbg;
 int main(int argc, char **argv) {
@@ -74,13 +75,13 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
-    GraphAlignedReadStorage storage(dbg);
+    AlignedContigStorage storage(dbg);
     for(StringContig stringContig : dbg::SeqReader(ref_lib, logger, threads)) {
         storage.addContig(stringContig.makeContig());
     }
     if(paths_lib.empty()) {
         logger.info() << "No paths provided. Splitting the whole graph." << std::endl;
-//        std::function<bool(const dbg::Component&)> f = [bad_cov](const dbg::Component &component) {
+//        std::function<bool(const ag::Component&)> f = [bad_cov](const ag::Component &component) {
 //            for(dbg::Edge &edge : component.edgesInnerUnique()) {
 //                if(edge.getCoverage() >= 2 && edge.getCoverage() < bad_cov) {
 //                    return false;
@@ -89,9 +90,9 @@ int main(int argc, char **argv) {
 //            }
 //            return true;
 //        };
-//        std::vector<dbg::Component> components = oneline::filter(ag::LengthSplitter<DBGTraits>(unique_threshold).splitGraph(dbg), f);
-        std::vector<dbg::Component> components = ag::LengthSplitter<dbg::DBGTraits>(unique_threshold).splitGraph(dbg); //Split graph into components
-        subdatasets = oneline::initialize<Subdataset>(components);//Create subdatasets corresponding to components
+//        std::vector<ag::Component> components = oneline::filter(ag::LengthSplitter(unique_threshold).splitGraph(dbg), f);
+        std::vector<ag::Component> components = ag::LengthSplitter(unique_threshold).splitGraph(dbg); //Split graph into components
+        subdatasets = oneline::initialize<Subdataset>(std::move(components));//Create subdatasets corresponding to components
     } else {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
@@ -101,7 +102,7 @@ int main(int argc, char **argv) {
             std::cout << contig.getInnerId() << " " << contig.truncSize() << " " << index.carefulAlign(contig).size() << std::endl;
             storage.addContig(contig);
             std::vector<ag::AlignmentChain<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
-            subdatasets.emplace_back(dbg::Component::neighbourhood(dbg, contig_al, k + radius));
+            subdatasets.emplace_back(ag::Component::neighbourhood(dbg, contig_al, k + radius));
             subdatasets.back().id = contig.getInnerId();
         }
     }
@@ -112,10 +113,9 @@ int main(int argc, char **argv) {
     storage.Fill(threads, index);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
-    Printer<DBGTraits> printer;
-    printer.setEdgeInfo(ObjInfo<dbg::Edge>({storage.labeler(), readStorage.getSuffixes().labeler()}, {}, {}));
-    printer.printDot(dir / "graph.dot", Component(dbg));
-    //printDot(dir / "graph.dot", dbg::Component(dbg), storage.labeler() + readStorage.getSuffixes().labeler());
+    ag::Printer printer(ag::EdgePrintStyles::defaultDotInfo() + storage.edgeInfo() + ag::EdgeInfo::Tooltiper(readStorage.getSuffixes().labeler()));
+    printer.printDot(dir / "graph.dot", ag::Component(dbg));
+    //printDot(dir / "graph.dot", ag::Component(dbg), storage.labeler() + readStorage.getSuffixes().labeler());
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk
         logger.info() << "Printing subdataset " << cnt << " " << subdataset.id << ":";
         for(dbg::Vertex &v : subdataset.component.verticesUnique()) {
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
         std::string name = itos(cnt);
         if(!subdataset.id.empty())
             name += "_" + name;
-        subdataset.Save(subdir / name, ObjInfo<Edge>::Labeler(storage.labeler()) + ObjInfo<Edge>::Tooltiper(readStorage.getSuffixes().labeler()));
+        subdataset.Save(subdir / name, printer);
         cnt++;
     }
     logger.info() << "Finished extracting subdatasets" << std::endl;

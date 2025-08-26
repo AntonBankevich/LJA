@@ -15,6 +15,7 @@ using namespace multigraph;
 struct HaplotypeRemover {
     std::unordered_map<Edge::id_type, HaplotypeStats> haplotype_info;
     MultiGraph &mg;
+    LabelStorage labels;
 //    haplo_map_type haplotypes;
     logging::Logger &logger_;
     size_t threads;

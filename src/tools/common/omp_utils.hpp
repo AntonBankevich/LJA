@@ -13,6 +13,36 @@
 #include "unistd.h"
 
 
+//    Locking objects that can lock several objects. Always locks them in ascending order (with respect to order
+//    defined for class T), which allows to prevent deadlicks under certain conditinos.
+template<class T>
+class Locker {
+private:
+    std::vector<T> locked;
+    explicit Locker(std::vector<T> _vertices) : locked(std::move(_vertices)) {
+        std::sort(locked.begin(), locked.end());
+        locked.erase(std::unique(locked.begin(), locked.end()), locked.end());
+        for(T &v: locked) {
+            v->lock();
+        }
+    }
+public:
+    Locker() = default;
+    template<class I>
+    explicit Locker(I begin, I end) : Locker(std::vector<T>(begin, end)) {}
+    Locker(const Locker &other) = delete;
+    Locker(Locker &&other) = default; // NOLINT(performance-noexcept-move-constructor)
+    Locker& operator=(const Locker &other) = delete;
+    Locker& operator=(Locker &&other) noexcept = default;
+    static Locker FromVector(std::vector<T> vertices) {return Locker(vertices);}
+
+    ~Locker() {
+        for(T &v: locked) {
+            v->unlock();
+        }
+    }
+};
+
 template<typename T>
 class UniversalParallelCounter {
     std::vector<T> cnt;
@@ -218,7 +248,7 @@ public:
             {
 #pragma omp single
                 {
-#pragma omp task default(none) shared(self, std::cout)
+#pragma omp task default(none) shared(self)
                     {
                         self.doInParallel();
                     }
@@ -233,7 +263,7 @@ public:
                         cur_length += items.back().size();
                         right += 1;
                         if(cur_length >= bucket_length || begin == end || items.size() >= buffer_size || clen >= max_length) {
-#pragma omp task default(none) shared(items, self, std::cout) firstprivate(total, left, right)
+#pragma omp task default(none) shared(items, self) firstprivate(total, left, right)
                             {
                                 for(size_t i = left; i < right; i++)
                                     self.task(total + i, items[i]);

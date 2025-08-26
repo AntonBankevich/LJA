@@ -19,7 +19,7 @@ void SeqReader::initReader(const std::experimental::filesystem::path &file_name)
         std::getline(galn_paths_file, line);
         aln_filename = std::experimental::filesystem::path(line);
         if (loaded_graphs.find(gfa_filename) == loaded_graphs.end()) {
-            size_t k = 5001;
+            size_t k = 0;
             galn_paths_file >> k;
             std::vector<std::experimental::filesystem::path> _lib({gfa_filename});
             hashing::RollingHash hasher(k);
@@ -69,8 +69,8 @@ void dbg::DBGAlignedReadsReader::inner_read() {
         std::getline(*stream, line);
         std::stringstream ss;
         ss << line;
-        ag::AlignedRead<DBGTraits> aligned_read = ag::AlignedRead<DBGTraits>::Load(ss, id_index);
-        ag::GraphPath<dbg::DBGTraits> graph_path = aligned_read.getPath();
+        ag::AlignedRead aligned_read = ag::AlignedRead::Load(ss, id_index);
+        ag::GraphPath graph_path = aligned_read.getPath();
         next = {graph_path.Seq().str(), aligned_read.getId()};
 
         --number_of_paths;

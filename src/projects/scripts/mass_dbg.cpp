@@ -4,7 +4,8 @@
 #include <common/pipeline_tools.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
-#include <dbg/visualization.hpp>
+
+#include "assembly_graph/visualization.hpp"
 
 
 class MassDBGPhase : public Stage {
@@ -40,7 +41,7 @@ protected:
             std::string name = f.filename().string();
             name = name.substr(0,name.find_last_of('.')) + ".dot";
             logger.info() << "Printing result to file " << (dir / name) << std::endl;
-            Printer<dbg::DBGTraits>().printDot(dir/name, dbg::Component(dbg));
+            ag::Printer().printDot(dir/name, ag::Component(dbg));
         }
         std::experimental::filesystem::remove_all(dir/"tmp");
         return {};

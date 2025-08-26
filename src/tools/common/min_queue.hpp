@@ -4,8 +4,9 @@
 //TODO: add namespace
 template<class T>
 class MinQueue {
+public:
     std::deque<std::pair<T, std::size_t>> q;
-    size_t max_pos;
+    size_t max_pos = 0;
 public:
     MinQueue() = default;
 

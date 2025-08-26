@@ -4,6 +4,7 @@
 #include <dbg/multi_graph.hpp>
 #include <polishing/polishing_stage.hpp>
 #include <dbg/aln_reads_reader.hpp>
+#include <assembly_graph/visualization.hpp>
 #include "trio.hpp"
 
 std::experimental::filesystem::path CompressIlluminaLib(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
@@ -79,7 +80,8 @@ std::experimental::filesystem::path simplifyHaplo(logging::Logger &logger, size_
     std::experimental::filesystem::path out_dir = dir / out_name;
     trio::HaplotypeRemover hr(logger, threads, mg, haployak, trio::Haplotype(haplotype), out_dir, saved_bridge_cutoff);
     hr.process();
-    multigraph::MultiGraphHelper::printEdgeGFA(mg, output_file, true);
+
+    ag::Printer().printGFA(output_file, mg);
 
 //printing alignments and contigs, should be refactored
     std::string out_aligns = out_name; out_aligns += ".alignments";

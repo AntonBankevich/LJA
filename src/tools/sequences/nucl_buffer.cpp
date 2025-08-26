@@ -105,29 +105,3 @@ bool NuclDeck::operator==(const NuclDeck &other) const {
             return false;
     return true;
 }
-
-bool NuclDeck::startsWith(const NuclDeck &other) const {
-    if(size() < other.size())
-        return false;
-    Iterator it = begin();
-    for(unsigned char c : other) {
-        if(c != *it)
-            return false;
-        ++it;
-    }
-    return true;
-}
-
-bool NuclDeck::endsWith(const NuclDeck &other) const {
-    if(size() < other.size())
-        return false;
-    Iterator it1 = end();
-    Iterator it2 = other.end();
-    while(it2 != other.begin()) {
-        --it1;
-        --it2;
-        if(*it1 != *it2)
-            return false;
-    }
-    return true;
-}

@@ -1,5 +1,4 @@
 #include "graph_modification.hpp"
-#include "visualization.hpp"
 #include "dbg_graph_aligner.hpp"
 #include "graph_algorithms.hpp"
 #include "graph_stats.hpp"
@@ -24,7 +23,7 @@ namespace dbg {
 
 
     std::vector<Segment<Edge>> CoveredSegments(logging::Logger &logger, size_t threads, SparseDBG &dbg,
-                                               const std::vector<ag::AlignedReadStorage<DBGTraits> *> &storages) {
+                                               const std::vector<ag::AlignedReadStorage *> &storages) {
         omp_set_num_threads(threads);
         logger.trace() << "Collecting covered edge segments" << std::endl;
 //    size_t k = dbg.hasher().getK();
@@ -34,11 +33,11 @@ namespace dbg {
             if (!edge.getStart().isJunction() || !edge.getFinish().isJunction())
                 edge.mark(ag::correct);
         }
-        for (ag::AlignedReadStorage<DBGTraits> *rit: storages) {
-            ag::AlignedReadStorage<DBGTraits> &storage = *rit;
+        for (ag::AlignedReadStorage *rit: storages) {
+            ag::AlignedReadStorage &storage = *rit;
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(storage, segmentStorage)
             for (size_t i = 0; i < storage.size(); i++) { // NOLINT(modernize-loop-convert)
-                const ag::AlignedRead<DBGTraits> &rec = storage[i];
+                const ag::AlignedRead &rec = storage[i];
                 size_t len = 0;
                 for (Segment<Edge> seg: rec.getPath()) {
                     len += seg.size();
@@ -85,7 +84,7 @@ namespace dbg {
     }
 
     void SplitUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg,
-                         const std::vector<ag::AlignedReadStorage<DBGTraits> *> &storages) {
+                         const std::vector<ag::AlignedReadStorage *> &storages) {
         logger.trace() << "Splitting edges according to coverage by reads" << std::endl;
         size_t min_len;
         std::vector<Segment<Edge>> covered_segments = CoveredSegments(logger, threads, dbg, storages);
@@ -95,7 +94,7 @@ namespace dbg {
             if(!edge_segments.empty() && edge_segments.back().contig() != seg.contig()) {
                 Edge &edge = edge_segments.front().contig();
                 if(edge_segments.size() > 1 || (edge_segments.front().size() != 0 && edge_segments.front().size() != edge_segments.front().contig().truncSize())) {
-                    std::vector<EdgePosition> break_points;
+                    std::vector<ag::EdgePosition> break_points;
                     for (Segment<Edge> edge_seg: edge_segments) {
                         if (edge_seg.left != 0 && edge_seg.left != edge.truncSize())
                             break_points.emplace_back(edge, edge_seg.left);
@@ -114,11 +113,11 @@ namespace dbg {
     }
 
     void RemoveUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg,
-                         const std::vector<ag::AlignedReadStorage<DBGTraits> *> &storages) {
+                         const std::vector<ag::AlignedReadStorage *> &storages) {
         logger.info() << "Removing uncovered edges from the graph" << std::endl;
         SplitUncovered(logger, threads, dbg, storages);
         SimpleRemoveUncovered(logger, threads, dbg);
-        ag::MergeAll(logger, threads, dbg);
+        ag::MergeAllToEdges(logger, threads, dbg);
         for(Edge &edge: dbg.edges()) edge.is_reliable = false;
         logger.info() << "Finished removing uncovered edges. New graph size: " << dbg.size() << " vertices, " << dbg.edgeCount() << " edges" << std::endl;
     }

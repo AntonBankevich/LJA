@@ -3,7 +3,7 @@
 #include "dbg/dbg_read_alignment_storage.hpp"
 #include "read_cleaning.hpp"
 
-inline bool CheckCov(const dbg::Component &component, double &d) {
+inline bool CheckCov(const ag::Component &component, double &d) {
     size_t bad_cnt = 0;
     size_t good_cnt = 0;
     for(dbg::Edge &edge :component.edgesUnique()) {
@@ -21,7 +21,7 @@ inline void MRescue(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg
     logger.info() << "Attempting to rescue small circular highly covered components" << std::endl;
     std::unordered_set<dbg::Edge const *> bad_edges;
     size_t cnt = 0;
-    for(const dbg::Component &component : ag::CCSplitter<DBGTraits>().splitGraph(dbg)) {
+    for(const ag::Component &component : ag::CCSplitter().splitGraph(dbg)) {
         if(component.uniqueSize() > 100)
             continue;
         bool ok = true;

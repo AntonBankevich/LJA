@@ -1,6 +1,7 @@
 #include "unique_vertex_storage.hpp"
+#include "assembly_graph/assembly_graph.hpp"
 
-spg::VertexId spg::UniqueVertexStorage::nextOutAfterDelete(spg::Vertex &cur, spg::Vertex &deleted_core) {
+ag::VertexId spg::UniqueVertexStorage::nextOutAfterDelete(Vertex &cur, Vertex &deleted_core) {
     VertexId res;
     for(Edge &edge : cur) {
         if(edge.getFinish() != deleted_core && edge.getFinish() != deleted_core.rc()) {
@@ -12,11 +13,11 @@ spg::VertexId spg::UniqueVertexStorage::nextOutAfterDelete(spg::Vertex &cur, spg
     return res;
 }
 
-spg::VertexId spg::UniqueVertexStorage::nextInAfterDelete(spg::Vertex &cur, spg::Vertex &deleted_core) {
+ag::VertexId spg::UniqueVertexStorage::nextInAfterDelete(Vertex &cur, Vertex &deleted_core) {
     return nextOutAfterDelete(cur.rc(), deleted_core);
 }
 
-void spg::UniqueVertexStorage::propagateUniquenessForward(spg::Vertex &uv, spg::Vertex &deleted_core) {
+void spg::UniqueVertexStorage::propagateUniquenessForward(Vertex &uv, Vertex &deleted_core) {
     VERIFY(isUnique(uv));
     VertexId cur = nextOutAfterDelete(uv, deleted_core);
     while(cur.valid() && nextInAfterDelete(*cur, deleted_core).valid() && !isUnique(*cur)) {
@@ -25,27 +26,27 @@ void spg::UniqueVertexStorage::propagateUniquenessForward(spg::Vertex &uv, spg::
     }
 }
 
-void spg::UniqueVertexStorage::propagateUniqueness(spg::Vertex &uv, spg::Vertex &deleted_core) {
+void spg::UniqueVertexStorage::propagateUniqueness(Vertex &uv, Vertex &deleted_core) {
     VERIFY(isUnique(uv));
     propagateUniquenessForward(uv, deleted_core);
     propagateUniquenessForward(uv.rc(), deleted_core);
 }
 
-void spg::UniqueVertexStorage::add(const spg::Vertex &v) {
+void spg::UniqueVertexStorage::add(const Vertex &v) {
     unique.emplace(v.getId());
     unique.emplace(v.rc().getId());
 }
 
-void spg::UniqueVertexStorage::remove(const spg::Vertex &v) {
+void spg::UniqueVertexStorage::remove(const Vertex &v) {
     unique.erase(v.getId());
     unique.erase(v.rc().getId());
 }
 
-bool spg::UniqueVertexStorage::isUnique(spg::Vertex &v) const {
+bool spg::UniqueVertexStorage::isUnique(const Vertex &v) const {
     return unique.find(v.getId()) != unique.end();
 }
 
-void spg::UniqueVertexStorage::fireResolveVertex(spg::Vertex &core, const spg::VertexResolutionResult &resolution) {
+void spg::UniqueVertexStorage::fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) {
     for(Vertex &v : resolution.newVertices()) {
         VERIFY(v.inDeg() == 1);
         VERIFY(v.outDeg() == 1);
@@ -56,21 +57,21 @@ void spg::UniqueVertexStorage::fireResolveVertex(spg::Vertex &core, const spg::V
     }
 }
 
-void spg::UniqueVertexStorage::fireMergePath(const std::vector<EdgeId> &path, Vertex &vertex) {
-    for(EdgeId eid : path) {
-        if(isUnique(eid->getStart())) {
+void spg::UniqueVertexStorage::fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) {
+    for(Edge &e : path.edges()) {
+        if(isUnique(e.getStart())) {
             add(vertex);
             return;
         }
     }
-    if(isUnique(path.back()->getFinish())) {
+    if(isUnique(path.backEdge().getFinish())) {
         add(vertex);
     }
 }
-void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath<SPGTraits> &path, Vertex &vertex) {
-    fireMergePath(path.asEdgeIds(), vertex);
+void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) {
+    fireMergePath(path.asRAPath(), vertex);
 }
-spg::UniqueVertexStorage::UniqueVertexStorage(spg::SupreGraph &spg, const std::function<bool(Vertex &)> &is_unique) : ag::ResolutionListener<SPGTraits>(spg, "UniqueVertexStorage"){
+spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, const std::function<bool(Vertex &)> &is_unique) : ag::ResolutionListener(spg, "UniqueVertexStorage"){
     for(Vertex &vertex : spg.vertices()) {
         if(is_unique(vertex))
             add(vertex);

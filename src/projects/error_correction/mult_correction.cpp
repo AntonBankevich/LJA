@@ -4,8 +4,9 @@
 #include "assembly_graph/visualization.hpp"
 
 using namespace dbg;
+using namespace ag;
 void printAl(logging::Logger &logger, std::unordered_map<const dbg::Edge *, GraphPath> &unique_extensions,
-             const dbg::GraphPath &al) {
+             const ag::GraphPath &al) {
     for(Edge &piece : al.edges()) {
         logger << piece.str() << " ";
         if(unique_extensions.find(&piece) != unique_extensions.end()) {
@@ -16,12 +17,12 @@ void printAl(logging::Logger &logger, std::unordered_map<const dbg::Edge *, Grap
 }
 
 struct UEdge {
-    UEdge(dbg::Edge *from, dbg::Edge *to, dbg::GraphPath cpath, size_t support) : from(from), to(to), cpath(std::move(cpath)),
+    UEdge(dbg::Edge *from, dbg::Edge *to, ag::GraphPath cpath, size_t support) : from(from), to(to), cpath(std::move(cpath)),
                                                                                     support(support) {}
 
     dbg::Edge *from;
     dbg::Edge *to;
-    dbg::GraphPath cpath;
+    ag::GraphPath cpath;
     size_t support;
 
     UEdge RC() const {
@@ -71,7 +72,7 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const dbg
         if (unique_extensions.find(&edge) != unique_extensions.end())
             continue;
         Vertex & start = edge.getStart();
-        const ag::SuffixRecord<DBGTraits> &erec = reads_storage.getSuffixes().getSuffixRecord(edge);
+        const ag::SuffixRecord &erec = reads_storage.getSuffixes().getSuffixRecord(edge);
 //        Sequence seq = edge.truncSeq().Subseq(0, 1);
         GraphPath al = FullSuffixSupportedExtension(erec, GraphPath(edge.getFinish()), 1, 0);
         if(al.empty())
@@ -92,8 +93,8 @@ inline void findEasyExtensions(const std::vector<Edge *> &uniqueEdges, const dbg
     }
 }
 
-dbg::GraphPath greedyExtension(const ag::SuffixRecord<DBGTraits> &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
-    dbg::GraphPath path(edge.getFinish());
+ag::GraphPath greedyExtension(const ag::SuffixRecord &rec, const AbstractUniquenessStorage &classificator, Edge &edge) {
+    ag::GraphPath path(edge.getFinish());
     Sequence seq = edge.getCode();
     while(true) {
         size_t best_val = 0;
@@ -126,7 +127,7 @@ PathPosition findVertexInPath(const GraphPath &path, Vertex &vertex, PathPositio
 }
 
 //Dealing with the case when unique edge is folowed by a fork. Choosing one direction for this case
-inline GraphPath findBulgeExtension(const ag::SuffixRecord<DBGTraits> &rec, Edge &edge, const GraphPath & greedy) {
+inline GraphPath findBulgeExtension(const ag::SuffixRecord &rec, Edge &edge, const GraphPath & greedy) {
     if(edge.getFinish().outDeg() != 2)
         return greedy;
     Edge &edge1 = edge.getFinish().front();
@@ -175,8 +176,8 @@ inline void findComplexExtensions(const std::vector<Edge *> &uniqueEdges, const 
         Edge &edge = *edgeIt;
         if(unique_extensions.find(&edge) != unique_extensions.end())
             continue;
-        const ag::SuffixRecord<DBGTraits> &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
-        dbg::GraphPath path = greedyExtension(rec, classificator, edge);
+        const ag::SuffixRecord &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
+        ag::GraphPath path = greedyExtension(rec, classificator, edge);
         VERIFY(edge.getFinish() == path.getStart());
         path = findBulgeExtension(rec, edge, path);
         VERIFY(edge.getFinish() == path.getStart());
@@ -228,10 +229,10 @@ inline std::unordered_map<const Edge *, GraphPath> constructUniqueExtensions(log
 }
 
 //This procedure should not exist int this world
-dbg::GraphPath correctRead(std::unordered_map<const Edge *, GraphPath> &unique_extensions,
-                         const dbg::GraphPath &initial_al) {
+ag::GraphPath correctRead(std::unordered_map<const Edge *, GraphPath> &unique_extensions,
+                         const ag::GraphPath &initial_al) {
     GraphPath initialGraphPath(initial_al);
-    dbg::GraphPath al = initial_al;
+    ag::GraphPath al = initial_al;
     bool bad;
     bool corrected = false;
     for(PathPosition cur = al.firstPosition(); cur + 1 != al.lastPosition(); ++cur) {
@@ -241,7 +242,7 @@ dbg::GraphPath correctRead(std::unordered_map<const Edge *, GraphPath> &unique_e
         if(replacement.nonContradicts(al.subPath(cur + 1)))
             continue;
         corrected = true;
-        dbg::GraphPath new_al = al.subPath(al.firstPosition(), cur + 1);
+        ag::GraphPath new_al = al.subPath(al.firstPosition(), cur + 1);
         size_t corrected_len = al.subPath(cur + 1).truncLen();
         while(replacement.truncLen() < corrected_len &&
               unique_extensions.find(&replacement.back().contig()) != unique_extensions.end()) {
@@ -283,13 +284,13 @@ void correctReads(logging::Logger &logger, size_t threads, dbg::DBGAlignedReadSt
     logger.info() << "Correcting reads using unique edge extensions" << std::endl;
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, unique_extensions)
     for(size_t i = 0; i < reads_storage.getReads().size(); i++) {
-        ag::AlignedRead<DBGTraits> &alignedRead = reads_storage.getReads()[i];
+        ag::AlignedRead &alignedRead = reads_storage.getReads()[i];
         if(!alignedRead.valid())
             continue;
-        const dbg::GraphPath al = alignedRead.getPath();
+        const ag::GraphPath al = alignedRead.getPath();
         if(!al.isSingleton()) {
-            dbg::GraphPath corrected1 = correctRead(unique_extensions, al);
-            dbg::GraphPath corrected2 = correctRead(unique_extensions, corrected1.RC()).RC();
+            ag::GraphPath corrected1 = correctRead(unique_extensions, al);
+            ag::GraphPath corrected2 = correctRead(unique_extensions, corrected1.RC()).RC();
             if(al != corrected2) {
                 reads_storage.getReads().rerouteRead(alignedRead, corrected2, "mult correction");
             }
@@ -338,7 +339,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
             res.addUnique(edge);
             continue;
         }
-        const ag::SuffixRecord<DBGTraits> &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
+        const ag::SuffixRecord &rec = reads_storage.getSuffixes().getSuffixRecord(edge);
         GraphPath path = GraphPath(edge) + FullSuffixSupportedExtension(rec, GraphPath(edge.getFinish()), 1, 0);
         size_t len = 0;
         for(PathPosition pos = path.firstPosition() + 1; pos != path.lastPosition(); ++pos) {
@@ -365,7 +366,7 @@ SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t th
 
 void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &dbg, size_t unique_threshold,
               DBGAlignedReadStorage &reads_storage, AbstractUniquenessStorage &uniquenessStorage) {
-    std::vector<Component> split = ag::LengthSplitter<DBGTraits>(unique_threshold).splitGraph(dbg);
+    std::vector<Component> split = ag::LengthSplitter(unique_threshold).splitGraph(dbg);
     recreate_dir(dir);
     const std::function<std::string(const Edge &)> colorer = [&uniquenessStorage](const Edge &edge) {
         if(uniquenessStorage.isUnique(edge))
@@ -376,16 +377,14 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
             return "orange";
         return "blue";
     };
-    Printer<dbg::DBGTraits> printer;
-    ObjInfo<dbg::Edge> info({reads_storage.getSuffixes().labeler()}, {colorer}, {});
-    printer.addEdgeInfo(info);
+    Printer printer(ObjInfo<dbg::Edge>({reads_storage.getSuffixes().labeler()}, {colorer}, {}));
     for(size_t i = 0; i < split.size(); i++) {
         // printDot(dir / (itos(i) + ".dot"), split[i], reads_storage.labeler(), colorer); delete if ok
         printer.printDot(dir / (itos(i) + ".dot"), split[i]);
     }
 }
 
-ag::AlignedReadStorage<DBGTraits> MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
+ag::AlignedReadStorage MultCorrect(logging::Logger &logger, size_t threads, SparseDBG &dbg, const std::experimental::filesystem::path &dir,
                                        DBGAlignedReadStorage &reads_storage, size_t unique_threshold, double initial_rel_coverage, bool diploid,
                                        bool debug) {
     if(debug) {

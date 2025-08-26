@@ -122,7 +122,7 @@ std::string AlignmentForm::toCigarString() const {
 //TODO: optimize.
 AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::firstColumnByQpos(size_t qpos) const {
     for(auto it = columns().begin(); it != columns().end(); ++it) {
-        if((*it).qpos == qpos) {
+        if((*it).qpos >= qpos) {
             return it;
         }
     }
@@ -132,8 +132,8 @@ AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::firstColumnByQpos(siz
 AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::lastColumnByQpos(size_t qpos) const {
     AlignmentForm::ConstAlignmentColumnIterator res = columns().begin();
     for(auto it = columns().begin(); it != columns().end(); ++it) {
-        if(res.getQpos() == qpos && it.getQpos() > qpos) {
-            return it;
+        if(res.getQpos() <= qpos && it.getQpos() > qpos) {
+            return res;
         } else
             res = it;
     }
@@ -145,7 +145,7 @@ AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::lastColumnByQpos(size
 
 AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::firstColumnByTpos(size_t tpos) const {
     for(auto it = columns().begin(); it != columns().end(); ++it) {
-        if((*it).tpos == tpos) {
+        if((*it).tpos >= tpos) {
             return it;
         }
     }
@@ -155,8 +155,8 @@ AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::firstColumnByTpos(siz
 AlignmentForm::ConstAlignmentColumnIterator AlignmentForm::lastColumnByTpos(size_t tpos) const {
     AlignmentForm::ConstAlignmentColumnIterator res = columns().begin();
     for(auto it = columns().begin(); it != columns().end(); ++it) {
-        if(res.getTpos() == tpos && it.getTpos() > tpos) {
-            return it;
+        if(res.getTpos() <= tpos && it.getTpos() > tpos) {
+            return res;
         } else
             res = it;
     }
@@ -252,6 +252,7 @@ AlignmentForm::ConstAlignmentColumnIterator &AlignmentForm::ConstAlignmentColumn
     this->cur_qpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).qlen();
     this->cur_tpos += CigarPair(alignmentForm->cigar[cigar_pos].type, 1).tlen();
     block_pos++;
+    VERIFY(block_pos <= alignmentForm->cigar[cigar_pos].length);
     if(alignmentForm->cigar[cigar_pos].length == block_pos) {
         cigar_pos++;
         block_pos = 0;

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <dbg/graph_algorithms.hpp>
 #include <assembly_graph/ag_algorithms.hpp>
+#include <assembly_graph/visualization.hpp>
 
 using namespace trio;
 using std::vector;
@@ -25,7 +26,7 @@ using namespace multigraph;
 HaplotypeRemover::HaplotypeRemover(logging::Logger &logger, size_t threads, multigraph::MultiGraph &mg,
                                             const std::experimental::filesystem::path &haployak, const Haplotype haplotype,
                                             const std::experimental::filesystem::path &out_dir, const size_t saved_bridge_cutoff)
-                                            : logger_(logger), mg(mg), haplotype_(haplotype), out_dir(out_dir),
+                                            : logger_(logger), mg(mg), labels(mg), haplotype_(haplotype), out_dir(out_dir),
                                             saved_bridge_cutoff(saved_bridge_cutoff) {
 
     string s;
@@ -47,19 +48,19 @@ void HaplotypeRemover::deleteEdgeHaplo(EdgeId eid) {
 
 void HaplotypeRemover::compressAllVertices() {
     size_t all_count = 0;
-    std::vector<GraphPath> paths = ag::AllUnbranchingPaths<MGTraits>(logger_, threads, mg);
-    for (GraphPath &path: paths) {
+    std::vector<ag::GraphPath> paths = ag::AllUnbranchingPaths(logger_, threads, mg);
+    for (ag::GraphPath &path: paths) {
         std::vector<Edge::id_type> ids;
         std::vector<Edge::id_type> rcids;
         for(Edge &edge : path.edges()) {
             ids.emplace_back(edge.getInnerId());
         }
-        GraphPath rc = path.RC();
+        ag::GraphPath rc = path.RC();
         for(Edge &edge : rc.edges()) {
-            ids.emplace_back(edge.getInnerId());
+            rcids.emplace_back(edge.getInnerId());
         }
         HaplotypeStats new_haplo(haplotype_info[path.frontEdge().getInnerId()]);
-        for(ag::PathPosition<MGTraits> position = path.firstPosition() + 1; position != path.lastPosition(); ++position) {
+        for(ag::PathPosition position = path.firstPosition() + 1; position != path.lastPosition(); ++position) {
             Edge::id_type eid = position.nextEdge().getInnerId();
             if (new_haplo.haplotype != haplotype_info[eid].haplotype) {
                 logger_.trace() << "Merging different haplotypes " << path.str() <<
@@ -86,7 +87,7 @@ void HaplotypeRemover::cleanGraph() {
         logger_.info() << "Iteration " << ++iter << " of graph cleaning." <<std::endl;
         std::unordered_set<EdgeId> to_delete;
         for (Edge &edge : mg.edgesUnique()) {
-            logger_.debug() << "considering " << edge.getId() << " label " << edge.getLabel() <<std::endl;
+            logger_.debug() << "considering " << edge.getId() << " label " << labels.getLabel(edge) <<std::endl;
             if (edge.getFinish().outDeg() == 0 || edge.getStart().inDeg() == 0) {
                 logger_.debug() << "is being deleted as tip\n";
                 if (edge.fullSize() < MAX_TIP_LENGTH) {
@@ -98,8 +99,8 @@ void HaplotypeRemover::cleanGraph() {
                 }
             } else if (edge.getStart().outDeg() == 2) {
                 logger_.debug() << "is being deleted as bulge\n";
-                MGEdge & first_e = edge.getStart().front();
-                MGEdge & second_e = edge.getStart().back();
+                Edge & first_e = edge.getStart().front();
+                Edge & second_e = edge.getStart().back();
                 if (first_e.getFinish() == second_e.getFinish() && first_e != second_e.rc()
                     && first_e.fullSize() < BULGE_MULTIPLICATIVE_CUTOFF * second_e.fullSize() && second_e.fullSize() < BULGE_MULTIPLICATIVE_CUTOFF *
                                                                                                                        first_e.fullSize()) {
@@ -129,11 +130,11 @@ void HaplotypeRemover::cleanGraph() {
 
 std::vector<std::pair<EdgeId, EdgeId>> HaplotypeRemover::getBulgeLabels() {
     std::vector<std::pair<EdgeId, EdgeId>> res;
-    for (MGVertex &v : mg.vertices()) {
+    for (Vertex &v : mg.vertices()) {
         if (v.outDeg() == 2) {
-            multigraph::MGEdge &e1 = v.front();
-            multigraph::MGEdge &e2 = v.back();
-            MGVertex &f = e1.getFinish().rc();
+            multigraph::Edge &e1 = v.front();
+            multigraph::Edge &e2 = v.back();
+            Vertex &f = e1.getFinish().rc();
             if (e1.getFinish() == e2.getFinish() && (v <= f || f.outDeg() > 2)) {
                 res.emplace_back(e1.getId(), e2.getId());
             }
@@ -192,11 +193,11 @@ bool isTip(const Edge &edge) {
 bool isSimpleBridge(const Edge &edge) {
     if (isTip(edge))
         return false;
-    for (MGEdge &alt_e: edge.getStart()) {
+    for (Edge &alt_e: edge.getStart()) {
         if (alt_e != edge && !isTip(alt_e))
             return false;
     }
-    for (MGEdge &alt_e: edge.rc().getStart()) {
+    for (Edge &alt_e: edge.rc().getStart()) {
         if (alt_e != edge.rc() && !isTip(alt_e))
             return false;
     }
@@ -249,10 +250,12 @@ void HaplotypeRemover::process() {
     updateAmbiguousHaplotypes(bulges);
     removeHaplotype();
     logger_.debug() << "removed \n";
-    MultiGraphHelper::printEdgeGFA(mg, out_dir / "before_clean.gfa", true);
+    ag::EdgeInfo edge_info = ag::EdgePrintStyles::defaultDotInfo();
+    edge_info = edge_info + ag::EdgeInfo::Tooltiper(labels.getLabeler());
+    ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo(), edge_info);
+    printer.printGFA(out_dir / "before_clean.gfa", mg, false);
     cleanGraph();
-    MultiGraphHelper::printEdgeGFA(mg, out_dir / "mdbg.hpc.gfa", true);
-
+    printer.printGFA(out_dir / "mdbg.hpc.gfa", mg, false);
 }
 
 

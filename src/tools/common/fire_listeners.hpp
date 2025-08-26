@@ -11,7 +11,12 @@ private:
     std::string name;
 public:
     explicit AbstractListener(AbstractFire &fire, const std::string &name);
-    AbstractFire &getFire() {return *fire;}
+    template<class T>
+    T &getFire() {return *((T*)fire);}
+    void attach();
+    void detach();
+    bool active() const;
+
     const std::string &getName() const {return name;}
     AbstractListener(AbstractListener &&other) noexcept;
     AbstractListener &operator=(AbstractListener &&other)  noexcept;
@@ -47,6 +52,7 @@ public:
     AbstractFire() = default;
     AbstractFire(AbstractFire &&other) noexcept ;
     AbstractFire &operator=(AbstractFire &&other);
+    virtual ~AbstractFire() {VERIFY(listeners.empty());}
     void addListener(AbstractListener &listener) {listeners.emplace_back(&listener);}
 //        Used when listeners are move-assigned or move-copied
     void replaceListener(AbstractListener &old_listener, AbstractListener &new_listener);

@@ -33,9 +33,9 @@ class Sequence {
     //Low level constructor. Handle with care.
     Sequence(const Sequence &seq, size_t from, size_t size, bool rtl)
             : from_(from), size_(size), rtl_(rtl), data_(seq.data_) {
-        VERIFY(from + size <= data_->size());
-        VERIFY(from <= data_->size());
-        VERIFY(size <= data_->size());
+        VERIFY_MSG(from + size <= data_->size(), from << " " << size << " " << data_->size());
+        VERIFY_MSG(from <= data_->size(), from << " " << size << " " << data_->size());
+        VERIFY_MSG(size <= data_->size(), from << " " << size << " " << data_->size());
     }
 
     Sequence maxFreeExtension() const {

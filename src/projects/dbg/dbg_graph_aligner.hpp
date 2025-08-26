@@ -10,7 +10,7 @@ namespace dbg {
     public:
         typedef std::unordered_map<hashing::htype , Vertex*, hashing::alt_hasher<hashing::htype>> vertex_map_type;
         typedef std::unordered_map<hashing::htype, Vertex*, hashing::alt_hasher<hashing::htype>>::iterator vertex_iterator_type;
-        typedef std::unordered_map<hashing::htype, EdgePosition, hashing::alt_hasher<hashing::htype>> anchor_map_type;
+        typedef std::unordered_map<hashing::htype, ag::EdgePosition, hashing::alt_hasher<hashing::htype>> anchor_map_type;
 
     private:
         hashing::RollingHash hasher_;
@@ -46,7 +46,7 @@ namespace dbg {
         Vertex &getVertex(const Vertex &other_graph_vertex) const;
         bool isAnchor(hashing::htype hash) const {return anchors.find(hash) != anchors.end();}
         bool isVertex(hashing::htype hash) const {return v.find(hash) != v.end();}
-        EdgePosition getAnchor(const hashing::KWH &kwh) const;
+        ag::EdgePosition getAnchor(const hashing::KWH &kwh) const;
         bool alignmentReady() const {return anchors_filled;}
         size_t minReadLen() const {
             if(anchors_filled)
@@ -78,11 +78,11 @@ namespace dbg {
 
     public:
 
-        dbg::GraphPath align(const dbg::EdgePosition &pos, const Sequence &seq) const;
+        ag::GraphPath align(const ag::EdgePosition &pos, const Sequence &seq) const;
 
-        dbg::GraphPath align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to);
+        ag::GraphPath align(const Sequence &seq, dbg::Edge *edge_to, size_t pos_to);
 
-        dbg::GraphPath align(const Sequence &seq, const std::string &name = "") const;
+        ag::GraphPath align(const Sequence &seq, const std::string &name = "") const;
 
         std::vector<ag::AlignmentChain<Contig, dbg::Edge>> carefulAlign(Contig &contig) const;
 

@@ -1,5 +1,4 @@
 #include "gap_closing.hpp"
-#include <dbg/visualization.hpp>
 #include <alignment/ksw_aligner.hpp>
 #include "dbg/graph_stats.hpp"
 #include "sequences/edit_distance.hpp"
@@ -93,6 +92,15 @@ namespace dbg {
                 AlignmentForm al = aligner.directAlignment(seq_to.str(), seq_from.str(), width);
                 VERIFY(al.queryLength() == seq_from.size());
                 VERIFY(al.targetLength() == seq_to.size());
+                bool has_switch_point = false;
+                for(auto it : al.columns()) {
+                    if(edgeFrom.fullSize() - rec.match_size_from + it.qpos >= edgeFrom.getStart().size() && it.tpos < edgeTo.fullSize() - edgeTo.getStart().size()) {
+                        has_switch_point = true;
+                        break;
+                    }
+                }
+                if(!has_switch_point)
+                    continue;
                 Connection gap(edgeFrom, edgeTo, std::move(al));
                 res.emplace_back(gap);
                 logger.trace() << "New connection " << edgeFrom << " " << edgeTo.rc() << std::endl;

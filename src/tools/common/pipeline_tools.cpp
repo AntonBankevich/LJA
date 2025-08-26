@@ -20,6 +20,10 @@ SubstageRun::runSubstage(logging::Logger &logger, size_t threads, const std::exp
             input[it.first].insert(input[it.first].end(), val.begin(), val.end());
         }
     }
+    logger << "Input:" << std::endl;
+    for(auto p : input)
+        logger << p.first << " " << p.second << std::endl;
+    ensure_dir_existance(dir);
     output = stage->run(logger, threads, dir, debug, parameterValues, input);
     std::string message = verifyOutput();
     VERIFY_MSG(message.empty(), message);

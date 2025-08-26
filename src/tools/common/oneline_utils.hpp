@@ -40,10 +40,22 @@ namespace oneline {
     }
 
     template<class V, class I>
+    std::vector<V> move_initialize(I begin, const I &end) {
+        std::vector<V> result;
+        std::for_each(begin, end, [&](typename I::value_type & param){ result.emplace_back(std::move(param));});
+        return std::move(result);
+    }
+
+    template<class V, class I>
     std::vector<V> initialize(I begin, const I &end) {
         std::vector<V> result;
         std::for_each(begin, end, [&](const typename I::value_type & param){ result.emplace_back(param);});
         return std::move(result);
+    }
+
+    template<typename V, class C>
+    std::vector<V> initialize(C &&container) {
+        return std::move(move_initialize<V, typename C::iterator>(container.begin(), container.end()));
     }
 
     template<typename V, class C>

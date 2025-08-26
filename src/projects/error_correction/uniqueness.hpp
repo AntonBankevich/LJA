@@ -5,36 +5,36 @@
 
 class AbstractUniquenessStorage {
 private:
-    bool checkEdge(const dbg::Edge &edge) const {
+    bool checkEdge(const ag::Edge &edge) const {
         if(edge.getFinish().outDeg() == 0 || edge.getFinish().outDeg() + 1 != edge.getFinish().inDeg())
             return false;
-        for(const dbg::Edge &e : edge.getFinish()) {
+        for(const ag::Edge &e : edge.getFinish()) {
             if(!isUnique(e))
                 return false;
         }
-        for(const dbg::Edge &e : edge.getFinish().rc()) {
+        for(const ag::Edge &e : edge.getFinish().rc()) {
             if(e != edge.rc() && !isUnique(e))
                 return false;
         }
         return true;
     }
 public:
-    virtual bool isUnique(const dbg::Edge &) const = 0;
+    virtual bool isUnique(const ag::Edge &) const = 0;
     virtual ~AbstractUniquenessStorage() = default;
 
-    std::function<bool(const dbg::Edge &edge)> asFunction() const {
-        return [this](const dbg::Edge &edge) {return isUnique(edge);};
+    std::function<bool(const ag::Edge &edge)> asFunction() const {
+        return [this](const ag::Edge &edge) {return isUnique(edge);};
     }
 
-    bool isError(const dbg::Edge &edge) const {
+    bool isError(const ag::Edge &edge) const {
         if(isUnique(edge))
             return false;
         return checkEdge(edge) || checkEdge(edge.rc());
     }
 
-    std::function<std::string(const dbg::Edge &)> colorer(const std::string &unique_color = "black",
+    std::function<std::string(const ag::Edge &)> colorer(const std::string &unique_color = "black",
                                                      const std::string &repeat_color = "blue") const {
-        return [this, unique_color, repeat_color](const dbg::Edge &edge) -> std::string {
+        return [this, unique_color, repeat_color](const ag::Edge &edge) -> std::string {
             if(isUnique(edge))
                 return unique_color;
             else
@@ -43,17 +43,17 @@ public:
     }
 };
 
-class UniqueSplitter : public ag::ConditionSplitter<dbg::DBGTraits> {
+class UniqueSplitter : public ag::ConditionSplitter {
 public:
     explicit UniqueSplitter(const AbstractUniquenessStorage &storage) :
-            ConditionSplitter([&storage](const dbg::Edge& edge){return storage.isUnique(edge);}){
+            ConditionSplitter([&storage](const ag::Edge& edge){return storage.isUnique(edge);}){
     }
 };
 
 
 class SetUniquenessStorage : public AbstractUniquenessStorage{
 private:
-    std::unordered_set<dbg::ConstEdgeId> unique;
+    std::unordered_set<ag::ConstEdgeId> unique;
 public:
     SetUniquenessStorage() = default;
 
@@ -62,7 +62,7 @@ public:
         addUnique(begin, end);
     }
 
-    SetUniquenessStorage(const dbg::Component &component, const AbstractUniquenessStorage &other) {
+    SetUniquenessStorage(const ag::Component &component, const AbstractUniquenessStorage &other) {
         fillFromOther(component, other);
     }
 
@@ -70,11 +70,11 @@ public:
         return unique.size() / 2;
     }
 
-    bool isUnique(const dbg::Edge &edge) const override {
+    bool isUnique(const ag::Edge &edge) const override {
         return unique.find(edge.getId()) != unique.end();
     }
 
-    void addUnique(const dbg::Edge &edge) {
+    void addUnique(const ag::Edge &edge) {
         unique.emplace(edge.getId());
         unique.emplace(edge.rc().getId());
     }
@@ -82,15 +82,15 @@ public:
     template<class I>
     void addUnique(I begin, I end) {
         while(begin != end) {
-            const ag::BaseEdge<dbg::DBGTraits> &edge = **begin;
+            const ag::Edge &edge = **begin;
             unique.emplace(edge.getId());
             unique.emplace(edge.rc().getId());
             ++begin;
         }
     }
 
-    void fillFromOther(const dbg::Component &component, const AbstractUniquenessStorage &other) {
-        for(dbg::Edge &edge : component.edgesUnique()) {
+    void fillFromOther(const ag::Component &component, const AbstractUniquenessStorage &other) {
+        for(ag::Edge &edge : component.edgesUnique()) {
             if(other.isUnique(edge)) {
                 unique.emplace(edge.getId());
                 unique.emplace(edge.rc().getId());
@@ -123,24 +123,24 @@ struct BoundRecord {
 
 class MultiplicityBounds : public AbstractUniquenessStorage {
 private:
-    std::unordered_map<const dbg::Edge *, BoundRecord> multiplicity_bounds;
+    std::unordered_map<const ag::Edge *, BoundRecord> multiplicity_bounds;
     size_t inf = 100000;
 public:
-    size_t upperBound(const dbg::Edge &edge) const {
+    size_t upperBound(const ag::Edge &edge) const {
         auto it = multiplicity_bounds.find(&edge);
         if(it == multiplicity_bounds.end())
             return inf;
         else return it->second.upperBound;
     }
 
-    size_t lowerBound(const dbg::Edge &edge) const {
+    size_t lowerBound(const ag::Edge &edge) const {
         auto it = multiplicity_bounds.find(&edge);
         if(it == multiplicity_bounds.end())
             return 0;
         else return it->second.lowerBound;
     }
 
-    void updateLowerBound(const dbg::Edge &edge, size_t val) {
+    void updateLowerBound(const ag::Edge &edge, size_t val) {
         if(&edge == nullptr)
             return;
         BoundRecord &bounds = multiplicity_bounds[&edge];
@@ -149,7 +149,7 @@ public:
         rc_bounds.updateLowerBound(val);
     }
 
-    void updateUpperBound(const dbg::Edge &edge, size_t val) {
+    void updateUpperBound(const ag::Edge &edge, size_t val) {
         if(&edge == nullptr)
             return;
         BoundRecord &bounds = multiplicity_bounds[&edge];
@@ -158,7 +158,7 @@ public:
         rc_bounds.updateUpperBound(val);
     }
 
-    void updateBounds(const dbg::Edge &edge, size_t lower, size_t upper) {
+    void updateBounds(const ag::Edge &edge, size_t lower, size_t upper) {
         if(&edge == nullptr)
             return;
         BoundRecord &bounds = multiplicity_bounds[&edge];
@@ -169,15 +169,15 @@ public:
         rc_bounds.updateUpperBound(upper);
     }
 
-    bool isUnique(const dbg::Edge &edge) const override {
+    bool isUnique(const ag::Edge &edge) const override {
         auto it = multiplicity_bounds.find(&edge);
         if(it == multiplicity_bounds.end())
             return false;
         return it->second.isUnique();
     }
 
-    std::function<std::string(const dbg::Edge &)> labeler() const {
-        return [this](const dbg::Edge &edge) -> std::string {
+    std::function<std::string(const ag::Edge &)> labeler() const {
+        return [this](const ag::Edge &edge) -> std::string {
             auto it = multiplicity_bounds.find(&edge);
             if(it == multiplicity_bounds.end()) {
                 return "";

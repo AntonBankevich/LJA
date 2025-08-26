@@ -16,7 +16,7 @@ int main(int argc, char* argv[]){
     hashing::RollingHash hasher(3000);
     dbg::SparseDBG dbg = dbg::LoadDBGFromEdgeSequences(logger, threads, lib, hasher);
     std::cout << "graph was read";
-    BulgePathFinder finder(dbg, -1.0);
+    ag::BulgePathFinder finder(dbg, -1.0);
     KSWAligner kswAligner(1, 5, 5, 3);
     logger << "paths found: " << finder.paths.size() << std::endl;
     int path_id = 1;
@@ -27,7 +27,7 @@ int main(int argc, char* argv[]){
         size_t second;
     };
     std::ofstream os("bulge_paths.stats");
-    for(BulgePath<dbg::DBGTraits> &path : finder.paths) {
+    for(ag::BulgePath &path : finder.paths) {
         if(path.size() == 1)
             continue;
         std::vector<edgerec> output;
@@ -36,8 +36,8 @@ int main(int argc, char* argv[]){
         for(int i = 0; i < path.size(); ++i) {
             bool bulge;
             const std::pair<dbg::EdgeId, dbg::EdgeId> &edge_pair = path[i];
-            ag::BaseEdge<dbg::DBGTraits> &edge1 = *edge_pair.first;
-            ag::BaseEdge<dbg::DBGTraits> &edge2 = *edge_pair.second;
+            ag::Edge &edge1 = *edge_pair.first;
+            ag::Edge &edge2 = *edge_pair.second;
             if (edge1 == edge2) bulge = false;
             output[i] = {bulge, edge1.truncSize(), edge2.truncSize()};
         }

@@ -1,14 +1,10 @@
 #include "sparse_dbg.hpp"
-const hashing::htype dbg::DBGVertexData::default_hash = 1651253415;
 
+void dbg::HashListener::fireAddVertex(ag::Vertex &v) {
+    if(v.getHash() == ag::Vertex::default_hash && !v.getSeq().empty()) {
+        getFire<SparseDBG>().setHash(v, hashing::MovingKWH(hasher, v.getSeq(), 0).hash());
+    }
+}
 
-
-//const Vertex &AssemblyGraph::getVertex(const hashing::KWH &kwh) const {
-//    auto it = v.find(kwh.hash());
-//    VERIFY(it != v.end());
-//    if (kwh.isCanonical()) {
-//        return it->second;
-//    } else {
-//        return it->second.rc();
-//    }
-//}
+dbg::HashListener::HashListener(dbg::SparseDBG &dbg, const hashing::RollingHash &hasher) :
+        ag::ResolutionListener(dbg, "HashListener"), hasher(hasher) {}

@@ -1,9 +1,9 @@
 #include "manyk_correction.hpp"
 #include "correction_utils.hpp"
 #include "error_correction.hpp"
-
+using namespace ag;
 namespace dbg {
-    void ManyKCorrector::calculateReliable(const dbg::GraphPath &read_path, std::vector<PathPosition> &last_reliable,
+    void ManyKCorrector::calculateReliable(const ag::GraphPath &read_path, std::vector<PathPosition> &last_reliable,
                                            std::vector<PathPosition> &next_reliable) const {
         for(PathPosition cur = read_path.firstPosition(); cur != read_path.lastPosition(); ++cur) {
             if(cur.nextEdge().getCoverage() >= reliable_threshold || cur.nextEdge().is_reliable) {
@@ -20,7 +20,7 @@ namespace dbg {
         std::reverse(next_reliable.begin(), next_reliable.end());
     }
 
-    ManyKCorrector::ReadRecord ManyKCorrector::splitRead(const dbg::GraphPath &read_path) const {
+    ManyKCorrector::ReadRecord ManyKCorrector::splitRead(const ag::GraphPath &read_path) const {
         std::vector<PathPosition> last_reliable;
         std::vector<PathPosition> next_reliable;
         calculateReliable(read_path, last_reliable, next_reliable);
@@ -38,7 +38,7 @@ namespace dbg {
         return {read_path, std::move(good_regions)};
     }
 
-    void ManyKCorrector::mergeLow(const dbg::GraphPath &read_path, std::vector<PathSegment> &positions, size_t bad_length) const {
+    void ManyKCorrector::mergeLow(const ag::GraphPath &read_path, std::vector<PathSegment> &positions, size_t bad_length) const {
         if(positions.empty())
             return;
         size_t new_size = 1;
@@ -60,7 +60,7 @@ namespace dbg {
     std::vector<ManyKCorrector::PathSegment>
     ManyKCorrector::calculateLowRegions(const std::vector<PathPosition> &last_reliable,
                                         const std::vector<PathPosition> &next_reliable,
-                                        const dbg::GraphPath &read_path) const {
+                                        const ag::GraphPath &read_path) const {
         std::vector<PathSegment> positions;
         size_t i = 0;
         for(PathPosition cur = read_path.firstPosition(); cur != read_path.lastPosition(); ++cur, i++) {
@@ -80,18 +80,18 @@ namespace dbg {
         return std::move(positions);
     }
 
-    std::string ManyKCorrector::correctRead(const std::string &name, dbg::GraphPath &read_path) {
+    std::string ManyKCorrector::correctRead(const std::string &name, ag::GraphPath &read_path) {
         ReadRecord rr = splitRead(read_path);
         std::string message;
         if (rr.isPerfect() || rr.isBad()) {
             return "";
         }
         std::vector<std::string> messages;
-        dbg::GraphPath corrected;
+        ag::GraphPath corrected;
         if (rr.hasIncomingTip()) {
             Tip tip = rr.getIncomingTip();
             std::string tip_message;
-            dbg::GraphPath tc = correctTip(tip, tip_message);
+            ag::GraphPath tc = correctTip(tip, tip_message);
             VERIFY(tc.getStart() == tip.tip.getStart());
             VERIFY(tc.front().left == 0);
             if (!tip_message.empty()) {
@@ -105,7 +105,7 @@ namespace dbg {
         for (size_t i = 0; i < rr.bulgeNum(); i++) {
             Bulge bulge = rr.getBulge(i);
             std::string bulge_message;
-            dbg::GraphPath bc = correctBulge(bulge, bulge_message);
+            ag::GraphPath bc = correctBulge(bulge, bulge_message);
             if (!bulge_message.empty()) {
                 messages.emplace_back(bulge_message + itos(K));
                 messages.emplace_back(itos(bulge.bulge.truncLen()));
@@ -118,7 +118,7 @@ namespace dbg {
         if (rr.hasOutgoingTip()) {
             Tip tip = rr.getOutgoingTip();
             std::string tip_message;
-            dbg::GraphPath tc = correctTip(tip, tip_message);
+            ag::GraphPath tc = correctTip(tip, tip_message);
             VERIFY(tc.getStart() == tip.tip.getStart());
             VERIFY(tc.front().left == 0);
             if (!tip_message.empty()) {
@@ -136,10 +136,10 @@ namespace dbg {
         return message;
     }
 
-    dbg::GraphPath ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
-        const dbg::GraphPath &left = tip.left;
+    ag::GraphPath ManyKCorrector::correctTipWithExtension(const ManyKCorrector::Tip &tip) const {
+        const ag::GraphPath &left = tip.left;
         size_t tlen = tip.tip.truncLen();
-        dbg::GraphPath al = uniqueExtension(tip.left, tlen);
+        ag::GraphPath al = uniqueExtension(tip.left, tlen);
         size_t elen = al.truncLen();
         if (elen > 0 && elen + 10 >= tlen) {
             if (elen > tlen) {
@@ -151,7 +151,7 @@ namespace dbg {
         }
     }
 
-    dbg::GraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip) const {
+    ag::GraphPath ManyKCorrector::correctTipWithReliable(const ManyKCorrector::Tip &tip) const {
         size_t tlen = tip.tip.truncLen();
 //    std::vector<dbg::GraphAlignment> alternatives = FindPlausibleTipAlternatives(tip.tip, std::max<size_t>(tlen / 100, 20), 3);
 //    if(alternatives.size() == 1) {
@@ -160,7 +160,7 @@ namespace dbg {
 //        return alternatives[0];
 //    } else
 //        return tip.tip;
-        dbg::GraphPath alternative = FindReliableExtension(tip.tip.getStart(), tip.tip.truncLen(), 3);
+        ag::GraphPath alternative = FindReliableExtension(tip.tip.getStart(), tip.tip.truncLen(), 3);
         if (!alternative.valid())
             return tip.tip;
         if (alternative.truncLen() > tip.tip.truncLen()) {
@@ -169,8 +169,8 @@ namespace dbg {
         return std::move(alternative);
     }
 
-    dbg::GraphPath ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
-        dbg::GraphPath correction = correctTipWithExtension(tip);
+    ag::GraphPath ManyKCorrector::correctTip(const ManyKCorrector::Tip &tip, std::string &message) const {
+        ag::GraphPath correction = correctTipWithExtension(tip);
         VERIFY(tip.tip.getStart() == correction.getStart());
         if (correction != tip.tip) {
             message = "te";
@@ -186,8 +186,8 @@ namespace dbg {
         return tip.tip;
     }
 
-    dbg::GraphPath ManyKCorrector::uniqueExtension(const dbg::GraphPath &base, size_t max_len) const {
-        dbg::GraphPath al = base;
+    ag::GraphPath ManyKCorrector::uniqueExtension(const ag::GraphPath &base, size_t max_len) const {
+        ag::GraphPath al = base;
         al.setCutLeft(0);
         PathPosition cut_pos = al.lastPosition();
         PathPosition start = al.firstPosition();
@@ -210,8 +210,8 @@ namespace dbg {
         return al.subPath(cut_pos);
     }
 
-    dbg::GraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
-        dbg::GraphPath corrected;
+    ag::GraphPath ManyKCorrector::correctBulge(const ManyKCorrector::Bulge &bulge, string &message) const {
+        ag::GraphPath corrected;
         if (bulge.bulge.truncLen() + 100 < K) {
             corrected = correctBulgeByBridging(bulge);
             if (corrected != bulge.bulge) {
@@ -233,12 +233,12 @@ namespace dbg {
         return bulge.bulge;
     }
 
-    dbg::GraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bulge) const {
+    ag::GraphPath ManyKCorrector::correctBulgeByBridging(const ManyKCorrector::Bulge &bulge) const {
         VERIFY(bulge.bulge.truncLen() < K);
-        std::vector<dbg::GraphPath> alternatives1 =
+        std::vector<ag::GraphPath> alternatives1 =
                 SuffixSupportedBulgeAlternatives(reads.getSuffixes(), bulge.bulge, 4);
-        std::vector<dbg::GraphPath> alternatives;
-        for (dbg::GraphPath &al: alternatives1) {
+        std::vector<ag::GraphPath> alternatives;
+        for (ag::GraphPath &al: alternatives1) {
             if (al.truncLen() + 100 < bulge.bulge.truncLen() && bulge.bulge.truncLen() < al.truncLen() + 100)
                 alternatives.emplace_back(std::move(al));
         }
@@ -250,20 +250,20 @@ namespace dbg {
         size_t right_supp = 0;
         size_t left_best = 0;
         size_t right_best = 0;
-        dbg::GraphPath rc_left = bulge.left.RC();
+        ag::GraphPath rc_left = bulge.left.RC();
         if (rc_left.truncLen() + bulge.bulge.truncLen() > K)
             rc_left.cutBack(rc_left.truncLen() - (K - bulge.bulge.truncLen()));
-        dbg::GraphPath right = bulge.right;
+        ag::GraphPath right = bulge.right;
         if (right.truncLen() + bulge.bulge.truncLen() > K)
             right.cutBack(right.truncLen() - (K - bulge.bulge.truncLen()));
         for (size_t i = 0; i < alternatives.size(); i++) {
-            dbg::GraphPath &al = alternatives[i];
-            dbg::GraphPath right_ext = al + right;
+            ag::GraphPath &al = alternatives[i];
+            ag::GraphPath right_ext = al + right;
             if (reads.getSuffixes().getSuffixRecord(bulge.left.backEdge()).countStartsWith(right_ext) > 0) {
                 right_supp++;
                 right_best = i;
             }
-            dbg::GraphPath left_ext = al.RC() + rc_left;
+            ag::GraphPath left_ext = al.RC() + rc_left;
             if (reads.getSuffixes().getSuffixRecord(right.frontEdge().rc()).countStartsWith(left_ext) > 0) {
                 left_supp++;
                 left_best = i;
@@ -277,17 +277,17 @@ namespace dbg {
         }
     }
 
-    dbg::GraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge &bulge) const {
+    ag::GraphPath ManyKCorrector::correctBulgeAsDoubleTip(const ManyKCorrector::Bulge &bulge) const {
         size_t blen = bulge.bulge.truncLen();
-        dbg::GraphPath left_ext = uniqueExtension(bulge.left, blen + 100);
-        dbg::GraphPath right_ext = uniqueExtension(bulge.right.RC(), blen + 100).RC();
+        ag::GraphPath left_ext = uniqueExtension(bulge.left, blen + 100);
+        ag::GraphPath right_ext = uniqueExtension(bulge.right.RC(), blen + 100).RC();
         if (left_ext.truncLen() + right_ext.truncLen() < blen + std::min<size_t>(blen, 100) &&
             std::max(left_ext.truncLen(),
                      right_ext.truncLen()) + 100 > blen)
             return bulge.bulge;
-        dbg::GraphPath candidate;
-        std::vector<EdgeId> left = oneline::map(left_ext.edges().begin(), left_ext.edges().end(), Edge::IdTransformer());
-        std::vector<EdgeId> right = oneline::map(right_ext.edges().begin(), right_ext.edges().end(), Edge::IdTransformer());
+        ag::GraphPath candidate;
+        std::vector<EdgeId> left = oneline::map(left_ext.edges().begin(), left_ext.edges().end(), IdTransformer<Edge>());
+        std::vector<EdgeId> right = oneline::map(right_ext.edges().begin(), right_ext.edges().end(), IdTransformer<Edge>());
         for (int shift = -int(right.size()) + 1; shift < int(left.size()); shift++) {
             bool overlap = true;
             for (int i = 0; i < left.size(); i++) {
@@ -298,7 +298,7 @@ namespace dbg {
                 }
             }
             if (overlap && left.size() > 0 && right.size() > 0) {
-                dbg::GraphPath over_al = GraphPath(left.begin(), left.begin() + std::max(0, shift)) +
+                ag::GraphPath over_al = GraphPath(left.begin(), left.begin() + std::max(0, shift)) +
                         GraphPath(right.begin() + std::max(0, shift) - shift, right.end());;
                 size_t over_len = over_al.truncLen();
                 if (over_len < blen + 100 && blen < over_len + 100) {
@@ -314,9 +314,9 @@ namespace dbg {
             return bulge.bulge;
     }
 
-    dbg::GraphPath ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
+    ag::GraphPath ManyKCorrector::correctBulgeWithReliable(const ManyKCorrector::Bulge &bulge) const {
         size_t blen = bulge.bulge.truncLen();
-        std::vector<dbg::GraphPath> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge,
+        std::vector<ag::GraphPath> alternatives = FindPlausibleBulgeAlternatives(bulge.bulge,
                                                                                   std::max<size_t>(blen / 100, 20), 3);
         if (blen > bulge.bulge.getFinish().size() && alternatives.empty()) {
             alternatives = FindPlausibleBulgeAlternatives(bulge.bulge, blen / 10 + 32, 3);
@@ -358,7 +358,7 @@ namespace dbg {
                 read.subPath(read.firstPosition(), goodRegions.front().from).RC()};
     }
 
-    dbg::GraphPath ManyKCorrector::ReadRecord::getBlock(size_t num) const {
+    ag::GraphPath ManyKCorrector::ReadRecord::getBlock(size_t num) const {
         return read.subPath(goodRegions[num].from, goodRegions[num].to);
     }
 

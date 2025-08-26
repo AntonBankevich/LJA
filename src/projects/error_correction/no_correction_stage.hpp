@@ -20,15 +20,14 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
                                            AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
                                            true);
     readStorage.trackSuffixes(logger, threads, dbg, 0, extension_size);
-    dbg::DBGAlignedReadStorage extra_reads(logger, threads, dbg, std::vector<ag::AlignedRead<DBGTraits>>(), false);
+    dbg::DBGAlignedReadStorage extra_reads(logger, threads, dbg, std::vector<ag::AlignedRead>(), false);
     coverageStats(logger, dbg);
-    printFasta(dir / "final_dbg.fasta", dbg, &ag::GetEdgeNameForSaving<DBGTraits>);
-    Printer<DBGTraits> printer;
-    printer.addEdgeInfo(ObjInfo<Edge>({},{}, {}));
-    printer.printGFA(dir / "final_dbg.gfa", Component(dbg), true);
-    printer.setEdgeInfo(ObjInfo<Edge>({readStorage.getSuffixes().labeler()},{},{}));
-    printer.printDot(dir / "final_dbg.dot", Component(dbg));
-    //printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::GetEdgeNameForSaving<DBGTraits>); delete if ok
+    printFasta(dir / "final_dbg.fasta", dbg, &ag::GetEdgeNameForSaving);
+    ag::Printer gfaPrinter(ag::EdgeInfo({&ag::GetEdgeNameForSaving},{}, {}));
+    gfaPrinter.printGFA(dir / "final_dbg.gfa", ag::Component(dbg), true);
+    ag::Printer dotPrinter(ag::EdgeInfo({readStorage.getSuffixes().labeler()},{},{}));
+    dotPrinter.printDot(dir / "final_dbg.dot", ag::Component(dbg));
+    //printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::GetEdgeNameForSaving); delete if ok
     //printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler()); delete if ok
     ag::SaveReads(dir/"final_dbg.aln", readStorage);
     ag::SaveReads(dir / "extra_read.aln", extra_reads);

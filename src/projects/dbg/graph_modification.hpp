@@ -6,9 +6,9 @@
 namespace dbg {
     void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg);
     void SplitUncovered(logging::Logger &logger, size_t threads, SparseDBG &dbg,
-                        const std::vector<ag::AlignedReadStorage<DBGTraits> *> &storages);
+                        const std::vector<ag::AlignedReadStorage *> &storages);
     void RemoveUncovered(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
-                         const std::vector<ag::AlignedReadStorage<DBGTraits> *> &storages);
+                         const std::vector<ag::AlignedReadStorage *> &storages);
 
     class Connection {
     public:
