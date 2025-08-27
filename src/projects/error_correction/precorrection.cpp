@@ -44,7 +44,7 @@ dbg::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_cove
 }
 bool isSimplestBulge(dbg::Vertex &start, dbg::Vertex &finish) {
     return start.outDeg() == 2 && finish.inDeg() == 2 && start.front().getFinish() == finish &&
-        start.back().getFinish() == finish && start.front().getCoverage() == 1 && finish.back().getCoverage() == 1;
+        start.back().getFinish() == finish && start.front().getCoverage() == 1 && start.back().getCoverage() == 1;
 }
 
 dbg::GraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
@@ -99,6 +99,8 @@ std::string Precorrector::correctRead(const std::string &name, dbg::GraphPath &p
                 if(other_canonical < cur) {
                     correction = {other};
                     m = "p1b";
+                } else {
+                    correction = {pp.nextEdge()};
                 }
             } else {
                 correction = PrecorrectBulge(pp.nextEdge(), reliable_threshold);
