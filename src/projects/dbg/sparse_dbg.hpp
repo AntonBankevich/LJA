@@ -180,9 +180,6 @@ namespace dbg {
         }
     };
 
-    inline std::string SaveEdgeName(const Edge &edge) {
-        VERIFY((edge.getFinish().rc().getInnerId() > 0) == edge.getFinish().rc().isCanonical());
-        return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
-    }
+
 
 }

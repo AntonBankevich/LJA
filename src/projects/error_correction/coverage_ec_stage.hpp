@@ -29,8 +29,20 @@ namespace dbg {
                                     (dir / "disjointigs.fasta").string(), (dir / "vertices.save").string(), debug)
                                   :
                              DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
+        KmerIndex index(dbg);
+        index.fillAnchors(logger, threads, dbg, w);
+        size_t extension_size = std::max<size_t>(k * 2, 1000);
+        ag::ReadLogger readLogger(threads, dir / "read_log.txt");
+        dbg::ReadAlignmentStorage readStorage(dbg, 0, extension_size, true, true, false);
+        if(debug)
+            readStorage.setReadLogger(readLogger);
+        dbg::ReadAlignmentStorage refStorage(dbg, 0, extension_size, false, false);
+        if(debug)
+            refStorage.setReadLogger(readLogger);
+        io::SeqReader reader(reads_lib);
+        readStorage.FillAlignments(logger, threads, reader.begin(), reader.end(), dbg, index);
         Printer<DBGTraits> printer;
-        printer.setEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
+        printer.setEdgeInfo(ObjInfo<Edge>({&ag::GetEdgeNameForSaving<DBGTraits>},{}, {}));
         printer.printDot(dir / "initial_dbg.dot", Component(dbg));
         size_t extension_size = 800;
         dbg::SeqReader reader(reads_lib, logger, threads);
@@ -101,7 +113,8 @@ namespace dbg {
         if (debug)
             DrawSplit(Component(dbg), dir / "split");
 //    dbg.printFastaOld(dir / "final_dbg.fasta"); ???
-        printer.setEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
+
+        printer.setEdgeInfo(ObjInfo<Edge>({&ag::GetEdgeNameForSaving<DBGTraits>},{}, {}));
         printer.printGFA(dir / "final_dbg.gfa", Component(dbg), true);
         printer.setEdgeInfo(ObjInfo<Edge>({&SaveEdgeName}, {}, {}));
         printer.printDot(dir / "final_dbg.dot", Component(dbg));

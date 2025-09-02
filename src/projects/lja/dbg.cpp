@@ -459,17 +459,17 @@ int main(int argc, char **argv) {
             printAssembly(dir / "assembly.fasta", Component(dbg));
         } else {
             logger.info() << "Printing graph to fasta file " << (dir / "graph.fasta") << std::endl;
-            printFasta(dir/"graph.fasta" , dbg, &ag::SaveEdgeName<DBGTraits>);
+            printFasta(dir/"graph.fasta" , dbg, &ag::GetEdgeNameForSaving<DBGTraits>);
 //            printAssembly(dir / "graph.fasta", Component(dbg));
         }
         logger.info() << "Printing graph to gfa file " << (dir / "graph.gfa") << std::endl;
         Printer<DBGTraits> printer;
-        printer.addEdgeInfo(ObjInfo<Edge>({&SaveEdgeName}, {}, {}));
+        printer.addEdgeInfo(ObjInfo<Edge>({&ag::GetEdgeNameForSaving<DBGTraits>}, {}, {}));
         printer.printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage);
-        // printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage, &ag::SaveEdgeName<DBGTraits>); delete if ok
+        // printGFA(dir / "graph.gfa", Component(dbg), calculate_coverage, &ag::GetEdgeNameForSaving<DBGTraits>); delete if ok
         logger.info() << "Printing graph to dot file " << (dir / "graph.dot") << std::endl;
         printer.printDot(dir / "graph.dot", Component(dbg));
-        // printDot(dir / "graph.dot", Component(dbg), &ag::SaveEdgeName<DBGTraits>); delete if ok
+        // printDot(dir / "graph.dot", Component(dbg), &ag::GetEdgeNameForSaving<DBGTraits>); delete if ok
     }
 
     if (params.getCheck("tip-correct")) {

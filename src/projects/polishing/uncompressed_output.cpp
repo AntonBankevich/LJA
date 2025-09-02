@@ -191,7 +191,7 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
     std::unordered_map<multigraph::MGEdge *, std::string> eids;
     for(MGEdge &edge : graph.edges()){
         if (edge.isCanonical()) {
-            os << "S\t" << edge.getId() << "\t" << uncompression_results[edge.getId()] << "\n";
+            os << "S\t" << ag::GetEdgeNameForSaving<multigraph::MGTraits>(edge) << "\t" << uncompression_results[edge.getId()] << "\n";
         }
     }
     for(OverlapRecord &rec : cigars_collection) {
@@ -199,8 +199,8 @@ std::vector<Contig> printUncompressedResults(logging::Logger &logger, size_t thr
         EdgeId incId = inc_sign ? rec.left->getId() : rec.left->rc().getId();
         bool out_sign = rec.right->isCanonical();
         EdgeId outId = out_sign ? rec.right->getId() : rec.right->rc().getId();
-        os << "L\t" << incId << "\t" << (inc_sign ? "+" : "-") << "\t" << outId << "\t"
-           << (out_sign ? "+" : "-") << "\t" << rec.cigarString() << "\n";
+        os << "L\t" << ag::GetEdgeNameForSaving<multigraph::MGTraits>(*incId) << "\t" << (inc_sign ? "+" : "-") << "\t" <<
+                        ag::GetEdgeNameForSaving<multigraph::MGTraits>(*outId) << "\t" << (out_sign ? "+" : "-") << "\t" << rec.cigarString() << "\n";
     }
     os.close();
     std::ofstream os_cut;

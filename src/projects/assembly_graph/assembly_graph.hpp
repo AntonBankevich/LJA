@@ -164,6 +164,14 @@ namespace ag {
         return {begin, end};
     }
 
+    template<class T>
+    std::string GetEdgeNameForSaving(const BaseEdge<T> &edge) {
+        VERIFY((edge.getFinish().rc().getInnerId() > 0) == edge.getFinish().rc().isCanonical());
+        if(!edge.isCanonical())
+            return GetEdgeNameForSaving(edge.rc());
+        return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
+    }
+
     template<class Traits>
     IterableStorage<SkippingIterator<typename AssemblyGraph<Traits>::const_vertex_iterator_type>> AssemblyGraph<Traits>::vertices(bool unique) const & {
         std::function<bool(const Vertex &)> use =

@@ -74,7 +74,7 @@ namespace dbg {
     }
 
     inline void printFasta(const std::experimental::filesystem::path &outf, SparseDBG &dbg,
-                           const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
+                           const std::function<std::string(const ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printFasta(out, Component(dbg), name);

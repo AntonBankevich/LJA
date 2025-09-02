@@ -258,12 +258,13 @@ public:
             os.close();
         }
     }
-
+/* Old version of GFA printing
     void printGFA(std::ostream &out, const ag::Component<Traits> &component, bool calculate_coverage = true) {
         out << "H\tVN:Z:1.0" << std::endl;
         size_t cnt = 0;
         std::unordered_map<const Edge *, std::string> EdgeIds;
         for (Edge &edge : component.edgesUnique()) {
+            std::string sequenceId =
             EdgeId EdgeId = edge.getId();
             std::string label = join(" : ", edgeInfo.get_label_info(edge));
             if (label.empty()) {label = edge.getInnerId().str();}
@@ -288,6 +289,45 @@ public:
                 bool outsign = out_edge.isCanonical();
                 for (const Edge &inc_edge : vertex.incoming()) {
                     std::string incid = EdgeIds[&inc_edge];
+                    bool incsign = inc_edge.isCanonical();
+                    out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
+                        << (outsign ? "+" : "-") << "\t" << vertex.size() << "M" << "\n";
+                }
+            }
+        }
+    }
+*/
+
+    void printGFA(std::ostream &out, const ag::Component<Traits> &component, bool calculate_coverage = true) {
+        out << "H\tVN:Z:1.0" << std::endl;
+        size_t cnt = 0;
+        std::unordered_map<const Edge *, std::string> EdgeIds;
+        for (Edge &edge : component.edgesUnique()) {
+            std::string sequenceName = ag::GetEdgeNameForSaving<Traits>(edge);
+            std::string label = join(":", edgeInfo.get_label_info(edge));
+            std::string color = join(":", edgeInfo.get_color_info(edge));
+            // std::string tooltip = join("\n", edgeInfo.get_tooltip_info(edge));
+            EdgeIds[&edge] = edge.getInnerId().str();
+            EdgeIds[&edge.rc()] = edge.getInnerId().str();
+            out << "S\t" << sequenceName << "\t";
+            out << edge.getStart().getSeq() << edge.truncSeq();
+            if (calculate_coverage) {
+                out << "\tDP:f:" << edge.getCoverage();
+            }
+            if (! label.empty()) {
+                out << "\tLB:Z:" << label;
+            }
+            /*if (! tooltip.empty()) {
+                out << "\tLB:Z:" << tooltip;
+            }*/
+            out << "\n";
+        }
+        for (Vertex &vertex : component.verticesUnique()) {
+            for (const Edge &out_edge : vertex) {
+                std::string outid = ag::GetEdgeNameForSaving<Traits>(out_edge);
+                bool outsign = out_edge.isCanonical();
+                for (const Edge &inc_edge : vertex.incoming()) {
+                    std::string incid = ag::GetEdgeNameForSaving<Traits>(inc_edge);
                     bool incsign = inc_edge.isCanonical();
                     out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
                         << (outsign ? "+" : "-") << "\t" << vertex.size() << "M" << "\n";
