@@ -11,6 +11,7 @@ namespace ag {
     template<class Traits>
     class AlignedReadStorageMaintenance;
 
+//    TODO: create a class VirtualReadStorage that combines several storages together
     template<class Traits>
     class AlignedReadStorage : public AlignedReadStorageFire<Traits> {
         friend class AlignedReadStorageMaintenance<Traits>;

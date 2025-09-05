@@ -20,22 +20,21 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     ensure_dir_existance(dir);
     hashing::RollingHash hasher(k);
     io::Library construction_lib = reads_lib + pseudo_reads_lib;
-    SparseDBG dbg =
-            load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
-                               (dir/"disjointigs.fasta").string(),
-                               (dir/"vertices.save").string(), debug)
-                 : DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
-    size_t extension_size = 10000000;
+    dbg::SparseDBG dbg = load ? LoadDBGFromEdgeSequences(logger, threads, {dir/"initial_dbg.gfa"}, hasher) :
+                         DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
+    Printer<dbg::DBGTraits> printer;
+    printer.setEdgeInfo(ObjInfo<dbg::Edge>({&SaveEdgeName}, {}, {}));
+    if(debug && !load)
+        printer.printGFA(dir/"initial_dbg.gfa", dbg);
     dbg::SeqReader reader(reads_lib, logger, threads);
     dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
                                            AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
                                            true);
     if(debug) readStorage.logReads(threads, dir/"read_log.txt");
+    printer.printDot(dir / "initial_dbg.dot", Component(dbg));
+    size_t extension_size = 10000000;
     readStorage.trackSuffixes(logger, threads, dbg, 0, extension_size);
     dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::vector<ag::AlignedRead<DBGTraits>>(), false); //0, extension_size, false, false);
-    Printer<dbg::DBGTraits> printer;
-    printer.setEdgeInfo(ObjInfo<dbg::Edge>({&SaveEdgeName}, {}, {}));
-    printer.printDot(dir / "initial_dbg.dot", Component(dbg));
     if(debug) {
         DrawSplit(Component(dbg), dir / "before_figs", readStorage.getSuffixes().labeler(), 25000);
         PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, references_lib, false);

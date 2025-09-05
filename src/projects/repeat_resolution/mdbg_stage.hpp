@@ -7,7 +7,7 @@ namespace dbg {
             const std::experimental::filesystem::path &dir,
             const std::experimental::filesystem::path &graph_gfa,
             const std::experimental::filesystem::path &read_paths,
-            const std::experimental::filesystem::path &extra_read_paths, bool debug) {
+            const std::experimental::filesystem::path &extra_read_paths) {
         logger.info() << "Performing repeat resolution by transforming de Bruijn graph into Multiplex de Bruijn graph"
                       << std::endl;
         if (k % 2 == 0) {
@@ -33,7 +33,7 @@ namespace dbg {
         }
         repeat_resolution::RepeatResolver rr(dbg, &readStorage, {&extra_reads},
                                              k, kmdbg, dir, unique_threshold,
-                                             diploid, debug, logger);
+                                             diploid, logger);
         return rr.ResolveRepeats(logger, threads);
     }
 
@@ -55,7 +55,7 @@ namespace dbg {
             bool diploid = parameterValues.getCheck("diploid");
             return MDBGConstruction(logger, threads, k, max_k, unique_threshold, diploid, dir,
                                     input.find("graph")->second.front(), input.find("read_aln")->second.front(),
-                                    input.find("extra_read_aln")->second.front(), false);
+                                    input.find("extra_read_aln")->second.front());
         }
     };
 }

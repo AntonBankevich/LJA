@@ -47,6 +47,7 @@ public:
     AbstractFire() = default;
     AbstractFire(AbstractFire &&other) noexcept ;
     AbstractFire &operator=(AbstractFire &&other);
+    virtual ~AbstractFire() {VERIFY(listeners.empty());}
     void addListener(AbstractListener &listener) {listeners.emplace_back(&listener);}
 //        Used when listeners are move-assigned or move-copied
     void replaceListener(AbstractListener &old_listener, AbstractListener &new_listener);

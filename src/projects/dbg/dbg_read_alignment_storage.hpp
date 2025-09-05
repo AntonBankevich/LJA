@@ -70,6 +70,7 @@ namespace dbg {
         }
     };
 
+//    Create a proper structure that can work with multiple libraries
     class DBGAlignedReadStorage : public ag::AlignedReadStorage<DBGTraits> {
     private:
         ag::SuffixTracker<DBGTraits> * suffixes = nullptr;

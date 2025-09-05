@@ -42,12 +42,11 @@ class RepeatResolver {
                    const std::experimental::filesystem::path &dir,
                    uint64_t unique_threshold,
                    bool diploid,
-                   bool debug,
                    logging::Logger &logger)
         : dbg{dbg}, reads_storage{std::move(reads_storage)},
           extra_storages{std::move(extra_storages)}, start_k{start_k},
           saturating_k{saturating_k}, dir{std::move(dir)},
-          unique_threshold{unique_threshold}, diploid{diploid}, debug{debug},
+          unique_threshold{unique_threshold}, diploid{diploid},
           classificator{dbg, *(this->reads_storage), 0, diploid, debug} {
         std::experimental::filesystem::create_directory(this->dir);
         classificator.classify(logger, unique_threshold, dir/"mult_dir");

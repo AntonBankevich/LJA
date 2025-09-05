@@ -25,18 +25,18 @@ namespace dbg {
         ensure_dir_existance(dir);
         hashing::RollingHash hasher(k);
         io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        dbg::SparseDBG dbg = load ? DBGPipeline(logger, hasher, w, construction_lib, dir, threads,
-                                    (dir / "disjointigs.fasta").string(), (dir / "vertices.save").string(), debug)
-                                  :
+        dbg::SparseDBG dbg = load ? LoadDBGFromEdgeSequences(logger, threads, {dir/"initial_dbg.gfa"}, hasher) :
                              DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
         Printer<DBGTraits> printer;
         printer.setEdgeInfo(ObjInfo<Edge>({&SaveEdgeName},{}, {}));
-        printer.printDot(dir / "initial_dbg.dot", Component(dbg));
+        if(debug && !load)
+            printer.printGFA(dir/"initial_dbg.gfa", dbg);
         size_t extension_size = 800;
         dbg::SeqReader reader(reads_lib, logger, threads);
         dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
                                                AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
                                                true);
+        printer.printDot(dir / "initial_dbg.dot", Component(dbg));
         if(debug) readStorage.logReads(threads, dir/"read_log.txt");
         dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::vector<ag::AlignedRead<DBGTraits>>(), false);
 //        printDot(dir / "initial_dbg.dot", Component(dbg), ag::SaveEdgeName<DBGTraits>);
