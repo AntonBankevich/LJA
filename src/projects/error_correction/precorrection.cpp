@@ -107,7 +107,7 @@ std::string Precorrector::correctRead(const std::string &name, dbg::GraphPath &p
                 m = "pb";
             }
         }
-        if(!correction.isSingleton() || correction.front() != pp.nextEdge()) {
+        if(!correction.isSingleton() || correction.frontEdge() != pp.nextEdge()) {
             ncor += 1;
             message.emplace_back(m);
         }

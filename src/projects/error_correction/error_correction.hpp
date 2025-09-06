@@ -35,7 +35,7 @@ public:
             dbg::GraphPath corrected = alignedRead.getPath();
             std::string message = algorithm.correctRead(alignedRead.getId(), corrected);
             if(!message.empty()) {
-                VERIFY(alignedRead.getPath() != corrected);
+                VERIFY_MSG(alignedRead.getPath() != corrected, message);
                 reads_storage.rerouteRead(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message);
                 cnt += 1;
             }
