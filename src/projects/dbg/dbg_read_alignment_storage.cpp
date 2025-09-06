@@ -27,6 +27,10 @@ void DBGAlignedReadStorage::logReads(size_t threads, const std::experimental::fi
     readLogger = new ag::ReadLogger<DBGTraits>(*this, threads, path);
 }
 
+void DBGAlignedReadStorage::logGraph(SparseDBG &dbg, std::ostream &os) {
+    graphLogger = new ag::LoggingListener<DBGTraits>(dbg, os);
+}
+
 void DBGAlignedReadStorage::stopTrackSuffixes() {
     delete suffixes;
     suffixes = nullptr;
@@ -43,6 +47,7 @@ void DBGAlignedReadStorage::trackSuffixes(logging::Logger &logger, size_t thread
 DBGAlignedReadStorage::~DBGAlignedReadStorage() {
     delete suffixes;
     delete readLogger;
+    delete graphLogger;
     delete coverageTracker;
 }
 

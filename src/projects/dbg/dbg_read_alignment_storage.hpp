@@ -76,6 +76,7 @@ namespace dbg {
         ag::SuffixTracker<DBGTraits> * suffixes = nullptr;
         dbg::CoverageTracker * coverageTracker = nullptr;
         ag::ReadLogger<DBGTraits> *readLogger = nullptr;
+        ag::LoggingListener<DBGTraits> *graphLogger = nullptr;
     public:
         ag::AlignedReadStorage<DBGTraits> &getReads() {return *this;}
         const ag::AlignedReadStorage<DBGTraits> &getReads() const {return *this;}
@@ -101,6 +102,7 @@ namespace dbg {
         DBGAlignedReadStorage& operator=(DBGAlignedReadStorage&&) = delete;
 
         void logReads(size_t threads, const std::experimental::filesystem::path& path);
+        void logGraph(SparseDBG &dbg, std::ostream &os);
         void trackSuffixes(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t _min_len, size_t _max_len);
         void stopTrackSuffixes();
         void checkCoverage(const SparseDBG &dbg) const;
