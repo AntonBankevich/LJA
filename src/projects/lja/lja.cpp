@@ -83,6 +83,7 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
         polishing.bindInput("corrected_reads", corrected_reads.first, corrected_reads.second);
         polishing.bindInput("reads", "", "reads");
     }
+//    TODO: create postprocessing stage with statistics
     return std::move(lja);
 }
 

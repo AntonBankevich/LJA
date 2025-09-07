@@ -2,6 +2,29 @@
 #include <common/cl_parser.hpp>
 #include "dbg/aln_reads_reader.hpp"
 
+size_t Nx(const std::vector<size_t> &lens, size_t perc) {
+    VERIFY(!lens.empty());
+    size_t total = std::accumulate(lens.begin(), lens.end(), 0);
+    size_t pref_sum = 0;
+    for(size_t len : lens) {
+        pref_sum += len;
+        if(pref_sum * 100 >= total * perc)
+            return len;
+    }
+    return lens.back();
+}
+
+void PrintAssemblyStatistics(logging::Logger &logger, const std::vector<Contig> &contigs) {
+    std::vector<size_t> lens;
+    for(const Contig &contig : contigs) lens.emplace_back(contig.fullSize());
+    std::sort(lens.begin(), lens.end(), std::greater<>());
+    logger.info() << "Total contig length: " << std::accumulate(lens.begin(), lens.end(), 0) << std::endl;
+    logger.info() << "Number of contigs: " << lens.size() << std::endl;
+    if(lens.empty())
+        return;
+    logger.info() << "N50: " << Nx(lens, 50) << " N90: " << Nx(lens, 90) << std::endl;
+}
+
 std::unordered_map <std::string, std::experimental::filesystem::path>
 RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
              const std::experimental::filesystem::path &gfa_file, const io::Library &corrected_reads,
@@ -16,6 +39,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
     std::vector<Contig> uncompressed = Polish(logger, threads, contigs, res.first, reads, dicompress);
     std::vector<Contig> assembly = printUncompressedResults(logger, threads, edge_graph, uncompressed, dir, debug);
     logger.info() << "Polished assembly results can be found in: " << (dir / "assembly.fasta") << std::endl;
+    PrintAssemblyStatistics(logger, assembly);
     std::ofstream os_cut;
     os_cut.open(dir / "assembly.fasta");
     for(Contig &contig : assembly) {
