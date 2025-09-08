@@ -4,7 +4,7 @@
 
 size_t Nx(const std::vector<size_t> &lens, size_t perc) {
     VERIFY(!lens.empty());
-    size_t total = std::accumulate(lens.begin(), lens.end(), 0);
+    size_t total = std::accumulate(lens.begin(), lens.end(), size_t(0));
     size_t pref_sum = 0;
     for(size_t len : lens) {
         pref_sum += len;
@@ -18,7 +18,7 @@ void PrintAssemblyStatistics(logging::Logger &logger, const std::vector<Contig> 
     std::vector<size_t> lens;
     for(const Contig &contig : contigs) lens.emplace_back(contig.fullSize());
     std::sort(lens.begin(), lens.end(), std::greater<>());
-    logger.info() << "Total contig length: " << std::accumulate(lens.begin(), lens.end(), 0) << std::endl;
+    logger.info() << "Total contig length: " << std::accumulate(lens.begin(), lens.end(), size_t(0)) << std::endl;
     logger.info() << "Number of contigs: " << lens.size() << std::endl;
     if(lens.empty())
         return;
