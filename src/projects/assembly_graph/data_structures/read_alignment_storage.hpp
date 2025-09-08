@@ -272,7 +272,7 @@ namespace ag {
             direction.getRead().lock();
             EdgeId new_start;
 //            This condition takes care of handling singleton paths when this listener is called for rc edge/path
-            if(direction.getStart() == edge.getStart() && direction.getFinish() != split.front()->getFinish()) {
+            if(direction.getStart() == edge.getStart() && (direction.getFinish() != split.front()->getFinish() || direction.getFSplits().size() > edge.getCode().size())) {
 //                All directions extending beyond edge should be processed carefully to avoid spoiling NuclDeck
 //                iterators stored in AlignedRead
                 if (direction.getFSplits().size() > edge.getCode().size()) {
@@ -326,7 +326,7 @@ namespace ag {
                                    left_skip + right_al.firstColumnByQpos(old_right).getTpos();
                 dir.setCutRight(new_edge.fullSize() - new_right);
                 new_rec_rc.emplace_back(dir.RC());
-            }
+	    }
             dir.setCutLeft(0);
             dir.forcePushFront(left);// While this operation is underway this path is disconnected.
             dir.setCutLeft(new_left);
