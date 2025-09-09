@@ -530,6 +530,7 @@ namespace ag {
                 columns.emplace_back(it);
             }
         }
+        VERIFY(!columns.empty());
         AlignmentForm::ConstAlignmentColumnIterator split_column = columns[columns.size() / 2];
         AlignmentForm right_sub_alignment(split_column, alignment.columns().end());
         AlignmentForm left_sub_alignment(alignment.columns().begin(), split_column);
