@@ -377,16 +377,9 @@ namespace ag {
     };
 
     template<class T>
-    inline std::string DefaultEdgeName(BaseEdge<T> &edge) {
+    inline std::string DefaultEdgeName(const BaseEdge<T> &edge) {
         return edge.getInnerId().str();
     }
-
-    template<class T>
-    inline std::string SaveEdgeName(BaseEdge<T> &edge) {
-        VERIFY((edge.getFinish().rc().getInnerId() > 0) == edge.getFinish().rc().isCanonical());
-        return edge.getInnerId().str() + "_" + edge.rc().getInnerId().str();
-    }
-
 
     template<class Traits>
     class BaseVertex {

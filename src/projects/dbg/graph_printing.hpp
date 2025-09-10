@@ -66,7 +66,7 @@ namespace dbg {
     }
 
     inline void printAssembly(const std::experimental::filesystem::path &outf, const Component &component,
-                              const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
+                              const std::function<std::string(const ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printAssembly(out, component, name);
@@ -82,7 +82,7 @@ namespace dbg {
     }
 
     inline void printAssembly(const std::experimental::filesystem::path &outf, SparseDBG &dbg,
-                              const std::function<std::string(ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
+                              const std::function<std::string(const ag::BaseEdge<DBGTraits> &)> &name = &ag::DefaultEdgeName<DBGTraits>) {
         std::ofstream out;
         out.open(outf);
         printAssembly(out, Component(dbg), name);
