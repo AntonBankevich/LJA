@@ -31,29 +31,29 @@ std::vector<Segment<Vertex>> ExtendSegments(std::vector<Segment<Vertex>> &segs, 
     return extended_segs;
 }
 
-void ensureOverlap(std::unordered_map<VertexId, std::pair<size_t, size_t>> reduction, Edge &edge) {
+void ensureOverlap(std::unordered_map<VertexId, std::pair<size_t, size_t>> &reduction, Edge &edge, size_t min_overlap) {
+    std::pair<size_t, size_t> &left = reduction[edge.getStart().getId()];
+    std::pair<size_t, size_t> &right = reduction[edge.getFinish().getId()];
     if (edge.isPrefix()) {
-        reduction[edge.getFinish().getId()].second = std::max(reduction[edge.getFinish().getId()].second,reduction[edge.getFinish().getId()].second);
-        reduction[edge.getStart().getId()].first = std::min(reduction[edge.getStart().getId()].first, reduction[edge.getFinish().getId()].first);
+        right.second = std::max(right.second, left.second);
+        left.first = std::min(left.first, right.first);
+        VERIFY(left.second >= min_overlap);
+        right.first = std::min(right.first, left.second - min_overlap);
     } else if (edge.isSuffix()) {
-        reduction[edge.getStart().getId()].first = std::min(reduction[edge.getStart().getId()].first, reduction[edge.getFinish().getId()].first + edge.rc().truncSize());
-        reduction[edge.getFinish().getId()].second = std::max(reduction[edge.getFinish().getId()].second, reduction[edge.getStart().getId()].second - edge.rc().truncSize());
+        left.first = std::min(left.first, right.first + edge.rc().truncSize());
+        right.second = std::max(right.second, left.second - edge.rc().truncSize());
+        left.second = std::max(left.second, right.first + edge.rc().truncSize() + min_overlap);
     }
 }
 
 void CollapseCoreVertexToPrefix(Vertex &v, size_t min_overlap, std::unordered_map<VertexId, std::pair<size_t, size_t>> &reduction) {
     reduction[v.getId()] = {0, min_overlap};
     reduction[v.rc().getId()] = {v.size() - min_overlap, v.size()};
-    for (Edge &edge : v) {
-        reduction[edge.getFinish().getId()].first = 0;
-        reduction[edge.getFinish().rc().getId()].second = edge.getFinish().size();
-    }
 }
 
 std::unordered_map<ag::VertexId, Segment<ag::Vertex>> ConstructReduction(ag::AssemblyGraph &graph, size_t min_overlap, size_t max_repeat){
     std::unordered_map<VertexId, std::pair<size_t, size_t>> reduction;
-    std::vector<VertexId> list = oneline::map(graph.verticesUnique().begin(), graph.verticesUnique().end(),
-                                              IdTransformer<Vertex>());
+    std::vector<VertexId> list = oneline::map(graph.vertices().begin(), graph.vertices().end(), IdTransformer<Vertex>());
     std::sort(list.begin(), list.end(), [](const VertexId &vid1, const VertexId &vid2) {return vid1->size() > vid2->size() || (vid1->size() == vid2->size() && vid1 > vid2);});
     VERIFY(list.empty() || list.front()->size() >= list.back()->size());
     for(Vertex &vertex : graph.vertices()) {
@@ -62,9 +62,9 @@ std::unordered_map<ag::VertexId, Segment<ag::Vertex>> ConstructReduction(ag::Ass
     for (Edge &edge : graph.edges()) {
         if (edge.isPrefix()) {
             VERIFY(edge.getStart().size() >= min_overlap);
-            reduction[edge.getFinish().getId()].first = edge.getStart().size() - min_overlap;
+            reduction[edge.getFinish().getId()].first = edge.getStart().size();
         } else if (edge.isSuffix()) {
-            reduction[edge.getStart().getId()].second = edge.rc().truncSize() + min_overlap;
+            reduction[edge.getStart().getId()].second = edge.rc().truncSize();
         }
     }
     for (Vertex &v: graph.vertices()) {
@@ -85,13 +85,13 @@ std::unordered_map<ag::VertexId, Segment<ag::Vertex>> ConstructReduction(ag::Ass
         }
     }
     for (Vertex &vertex : graph.verticesUnique()) {
-        if (!vertex.isJunction() && !vertex.front().getFinish().isJunction()) {
-            reduction[vertex.getId()] = {0, vertex.size()};
+        if (!vertex.isJunction() && vertex.isCore() && !vertex.front().getFinish().isJunction()) {
+            CollapseCoreVertexToPrefix(vertex, min_overlap, reduction);
         }
     }
     for (VertexId vid : list) {
         for (Edge &edge : *vid)
-            ensureOverlap(reduction, edge);
+            ensureOverlap(reduction, edge, min_overlap);
     }
     for (Edge &edge : graph.edges()) {
         auto l = reduction[edge.getStart().getId()];
