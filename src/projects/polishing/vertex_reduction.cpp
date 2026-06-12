@@ -31,17 +31,25 @@ std::vector<Segment<Vertex>> ExtendSegments(std::vector<Segment<Vertex>> &segs, 
     return extended_segs;
 }
 
-void ensureOverlap(std::unordered_map<VertexId, std::pair<size_t, size_t>> &reduction, Edge &edge, size_t min_overlap) {
+void ensureOrder(std::unordered_map<VertexId, std::pair<size_t, size_t>> &reduction, Edge &edge, size_t min_overlap) {
     std::pair<size_t, size_t> &left = reduction[edge.getStart().getId()];
     std::pair<size_t, size_t> &right = reduction[edge.getFinish().getId()];
     if (edge.isPrefix()) {
         right.second = std::max(right.second, left.second);
         left.first = std::min(left.first, right.first);
-        VERIFY(left.second >= min_overlap);
-        right.first = std::min(right.first, left.second - min_overlap);
     } else if (edge.isSuffix()) {
         left.first = std::min(left.first, right.first + edge.rc().truncSize());
         right.second = std::max(right.second, left.second - edge.rc().truncSize());
+    }
+}
+
+void ensureOverlap(std::unordered_map<VertexId, std::pair<size_t, size_t>> &reduction, Edge &edge, size_t min_overlap) {
+    std::pair<size_t, size_t> &left = reduction[edge.getStart().getId()];
+    std::pair<size_t, size_t> &right = reduction[edge.getFinish().getId()];
+    if (edge.isPrefix()) {
+        VERIFY(left.second >= min_overlap);
+        right.first = std::min(right.first, left.second - min_overlap);
+    } else if (edge.isSuffix()) {
         left.second = std::max(left.second, right.first + edge.rc().truncSize() + min_overlap);
     }
 }
@@ -88,6 +96,18 @@ std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> ConstructReduction(ag
         if (!vertex.isJunction() && vertex.isCore() && !vertex.front().getFinish().isJunction()) {
             CollapseCoreVertexToPrefix(vertex, min_overlap, reduction);
         }
+    }
+    for(Vertex & vertex : graph.vertices()) {
+        std::pair<size_t, size_t> &p = reduction.at(vertex.getId());
+        if(p.first > p.second) {
+            size_t tmp = p.first;
+            p.first = p.second;
+            p.second  = tmp;
+        }
+    }
+    for (VertexId vid : list) {
+        for (Edge &edge : *vid)
+            ensureOrder(reduction, edge, min_overlap);
     }
     for (VertexId vid : list) {
         for (Edge &edge : *vid)

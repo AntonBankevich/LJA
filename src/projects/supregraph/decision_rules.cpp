@@ -118,12 +118,14 @@ bool checkForwardLoop(ag::Vertex &v) {
 }
 void spg::AndreyRule::noChoiceHeuristic(spg::VertexResolutionPlan &res) {
     Vertex &core = res.getCore();
-    if(core.inDeg() == 1 && core.size() < 40000 && !checkForwardLoop(core.rc())) {
+    // if(core.inDeg() == 1 && core.size() < 40000 && !checkForwardLoop(core.rc())) {
+    if(core.inDeg() == 1 && !checkForwardLoop(core.rc())) {
         for(Edge &edge : core) {
             res.add(*core.incoming().begin(), edge);
         }
     }
-    if(core.outDeg() == 1 && core.size() < 40000 && !checkForwardLoop(core)) {
+    // if(core.outDeg() == 1 && core.size() < 40000 && !checkForwardLoop(core)) {
+    if(core.outDeg() == 1 && !checkForwardLoop(core)) {
         for(Edge &edge : core.incoming()) {
             res.add(edge, core.front());
         }
