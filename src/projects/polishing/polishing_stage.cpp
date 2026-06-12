@@ -71,6 +71,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
     // }
     DecompressingManager manager(graph, dir, min_alignment, 40000, debug);
     manager.ReduceAndUncompress(logger, threads, corrected_reads, reads);
+    manager.printReduction(dir/"reduction.dot");
     manager.calculateOverlaps(logger, threads);
     manager.printUncompressedGraph(logger, threads, dir/"final_graph.gfa");
     std::vector<Contig> assembly = manager.printAssembly(logger, threads);

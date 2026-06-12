@@ -51,7 +51,7 @@ void CollapseCoreVertexToPrefix(Vertex &v, size_t min_overlap, std::unordered_ma
     reduction[v.rc().getId()] = {v.size() - min_overlap, v.size()};
 }
 
-std::unordered_map<ag::VertexId, Segment<ag::Vertex>> ConstructReduction(ag::AssemblyGraph &graph, size_t min_overlap, size_t max_repeat){
+std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> ConstructReduction(ag::AssemblyGraph &graph, size_t min_overlap, size_t max_repeat){
     std::unordered_map<VertexId, std::pair<size_t, size_t>> reduction;
     std::vector<VertexId> list = oneline::map(graph.vertices().begin(), graph.vertices().end(), IdTransformer<Vertex>());
     std::sort(list.begin(), list.end(), [](const VertexId &vid1, const VertexId &vid2) {return vid1->size() > vid2->size() || (vid1->size() == vid2->size() && vid1 > vid2);});
@@ -147,7 +147,7 @@ std::unordered_map<ag::VertexId, Segment<ag::Vertex>> ConstructReduction(ag::Ass
     //     reduction[vid] = res;
     //     reduction[vid->rc().getId()] = res.RC();
     // }
-    std::unordered_map<VertexId, Segment<Vertex>> res;
+    std::unordered_map<ConstVertexId, Segment<Vertex>> res;
     for (Vertex &vertex : graph.vertices())
         res[vertex.getId()] = {vertex, reduction[vertex.getId()].first, reduction[vertex.getId()].second};
     return std::move(res);

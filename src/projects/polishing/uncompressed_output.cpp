@@ -164,6 +164,15 @@ void DecompressingManager::ReduceAndUncompress(logging::Logger &logger, size_t t
     }
 }
 
+void DecompressingManager::printReduction(std::experimental::filesystem::path path) const {
+    Printer printer(VertexPrintStyles::defaultDotInfo(), EdgePrintStyles::defaultDotInfo());
+    const Vertex &v = *(graph().vertices().begin());
+    std::function<std::string(const Vertex &)> vertex_labels = [this](const Vertex &v) {return std::to_string(segs.at(v.getId()).left) +" " + std::to_string(segs.at(v.getId()).right);};
+    printer += VertexInfo::Labeler(vertex_labels);
+    printer.printDot(path, graph());
+}
+
+
 void DecompressingManager::calculateOverlaps(logging::Logger &logger, size_t threads) {
     logger.info() << "Calculating overlaps between adjacent uncompressed edges" << std::endl;
     omp_set_num_threads(1);

@@ -11,7 +11,7 @@ private:
     size_t min_overlap;
     size_t max_repeat;
     bool debug;
-    std::unordered_map<ag::VertexId, Segment<ag::Vertex>> segs;
+    std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> segs;
     std::unordered_map<ag::VertexId, Sequence> uncompressed;
     std::unordered_map<ag::EdgeId, AlignmentForm> overlap_alignment;
 public:
@@ -19,9 +19,11 @@ public:
                          size_t min_overlap, size_t max_repeat, bool debug) :
         g(&assemblyGraph), dir(dir), min_overlap(min_overlap), max_repeat(max_repeat), debug(debug) {}
 
-    ag::AssemblyGraph &graph() {return *g;}
+    ag::AssemblyGraph &graph() const {return *g;}
 
     void ReduceAndUncompress(logging::Logger &logger, size_t threads, const io::Library &corrected_reads, const io::Library &reads);
+
+    void printReduction(std::experimental::filesystem::path path) const;
 
     void calculateOverlaps(logging::Logger &logger, size_t threads);
 
