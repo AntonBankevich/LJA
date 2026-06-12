@@ -6,8 +6,13 @@
 #include <alignment/ksw_wrapper.hpp>
 #include <utility>
 #include <assembly_graph/visualization.hpp>
+
+#include "homopolish.hpp"
+#include "perfect_alignment.hpp"
+#include "vertex_reduction.hpp"
 #include "dbg/multi_graph.hpp"
 #include "alignment/ksw_aligner.hpp"
+#include "dbg/aln_reads_reader.hpp"
 
 using namespace ag;
 
@@ -139,20 +144,33 @@ AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left
     AlignmentForm res;
     return kswAligner.globalAlignment(left_seq.str(), right_seq.str());
 }
-void printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
-                              const std::unordered_map<VertexId, Segment<Vertex>> &segs,
-                              const std::unordered_map<VertexId , Sequence> &uncompression_results,
-                              const std::experimental::filesystem::path &out_dir, bool debug) {
-    logger.info() << "Printing compressed graph with final ids" << std::endl;
-    ag::Printer printer;
-    printer.printGFA(out_dir/"mdbg.final_names.hpc.gfa", graph);
+
+void DecompressingManager::ReduceAndUncompress(logging::Logger &logger, size_t threads,
+        const io::Library &corrected_reads, const io::Library &reads) {
+    size_t dicompress = StringContig::max_dimer_size / 2;
+    dbg::SeqReader reader(corrected_reads, logger, threads);
+    segs = ConstructReduction(graph(), min_overlap, max_repeat);
+    std::function<Contig(Vertex &)> seg_to_contig = [this](Vertex &v) {
+        return Contig(segs.at(v.getId()).fullSeq(), std::to_string(segs.at(v.getId()).contig().getInnerId()));
+    };
+    std::vector<Contig> compressed = oneline::map(graph().verticesUnique().begin(), graph().verticesUnique().end(), seg_to_contig);
+    auto res = PrintAlignments(logger, threads, compressed, reader.begin(), reader.end(), min_overlap, dir);
+    std::vector<Contig> uncompressed_contigs = Polish(logger, threads, compressed, res.first, reads, dicompress);
+    IdIndex<Vertex> index(graph().vertices().begin(), graph().vertices().end());
+    for(const Contig &contig : uncompressed_contigs) {
+        VertexId vid = index.getById(Parse<Vertex::id_type>(contig.getInnerId())).getId();
+        uncompressed[vid] = contig.getSeq();
+        uncompressed[vid->rc().getId()] = !contig.getSeq();
+    }
+}
+
+void DecompressingManager::calculateOverlaps(logging::Logger &logger, size_t threads) {
     logger.info() << "Calculating overlaps between adjacent uncompressed edges" << std::endl;
-    ParallelRecordCollector<OverlapRecord> cigars_collection(threads);
-    omp_set_num_threads(threads);
+    omp_set_num_threads(1);
     std::vector<multigraph::EdgeId> e_ids;
-    for (Edge &e: graph.edgesUnique())
+    for (Edge &e: graph().edgesUnique())
         e_ids.push_back(e.getId());
-#pragma omp parallel for default(none) shared(graph, e_ids, cigars_collection, uncompression_results, logger, debug, segs, std::cout)
+#pragma omp parallel for default(none) shared(e_ids, segs)
     for(size_t i = 0; i < e_ids.size(); i++) {
         Edge &edge = *e_ids[i];
         Segment<Vertex> left_seg = segs.at(edge.getStart().getId());
@@ -160,37 +178,79 @@ void printUncompressedResults(logging::Logger &logger, size_t threads, multigrap
         size_t shift = edge.rc().truncSize();
         Sequence overlap = edge.getStart().getSeq().Subseq(std::max(left_seg.left, right_seg.left + shift),
                                                            std::min(left_seg.right, right_seg.right + shift));
-        AlignmentForm cigar = UncompressOverlap(overlap, uncompression_results.at(edge.getStart().getId()),
-                                                         uncompression_results.at(edge.getFinish().getId()));
-        OverlapRecord overlapRecord(edge, uncompression_results.at(edge.getStart().getId()),
-                                    uncompression_results.at(edge.getFinish().getId()), cigar);
-        if(debug) {
+        AlignmentForm cigar = UncompressOverlap(overlap, uncompressed.at(edge.getStart().getId()),
+                                                         uncompressed.at(edge.getFinish().getId()));
+        OverlapRecord overlapRecord(edge, uncompressed.at(edge.getStart().getId()),
+                                    uncompressed.at(edge.getFinish().getId()), cigar);
 #pragma omp critical
-            {
-                logger.debug() << edge.getId() << " " << edge.getStart() << " " << edge.getFinish() << " " << std::endl
-                        << overlapRecord.cigarString() << " " << overlapRecord.startSize() << " "
-                        << overlapRecord.endSize() << std::endl;
-                std::pair<std::string, std::string> al = overlapRecord.str();
-                logger.debug() << al.first << "\n" << al.second << std::endl;
-            }
-        }
-        cigars_collection.emplace_back(std::move(overlapRecord));
+        overlap_alignment[edge.getId()] = cigar;
+#pragma omp critical
+        overlap_alignment[edge.rc().getId()] = cigar.Reverse().RC();
     }
-    logger.info() << "Printing polished gfa file to " << (out_dir / "mdbg.gfa") << std::endl;
+}
+
+void DecompressingManager::printUncompressedGraph(logging::Logger &logger, size_t threads, std::experimental::filesystem::path path) {
+    logger.info() << "Printing polished gfa file to " << (path) << std::endl;
     std::ofstream os;
-    os.open(out_dir / "mdbg.gfa");
+    os.open(path);
     os << "H\tVN:Z:1.0" << std::endl;
     std::unordered_map<multigraph::Edge *, std::string> eids;
-    for(Vertex &vertex : graph.verticesUnique()){
-        os << "S\t" << vertex.getId() << "\t" << uncompression_results.at(vertex.getId()) << "\n";
+    for(Vertex &vertex : graph().verticesUnique()){
+        os << "S\t" << vertex.getId() << "\t" << uncompressed.at(vertex.getId()) << "\n";
     }
-    for(OverlapRecord &rec : cigars_collection) {
-        bool inc_sign = rec.edge->getStart().isCanonical();
-        VertexId incId = inc_sign ? rec.edge->getStart().getId() : rec.edge->getStart().rc().getId();
-        bool out_sign = rec.edge->getFinish().isCanonical();
-        VertexId outId = out_sign ? rec.edge->getFinish().getId() : rec.edge->getFinish().rc().getId();
+    for(Edge &edge : graph().edgesUnique()) {
+        bool inc_sign = edge.getStart().isCanonical();
+        VertexId incId = inc_sign ? edge.getStart().getId() : edge.getStart().rc().getId();
+        bool out_sign = edge.getFinish().isCanonical();
+        VertexId outId = out_sign ? edge.getFinish().getId() : edge.getFinish().rc().getId();
         os << "L\t" << incId << "\t" << (inc_sign ? "+" : "-") << "\t" << outId << "\t"
-           << (out_sign ? "+" : "-") << "\t" << rec.cigarString() << "\n";
+           << (out_sign ? "+" : "-") << "\t" << overlap_alignment[edge.getId()].toCigarString() << "\n";
     }
     os.close();
 }
+
+std::vector<Contig> DecompressingManager::printAssembly(logging::Logger &logger, size_t threads) {
+    std::vector<Contig> assembly;
+    std::unordered_map<VertexId, size_t> cut;
+    for (Vertex &vertex : graph().vertices()) {cut[vertex.getId()] = 0;}
+    for(Vertex &vertex : graph().vertices()) {
+        if (vertex.outDeg()> 1 && segs[vertex.getId()].right == vertex.size())
+            for (Edge &edge : vertex) {
+                cut[edge.getFinish().getId()] = overlap_alignment[edge.getId()].targetLength();
+            }
+    }
+    for(Vertex &vertex : graph().verticesUnique()) {
+        Sequence seq = uncompressed.at(vertex.getId());
+        size_t left = cut.at(vertex.getId());
+        size_t right = cut.at(vertex.rc().getId());
+        if (seq.size() > left + right + 5000 && !(vertex.isCore() && segs[vertex.getId()].size() == min_overlap)) {
+            assembly.emplace_back(seq.Subseq(left, seq.size() - right), itos(vertex.getInnerId()));
+
+        }
+    }
+    std::sort(assembly.begin(), assembly.end(), [](const Contig &c1, const Contig &c2)->bool{return c1.fullSize() > c2.fullSize();});
+    return std::move(assembly);
+}
+
+// void printUncompressedResults(logging::Logger &logger, size_t threads, multigraph::MultiGraph &graph,
+//                               const std::unordered_map<VertexId, Segment<Vertex>> &segs,
+//                               const std::unordered_map<VertexId , Sequence> &uncompression_results,
+//                               const std::experimental::filesystem::path &out_dir, bool debug) {
+//     logger.info() << "Printing polished gfa file to " << (out_dir / "mdbg.gfa") << std::endl;
+//     std::ofstream os;
+//     os.open(out_dir / "mdbg.gfa");
+//     os << "H\tVN:Z:1.0" << std::endl;
+//     std::unordered_map<multigraph::Edge *, std::string> eids;
+//     for(Vertex &vertex : graph.verticesUnique()){
+//         os << "S\t" << vertex.getId() << "\t" << uncompression_results.at(vertex.getId()) << "\n";
+//     }
+//     for(OverlapRecord &rec : cigars_collection) {
+//         bool inc_sign = rec.edge->getStart().isCanonical();
+//         VertexId incId = inc_sign ? rec.edge->getStart().getId() : rec.edge->getStart().rc().getId();
+//         bool out_sign = rec.edge->getFinish().isCanonical();
+//         VertexId outId = out_sign ? rec.edge->getFinish().getId() : rec.edge->getFinish().rc().getId();
+//         os << "L\t" << incId << "\t" << (inc_sign ? "+" : "-") << "\t" << outId << "\t"
+//            << (out_sign ? "+" : "-") << "\t" << rec.cigarString() << "\n";
+//     }
+//     os.close();
+// }
