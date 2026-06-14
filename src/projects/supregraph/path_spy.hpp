@@ -12,42 +12,56 @@
 
 namespace spg {
     class OldVertexTracker : public ag::ResolutionListener {
+    public:
+        struct DirectEmbedding {
+            VertexId inner_vertex;
+            VertexId outer_vertex;
+            size_t from;
+            size_t to;
+            DirectEmbedding(Vertex & inner_vertex, Vertex & outer_vertex, size_t from, size_t to) :
+                    inner_vertex(inner_vertex.getId()), outer_vertex(outer_vertex.getId()), from(from), to(to) {}
+            DirectEmbedding(VertexId inner_vertex, VertexId outer_vertex, size_t from, size_t to) :
+                    inner_vertex(inner_vertex), outer_vertex(outer_vertex), from(from), to(to) {}
+            bool operator<(const DirectEmbedding &other) const;
+            bool operator==(const DirectEmbedding &other) const;
+        };
+    private:
+        //A vertex has a recorded self-embedding iff it was already removed from the graph
+        std::unordered_map<ag::ConstVertexId, Sequence> vertex_seq;
+        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> multi_embedding;
+        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> multi_subvertices;
         std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> vertex_embedding;
         std::unordered_map<ag::ConstVertexId, std::vector<ag::VertexId>> subvertices;
+        bool debug;
+
         void addEmbedding(VertexId old, Segment<Vertex> embedding, std::vector<ag::VertexId> &subs);
         void addEmbedding(VertexId old, Segment<Vertex> embedding);
+        void addMultiEmbedding(Vertex & subvertex, Vertex & supervertex, size_t left, size_t right);
+        size_t getVertexSize(VertexId vid) const;
 
     public:
-        OldVertexTracker(ag::ResolutionFire &fire);
+        OldVertexTracker(ag::ResolutionFire &fire, bool debug);
 
         Segment<Vertex> getPosition(VertexId vid) const;
         bool checkExists(VertexId vid) const {return subvertices.find(vid) != subvertices.end();}
 
-        void fireAddVertex(Vertex &v) override {
-            subvertices[v.getId()] = {};
-            addEmbedding(v.getId(), {v, 0, v.size()});
-        }
-        void fireDeleteVertex(Vertex &v) override {subvertices.erase(v.getId());}
+
+        void fireAddEdge(Edge &e) override;
+        void fireAddVertex(Vertex &v) override;
+        void fireDeleteVertex(Vertex &v) override;
         void fireAddSupreVertex(Vertex &v, Edge &e) override {}
-
         void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
-        void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override;
+        void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {VERIFY(false);}
         void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override;
-
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &left_al, const AlignmentForm &right_al) override {
             VERIFY(false);
         }
+        void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {VERIFY(false);}
+        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;
 
-        void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {
-            VERIFY(false);
-        }
-
-        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override {
-            for (ag::VertexId vid : subvertices.at(core.getId())) {
-                vertex_embedding.erase(vid);
-            }
-        }
+        std::vector<DirectEmbedding> getAllEmbeddings(VertexId v) const;
+        std::vector<DirectEmbedding> getAllSubvertices(VertexId v) const;
     };
 
     class OldPathTracker : public ag::ResolutionListener {
@@ -93,7 +107,7 @@ namespace spg {
 
         void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {
-            fireMergePath(path.asRAPath(), new_vertex);
+            VERIFY(false);
         }
         void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override {VERIFY(false);}
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,

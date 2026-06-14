@@ -39,29 +39,44 @@ Vertex &ag::AssemblyGraph::addSPGVertex(Sequence seq, bool cyclic, bool inf_left
 
 Vertex &ag::AssemblyGraph::mergePath(const GraphPath &path) {
     VERIFY(path.startClosed() && path.endClosed());
-    Sequence seq = path.Seq();
-    if(path.truncLen() == 0 || path.RC().truncLen() == 0) {
-        Edge &edge = mergePathToEdge(path);
-        return edge.isSuffix() ? edge.getStart() : edge.getFinish();
+    PathPosition p = path.firstPosition();
+    while (p != path.lastPosition() && p.nextEdge().isSuffix())
+        ++p;
+    bool updown = true;
+    for (PathPosition p1 = p; p1 != path.lastPosition(); ++p1) {
+        if (!p1.nextEdge().isSuffix()) {
+            updown = false;
+            break;
+        }
     }
-    SequenceBuilder sb;
-    for(Edge &edge : path.edges()) {
-        sb.append(edge.getCode());
+    if (updown) {
+        GraphPath left_path = path.subPath(path.firstPosition(), p);
+        GraphPath right_path = path.subPath(p, path.lastPosition());
+        Vertex & res = p.getVertex();
+        if (left_path.calculateSize() > 1) {
+            mergePathToEdge(left_path);
+        }
+        if (right_path.calculateSize() > 1) {
+            mergePathToEdge(right_path);
+        }
+        return res;
+    } else {
+        Sequence seq = path.Seq();
+        Vertex &res = addSPGVertex(seq, false, false, false);
+        Edge &inc_edge = addSPEdgeLockFree(path.getStart(), res);
+        inc_edge.setCorporeal(false);
+        inc_edge.rc().setCorporeal(false);
+        Edge &out_edge = res == res.rc() ? inc_edge.rc() : addSPEdgeLockFree(res, path.getFinish());
+        out_edge.setCorporeal(false);
+        out_edge.rc().setCorporeal(false);
+        fireMergePath(path.asRAPath(), res);
+        isolateAndMark(path.innerVertices().begin(), path.innerVertices().end());
+        inc_edge.setCorporeal(true);
+        inc_edge.rc().setCorporeal(true);
+        out_edge.setCorporeal(true);
+        out_edge.rc().setCorporeal(true);
+        return res;
     }
-    Vertex &res = addSPGVertex(seq, false, false, false);
-    Edge &inc_edge = addSPEdgeLockFree(path.getStart(), res);
-    inc_edge.setCorporeal(false);
-    inc_edge.rc().setCorporeal(false);
-    Edge &out_edge = res == res.rc() ? inc_edge.rc() : addSPEdgeLockFree(res, path.getFinish());
-    out_edge.setCorporeal(false);
-    out_edge.rc().setCorporeal(false);
-    fireMergePath(path.asRAPath(), res);
-    isolateAndMark(path.innerVertices().begin(), path.innerVertices().end());
-    inc_edge.setCorporeal(true);
-    inc_edge.rc().setCorporeal(true);
-    out_edge.setCorporeal(true);
-    out_edge.rc().setCorporeal(true);
-    return res;
 }
 
 size_t SmallestShift(const Sequence &seq) {

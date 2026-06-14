@@ -79,7 +79,7 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     printer.printDot(figs / "supregraph_initial.dot", spg);
     std::vector<ag::EdgeId> eids = oneline::map(spg.edgesUnique().begin(), spg.edgesUnique().end(), IdTransformer<Edge>());
     UniqueVertexStorage unique_storage(spg);
-    OldVertexTracker vertex_tracker(spg);
+    OldVertexTracker vertex_tracker(spg, debug);
     OldPathTracker path_tracker(spg, vertex_tracker, printer, dir/"state_dump");
     if (debug) {
         PreparePathTracker(logger, threads, spg, w, paths, path_tracker);
@@ -120,6 +120,14 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     if(debug) PrintConnectedComponents(printer, dir/"final_graph_figs", spg);
     ag::MergeAllSPG(logger, debug ? 1 : threads, spg);
     CleanSupregraph(spg);
+    if (debug) {
+        for (Vertex &v : spg.vertices()) {
+            logger.trace() << v.getId() << " " << v.size() << std::endl;
+            for (OldVertexTracker::DirectEmbedding embedding : vertex_tracker.getAllSubvertices(v.getId())) {
+                logger.trace() << embedding.inner_vertex.innerId() << "[" << embedding.from << "," << embedding.to << "]" << std::endl;
+            }
+        }
+    }
     spg.resetEdgeCodes(logger, threads);
     logger.info() << "Printing final graph" << std::endl;
     printer.printDot(dir / "supregraph_final.dot", spg);

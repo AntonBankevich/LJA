@@ -74,6 +74,8 @@ namespace ag {
         void add(Vertex &new_vertex, const InOutEdgePair &edgePair);
         void add(Vertex &new_vertex, Edge &edge1, Edge &edge2);
         IterableStorage<TransformingIterator<typename std::unordered_map<VertexId, InOutEdgePair>::const_iterator, Vertex>> newVertices() const;
+        std::unordered_map<VertexId, InOutEdgePair>::const_iterator begin() const {return new_vertices.begin();}
+        std::unordered_map<VertexId, InOutEdgePair>::const_iterator end() const {return new_vertices.end();}
     };
 
     std::ostream &operator<<(std::ostream &stream, const VertexResolutionResult &vr);

@@ -304,6 +304,13 @@ public:
         return _end;
     }
 
+    size_t calculateSize() {
+        size_t res = 0;
+        for (auto b = begin(), e = end(); b != e; ++b)
+            res++;
+        return res;
+    }
+
 //    std::vector<typename Iterator::value_type> asVector() && {
 //        std::vector<typename Iterator::value_type> res;
 //        while(_begin != _end) {
