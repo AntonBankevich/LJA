@@ -49,7 +49,7 @@ namespace spg {
         void fireAddEdge(Edge &e) override;
         void fireAddVertex(Vertex &v) override;
         void fireDeleteVertex(Vertex &v) override;
-        void fireAddSupreVertex(Vertex &v, Edge &e) override {}
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {}
         void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {VERIFY(false);}
         void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override;
@@ -103,7 +103,7 @@ namespace spg {
                 vertex_watch.erase(it);
             }
         }
-        void fireAddSupreVertex(Vertex &v, Edge &e) override;
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
 
         void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {
@@ -145,7 +145,7 @@ namespace spg {
 ////        Need labeler, colorer and calls to this function
 //    }
 //
-//    virtual void fireAddSupreVertex(Vertex &v, Edge &e) {
+//    virtual void fireEdgeToSupreVertex(Vertex &v, Edge &e) {
 //    }
 //
 //    virtual void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {

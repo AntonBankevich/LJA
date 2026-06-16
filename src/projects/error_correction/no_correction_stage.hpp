@@ -29,8 +29,8 @@ NoCorrection(logging::Logger &logger, size_t threads, const std::experimental::f
     dotPrinter.printDot(dir / "final_dbg.dot", ag::Component(dbg));
     //printGFA(dir / "final_dbg.gfa", Component(dbg), true, &ag::GetEdgeNameForSaving); delete if ok
     //printDot(dir / "final_dbg.dot", Component(dbg), readStorage.labeler()); delete if ok
-    ag::SaveReads(dir/"final_dbg.aln", readStorage);
-    ag::SaveReads(dir / "extra_read.aln", extra_reads);
+    readStorage.Save(dir/"final_dbg.aln");
+    extra_reads.Save(dir / "extra_read.aln");
     //readStorage.getReads().printReadFasta(logger, dir / "corrected_reads.fasta");
     readStorage.getReads().printReadPaths(logger, dir / "corrected_reads.aln",
                                    dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);

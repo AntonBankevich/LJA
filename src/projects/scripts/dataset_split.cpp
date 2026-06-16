@@ -121,7 +121,7 @@ namespace dbg {
         // TODO: store reads that are vertex substrings properly
         // std::vector<ag::EdgeId> eids = oneline::map(dbg.edgesUnique().begin(), dbg.edgesUnique().end(), IdTransformer<Edge>());
         // for(ag::EdgeId eid : eids) {
-        //     Vertex &new_vertex = dbg.addSupreVertex(*eid);
+        //     Vertex &new_vertex = dbg.edgeToSupreVertex(*eid);
         // }
         // dbg_storage.stopTrackCoverage();
         // logger.info() << "Multiplexing" << std::endl;

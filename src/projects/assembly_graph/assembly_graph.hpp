@@ -82,7 +82,7 @@ namespace ag {
 
         Edge &chooseSplitColumn(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
 
-        Vertex &addSupreVertex(Edge &edge);
+        Vertex &edgeToSupreVertex(Edge &edge);
         ag::VertexResolutionResult resolveVertex(Vertex &core, const VertexResolutionPlan &resolution);
         Vertex &mergePath(const GraphPath &path);
         Vertex &mergeLoop(const GraphPath &path);

@@ -156,6 +156,8 @@ namespace ag {
 //        TODO: get rid of this or at least control access
         mutable bool is_reliable = false;
         std::vector<EdgeId> label = {};
+        size_t read_tail_count = 0;
+        size_t read_tail_length = 0;
     protected:
 
 //        dbg-specific fields
@@ -173,6 +175,9 @@ namespace ag {
         bool inf_left = false;
         bool inf_right = false;
     public:
+        size_t subread_length = 0;
+        size_t subread_count = 0;
+        size_t covering_read_count = 0;
         VertexData() = default;
         VertexData RC() const {return {*this};}
         static VertexData SPGData(bool cyclic, bool inf_left, bool inf_right);

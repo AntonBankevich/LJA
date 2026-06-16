@@ -296,7 +296,7 @@ int main(int argc, char **argv) {
     }
 
     if(params.getCheck("print-alignments") || params.getCheck("mult-correct")) {
-        ag::SaveReads(dir / "alignments.txt", readStorage);
+        readStorage.Save(dir / "alignments.txt");
 //        readStorage.printReadAlignments(logger, dir / "alignments.txt");
     }
 

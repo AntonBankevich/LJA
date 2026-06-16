@@ -17,6 +17,7 @@ namespace ag {
     private:
         std::vector <AlignedRead> reads;
         std::unordered_map <ConstEdgeId, std::vector<AlignedReadDirection>> starts;
+        std::unordered_map <ConstVertexId, std::vector<AlignedReadDirection>> reads_inside_vertices;
         mutable omp_lock_t writelock = {};
         ag::AlignedReadStorageMaintenance * maintenance = nullptr;
 
@@ -38,29 +39,17 @@ namespace ag {
                            std::vector<AlignedRead> reads);
         virtual ~AlignedReadStorage();
 
-        const std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(Edge &edge) const {
-            return starts.at(edge.getId());
-        }
-//        TODO: Make this free of global lock
-        const std::vector<AlignedReadDirection> &getOutgoingReads(Edge &edge) const {
-            lock();
-            const std::vector<AlignedReadDirection> & res = getOutgoingReadsLockFree(edge);
-            unlock();
-            return res;
-        }
+        //        TODO: Make this free of global lock
+        const std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(Edge &edge) const;
+        const std::vector<AlignedReadDirection> &getOutgoingReads(Edge &edge) const;
+        std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(Edge &edge);
+        std::vector<AlignedReadDirection> &getOutgoingReads(Edge &edge);
+        const std::vector<AlignedReadDirection> &getSubstringReadsLockFree(VertexId &ertex) const;
+        const std::vector<AlignedReadDirection> &getSubstringReads(VertexId vertex) const;
+        std::vector<AlignedReadDirection> &getSubstringReadsLockFree(VertexId vertex);
+        std::vector<AlignedReadDirection> &getSubstringReads(VertexId vertex);
 
-        std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(Edge &edge) {
-            return starts.at(edge.getId());
-        }
-
-        std::vector<AlignedReadDirection> &getOutgoingReads(Edge &edge) {
-            lock();
-            std::vector<AlignedReadDirection> & res = getOutgoingReadsLockFree(edge);
-            unlock();
-            return res;
-        }
-
-//        typename std::vector<AlignedRead>::iterator begin() { return reads.begin(); }
+        //        typename std::vector<AlignedRead>::iterator begin() { return reads.begin(); }
 //        typename std::vector<AlignedRead>::iterator end() { return reads.end(); }
         typename std::vector<AlignedRead>::const_iterator begin() const { return reads.begin(); }
         typename std::vector<AlignedRead>::const_iterator end() const { return reads.end(); }
@@ -107,30 +96,21 @@ namespace ag {
         AlignedReadStorageMaintenance(AssemblyGraph &graph, AlignedReadStorage &storage);
         AlignedReadStorageMaintenance(AlignedReadStorageMaintenance &&other) = default;
 
-        void fireAddEdge(Edge &edge) override {
-            if(!edge.isPrefix()) {
-                storage->lock();
-                storage->starts[edge.getId()] = {};
-                storage->unlock();
-            }
-        }
-        void fireDeleteEdge(Edge &edge) override {
-            if(!edge.isPrefix()) {
-                storage->lock();
-                storage->starts.erase(edge.getId());
-                storage->unlock();
-            }
-        }
+        void fireAddVertex(Vertex &vertex) override;
+        void fireDeleteVertex(Vertex &vertex) override;
+        void fireAddEdge(Edge &edge) override;
+        void fireDeleteEdge(Edge &edge) override;
+
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
 //        TODO: implement properly
-        void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) override;;
+        void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) override;
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &left_al, const AlignmentForm &right_al) override;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override;
-        void fireAddSupreVertex(Vertex &v, Edge &e) override;
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
 
         void fireAddRead(const AlignedRead &read) override;
         void fireRerouteRead(AlignedRead &read) override;

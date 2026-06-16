@@ -32,6 +32,7 @@ namespace ag {
         size_t zero_cnt = 0;
         size_t max_suffix_len;
         int num_of_ends = 0;
+        int num_of_paths = 0;
 
         void lock() const { eid->getStart().lock(); }
         void unlock() const { eid->getStart().unlock(); }
@@ -40,8 +41,9 @@ namespace ag {
         void changePathCnt(const Sequence &seq, int diff);
         void addPath(const Sequence &seq, int diff = 1);
         void removePath(const Sequence &seq) {changePathCnt(seq, -1);}
-        void directAddPath(const Sequence &seq, size_t cnt) {paths.emplace_back(seq, cnt);}
-        void clear() { paths.clear(); }
+        void directAddPath(const Sequence &seq, size_t cnt);
+        void clear();
+
         void removeZero();
         size_t countStartsWith(const Sequence &seq) const;
         void resetCodes(Vertex &start);
@@ -56,11 +58,12 @@ namespace ag {
         const_iterator end() const { return paths.end(); }
         iterator begin() { return paths.begin(); }
         iterator end() { return paths.end(); }
-        size_t countStartsWith(const GraphPath &path) const {
-            VERIFY(path.empty() || path.getStart() == eid->getFinish());
-            if(path.empty()) return countStartsWith(Sequence());
-            return countStartsWith(Sequence(path.getFSplits().begin(), path.getFSplits().end() - path.backEdge().getCode().size() + 1));
-        }
+        size_t getNumberOfEnds() const;
+
+        size_t getNumberOfPaths() const;
+
+        size_t countStartsWith(const GraphPath &path) const;
+
         bool empty() const;
         const Storage &getSuffixes() const {return paths;}
         Edge &getEdge() const {return *eid;}
@@ -116,7 +119,7 @@ namespace ag {
 
         void fireAddEdge(Edge &edge) override;
         void fireDeleteEdge(Edge &edge) override;
-        void fireAddSupreVertex(Vertex &v, Edge &e) override;
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireMergePath(const RAGraphPath &path, Vertex &vertex) override;
         void fireMergeLoop(const ag::GraphPath  &path, Vertex &vertex) override {}
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;

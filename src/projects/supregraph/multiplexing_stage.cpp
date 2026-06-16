@@ -1,6 +1,7 @@
 #include "multiplexing_stage.hpp"
 
 #include "path_spy.hpp"
+#include "assembly_graph/data_structures/aligned_read_statistics_tracker.hpp"
 
 void spg::CleanSupregraph(ag::AssemblyGraph &dbg) {
     std::vector<VertexId> ends;
@@ -70,10 +71,11 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
                                                                               reads_files + extra_reads_files, spg,
                                                                               false);
     dbg_storage.trackSuffixes(logger, threads, spg, 0, 10000000);
+    ag::AlignedReadStatisticsTracker SPGCoverage(logger, threads ,spg, dbg_storage, dbg_storage.getSuffixes());
     spg.disableHashing();
     ag::EdgeInfo edge_info = ag::EdgePrintStyles::defaultDotInfo() +
                                   ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler());
-    ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo(), edge_info);
+    ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo() + ag::VertexInfo::Labeler(SPGCoverage.getLabeler()), edge_info);
     std::experimental::filesystem::path figs = dir/ "figs";
     recreate_dir(figs);
     printer.printDot(figs / "supregraph_initial.dot", spg);
@@ -92,7 +94,7 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
         modificationLogger.detach();
     // TODO: make multiplexing work with any graph. Then somehow avoid the code below.
     for(ag::EdgeId eid : eids) {
-        Vertex &new_vertex = spg.addSupreVertex(*eid);
+        Vertex &new_vertex = spg.edgeToSupreVertex(*eid);
         if(classificator.isUnique(*eid))
             unique_storage.add(new_vertex);
     }
@@ -104,9 +106,10 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
 //    multiplexer.fullMultiplex(logger, threads);
     printer.setEdgeInfo(ag::EdgePrintStyles::spgLabeler() + ag::EdgePrintStyles::simpleColorer("black") +
                         ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler()));
-    printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() + ag::VertexPrintStyles::defaultDotColorer() +
-                        ag::VertexPrintStyles::defaultTooltiper() +
-                          ag::VertexInfo::Colorer(unique_storage.getColorer("white", "green")));
+    printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() + ag::VertexInfo::Labeler(SPGCoverage.getLabeler())+
+        ag::VertexPrintStyles::defaultDotColorer() + ag::VertexPrintStyles::defaultTooltiper() +
+        ag::VertexInfo::Colorer(unique_storage.getColorer("white", "green")));
+    printer.printDot(dir/"initial.dot", spg);
     size_t cnt = 1;
     while (!multiplexer.finished()) {
         auto res = multiplexer.process(logger, threads);

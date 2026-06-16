@@ -53,6 +53,8 @@ IterableStorage<PathVertexIterator> GraphPath::innerVertices() const & {
 }
 
 IterableStorage<PathIterator> GraphPath::edges() const & {
+    if (empty())
+        return {{firstPosition()}, firstPosition()};
     return {{firstPosition()}, {lastPosition()}};
 }
 
@@ -128,7 +130,7 @@ Segment<Edge> GraphPath::front() const {
 }
 
 PathPosition GraphPath::firstPosition() const {
-    return valid() ? PathPosition(getStart(), fsplits.begin(), rsplits.end()) : endPosition();
+    return valid() ? PathPosition(start, fsplits.begin(), rsplits.end()) : endPosition();
 }
 
 PathPosition GraphPath::lastPosition() const {
@@ -334,6 +336,10 @@ std::string GraphPath::str() const {
     if (!valid())
         return "";
     std::stringstream ss;
+    if (isLegacy()) {
+        ss << "Legacy:" << leftCut()  << "[" << getStart().getInnerId() << "(" << getStart().size() << ")]" <<rightCut();
+        return ss.str();
+    }
     ss << leftCut() << "[" << getStart().getInnerId() << "(" << getStart().size() << ")";
     for (const Edge &edge: edges()) {
         ss << "->" << edge.rc().getCode() << edge.rc().truncSize() << "(" << edge.getInnerId().eid << "|" << edge.getCoverage()<< "|" <<

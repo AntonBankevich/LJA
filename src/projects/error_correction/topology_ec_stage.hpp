@@ -92,8 +92,8 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     gfa_printer.printGFA(dir / "final_dbg.gfa", ag::Component(dbg), true);
     gfa_printer.setEdgeInfo(ag::EdgeInfo({readStorage.getSuffixes().labeler()},{},{}));
     dot_printer.printDot(dir / "final_dbg.dot", ag::Component(dbg));
-    ag::SaveReads(dir/"final_dbg.aln", readStorage);
-    ag::SaveReads(dir / "extra_read.aln", extra_reads);
+    readStorage.Save(dir/"final_dbg.aln");
+    extra_reads.Save(dir / "extra_read.aln");
     readStorage.getReads().printReadPaths(logger, dir / "corrected_reads.aln",
                                    dir / "final_dbg.gfa", dir / "corrected_reads.paths", k);
     extra_reads.printReadFasta(logger, dir / "pseudo_reads.fasta");

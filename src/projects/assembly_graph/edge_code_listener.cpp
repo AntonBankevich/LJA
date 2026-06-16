@@ -38,7 +38,7 @@ void EdgeCodeListener::fireResolveVertex(Vertex &core, const VertexResolutionRes
     }
 }
 
-void EdgeCodeListener::fireAddSupreVertex(Vertex &v, Edge &e) {
+void EdgeCodeListener::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
     v.rc().front().rc().edge_code = e.edge_code;
 }
 

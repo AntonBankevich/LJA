@@ -14,6 +14,6 @@ namespace ag {
         void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) override;
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;;
-        void fireAddSupreVertex(Vertex &v, Edge &e) override;
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
     };
 }

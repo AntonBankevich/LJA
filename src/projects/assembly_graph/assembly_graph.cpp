@@ -130,7 +130,7 @@ Edge &AssemblyGraph::addEdge(Vertex &start, Vertex &end, const Sequence &tseq, c
     return addEdge(start, end, tseq, rctseq, EdgeData(), eid, rcid);
 }
 
-Vertex &AssemblyGraph::addSupreVertex(Edge &edge) {
+Vertex &AssemblyGraph::edgeToSupreVertex(Edge &edge) {
     Locker<VertexId> locker = Locker<VertexId>::FromVector({edge.getStart().getId(), edge.getFinish().rc().getId()});
     VERIFY(!edge.isSuffix());
     VERIFY(!edge.isPrefix());
@@ -143,7 +143,7 @@ Vertex &AssemblyGraph::addSupreVertex(Edge &edge) {
     res.front().rc().setCorporeal(false);
     res.rc().front().setCorporeal(false);
     res.rc().front().rc().setCorporeal(false);
-    fireAddSupreVertex(res, edge);
+    fireEdgeToSupreVertex(res, edge);
     removeEdgeLockFree(edge);
     res.front().setCorporeal(true);
     res.front().rc().setCorporeal(true);

@@ -37,6 +37,9 @@ namespace ag {
         size_t cut_left = 0;
         size_t cut_right = 0;
 
+        GraphPath(VertexId start, VertexId rc_start, NuclDeck fsplits, NuclDeck rsplits, size_t cut_left = 0, size_t cut_right = 0) :
+                start(start), rc_start(rc_start), fsplits(std::move(fsplits)), rsplits(std::move(rsplits)),
+                cut_left(cut_left), cut_right(cut_right) {}
         GraphPath(Vertex &start, Vertex &rc_start, NuclDeck fsplits, NuclDeck rsplits, size_t cut_left = 0, size_t cut_right = 0) :
                 start(start.getId()), rc_start(rc_start.getId()), fsplits(std::move(fsplits)), rsplits(std::move(rsplits)),
                 cut_left(cut_left), cut_right(cut_right) {}
@@ -57,6 +60,10 @@ namespace ag {
 //        typedef Generator<CountingIterator<size_t>, Segment<Edge>> segment_iterator;
 
 
+        static GraphPath LegacyPath(VertexId start, VertexId rc_start, size_t cut_left = 0, size_t cut_right = 0) {
+            return {start.legacyId(), rc_start.legacyId(), NuclDeck(), NuclDeck(), cut_left, cut_right};
+        }
+
         GraphPath(Vertex &start, size_t cut_left = 0, size_t cut_right = 0) : start(start.getId()), rc_start(start.rc().getId()), // NOLINT(google-explicit-constructor)
                                             cut_left(cut_left), cut_right(cut_right) {
             VERIFY(this->start == start.getId());
@@ -74,6 +81,7 @@ namespace ag {
         RAGraphPath asRAPath() const;
         size_t calculateSize() const;
 
+        bool isLegacy() const {return valid() && start.isLegacy();}
         bool valid() const {return start != VertexId();}
         size_t leftCut() const {return cut_left;}
         size_t rightCut() const {return cut_right;}
@@ -145,7 +153,7 @@ namespace ag {
         SegmentIterator end() const;
 
 //        TODO: minimaze usage of this function. Use directions instead.
-        GraphPath RC() const {return {*rc_start, *start, rsplits, fsplits, cut_right, cut_left};}
+        GraphPath RC() const {return {rc_start, start, rsplits, fsplits, cut_right, cut_left};}
         GraphPath subPath(PathPosition from, PathPosition to) const;
         GraphPath subPath(PathPosition from) const;
         GraphPath operator+(const GraphPath &other) const;
@@ -166,7 +174,8 @@ namespace ag {
 
 
     inline std::ostream &operator<<(std::ostream &os, const GraphPath &path) {
-        if (path.valid())
+        // Change this when vertex hierarchy is saved
+        if (path.valid() && !path.isLegacy())
             return os << path.getStart().getInnerId() << " " << path.getFinish().rc().getInnerId() << " F:" <<
                       path.getFSplits() << " R:" << path.getRSplits() << " " << path.leftCut() << " " << path.rightCut();
         else
@@ -190,6 +199,8 @@ namespace ag {
                     operator--();
         }
     public:
+        PathPosition(VertexId cur, NuclDeck::Iterator fpos, NuclDeck::Iterator rpos) : vid(cur), fpos(fpos), rpos(rpos) {
+        }
         PathPosition(Vertex &cur, NuclDeck::Iterator fpos, NuclDeck::Iterator rpos) : vid(cur.getId()), fpos(fpos), rpos(rpos) {
         }
         PathPosition(NuclDeck::Iterator fpos, NuclDeck::Iterator rpos) : vid({}), fpos(fpos), rpos(rpos) {

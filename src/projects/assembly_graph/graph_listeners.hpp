@@ -25,7 +25,7 @@ namespace ag {
         virtual void fireAddEdge(Edge &e) {}
         virtual void fireDeleteVertex(Vertex &v) {}
         virtual void fireDeleteEdge(Edge &e) {}
-        virtual void fireAddSupreVertex(Vertex &v, Edge &e) {}
+        virtual void fireEdgeToSupreVertex(Vertex &v, Edge &e) {}
 
         virtual void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {}
         virtual void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) {}
@@ -127,11 +127,11 @@ namespace ag {
             }
         }
 
-        void fireAddSupreVertex(Vertex &v, Edge &e) {
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) {
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
-                listener->fireAddSupreVertex(v, e);
+                listener->fireEdgeToSupreVertex(v, e);
                 if(v != v.rc())
-                    listener->fireAddSupreVertex(v.rc(), e.rc());
+                    listener->fireEdgeToSupreVertex(v.rc(), e.rc());
             }
         }
 
@@ -190,9 +190,9 @@ namespace ag {
             unlock();
         }
 
-        void fireAddSupreVertex(Vertex &v, Edge &e) override {
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {
             lock();
-            *outp << "fireAddSupreVertex " << v << " " << e << std::endl;
+            *outp << "fireEdgeToSupreVertex " << v << " " << e << std::endl;
             unlock();
         }
 

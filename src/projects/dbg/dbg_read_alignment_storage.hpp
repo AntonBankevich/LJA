@@ -65,7 +65,7 @@ namespace dbg {
                 }
             }
         }
-        void fireAddSupreVertex(Vertex &v, Edge &e) override {
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {
             VERIFY(false);
         }
     };

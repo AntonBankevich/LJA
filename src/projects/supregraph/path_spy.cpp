@@ -184,7 +184,7 @@ void spg::OldPathTracker::addPath(const std::string &name, const std::vector<ag:
     }
 }
 
-void spg::OldPathTracker::fireAddSupreVertex(Vertex &v, Edge &e) {
+void spg::OldPathTracker::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
     auto it = vertex_watch.find(e.getStart().getId());
     if (it != vertex_watch.end())
         for (size_t pid : it->second) {

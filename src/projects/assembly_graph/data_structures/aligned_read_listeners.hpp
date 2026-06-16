@@ -1,5 +1,6 @@
 #pragma once
 #include "common/fire_listeners.hpp"
+#include "assembly_graph/aligned_read.hpp"
 namespace ag {
     class AlignedReadStorageFire;
 

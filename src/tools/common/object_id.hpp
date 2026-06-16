@@ -11,6 +11,7 @@ public:
     PointerT(T *ref) : ref(ref) {}
     PointerT(T &ref) : ref(&ref) {}
     PointerT() = default;
+    bool isNull() const {return ref == nullptr;}
     typedef std::true_type is_pointer;
     T* pointer() const {return ref;}
     T& operator*() const {return *ref;}
@@ -34,6 +35,8 @@ public:
     ConstObjectId(const ObjectId<T1, id_type> &other) : PointerT<const T>(other.pointer()), id(other.innerId()) {} // NOLINT(google-explicit-constructor)
     ConstObjectId() = default;
     bool valid() const {return id != id_type() && this->pointer() != nullptr;}
+    ConstObjectId<T, id_type> legacyId() const {return {id, nullptr};}
+    bool isLegacy() const {return this->isNull();}
     id_type innerId() const {return id;}
     size_t hash() const {return std::hash<id_type>()(id);}
     bool operator<(const ConstObjectId &other) const {return id < other.id;}
@@ -64,6 +67,8 @@ public:
     ObjectId(const ObjectId<T1, id_type> &other) : PointerT<T>(other.reference()), id(other.innerId()) {} // NOLINT(google-explicit-constructor)
     ObjectId() = default;
     bool valid() const {return id != id_type() && this->pointer() != nullptr;}
+    ObjectId<T, id_type> legacyId() const {return {id, nullptr};}
+    bool isLegacy() const {return this->isNull();}
     id_type innerId() const {return id;}
     size_t hash() const {return std::hash<id_type>()(id);}
     bool operator<(const ObjectId &other) const {return id < other.id;}
