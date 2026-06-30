@@ -14,12 +14,13 @@ namespace ag {
     class PathPosition;
 
 //    Invariants for normal paths. They do not have to be always fulfilled but need to keep track of them.
-//    1. If edge in the path is neither first, nor last, its full sequence is inside the sequence.
+//    1. If edge in the path is neither first, nor last, its full sequence is a substring of the path sequence.
 //    2. No prefix edges on start.
 //    3. No suffix edges on end.
 //    4. In supregraph any path either contains core vertex or consists of a single vertex,
 //    which is one of the minimal (by inclusion) vertices, containing the sequence.
 //    5. In DBG any path is the shortest path containing the sequence
+//    6. Legacy path may consist of a single vertex that is no longer present in the graph
     class GraphPath {
     public:
 //        friend class PathIterator;

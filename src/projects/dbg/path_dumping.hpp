@@ -9,36 +9,87 @@
 #include "dbg_graph_aligner.hpp"
 #include "assembly_graph/visualization.hpp"
 
-namespace dbg {
+namespace ag {
     //TODO rewrite for AssemblyGraph
-    class AlignedContigStorage {
+    class AlignedContigStorage : ResolutionListener {
     private:
-        std::unordered_map<ag::ConstEdgeId, std::vector<ag::AlignmentChain<Contig, dbg::Edge>>> alignments;
-        std::vector<Contig*> stored_contigs;
-        const dbg::SparseDBG * dbg;
+        std::unordered_map<ag::ConstEdgeId, std::vector<ag::AlignmentChain<Contig, Edge>>> edge_alignments;
+        std::unordered_map<ag::ConstVertexId, std::vector<ag::AlignmentChain<Contig, Vertex>>> vertex_alignments;
+        std::vector<Contig> contigs;
+        omp_lock_t writelock = {};
 
+        void lock() {omp_set_lock(&writelock);}
+        void unlock() {omp_unset_lock(&writelock);}
     public:
-        explicit AlignedContigStorage(dbg::SparseDBG & dbg_) : dbg(&dbg_) {
+        std::vector<Contig>::iterator begin() {return contigs.begin();}
+        std::vector<Contig>::iterator end() {return contigs.end();}
+        explicit AlignedContigStorage(AssemblyGraph & graph) : ResolutionListener(graph, "AlignedContigsStorage") {
         }
 
         AlignedContigStorage(const AlignedContigStorage &) = delete;
 
         AlignedContigStorage(AlignedContigStorage &&other)  noexcept = default;
 
-        ~AlignedContigStorage() {
-            for(Contig * contig : stored_contigs) {
-                delete contig;
-            }
-        }
-
-        void addContig(const Contig &contig);
-        void Fill(size_t threads, dbg::KmerIndex &index);
+        void addContig(Contig &&contig);
         void print(std::ostream &os);
         std::function<std::string(const dbg::Edge &edge)> pathInfo() const;
         std::function<std::string(const dbg::Edge &edge)> colorer(const std::string &color = "brown") const;
         ag::EdgeInfo edgeInfo() const {return ag::EdgeInfo::Tooltiper(pathInfo()) + ag::EdgeInfo::Colorer(colorer());}
+
+        template<class T>
+        std::unordered_map<typename T::const_pointer_type, std::vector<ag::AlignmentChain<Contig, T>>> GroupByContig(const std::vector<ag::AlignmentChain<Contig, T>> &rec_list);
+        void Fill(logging::Logger &logger, size_t threads, dbg::KmerIndex &index);
+
+        void fireAddVertex(Vertex &v) override {lock(); vertex_alignments[v.getId()] = {}; unlock();}
+        void fireAddEdge(Edge &e) override {lock(); edge_alignments[e.getId()] = {}; unlock();}
+        void fireDeleteVertex(Vertex &v) override {lock(); vertex_alignments.erase(v.getId()); unlock();}
+        void fireDeleteEdge(Edge &e) override {lock(); edge_alignments.erase(e.getId()); unlock();}
+
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
+
+        // virtual void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {
+        //     lock();
+        //     std::vector<AlignmentChain<Contig, Vertex>> &new_als = vertex_alignments.at(new_vertex.getId());
+        //     size_t shift = 0;
+        //     size_t last_size = 0;
+        //     for (Edge &edge: path.edges()) {
+        //         vertex_alignments[edge.getFinish().getId()].emplace_back(edge.getAlignment());
+        //     }
+        //     unlock();
+        // }
+        virtual void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) {VERIFY(false);}
+        virtual void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {}
+        virtual void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
+                                         const AlignmentForm &left_al, const AlignmentForm &right_al) {}
+        virtual void fireSplitEdge(Edge &edge, const RAGraphPath &split) {VERIFY(false);}
+
+        virtual void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {}
+
+        virtual void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {};
+
     };
 
+    template<class T>
+    std::unordered_map<typename T::const_pointer_type, std::vector<AlignmentChain<Contig, T>>> AlignedContigStorage::
+    GroupByContig(const std::vector<AlignmentChain<Contig, T>> &rec_list) {
+        std::vector<std::pair<typename T::const_pointer_type, std::vector<ag::AlignmentChain<Contig, T>>>> res;
+        std::vector<ag::AlignmentChain<Contig, T> > next;
+        for(ag::AlignmentChain<Contig, T> rec : rec_list) {
+            if(!next.empty() && (next[0].seg_to.contig() != rec.seg_to.contig())) {
+                res.emplace_back(next[0].seg_to.contig().getId(), std::move(next));
+                next.clear();
+            }
+            next.emplace_back(rec);
+        }
+        if(!next.empty()) {
+            res.emplace_back(next[0].seg_to.contig().getId(), std::move(next));
+        }
+        return {res.begin(), res.end()};
+    }
+}
+
+namespace dbg {
+    void FillAlignmentsStorage(logging::Logger &logger, size_t threads, ag::AlignedContigStorage &storage,dbg::KmerIndex &index);
     void PrintPaths(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, const std::string &stage,
                 dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &readStorage, const io::Library &paths_lib, const io::Library &references_lib, bool small);
 }

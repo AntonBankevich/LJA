@@ -1,6 +1,8 @@
 #include "multiplexing_stage.hpp"
+#include "assembly_graph/dll_path.hpp"
 
 #include "path_spy.hpp"
+#include "assembly_graph/dll_path_storage.hpp"
 #include "assembly_graph/data_structures/aligned_read_statistics_tracker.hpp"
 
 void spg::CleanSupregraph(ag::AssemblyGraph &dbg) {
@@ -51,6 +53,18 @@ void PreparePathTracker(logging::Logger &logger, size_t threads, dbg::SparseDBG 
     }
 }
 
+void PrepareDLLPathTracker(logging::Logger &logger, size_t threads, dbg::SparseDBG &spg, size_t w,
+            const io::Library &paths, ag::DLLAlignmentStorage &path_tracker) {
+    std::vector<Contig> contigs = io::SeqReader(paths).readAllAsContigs();
+    dbg::KmerIndex index(spg);
+    index.fillAnchors(logger, threads, spg, w);
+    for (Contig &contig : contigs) {
+        std::vector<ag::AlignmentChain<Contig, ag::Edge>> al = index.carefulAlign(contig);
+        path_tracker.addContig(contig, al);
+    }
+}
+
+
 std::unordered_map<std::string, std::experimental::filesystem::path>
 spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, size_t k,
                      size_t w, const io::Library &graph_gfa, const io::Library &reads_files,
@@ -83,11 +97,16 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     UniqueVertexStorage unique_storage(spg);
     OldVertexTracker vertex_tracker(spg, debug);
     OldPathTracker path_tracker(spg, vertex_tracker, printer, dir/"state_dump");
+    ag::DLLAlignmentStorage dll_tracker(spg);
+
     if (debug) {
-        PreparePathTracker(logger, threads, spg, w, paths, path_tracker);
+        // PreparePathTracker(logger, threads, spg, w, paths, path_tracker);
+        PrepareDLLPathTracker(logger, threads, spg, w, paths, dll_tracker);
+        dll_tracker.print(logger.debug());
     } else {
         vertex_tracker.detach();
         path_tracker.detach();
+        dll_tracker.detach();
     }
     ag::LoggingListener modificationLogger(spg, logger.getLoggerStream(logging::LogLevel::trace));
     if (!debug)
@@ -109,7 +128,9 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() + ag::VertexInfo::Labeler(SPGCoverage.getLabeler())+
         ag::VertexPrintStyles::defaultDotColorer() + ag::VertexPrintStyles::defaultTooltiper() +
         ag::VertexInfo::Colorer(unique_storage.getColorer("white", "green")));
+    printer += dll_tracker.getPrinter();
     printer.printDot(dir/"initial.dot", spg);
+    ds::DoublyLinkedList<Segment<Vertex>> segments;
     size_t cnt = 1;
     while (!multiplexer.finished()) {
         auto res = multiplexer.process(logger, threads);
@@ -135,7 +156,7 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     logger.info() << "Printing final graph" << std::endl;
     printer.printDot(dir / "supregraph_final.dot", spg);
     if(debug) PrintConnectedComponents(printer, dir / "split", spg);
-    printer.printDirectGFA(dir / "supregraph_final.gfa", spg);
+    ag::Printer(ag::VertexPrintStyles::defaultLabeler()).printDirectGFA(dir / "supregraph_final.gfa", spg);
     return {{"supregraph_final", dir / "supregraph_final.gfa"}};
 }
 

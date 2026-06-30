@@ -156,11 +156,13 @@ public:
     size_t left = 0;
     size_t right = 0;
     Segment(T &contig_, size_t left_, size_t right_) : left(left_), right(right_), contig_ptr(&contig_){
-        VERIFY(0 <= left and left <= right and right <= contig_ptr->truncSize())
+        VERIFY(0 <= left && left <= right && right <= contig_ptr->truncSize());
+        VERIFY(contig_ptr->truncSize() < size_t(-1) / 2);
     }
 
     Segment(T &contig) : contig_ptr(&contig), left(0), right(contig.truncSize()) {
-        VERIFY(0 <= left and left <= right and right <= contig_ptr->truncSize())
+        VERIFY(0 <= left && left <= right && right <= contig_ptr->truncSize());
+        VERIFY(contig_ptr->truncSize() < size_t(-1) / 2);
     }
 
     Segment() : contig_ptr(nullptr), left(0), right(0) {}
@@ -230,6 +232,16 @@ public:
 
     bool operator!=(const Segment<T> &other) const {
         return contig() != other.contig() || left != other.left || right != other.right;
+    }
+
+    Segment<T> prefix(size_t len) const {
+        VERIFY(len <= size());
+        return {*contig_ptr, left, left + len};
+    }
+
+    Segment<T> suffix(size_t len) const {
+        VERIFY(len <= size());
+        return {*contig_ptr, right - len, right};
     }
 
     Segment<T> shrinkRightBy(size_t len) const {
@@ -380,6 +392,10 @@ public:
 
     Segment<T> segment(size_t left, size_t right) const {
         return Segment<T>(*(static_cast<const T*>(this)), left, right);
+    }
+
+    Segment<T> segment(size_t left, size_t right) {
+        return Segment<T>(*(static_cast<T*>(this)), left, right);
     }
 
     Segment<T> suffix(int pos) const {

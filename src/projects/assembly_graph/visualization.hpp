@@ -277,7 +277,7 @@ namespace ag {
                 os << VertexId.innerId();
                 os << " [";
                 os << "label=\"" + label + "\" ";
-                os << "labeltooltip=\"" + tooltip + "\" ";
+                os << "tooltip=\"" + tooltip + "\" ";
                 os << "style=filled fillcolor=\"" << (component.covers(v) ? color : "yellow") << "\"]\n";
             }
             for (Edge &edge: component.edges()) {

@@ -306,7 +306,7 @@ namespace dbg {
     }
 
     SparseDBG LoadDBGFromEdgeSequences(logging::Logger &logger, size_t threads, const io::Library &lib, RollingHash &hasher) {
-        logger.info() << "Loading graph from fasta" << std::endl;
+        logger.info() << "Loading graph from " << lib << std::endl;
         dbg::SeqReader reader(lib, logger, threads);
         ParallelRecordCollector<std::tuple<Sequence, Edge::id_type, Edge::id_type, KWH, KWH>> edges(threads);
         ParallelRecordCollector<std::tuple<Vertex::id_type, KWH>> vertices(threads);
@@ -357,7 +357,10 @@ namespace dbg {
                 index.addVertex(newv);
             }
         }
-        for(std::tuple<Sequence, Edge::id_type, Edge::id_type, KWH, KWH> edge : edges) {
+        std::vector<std::tuple<Sequence, Edge::id_type, Edge::id_type, KWH, KWH>> edge_list = edges.collect();
+#pragma omp parallel for schedule(dynamic) shared(edges, res, index)
+        for(size_t i = 0; i < edge_list.size(); i++) {
+            std::tuple<Sequence, Edge::id_type, Edge::id_type, KWH, KWH> edge = edge_list[i];
             Edge::id_type eid = std::get<1>(edge);
             Edge::id_type rceid = std::get<2>(edge);
             Vertex &start = index.getVertex(std::get<3>(edge));

@@ -143,11 +143,10 @@ void AlignedReadStorageMaintenance::fireInvalidateRead(AlignedRead &read) {
 AlignedReadStorageMaintenance::AlignedReadStorageMaintenance(AssemblyGraph &graph,
                                                              AlignedReadStorage &storage) :
         AlignedReadStorageListener(storage, "AlignedReadStorageMaintenance"), ResolutionListener(graph, "AlignedReadStorageMaintenance"), storage(&storage) {
-    for(Edge &edge : graph.edges())
-        if(!edge.isPrefix())
-            storage.starts[edge.getId()] = {};
     for(Vertex &vertex : graph.vertices())
-        storage.reads_inside_vertices[vertex.getId()] = {};
+        fireAddVertex(vertex);
+    for(Edge &edge : graph.edges())
+        fireAddEdge(edge);
     for(AlignedRead &read: storage) {
         if(!read.getPath().empty()) {
             storage.starts[read.getPath().frontEdge().getId()].emplace_back(read.forward());
@@ -529,6 +528,7 @@ AlignedReadStorage &AlignedReadStorage::operator=(AlignedReadStorage &&other) no
     AlignedReadStorageFire::operator=(std::move(other));
     std::swap(reads, other.reads);
     std::swap(starts, other.starts);
+    std::swap(reads_inside_vertices, other.reads_inside_vertices);
     std::swap(writelock, other.writelock);
     std::swap(maintenance, other.maintenance);
     if(maintenance != nullptr)
