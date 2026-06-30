@@ -275,9 +275,9 @@ int main(int argc, char **argv) {
         dbg::SeqReader reader(paths_lib, logger, threads);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.addContig(contig);
+            storage.addContig(std::move(contig));
         }
-        storage.Fill(threads, index);
+        storage.Fill(logger, threads, index);
         {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
@@ -311,9 +311,9 @@ int main(int argc, char **argv) {
         dbg::SeqReader reader1(paths_lib, logger, threads);
         for(StringContig scontig : reader1) {
             Contig contig = scontig.makeContig();
-            storage.addContig(contig);
+            storage.addContig(std::move(contig));
         }
-        storage.Fill(threads, index);
+        storage.Fill(logger, threads, index);
         dbg::SeqReader reader(paths_lib, logger, threads);
         size_t cnt = 0;
         for(StringContig scontig : reader) {
@@ -393,7 +393,7 @@ int main(int argc, char **argv) {
         dbg::SeqReader reader(paths_lib, logger, threads);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.addContig(contig);
+            storage.addContig(std::move(contig));
             for(auto & seg_rec : seg_recs) {
                 if(std::get<0>(seg_rec) == contig.getInnerId()) {
                     segs.emplace_back(contig.getSeq().Subseq(std::get<1>(seg_rec), std::min(contig.truncSize(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
@@ -402,7 +402,7 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        storage.Fill(threads, index);
+        storage.Fill(logger, threads, index);
         Printer printer(VertexPrintStyles::defaultDotInfo(),
                                    EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
         for(Contig &seg : segs) {
@@ -424,9 +424,9 @@ int main(int argc, char **argv) {
         dbg::SeqReader reader(genome_lib, logger, threads);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.addContig(contig);
+            storage.addContig(std::move(contig));
         }
-        storage.Fill(threads, index);
+        storage.Fill(logger, threads, index);
         {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;

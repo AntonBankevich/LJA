@@ -4,7 +4,7 @@
 using namespace ag;
 size_t stage_num = 0;
 
-void ag::AlignedContigStorage::addContig(Contig &&contig) {
+void ag::AlignedContigStorage::addContig(Contig contig) {
     contigs.emplace_back(std::move(contig));
     contigs.emplace_back(contigs.back().RC());
 }

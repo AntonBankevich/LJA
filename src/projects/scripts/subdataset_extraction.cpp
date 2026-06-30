@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
-    AlignedContigStorage storage(dbg);
+    ag::AlignedContigStorage storage(dbg);
     for(StringContig stringContig : dbg::SeqReader(ref_lib, logger, threads)) {
         storage.addContig(stringContig.makeContig());
     }
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
             std::cout << contig.getInnerId() << " " << contig.truncSize() << " " << index.carefulAlign(contig).size() << std::endl;
-            storage.addContig(contig);
+            storage.addContig(std::move(contig));
             std::vector<ag::AlignmentChain<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
             subdatasets.emplace_back(ag::Component::neighbourhood(dbg, contig_al, k + radius));
             subdatasets.back().id = contig.getInnerId();
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
         storage.addContig(stringContig.makeContig());
     }
     logger.info() << "Filling path storage" << std::endl;
-    storage.Fill(threads, index);
+    storage.Fill(logger, threads, index);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
     ag::Printer printer(ag::EdgePrintStyles::defaultDotInfo() + storage.edgeInfo() + ag::EdgeInfo::Tooltiper(readStorage.getSuffixes().labeler()));

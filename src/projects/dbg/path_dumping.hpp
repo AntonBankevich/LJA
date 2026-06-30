@@ -30,7 +30,7 @@ namespace ag {
 
         AlignedContigStorage(AlignedContigStorage &&other)  noexcept = default;
 
-        void addContig(Contig &&contig);
+        void addContig(Contig contig);
         void print(std::ostream &os);
         std::function<std::string(const dbg::Edge &edge)> pathInfo() const;
         std::function<std::string(const dbg::Edge &edge)> colorer(const std::string &color = "brown") const;
