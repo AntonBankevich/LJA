@@ -71,20 +71,20 @@ void SuffixRecord::removeZero() {
     this->zero_cnt = 0;
 }
 
-void SuffixRecord::lockFreeChangePathCnt(const Sequence &seq, int diff) {
+void SuffixRecord::lockFreeChangePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff) {
     num_of_paths += diff;
-    if(seq.empty()) {
+    if(min_seq.empty()) {
         VERIFY(num_of_ends + diff >= 0);
         num_of_ends += diff;
         return;
     }
     if (diff == 0) return;
     if(diff > 0) {
-        addPath(seq, diff);
+        addPath(min_seq, diff);
         return;
     }
     for (auto & path : paths) {
-        if(path.first == seq && path.second + diff >= 0) {
+        if((path.first == min_seq || path.first == max_seq) && path.second + diff >= 0) {
             path.second += diff;
             updateZero(path.second - diff, path.second);
             diff = 0;
@@ -94,31 +94,20 @@ void SuffixRecord::lockFreeChangePathCnt(const Sequence &seq, int diff) {
     std::vector<size_t> subseqs;
     for (size_t i = 0; i < paths.size(); i++) {
         std::pair<Sequence, int> &path = paths[i];
-        if(seq.startsWith(path.first)) {
-            subseqs.push_back(i);
-        }
-    }
-    if(diff > 0) {
-        paths.emplace_back(seq, diff);
-        if (zero_cnt > paths.size() / 3) {
-            removeZero();
-        }
-        return;
-    }
-    std::sort(subseqs.begin(), subseqs.end(), [this](size_t a, size_t b){return paths[a].first.size() < paths[b].first.size();});
-    while(!subseqs.empty() && diff != 0) {
-        if(paths[subseqs.back()].second != 0) {
-            if (diff + paths[subseqs.back()].second >= 0) {
-                paths[subseqs.back()].second += diff;
-                updateZero(1, paths[subseqs.back()].second);
+        if(path.second != 0 && max_seq.startsWith(path.first) && path.first.startsWith(min_seq) ) {
+            VERIFY(path.second > 0);
+            if (path.second + diff >= 0) {
+                path.second += diff;
+                updateZero(path.second - diff, path.second);
                 diff = 0;
+                return;
             } else {
-                diff += paths[subseqs.back()].second;
-                paths[subseqs.back()].second = 0;
+                diff += path.second;
+                path.second += 0;
                 updateZero(1, 0);
             }
+            subseqs.push_back(i);
         }
-        subseqs.pop_back();
     }
     VERIFY_MSG(diff == 0, "Attempting to remove path that is not present in the record.");
     if (zero_cnt > paths.size() / 3) {
@@ -126,9 +115,9 @@ void SuffixRecord::lockFreeChangePathCnt(const Sequence &seq, int diff) {
     }
 }
 
-void SuffixRecord::changePathCnt(const Sequence &seq, int diff) {
+void SuffixRecord::changePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff) {
     lock();
-    lockFreeChangePathCnt(seq, diff);
+    lockFreeChangePathCnt(min_seq, max_seq, diff);
     unlock();
 }
 
@@ -166,7 +155,7 @@ void SuffixRecord::resetCodes(Vertex &start) {
             continue;
         GraphPath path(start, rec.first);
         path.resetEdgeCodes();
-        changePathCnt(Sequence(path.getFSplits()), rec.second);
+        changePathCnt(Sequence(path.getFSplits()), Sequence(path.getFSplits()), rec.second);
     }
 }
 
@@ -202,19 +191,25 @@ void SuffixTracker::processPath(PathPosition left, PathPosition right, int diff)
         clen -= edge.truncSize();
         ++from_pos;
         if(!edge.isPrefix()) {
-            SuffixRecord &erec = edge_data.at(edge.getId());
+            SuffixRecord &erec = getSuffixRecord(edge);
             while (to_pos < right && (clen < erec.getMaxSuffixLength())) {
                 Edge &new_edge = to_pos.nextEdge();
                 clen += new_edge.truncSize();
                 to_pos += new_edge;
             }
             VERIFY(to_pos <= right);
+            VERIFY(!to_pos.prevEdge().isSuffix());
 //            if(to_pos > right)
 //                to_pos = right;
             if (clen >= min_len) {
-                erec.changePathCnt(
-                        read_seq.Subseq(from_pos.getFPos() - left.getFPos(), to_pos.getFPos() - left.getFPos()),
-                        diff);
+                if (from_pos == to_pos) {
+                    erec.changePathCnt(Sequence(), Sequence(), diff);
+                } else {
+                    Sequence subseq_max_code = read_seq.Subseq(from_pos.getFPos() - left.getFPos(),
+                            to_pos.getFPos() - left.getFPos());
+                    erec.changePathCnt(subseq_max_code.Subseq(0, subseq_max_code.size() - to_pos.prevEdge().getCode().size() + 1),
+                        subseq_max_code, diff);
+                }
             }
         }
     }
@@ -274,10 +269,10 @@ void SuffixTracker::fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge)
     int ends = 0;
     for(Edge &e : path.edges()) {
         if (!e.isPrefix())
-            ends += edge_data.at(e.getId()).num_of_ends;
+            ends += getSuffixRecord(e).num_of_ends;
     }
-    SuffixRecord &erec = edge_data.at(new_edge.getId());
-    SuffixRecord &lasterec = edge_data.at(path.backEdge().getId());
+    SuffixRecord &erec = getSuffixRecord(new_edge);
+    SuffixRecord &lasterec = getSuffixRecord(path.backEdge());
     erec.paths = std::move(lasterec.paths);
     erec.num_of_ends = ends;
     erec.num_of_paths = lasterec.num_of_paths;
@@ -287,8 +282,8 @@ void SuffixTracker::fireMergePath(const RAGraphPath &path, Vertex &vertex) {
     VERIFY(vertex != path.getFinish());
     VERIFY(vertex != path.getStart());
     VERIFY(!path.backEdge().isPrefix());
-    SuffixRecord &old_rec = edge_data.at(path.backEdge().getId());
-    SuffixRecord &new_rec = edge_data.at(vertex.front().getId());
+    SuffixRecord &old_rec = getSuffixRecord(path.backEdge());
+    SuffixRecord &new_rec = getSuffixRecord(vertex.front());
     new_rec.paths = std::move(old_rec.paths);
     new_rec.num_of_ends = old_rec.num_of_ends;
     new_rec.num_of_paths = old_rec.num_of_paths;
@@ -305,9 +300,9 @@ void SuffixTracker::fireMergePath(const RAGraphPath &path, Vertex &vertex) {
 void
 SuffixTracker::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right, const AlignmentForm &,
                                    const AlignmentForm &) {
-    SuffixRecord &erec = edge_data.at(new_edge.getId());
-    SuffixRecord &rrec = edge_data.at(right.getId());
-    SuffixRecord &lrec = edge_data.at(left.getId());
+    SuffixRecord &erec = getSuffixRecord(new_edge);
+    SuffixRecord &rrec = getSuffixRecord(right);
+    SuffixRecord &lrec = getSuffixRecord(left);
     erec.paths = std::move(rrec.paths);
     erec.num_of_ends = lrec.num_of_ends + rrec.num_of_ends;
     erec.num_of_paths = lrec.num_of_paths + rrec.num_of_paths;
@@ -315,11 +310,11 @@ SuffixTracker::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right, cons
 }
 
 void SuffixTracker::fireSplitEdge(Edge &edge, const RAGraphPath &split) {
-    SuffixRecord &erec = edge_data.at(edge.getId());
-    SuffixRecord &last_rec = edge_data.at(split.backEdge().getId());
+    SuffixRecord &erec = getSuffixRecord(edge);
+    SuffixRecord &last_rec = getSuffixRecord(split.backEdge());
     last_rec.paths = std::move(erec.paths);
     for(Edge &e : split.edges()) {
-        edge_data.at(e.rc().getId()).lockFreeChangePathCnt(Sequence(), storage->startCnt(e));
+        getSuffixRecord(e.rc()).lockFreeChangePathCnt(Sequence(), Sequence(), storage->startCnt(e));
     }
     last_rec.num_of_paths = erec.num_of_paths;
 }
@@ -327,7 +322,7 @@ void SuffixTracker::fireSplitEdge(Edge &edge, const RAGraphPath &split) {
 void SuffixTracker::fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {
     std::function<void(size_t, Edge &)> task = [this](size_t, Edge &e) {
         if (!e.isPrefix())
-            edge_data.at(e.getId()).resetCodes(e.getFinish());
+            getSuffixRecord(e).resetCodes(e.getFinish());
     };
     processObjects(graph.edges().begin(), graph.edges().end(), logger, threads, task);
 }
@@ -361,40 +356,39 @@ bool SuffixTracker::fireCheckConsistency() {
 }
 
 void SuffixTracker::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
-    SuffixRecord &erec = edge_data.at(e.getId());
-    SuffixRecord & new_rec = edge_data.at(v.front().getId());
+    SuffixRecord &erec = getSuffixRecord(e);
+    SuffixRecord & new_rec = getSuffixRecord(v.front());
     new_rec.paths = std::move(erec.paths);
     new_rec.num_of_paths = erec.num_of_paths - erec.num_of_ends;
 }
 
 void SuffixTracker::fireAddEdge(Edge &edge) {
-//        TODO: get rid of these global locks
     if (edge.isPrefix())
         return;
-    storage->lock();
+    lock();
     edge_data.emplace(std::piecewise_construct,
                       std::forward_as_tuple(edge.getId()),
                       std::forward_as_tuple(edge, max_len));
-    storage->unlock();
+    unlock();
 }
 
 void SuffixTracker::fireDeleteEdge(Edge &edge) {
     if (edge.isPrefix())
         return;
-    storage->lock();
+    lock();
     edge_data.erase(edge.getId());
-    storage->unlock();
+    unlock();
 }
 
 void SuffixTracker::fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {
     for (Edge &inc: core.incoming()) {
-        const SuffixRecord &rec = edge_data.at(inc.getId());
+        const SuffixRecord &rec = getSuffixRecord(inc);
         std::unordered_map<unsigned char, std::pair<size_t, SuffixRecord *>> rec_map;
         for(Edge &out : core) {
             if(!resolution.contains(inc, out))
                 continue;
-            rec_map[out.firstNucl()] = {out.getCode().size(), &edge_data.at(resolution.get(inc, out).front().getId())};
-            size_t len = edge_data.at(inc.getId()).max_suffix_len;
+            rec_map[out.firstNucl()] = {out.getCode().size(), &getSuffixRecord(resolution.get(inc, out).front())};
+            size_t len = getSuffixRecord(inc).max_suffix_len;
             len -= std::min(len, out.truncSize());
             rec_map[out.firstNucl()].second->max_suffix_len = len;
         }

@@ -37,10 +37,10 @@ namespace ag {
         void lock() const { eid->getStart().lock(); }
         void unlock() const { eid->getStart().unlock(); }
         void updateZero(size_t old_val, size_t new_val);
-        void lockFreeChangePathCnt(const Sequence &seq, int diff);
-        void changePathCnt(const Sequence &seq, int diff);
+        void lockFreeChangePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff);
+        void changePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff);
         void addPath(const Sequence &seq, int diff = 1);
-        void removePath(const Sequence &seq) {changePathCnt(seq, -1);}
+        void removePath(const Sequence &min_seq, const Sequence &max_seq) {changePathCnt(min_seq, max_seq, -1);}
         void directAddPath(const Sequence &seq, size_t cnt);
         void clear();
 
@@ -76,6 +76,7 @@ namespace ag {
 //For each occurence of vertex in a read only one subpath is stored
 //The subpath is chosen as the shortest path such that total length of edges, starting from the second is at least max_length
 //If read stops before subpath of required length is found, read suffix is stored regardless of its length
+//For current implementation min_len=0 . Otherwise num_of_ends is calculated incorrectly.
     class SuffixTracker : public AlignedReadStorageListener, public ResolutionListener {
     protected:
         std::unordered_map<ConstEdgeId, SuffixRecord> edge_data;
@@ -87,6 +88,10 @@ namespace ag {
         size_t max_len;
 
     private:
+        mutable omp_lock_t writelock = {};
+        void lock() const { omp_set_lock(&writelock); }
+        void unlock() const { omp_unset_lock(&writelock); }
+
 //        processPath can only be called when vertex set can not be changed, so no graph modification
         void
         processPath(PathPosition left, PathPosition right, int diff);
@@ -102,9 +107,22 @@ namespace ag {
         SuffixTracker &operator=(const SuffixTracker &other) = delete;
         SuffixTracker(const SuffixTracker &other) = delete;
 
+//        All access to edge_data (including its mutation via fireAddEdge/fireDeleteEdge) must go through
+//        this method (or the lock/unlock pair guarding fireAddEdge/fireDeleteEdge directly) since
+//        MergePathsToEdges and other graph operations can invoke listeners from multiple threads concurrently.
+        SuffixRecord &getSuffixRecord(const Edge &edge) {
+            VERIFY(!edge.isPrefix());
+            lock();
+            SuffixRecord &res = edge_data.at(edge.getId());
+            unlock();
+            return res;
+        }
         const SuffixRecord &getSuffixRecord(const Edge &edge) const {
             VERIFY(!edge.isPrefix());
-            return edge_data.at(edge.getId());
+            lock();
+            const SuffixRecord &res = edge_data.at(edge.getId());
+            unlock();
+            return res;
         }
         size_t getMinLen() const { return min_len; }
         size_t getMaxLen() const { return max_len; }

@@ -49,6 +49,7 @@ public:
             }
         }
         progressBar.finish();
+        reads_storage.checkConsistency();
         reads_storage.applyCorrections(logger, threads);
         for(dbg::Edge &edge: dbg.edges()) edge.is_reliable = false;
         logger.info() << "Corrected " << cnt.get() << " reads using algorithm " << algorithm.getName() << std::endl;
