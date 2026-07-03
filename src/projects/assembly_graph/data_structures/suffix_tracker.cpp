@@ -217,7 +217,7 @@ void SuffixTracker::processPath(PathPosition left, PathPosition right, int diff)
 
 void SuffixTracker::fillFromStorage(logging::Logger &logger, size_t threads) {
     logger.info() << "Collecting and storing read suffixes" << std::endl;
-    omp_set_num_threads(1);
+    omp_set_num_threads(threads);
 #pragma omp parallel for default(none) shared(storage) schedule(dynamic, 100)
     for (size_t i = 0; i < storage->size(); i++) {
         if(!(*storage)[i].getPath().empty())
