@@ -116,11 +116,8 @@ namespace dbg {
                          const std::vector<ag::AlignedReadStorage *> &storages) {
         logger.info() << "Removing uncovered edges from the graph" << std::endl;
         SplitUncovered(logger, threads, dbg, storages);
-        storages.front()->checkConsistency();
         SimpleRemoveUncovered(logger, threads, dbg);
-        storages.front()->checkConsistency();
         ag::MergeAllToEdges(logger, threads, dbg);
-        storages.front()->checkConsistency();
         for(Edge &edge: dbg.edges()) edge.is_reliable = false;
         logger.info() << "Finished removing uncovered edges. New graph size: " << dbg.size() << " vertices, " << dbg.edgeCount() << " edges" << std::endl;
     }

@@ -257,9 +257,7 @@ SuffixTracker::SuffixTracker(AlignedReadStorage &storage, AssemblyGraph &graph,
         min_len(_min_len), max_len(_max_len) {
     for(Edge &e : graph.edges()) {
         if(!e.isPrefix())
-            edge_data.emplace(std::piecewise_construct,
-                          std::forward_as_tuple(e.getId()),
-                          std::forward_as_tuple(e, max_len));
+            edge_data.insert(e.getId(), std::make_unique<SuffixRecord>(e, max_len));
     }
 }
 
@@ -328,10 +326,16 @@ void SuffixTracker::fireResetEdgeCodes(logging::Logger &logger, size_t threads, 
 }
 
 bool SuffixTracker::fireCheckConsistency() {
-    for(auto &p : edge_data) {
-        VERIFY(!p.first->isPrefix());
-        SuffixRecord &rec = p.second;
-        VERIFY(p.first->isSuffix() || rec.num_of_ends == storage->startCnt(p.first->rc()));
+//        fireCheckConsistency is only ever called single-threaded, never concurrently with graph
+//        modifications; lock_table() here is just libcuckoo's only full-table iteration API, not
+//        synchronization against any other running thread.
+    {
+        auto lt = edge_data.lock_table();
+        for (auto &p : lt) {
+            VERIFY(!p.first->isPrefix());
+            SuffixRecord &rec = *p.second;
+            VERIFY(p.first->isSuffix() || rec.num_of_ends == storage->startCnt(p.first->rc()));
+        }
     }
     for(AlignedRead &read : *storage) {
         if(read.valid()) {
@@ -339,12 +343,15 @@ bool SuffixTracker::fireCheckConsistency() {
             removeSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
         }
     }
-    for(auto &p : edge_data) {
-        SuffixRecord &rec = p.second;
-        rec.removeZero();
-        VERIFY(rec.begin() == rec.end());
-        if(rec.begin() != rec.end())
-            return false;
+    {
+        auto lt = edge_data.lock_table();
+        for (auto &p : lt) {
+            SuffixRecord &rec = *p.second;
+            rec.removeZero();
+            VERIFY(rec.begin() == rec.end());
+            if(rec.begin() != rec.end())
+                return false;
+        }
     }
     for(AlignedRead &read : *storage) {
         if(read.valid()) {
@@ -365,19 +372,13 @@ void SuffixTracker::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
 void SuffixTracker::fireAddEdge(Edge &edge) {
     if (edge.isPrefix())
         return;
-    lock();
-    edge_data.emplace(std::piecewise_construct,
-                      std::forward_as_tuple(edge.getId()),
-                      std::forward_as_tuple(edge, max_len));
-    unlock();
+    edge_data.insert(edge.getId(), std::make_unique<SuffixRecord>(edge, max_len));
 }
 
 void SuffixTracker::fireDeleteEdge(Edge &edge) {
     if (edge.isPrefix())
         return;
-    lock();
     edge_data.erase(edge.getId());
-    unlock();
 }
 
 void SuffixTracker::fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {

@@ -4,16 +4,14 @@ using namespace ag;
 
 void AlignedReadStorageMaintenance::fireResolveVertex(Vertex &core, const VertexResolutionResult  &resolution) {
     for(Edge &edge : core) {
-        VERIFY(storage->starts.find(edge.getId()) == storage->starts.end());
+        VERIFY(!storage->starts.contains(edge.getId()));
     }
     std::unordered_map<EdgeId, std::vector<AlignedReadDirection> *> new_recs;
     std::unordered_map<VertexId, std::vector<AlignedReadDirection> *> new_subread_recs;
-    storage->lock();
     for(Vertex &v : resolution.newVertices()) {
         new_recs[v.front().getId()] = &storage->getOutgoingReadsLockFree(v.front());
         new_subread_recs[v.getId()] = &storage->getSubstringReadsLockFree(v.getId());
     }
-    storage->unlock();
     for(Edge &edge : core.incoming()) {
         std::vector<AlignedReadDirection> &old_edge_rec = storage->getOutgoingReads(edge);
         for(AlignedReadDirection &dir : old_edge_rec) {
@@ -143,34 +141,47 @@ void AlignedReadStorageMaintenance::fireInvalidateRead(AlignedRead &read) {
 AlignedReadStorageMaintenance::AlignedReadStorageMaintenance(AssemblyGraph &graph,
                                                              AlignedReadStorage &storage) :
         AlignedReadStorageListener(storage, "AlignedReadStorageMaintenance"), ResolutionListener(graph, "AlignedReadStorageMaintenance"), storage(&storage) {
-    for(Vertex &vertex : graph.vertices())
-        fireAddVertex(vertex);
-    for(Edge &edge : graph.edges())
-        fireAddEdge(edge);
-    for(AlignedRead &read: storage) {
-        if(!read.getPath().empty()) {
-            storage.starts[read.getPath().frontEdge().getId()].emplace_back(read.forward());
-            storage.starts[read.getPath().backEdge().rc().getId()].emplace_back(read.backward());
-        } else if(read.valid()) {
-            storage.reads_inside_vertices[read.getPath().getStart().getId()].emplace_back(read.forward());
-            storage.reads_inside_vertices[read.getPath().getFinish().rc().getId()].emplace_back(read.backward());
+//        `storage` is not visible to any other thread until this constructor returns, so the whole
+//        initial population below is done under a single lock_table() acquisition per map instead of
+//        paying cuckoohash_map's per-key lock/unlock on every vertex/edge/read (unlike fireAddVertex/
+//        fireAddEdge/getOutgoingReadsLockFree/getSubstringReadsLockFree, which stay per-key-locked
+//        since they are also called on `storage` after construction, when concurrent access is real).
+    {
+        auto lt = storage.reads_inside_vertices.lock_table();
+        for(Vertex &vertex : graph.vertices())
+            lt.insert(vertex.getId(), std::make_unique<std::vector<AlignedReadDirection>>());
+    }
+    {
+        auto lt = storage.starts.lock_table();
+        for(Edge &edge : graph.edges())
+            if(!edge.isPrefix())
+                lt.insert(edge.getId(), std::make_unique<std::vector<AlignedReadDirection>>());
+    }
+    {
+        auto starts_lt = storage.starts.lock_table();
+        auto vertices_lt = storage.reads_inside_vertices.lock_table();
+        for(AlignedRead &read: storage) {
+            if(!read.getPath().empty()) {
+                starts_lt.at(read.getPath().frontEdge().getId())->emplace_back(read.forward());
+                starts_lt.at(read.getPath().backEdge().rc().getId())->emplace_back(read.backward());
+            } else if(read.valid()) {
+                vertices_lt.at(read.getPath().getStart().getId())->emplace_back(read.forward());
+                vertices_lt.at(read.getPath().getFinish().rc().getId())->emplace_back(read.backward());
+            }
         }
     }
 }
 
 void AlignedReadStorageMaintenance::fireAddVertex(Vertex &vertex) {
-    storage->lock();
-    storage->reads_inside_vertices[vertex.getId()] = {};
-    storage->unlock();
+    storage->reads_inside_vertices.insert(vertex.getId(), std::make_unique<std::vector<AlignedReadDirection>>());
 }
 
 void AlignedReadStorageMaintenance::fireDeleteVertex(Vertex &vertex) {
-    storage->lock();
-    std::vector<AlignedReadDirection> tmp= std::move(storage->getSubstringReadsLockFree(vertex.getId()));
+    std::vector<AlignedReadDirection> tmp = std::move(storage->getSubstringReadsLockFree(vertex.getId()));
     storage->reads_inside_vertices.erase(vertex.getId());
-    std::vector<AlignedReadDirection> &recs = storage->reads_inside_vertices[vertex.getId().legacyId()];
-    recs = std::move(tmp);
-    storage->unlock();
+    storage->reads_inside_vertices.insert(vertex.getId().legacyId(),
+                                           std::make_unique<std::vector<AlignedReadDirection>>(std::move(tmp)));
+    std::vector<AlignedReadDirection> &recs = storage->getSubstringReadsLockFree(vertex.getId().legacyId());
     for (AlignedReadDirection &dir: recs) {
         GraphPath path = dir.getPath();
         dir.setPath(GraphPath::LegacyPath(vertex.getId(), vertex.rc().getId(), path.leftCut(), path.rightCut()));
@@ -179,17 +190,13 @@ void AlignedReadStorageMaintenance::fireDeleteVertex(Vertex &vertex) {
 
 void AlignedReadStorageMaintenance::fireAddEdge(Edge &edge) {
     if(!edge.isPrefix()) {
-        storage->lock();
-        storage->starts[edge.getId()] = {};
-        storage->unlock();
+        storage->starts.insert(edge.getId(), std::make_unique<std::vector<AlignedReadDirection>>());
     }
 }
 
 void AlignedReadStorageMaintenance::fireDeleteEdge(Edge &edge) {
     if(!edge.isPrefix()) {
-        storage->lock();
         storage->starts.erase(edge.getId());
-        storage->unlock();
     }
 }
 
@@ -288,14 +295,20 @@ void AlignedReadStorageMaintenance::fireResetEdgeCodes(logging::Logger &logger, 
 
 bool AlignedReadStorageMaintenance::fireCheckConsistency() {
     size_t cnt_starts = 0;
-    for(auto &rec : storage->starts) {
-        ConstEdgeId eid = rec.first;
-        std::vector<AlignedReadDirection> &dirs = rec.second;
-        for(AlignedReadDirection dir : dirs) {
-            VERIFY(!dir.empty() && dir.frontEdge() == *eid);
+//        fireCheckConsistency is only ever called single-threaded, never concurrently with graph
+//        modifications; lock_table() here is just libcuckoo's only full-table iteration API, not
+//        synchronization against any other running thread.
+    {
+        auto lt = storage->starts.lock_table();
+        for (auto &rec : lt) {
+            ConstEdgeId eid = rec.first;
+            std::vector<AlignedReadDirection> &dirs = *rec.second;
+            for(AlignedReadDirection dir : dirs) {
+                VERIFY(!dir.empty() && dir.frontEdge() == *eid);
+            }
+            VERIFY(dirs.empty() || !eid->isPrefix());
+            cnt_starts += dirs.size();
         }
-        VERIFY(dirs.empty() || !eid->isPrefix());
-        cnt_starts += dirs.size();
     }
     size_t cnt_reads = 0;
     for(AlignedRead & read: storage->reads) {
@@ -483,8 +496,7 @@ bool AlignedReadStorage::checkConsistency() {
     for(AlignedRead &al : reads) {
         if(!al.valid())
             continue;
-        VERIFY(starts.find(al.getPath().frontEdge().getId()) != starts.end());
-        std::vector<AlignedReadDirection> &start = starts.at(al.getPath().frontEdge().getId());
+        std::vector<AlignedReadDirection> &start = getOutgoingReadsRecord(al.getPath().frontEdge().getId());
         bool f1 = false;
         for(AlignedReadDirection &dir : start) {
             if(dir.getRead().getId() == al.getId()) {
@@ -492,8 +504,7 @@ bool AlignedReadStorage::checkConsistency() {
                 break;
             }
         }
-        VERIFY(starts.find(al.getPath().backEdge().rc().getId()) != starts.end());
-        std::vector<AlignedReadDirection> &rcstart = starts.at(al.getPath().backEdge().rc().getId());
+        std::vector<AlignedReadDirection> &rcstart = getOutgoingReadsRecord(al.getPath().backEdge().rc().getId());
         bool f2 = false;
         for(AlignedReadDirection &dir : rcstart) {
             if(dir.getRead().getId() == al.getId()) {
@@ -529,7 +540,6 @@ AlignedReadStorage &AlignedReadStorage::operator=(AlignedReadStorage &&other) no
     std::swap(reads, other.reads);
     std::swap(starts, other.starts);
     std::swap(reads_inside_vertices, other.reads_inside_vertices);
-    std::swap(writelock, other.writelock);
     std::swap(maintenance, other.maintenance);
     if(maintenance != nullptr)
         maintenance->storage = this;
@@ -565,46 +575,34 @@ AlignedReadStorage AlignedReadStorage::Load(logging::Logger &logger, size_t thre
 
 AlignedReadStorage::~AlignedReadStorage() {delete maintenance;}
 
-const std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReadsLockFree(Edge &edge) const {
-    return starts.at(edge.getId());
+const std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReadsLockFree(const Edge &edge) const {
+    return getOutgoingReadsRecord(edge.getId());
 }
 
-const std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReads(Edge &edge) const {
-    lock();
-    const std::vector<AlignedReadDirection> & res = getOutgoingReadsLockFree(edge);
-    unlock();
-    return res;
+const std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReads(const Edge &edge) const {
+    return getOutgoingReadsLockFree(edge);
 }
 
-std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReadsLockFree(Edge &edge) {
-    return starts.at(edge.getId());
+std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReadsLockFree(const Edge &edge) {
+    return getOutgoingReadsRecord(edge.getId());
 }
 
-std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReads(Edge &edge) {
-    lock();
-    std::vector<AlignedReadDirection> & res = getOutgoingReadsLockFree(edge);
-    unlock();
-    return res;
+std::vector<AlignedReadDirection> & AlignedReadStorage::getOutgoingReads(const Edge &edge) {
+    return getOutgoingReadsLockFree(edge);
 }
 
 std::vector<AlignedReadDirection> & AlignedReadStorage::getSubstringReadsLockFree(VertexId vertex) {
-    return reads_inside_vertices.at(vertex);
+    return getSubstringReadsRecord(vertex);
 }
 
 const std::vector<AlignedReadDirection> & AlignedReadStorage::getSubstringReads(VertexId vertex) const {
-    lock();
-    const std::vector<AlignedReadDirection> & res = getSubstringReadsLockFree(vertex);
-    unlock();
-    return res;
+    return getSubstringReadsLockFree(vertex);
 }
 
-const std::vector<AlignedReadDirection> & AlignedReadStorage::getSubstringReadsLockFree(VertexId &vertex) const {
-    return reads_inside_vertices.at(vertex);
+const std::vector<AlignedReadDirection> & AlignedReadStorage::getSubstringReadsLockFree(VertexId vertex) const {
+    return getSubstringReadsRecord(vertex);
 }
 
 std::vector<AlignedReadDirection> & AlignedReadStorage::getSubstringReads(VertexId vertex) {
-    lock();
-    std::vector<AlignedReadDirection> & res = getSubstringReadsLockFree(vertex);
-    unlock();
-    return res;
+    return getSubstringReadsLockFree(vertex);
 }

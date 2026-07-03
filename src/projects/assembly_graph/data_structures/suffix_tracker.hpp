@@ -5,6 +5,7 @@
 #include "fstream"
 #include "common/omp_utils.hpp"
 #include "common/logging.hpp"
+#include "libcuckoo/cuckoohash_map.hh"
 #include <experimental/filesystem>
 
 namespace ag {
@@ -79,19 +80,17 @@ namespace ag {
 //For current implementation min_len=0 . Otherwise num_of_ends is calculated incorrectly.
     class SuffixTracker : public AlignedReadStorageListener, public ResolutionListener {
     protected:
-        std::unordered_map<ConstEdgeId, SuffixRecord> edge_data;
+        // This map stores unique_ptrs by value and moves them around.
+        // It can provide concurrent read/write with local locks
+        libcuckoo::cuckoohash_map<ConstEdgeId, std::unique_ptr<SuffixRecord>> edge_data;
     public:
-        typedef std::pair<const ConstEdgeId, SuffixRecord> EdgeDataUnit;
+        typedef std::pair<const ConstEdgeId, std::unique_ptr<SuffixRecord>> EdgeDataUnit;
 
         AlignedReadStorage *storage;
         size_t min_len;
         size_t max_len;
 
     private:
-        mutable omp_lock_t writelock = {};
-        void lock() const { omp_set_lock(&writelock); }
-        void unlock() const { omp_unset_lock(&writelock); }
-
 //        processPath can only be called when vertex set can not be changed, so no graph modification
         void
         processPath(PathPosition left, PathPosition right, int diff);
@@ -107,22 +106,19 @@ namespace ag {
         SuffixTracker &operator=(const SuffixTracker &other) = delete;
         SuffixTracker(const SuffixTracker &other) = delete;
 
-//        All access to edge_data (including its mutation via fireAddEdge/fireDeleteEdge) must go through
-//        this method (or the lock/unlock pair guarding fireAddEdge/fireDeleteEdge directly) since
-//        MergePathsToEdges and other graph operations can invoke listeners from multiple threads concurrently.
         SuffixRecord &getSuffixRecord(const Edge &edge) {
             VERIFY(!edge.isPrefix());
-            lock();
-            SuffixRecord &res = edge_data.at(edge.getId());
-            unlock();
-            return res;
+            SuffixRecord *res = nullptr;
+            edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
+            VERIFY(res != nullptr);
+            return *res;
         }
         const SuffixRecord &getSuffixRecord(const Edge &edge) const {
             VERIFY(!edge.isPrefix());
-            lock();
-            const SuffixRecord &res = edge_data.at(edge.getId());
-            unlock();
-            return res;
+            const SuffixRecord *res = nullptr;
+            edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
+            VERIFY(res != nullptr);
+            return *res;
         }
         size_t getMinLen() const { return min_len; }
         size_t getMaxLen() const { return max_len; }

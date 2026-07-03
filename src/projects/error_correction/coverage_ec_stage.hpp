@@ -70,15 +70,11 @@ namespace dbg {
         dbg.resetEdgeCodes(logger, threads);
         readStorage.trackSuffixes(logger, threads, dbg, 0, extension_size);
         if(debug) readStorage.getReads().checkConsistency();
-        readStorage.getReads().checkConsistency();
         ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
-        readStorage.getReads().checkConsistency();
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
-        readStorage.getReads().checkConsistency();
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.PrintBasic(logger.getLoggerStream(logging::LogLevel::info));
         params.PrintStatistics(logger.getLoggerStream(logging::LogLevel::trace));
-        readStorage.getReads().checkConsistency();
         ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 800, 4, diploid);
         if (debug)
             PrintPaths(logger, threads, dir / "state_dump", "mk800", dbg, readStorage, paths_lib, references_lib, true);

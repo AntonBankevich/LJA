@@ -5,6 +5,7 @@
 #include "aligned_read_listeners.hpp"
 #include <common/logging.hpp>
 #include <common/omp_utils.hpp>
+#include "libcuckoo/cuckoohash_map.hh"
 
 namespace ag {
 
@@ -15,17 +16,48 @@ namespace ag {
     class AlignedReadStorage : public AlignedReadStorageFire {
         friend class AlignedReadStorageMaintenance;
     private:
+        typedef std::vector<AlignedReadDirection> DirectionRecord;
+        // Both maps store unique_ptrs by value and move them around.
+        // This keeps a record's address stable across cuckoohash_map rehashes, so a reference
+        // returned by the accessors below stays valid even while other keys are inserted/erased,
+        // and provides concurrent insert/erase/find with local locks (see SuffixTracker::edge_data).
         std::vector <AlignedRead> reads;
-        std::unordered_map <ConstEdgeId, std::vector<AlignedReadDirection>> starts;
-        std::unordered_map <ConstVertexId, std::vector<AlignedReadDirection>> reads_inside_vertices;
-        mutable omp_lock_t writelock = {};
+        libcuckoo::cuckoohash_map <ConstEdgeId, std::unique_ptr<DirectionRecord>> starts;
+        libcuckoo::cuckoohash_map <ConstVertexId, std::unique_ptr<DirectionRecord>> reads_inside_vertices;
         ag::AlignedReadStorageMaintenance * maintenance = nullptr;
 
         void updateStart(AlignedReadDirection dir);
-    public:
-        void lock() const { omp_set_lock(&writelock); }
-        void unlock() const { omp_unset_lock(&writelock); }
 
+//        Canonical getters: every read of a stored DirectionRecord (from inside this class,
+//        from AlignedReadStorageMaintenance, or from outside) goes through these two pairs of
+//        functions rather than calling find_fn on `starts`/`reads_inside_vertices` directly.
+//        Structural map operations (insert/erase/contains/lock_table) are used directly at their
+//        call sites, since AlignedReadStorageMaintenance is a friend of this class.
+        DirectionRecord &getOutgoingReadsRecord(ConstEdgeId eid) {
+            DirectionRecord *res = nullptr;
+            starts.find_fn(eid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
+            VERIFY(res != nullptr);
+            return *res;
+        }
+        const DirectionRecord &getOutgoingReadsRecord(ConstEdgeId eid) const {
+            const DirectionRecord *res = nullptr;
+            starts.find_fn(eid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
+            VERIFY(res != nullptr);
+            return *res;
+        }
+        DirectionRecord &getSubstringReadsRecord(ConstVertexId vid) {
+            DirectionRecord *res = nullptr;
+            reads_inside_vertices.find_fn(vid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
+            VERIFY(res != nullptr);
+            return *res;
+        }
+        const DirectionRecord &getSubstringReadsRecord(ConstVertexId vid) const {
+            const DirectionRecord *res = nullptr;
+            reads_inside_vertices.find_fn(vid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
+            VERIFY(res != nullptr);
+            return *res;
+        }
+    public:
         bool checkConsistency();
 
         AlignedReadStorage() = default;
@@ -39,12 +71,11 @@ namespace ag {
                            std::vector<AlignedRead> reads);
         virtual ~AlignedReadStorage();
 
-        //        TODO: Make this free of global lock
-        const std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(Edge &edge) const;
-        const std::vector<AlignedReadDirection> &getOutgoingReads(Edge &edge) const;
-        std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(Edge &edge);
-        std::vector<AlignedReadDirection> &getOutgoingReads(Edge &edge);
-        const std::vector<AlignedReadDirection> &getSubstringReadsLockFree(VertexId &ertex) const;
+        const std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(const Edge &edge) const;
+        const std::vector<AlignedReadDirection> &getOutgoingReads(const Edge &edge) const;
+        std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(const Edge &edge);
+        std::vector<AlignedReadDirection> &getOutgoingReads(const Edge &edge);
+        const std::vector<AlignedReadDirection> &getSubstringReadsLockFree(VertexId vertex) const;
         const std::vector<AlignedReadDirection> &getSubstringReads(VertexId vertex) const;
         std::vector<AlignedReadDirection> &getSubstringReadsLockFree(VertexId vertex);
         std::vector<AlignedReadDirection> &getSubstringReads(VertexId vertex);
@@ -60,7 +91,7 @@ namespace ag {
         AlignedRead &operator[](size_t ind) { return reads[ind]; }
 
         size_t size() const { return reads.size(); }
-        size_t startCnt(const Edge &edge) const {return starts.at(edge.getId()).size();}
+        size_t startCnt(const Edge &edge) const {return getOutgoingReadsRecord(edge.getId()).size();}
 
         void delayedInvalidateRead(AlignedRead &read, const std::string &message);
         void rerouteRead(AlignedRead &alignedRead, GraphPath corrected, const string &message);

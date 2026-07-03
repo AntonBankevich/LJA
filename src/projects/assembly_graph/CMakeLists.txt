@@ -4,4 +4,4 @@ add_library(lja_ag STATIC assembly_graph_base.cpp assembly_graph.cpp graph_paths
         data_structures/aligned_read_statistics_tracker.cpp
         dll_path.cpp
         dll_path_storage.cpp)
-target_link_libraries (lja_ag m ${OpenMP_CXX_FLAGS} lja_sequence lja_common lja_alignment stdc++fs )
+target_link_libraries (lja_ag m ${OpenMP_CXX_FLAGS} lja_sequence lja_common lja_alignment stdc++fs Threads::Threads)
