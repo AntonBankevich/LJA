@@ -175,7 +175,7 @@ void DecompressingManager::printReduction(std::experimental::filesystem::path pa
 
 void DecompressingManager::calculateOverlaps(logging::Logger &logger, size_t threads) {
     logger.info() << "Calculating overlaps between adjacent uncompressed edges" << std::endl;
-    omp_set_num_threads(1);
+    omp_set_num_threads(threads);
     std::vector<multigraph::EdgeId> e_ids;
     for (Edge &e: graph().edgesUnique())
         e_ids.push_back(e.getId());
