@@ -172,7 +172,7 @@ namespace dbg {
         for (size_t i = 0; i < kmers.size(); i++) {
             vertices.emplace_back(&index.getVertex(kmers[i]));
             if (i == 0 || vertices[i] != vertices[i - 1]) {
-                vertices.back()->setSeq(kmers[i].getSeq().copy());
+                vertices.back()->setSeq(kmers[i].getSeq());
             }
         }
         size_t k = hasher().getK();

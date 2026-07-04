@@ -135,10 +135,20 @@ namespace ag {
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
 //        TODO: implement properly
         void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) override;
+//        Relies on merged edge codes being exact concatenations (see EdgeCodeListener): a read whose path
+//        merely passes through the merged run needs no update at all, so this only patches reads indexed
+//        as starting on an interior edge of the run (storage->getOutgoingReads(edge)), pushing the prefix
+//        before their original start onto their path so it now starts at new_edge/path.getStart().
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &left_al, const AlignmentForm &right_al) override;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
+//        Hidden, unenforced caller contract on AssemblyGraph::splitEdge: split_positions must never fall
+//        inside a read's span. Every read touching `edge` must, after the split, end within the first
+//        piece, start within the last piece, or be fully contained in one piece — never span across a new
+//        split-point vertex. This handler only repoints reads indexed as *starting* at `edge`
+//        (storage->getOutgoingReads(edge)); a pass-through read that violated the contract would be left
+//        with stale path codes and crash later in Vertex::getOutgoingByIterator, not here.
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;

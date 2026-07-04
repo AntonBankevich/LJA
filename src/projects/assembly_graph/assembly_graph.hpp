@@ -13,6 +13,11 @@ namespace ag {
 //    TODO: assume VertexData and EdgeData have default constructors. Remove them from addVertex, addEdge.
 //     Fill their contents in listeners instead.
 //TODO: Make marked vertex be considered deleted immidiately (e.g. run fireDeleteVertex)
+//    Hidden contract: every fireX listener callback triggered by an edit below fires twice — once for
+//    the edit itself, once for its reverse-complement mirror (see graph_listeners.hpp's Fire dispatchers
+//    and Edge/Vertex's rc() contract note in assembly_graph_base.hpp) — EXCEPT when the edge/vertex
+//    involved is self-rc (equal to its own rc()), in which case it fires only once. Before concluding a
+//    listener is missing some bookkeeping, check whether the mirrored rc() call supplies it instead.
     class AssemblyGraph : public ResolutionFire {
     public:
         typedef std::list<Vertex> vertex_storage_type;
@@ -83,6 +88,10 @@ namespace ag {
         Edge &chooseSplitColumn(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
 
         Vertex &edgeToSupreVertex(Edge &edge);
+//        Unlike mergePathToEdge/splitEdge, this is not expected to be called in parallel yet: listeners'
+//        fireResolveVertex implementations are not written to be thread-safe against concurrent calls.
+//        TODO: make resolveVertex (and listeners' fireResolveVertex) safe to call concurrently, the way
+//        MergeAllToEdges runs mergePathToEdge in parallel across disjoint unbranching paths.
         ag::VertexResolutionResult resolveVertex(Vertex &core, const VertexResolutionPlan &resolution);
         Vertex &mergePath(const GraphPath &path);
         Vertex &mergeLoop(const GraphPath &path);

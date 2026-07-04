@@ -47,6 +47,9 @@ namespace ag {
 
         const std::string &getId() const { return id; }
 
+//        Hidden contract: a stored path is always the shortest path, by vertex count, that spells the
+//        read's sequence — so it can never start with a prefix edge or end with a suffix edge (trimming
+//        those loses no sequence but shortens the path). GraphPath::normalize() is what enforces this.
         GraphPath  &getPath() { return path; }
 
         const GraphPath  &getPath() const { return path; }

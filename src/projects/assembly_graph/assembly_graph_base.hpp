@@ -190,6 +190,14 @@ namespace ag {
     class AssemblyGraph;
     class EdgeCodeListener;
 
+//    Hidden contracts:
+//    - Every edge has a reverse-complement counterpart rc(): if this edge goes u->v then rc() goes
+//      v.rc()->u.rc(). The whole graph is rc-symmetric, and every graph-editing operation (and every
+//      listener callback it fires) is applied to both an edge and its rc() as a matched pair. See
+//      graph_listeners.hpp's Fire dispatchers for the exact mirroring pattern.
+//    - isPrefix()/isSuffix() are normal Supregraph structure, not degenerate/corner cases: a DBG never
+//      has prefix/suffix edges, while in a Supregraph every edge is one or the other (adjacent vertices'
+//      sequences are in a prefix/suffix relationship rather than a k-mer overlap).
     class Edge : public EdgeData {
         friend class Vertex;
         friend class AssemblyGraph;
@@ -275,6 +283,8 @@ namespace ag {
     typedef ObjectId<Vertex, int> VertexId;
     typedef ConstObjectId<Vertex, int> ConstVertexId;
 
+//    Like Edge, every vertex has an rc() counterpart and the graph is edited/listened-to symmetrically
+//    (see the contract note above class Edge).
     class Vertex : public VertexData {
         friend class AssemblyGraph;
         friend class Edge;

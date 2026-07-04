@@ -7,11 +7,11 @@ size_t SuffixRecord::getNumberOfEnds() const {
 }
 
 size_t SuffixRecord::getNumberOfPaths() const {
-    size_t res = num_of_ends;
+    size_t res = 0;
     for(const auto &p : paths)
         res += p.second;
     VERIFY(res == num_of_paths);
-    return num_of_paths;
+    return res + num_of_ends;
 }
 
 size_t SuffixRecord::countStartsWith(const GraphPath &path) const {
@@ -72,12 +72,12 @@ void SuffixRecord::removeZero() {
 }
 
 void SuffixRecord::lockFreeChangePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff) {
-    num_of_paths += diff;
     if(min_seq.empty()) {
         VERIFY(num_of_ends + diff >= 0);
         num_of_ends += diff;
         return;
     }
+    num_of_paths += diff;
     if (diff == 0) return;
     if(diff > 0) {
         addPath(min_seq, diff);
@@ -103,7 +103,7 @@ void SuffixRecord::lockFreeChangePathCnt(const Sequence &min_seq, const Sequence
                 return;
             } else {
                 diff += path.second;
-                path.second += 0;
+                path.second = 0;
                 updateZero(1, 0);
             }
             subseqs.push_back(i);
@@ -135,11 +135,12 @@ void SuffixRecord::addPath(const Sequence &seq, int diff) {
 }
 
 void SuffixRecord::directAddPath(const Sequence &seq, size_t cnt) {
-    num_of_paths += cnt;
     if (seq.empty()) {
         num_of_ends += cnt;
-    } else
+    } else {
+        num_of_paths += cnt;
         paths.emplace_back(seq, cnt);
+    }
 }
 
 void SuffixRecord::clear() {
@@ -150,6 +151,8 @@ void SuffixRecord::clear() {
 
 void SuffixRecord::resetCodes(Vertex &start) {
     std::vector<std::pair<Sequence, int>> old = std::move(paths);
+    size_t old_num_of_paths = num_of_paths;
+    num_of_paths = 0;
     for(const std::pair<Sequence, int> &rec : old) {
         if(rec.second == 0)
             continue;
@@ -157,6 +160,7 @@ void SuffixRecord::resetCodes(Vertex &start) {
         path.resetEdgeCodes();
         changePathCnt(Sequence(path.getFSplits()), Sequence(path.getFSplits()), rec.second);
     }
+    VERIFY(old_num_of_paths == num_of_paths);
 }
 
 std::function<std::string(const Edge & )> SuffixTracker::labeler() const {
@@ -301,10 +305,10 @@ SuffixTracker::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right, cons
     SuffixRecord &erec = getSuffixRecord(new_edge);
     SuffixRecord &rrec = getSuffixRecord(right);
     SuffixRecord &lrec = getSuffixRecord(left);
+    VERIFY(lrec.num_of_paths == 0);//Since lrec is a tip, it can have no recorded continuations
     erec.paths = std::move(rrec.paths);
     erec.num_of_ends = lrec.num_of_ends + rrec.num_of_ends;
-    erec.num_of_paths = lrec.num_of_paths + rrec.num_of_paths;
-    VERIFY(lrec.num_of_ends == lrec.num_of_paths);//Since lrec is a tip
+    erec.num_of_paths = rrec.num_of_paths;
 }
 
 void SuffixTracker::fireSplitEdge(Edge &edge, const RAGraphPath &split) {
@@ -366,7 +370,7 @@ void SuffixTracker::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
     SuffixRecord &erec = getSuffixRecord(e);
     SuffixRecord & new_rec = getSuffixRecord(v.front());
     new_rec.paths = std::move(erec.paths);
-    new_rec.num_of_paths = erec.num_of_paths - erec.num_of_ends;
+    new_rec.num_of_paths = erec.num_of_paths;
 }
 
 void SuffixTracker::fireAddEdge(Edge &edge) {

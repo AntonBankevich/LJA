@@ -142,9 +142,9 @@ spg::VertexResolutionPlan spg::AndreyRule::judge(spg::Vertex &v) {
             }
         }
     }
-    loopHeuristic(res);
-    uniqueHeuristic(res);
-    noChoiceHeuristic(res);
+    if (!res.allConnected()) loopHeuristic(res);
+    if (!res.allConnected()) uniqueHeuristic(res);
+    if (!res.allConnected()) noChoiceHeuristic(res);
     if(res.allConnected())
         return std::move(res);
     return {v};

@@ -33,6 +33,8 @@ namespace ag {
         size_t zero_cnt = 0;
         size_t max_suffix_len;
         int num_of_ends = 0;
+//        num_of_paths counts occurrences of this edge at any position except the last one, i.e. it is
+//        exactly the total count stored in paths (num_of_ends is tracked separately and is never folded in).
         int num_of_paths = 0;
 
         void lock() const { eid->getStart().lock(); }

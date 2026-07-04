@@ -115,6 +115,8 @@ public:
 
     RAPathDirection backward();
 
+//        Reverses piece order and RCs each piece: for path [p0, p1, ..., pk], RC() == [pk.rc(), ...,
+//        p0.rc()] — so RC().frontEdge() == backEdge().rc() and RC().backEdge() == frontEdge().rc().
     RAGraphPath RC() const;
 
     Sequence Seq() const;
