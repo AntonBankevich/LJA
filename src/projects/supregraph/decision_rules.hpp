@@ -15,7 +15,7 @@ namespace spg {
 //        ChainRule(const ChainRule &other) = delete;
 //        ChainRule(PathIndex &storage, size_t k) : storage(&storage), k(k) {}
 //
-//        VertexResolutionPlan judge(Vertex &v) override;
+//        VertexResolutionPlan judgeNontrivial(Vertex &v) override;
 //    };
 
     class AndreyRule: public DecisionRule {
@@ -32,7 +32,7 @@ namespace spg {
         void uniqueHeuristic(VertexResolutionPlan &res);
         void noChoiceHeuristic(VertexResolutionPlan &res);
 
-        VertexResolutionPlan judge(Vertex &v) override;
+        VertexResolutionPlan judgeNontrivial(Vertex &v) override;
         void check() override {
         }
     };
@@ -49,7 +49,7 @@ namespace spg {
         explicit ObviousRule(ag::SuffixTracker &suffixes) :
                 suffixes(&suffixes) {}
 
-        VertexResolutionPlan judge(Vertex &v) override;
+        VertexResolutionPlan judgeNontrivial(Vertex &v) override;
 
         void check() override {
         }

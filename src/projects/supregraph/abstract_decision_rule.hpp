@@ -8,8 +8,15 @@ namespace spg {
     using ag::VertexResolutionPlan;
 
     class DecisionRule {
+        bool checkForkForward(ag::Vertex &v) {
+            return v.outDeg() == 1 && v.inDeg() > 1 && (v.front().getFinish().outDeg() != 1 ||
+                (v.front().getFinish().front().isSuffix() && v.front().getFinish().front().getFinish().outDeg() != 1));
+        }
     public:
-        virtual VertexResolutionPlan judge(ag::Vertex &v) = 0;
+        DecisionRule() {}
+        virtual VertexResolutionPlan judgeNontrivial(ag::Vertex &v) = 0;
+        virtual VertexResolutionPlan judge(ag::Vertex &v);
+
         virtual void check() {};// I do not remember what this method is for and there are no implementations. Depricated.
 
         virtual ~DecisionRule() = default;
@@ -17,7 +24,7 @@ namespace spg {
 
     class RandomDecisionRule : public DecisionRule {
     public:
-        VertexResolutionPlan judge(ag::Vertex &v) override;
+        VertexResolutionPlan judgeNontrivial(ag::Vertex &v) override;
     };
 
 }

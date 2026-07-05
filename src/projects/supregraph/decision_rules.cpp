@@ -13,7 +13,7 @@
 //    return res;
 //}
 //
-//spg::VertexResolutionPlan spg::ChainRule::judge(spg::Vertex &v) {
+//spg::VertexResolutionPlan spg::ChainRule::judgeNontrivial(spg::Vertex &v) {
 //    VertexResolutionPlan res(v);
 //    bool has_covering = false;
 //    for(auto it : storage->getPassing(v)) {
@@ -132,7 +132,7 @@ void spg::AndreyRule::noChoiceHeuristic(spg::VertexResolutionPlan &res) {
     }
 }
 
-spg::VertexResolutionPlan spg::AndreyRule::judge(spg::Vertex &v) {
+spg::VertexResolutionPlan spg::AndreyRule::judgeNontrivial(spg::Vertex &v) {
     VertexResolutionPlan res(v);
     for(Edge &edge : v.incoming()) {
         const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
@@ -150,7 +150,7 @@ spg::VertexResolutionPlan spg::AndreyRule::judge(spg::Vertex &v) {
     return {v};
 }
 
-ag::VertexResolutionPlan spg::ObviousRule::judge(Vertex &v) {
+ag::VertexResolutionPlan spg::ObviousRule::judgeNontrivial(Vertex &v) {
     VertexResolutionPlan res(v);
     size_t min_support = -1;
     bool simmple = true;
