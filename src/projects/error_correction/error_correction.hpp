@@ -37,6 +37,7 @@ public:
             ag::GraphPath corrected = alignedRead.getPath();
             std::string message = algorithm.correctRead(alignedRead.getId(), corrected);
             if(!message.empty()) {
+                // Remove this logic from the code. Short reads no longer have to be discarded
                 if (corrected.truncLen() >= 500) {
                     VERIFY_MSG(alignedRead.getPath() != corrected, message);
                     reads_storage.rerouteRead(alignedRead, corrected, itos(omp_get_thread_num()) + "_" + algorithm.getName() + "_" + message);

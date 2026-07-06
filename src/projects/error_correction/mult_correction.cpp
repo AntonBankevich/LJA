@@ -377,7 +377,7 @@ void DrawMult(const std::experimental::filesystem::path &dir, dbg::SparseDBG &db
             return "orange";
         return "blue";
     };
-    Printer printer(ObjInfo<dbg::Edge>({reads_storage.getSuffixes().labeler()}, {colorer}, {}));
+    Printer printer(EdgePrintStyles::defaultDotLabeler() + ObjInfo<dbg::Edge>({reads_storage.getSuffixes().labeler()}, {colorer}, {}));
     for(size_t i = 0; i < split.size(); i++) {
         // printDot(dir / (itos(i) + ".dot"), split[i], reads_storage.labeler(), colorer); delete if ok
         printer.printDot(dir / (itos(i) + ".dot"), split[i]);

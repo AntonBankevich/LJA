@@ -42,10 +42,11 @@ namespace dbg {
         for (size_t i = 0; i < candidates_list.size(); i++) {
             tmp.emplace_back(candidates_list[i].second);
             if (i + 1 == candidates_list.size() || candidates_list[i + 1].first != candidates_list[i].first) {
-                for (size_t t1: tmp)
-                    for (size_t t2: tmp)
-                        if (t1 < t2)
-                            pairs.emplace_back(t1, t2);
+                if(tmp.size() < 20)
+                    for (size_t t1: tmp)
+                        for (size_t t2: tmp)
+                            if (t1 < t2)
+                                pairs.emplace_back(t1, t2);
                 tmp = {};
             }
         }
@@ -121,7 +122,10 @@ namespace dbg {
         }
         omp_set_num_threads(threads);
         for(Connection &connection : patches) {
-            if(connection.tip1->rc().front().rc() != connection.tip2->rc().front())
+            if(connection.tip1->rc().front().rc() != connection.tip2->rc().front() &&
+                    connection.tip1->rc().front() != connection.tip2->rc().front() &&
+                    connection.tip1->rc().front() != connection.tip1->rc().front().rc() &&
+                    connection.tip2->rc().front() != connection.tip2->rc().front().rc()) {
                 dbg.mergeTipsToEdge(connection.tip1->rc().front().rc(), connection.tip2->rc().front(), std::move(connection.al));
         }
     }
