@@ -125,7 +125,7 @@ namespace dbg {
             if(connection.tip1->rc().front().rc() != connection.tip2->rc().front() &&
                     connection.tip1->rc().front() != connection.tip2->rc().front() &&
                     connection.tip1->rc().front() != connection.tip1->rc().front().rc() &&
-                    connection.tip2->rc().front() != connection.tip2->rc().front().rc()) {
+                    connection.tip2->rc().front() != connection.tip2->rc().front().rc())
                 dbg.mergeTipsToEdge(connection.tip1->rc().front().rc(), connection.tip2->rc().front(), std::move(connection.al));
         }
     }
