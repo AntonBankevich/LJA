@@ -51,14 +51,24 @@ std::vector<VertexId> Multiplexer::merge(logging::Logger &logger, size_t threads
     VERIFY(!vertex.isJunction());
     logger.trace() << "Processing vertex " << vertex.getId() << std::endl;
     Edge &start = ag::PathHelper::WalkForward(vertex.rc().front()).backEdge().rc();
-    ag::GraphPath path = ag::PathHelper::WalkForward(start);
-    if(!path.getStart().isJunction() && path.getStart() != path.getFinish()) {
-        VERIFY(path.getStart() == path.getFinish().rc());
-        path = path + ag::PathHelper::WalkForward(path.getFinish().front());
-    } else {
+    ag::GraphPath path = ag::PathHelper::WalkForward(vertex.front());
+    ag::GraphPath rpath = ag::PathHelper::WalkForward(vertex.rc().front()).RC();
+    if (path.getFinish().isJunction()) {
+        if (rpath.getStart().isJunction()) {
+            path = rpath + path;
+        } else {
+            VERIFY(rpath.getStart() == rpath.getFinish().rc());
+            path = path.RC() + rpath + path;
+        }
         logger.trace() << "Push " << path.getStart().getId() << " " << path.getFinish().getId() << std::endl;
         pushCore(path.getStart());
         pushCore(path.getFinish());
+    } else {
+        if (path.getFinish() == path.getStart().rc()) {
+            path = rpath + path;
+        } else {
+            VERIFY(path.getStart() == path.getFinish());
+        }
     }
     if(path.calculateSize() > 2 || (path.calculateSize() == 2 && (!path.frontEdge().isPrefix() || !path.backEdge().isSuffix()))) {
         logger.trace() << "Merging path " << path.str() << std::endl;
