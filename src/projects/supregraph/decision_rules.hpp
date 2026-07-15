@@ -19,7 +19,7 @@ namespace spg {
 //    };
 
     class AndreyRule: public DecisionRule {
-    private:
+    protected:
         ag::SuffixTracker * suffixes;
         UniqueVertexStorage const * unique_storage;
         ag::EdgeId getUniqueDisconnectedInc(const VertexResolutionPlan &plan);
@@ -35,6 +35,16 @@ namespace spg {
         VertexResolutionPlan judgeNontrivial(Vertex &v) override;
         void check() override {
         }
+    };
+
+    class RandomDecisionRule : public AndreyRule {
+        std::vector<std::pair<size_t, ag::EdgeId>> collectOut(Vertex &v);
+        Edge &findAvailableInc(const VertexResolutionPlan &plan);
+        Edge &findAvailableOut(const VertexResolutionPlan &plan);
+    public:
+        RandomDecisionRule(ag::AlignedReadStorage &reads, ag::SuffixTracker &suffixes, const spg::UniqueVertexStorage &unique_storage) :
+                AndreyRule(suffixes, unique_storage) {}
+        VertexResolutionPlan judgeNontrivial(ag::Vertex &v) override;
     };
 
     class ObviousRule: public DecisionRule {

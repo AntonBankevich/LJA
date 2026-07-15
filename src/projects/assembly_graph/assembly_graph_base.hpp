@@ -156,6 +156,8 @@ namespace ag {
 //        TODO: get rid of this or at least control access
         mutable bool is_reliable = false;
         std::vector<EdgeId> label = {};
+        size_t outgoing_read_count = 0;//for non-suffix edges only: the number of reads that cross the right border of start vertex
+        size_t min_equivalent_size = 0;//Size of the minimal equivalent segment that crosses the vertex/edge border
         size_t read_tail_count = 0;
         size_t read_tail_length = 0;
     protected:

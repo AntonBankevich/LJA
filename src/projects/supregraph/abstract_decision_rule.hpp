@@ -22,9 +22,4 @@ namespace spg {
         virtual ~DecisionRule() = default;
     };
 
-    class RandomDecisionRule : public DecisionRule {
-    public:
-        VertexResolutionPlan judgeNontrivial(ag::Vertex &v) override;
-    };
-
 }

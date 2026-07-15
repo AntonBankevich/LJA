@@ -112,6 +112,22 @@ bool VertexResolutionPlan::outConnected(Edge &edge) const {
     return false;
 }
 
+bool VertexResolutionPlan::incConnected() const {
+    for(Edge &edge : v->incoming())
+        if(!incConnected(edge))
+            return false;
+    return true;
+
+}
+
+bool VertexResolutionPlan::outConnected() const {
+    for(Edge &edge : *v)
+        if(!outConnected(edge))
+            return false;
+    return true;
+
+}
+
 bool VertexResolutionPlan::allConnected() const {
     for(Edge &edge : v->incoming())
         if(!incConnected(edge))

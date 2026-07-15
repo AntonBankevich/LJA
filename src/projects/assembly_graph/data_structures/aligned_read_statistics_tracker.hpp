@@ -28,7 +28,7 @@ namespace ag {
             new_vertex.covering_read_count = rec.getNumberOfPaths() - inc.read_tail_count;
         }
     public:
-        explicit AlignedReadStatisticsTracker(logging::Logger &logger, size_t threads, ag::ResolutionFire &graph,
+        explicit AlignedReadStatisticsTracker(logging::Logger &logger, size_t threads, ag::AssemblyGraph &graph,
                     ag::AlignedReadStorage &storage, ag::SuffixTracker &suffix_tracker);
 
         void fireAddRead(const ag::AlignedRead &read) override;
@@ -39,6 +39,7 @@ namespace ag {
                                  const AlignmentForm &, const AlignmentForm &) override {
             VERIFY(false);
         }
+        void fireAddEdge(Edge &e) override {if (!e.isSuffix()) e.min_equivalent_size = e.getStart().size() + 1;}
         void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {VERIFY(false);}
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
@@ -59,10 +60,19 @@ namespace ag {
 
             return total_length / vertex.size() + vertex.covering_read_count;
         }
-        std::function<std::string(const Vertex &)> getLabeler() const {
+        std::function<std::string(const Vertex &)> getVertexLabeler() const {
             std::function<std::string(const Vertex &)> res = [this](const Vertex &v) -> std::string {
                 return "Cov:" + std::to_string(countCoverage(v)) + "(" + std::to_string(v.subread_length) + "," +
                     std::to_string(v.subread_count) + "," + std::to_string(v.covering_read_count) + ")";
+            };
+            return res;
+        }
+
+        std::function<std::string(const Edge &)> getEdgeLabeler() const {
+            std::function<std::string(const Edge &)> res = [this](const Edge &e) -> std::string {
+                if (e.isSuffix())
+                    return "";
+                return "OutCov:" + std::to_string(e.outgoing_read_count) + "(len: " + std::to_string(e.min_equivalent_size) + ")";
             };
             return res;
         }

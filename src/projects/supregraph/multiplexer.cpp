@@ -1,6 +1,8 @@
 #include <assembly_graph/ag_algorithms.hpp>
 #include "multiplexer.hpp"
 
+#include "spoa/include/spoa/graph.hpp"
+
 using namespace spg;
 
 Multiplexer::Multiplexer(ag::AssemblyGraph &graph, ag::AlignedReadStorage &reads, DecisionRule &rule, size_t max_core_length) :
@@ -48,13 +50,16 @@ std::vector<VertexId> Multiplexer::merge(logging::Logger &logger, size_t threads
         return {};
     VERIFY(!vertex.isJunction());
     logger.trace() << "Processing vertex " << vertex.getId() << std::endl;
-    ag::GraphPath path = ag::PathHelper::WalkForward(vertex.front());
-    if(path.getFinish() != vertex) {
-        path = ag::PathHelper::WalkForward(vertex.rc().front()).RC() + path;
+    Edge &start = ag::PathHelper::WalkForward(vertex.rc().front()).backEdge().rc();
+    ag::GraphPath path = ag::PathHelper::WalkForward(start);
+    if(!path.getStart().isJunction() && path.getStart() != path.getFinish()) {
+        VERIFY(path.getStart() == path.getFinish().rc());
+        path = path + ag::PathHelper::WalkForward(path.getFinish().front());
+    } else {
+        logger.trace() << "Push " << path.getStart().getId() << " " << path.getFinish().getId() << std::endl;
+        pushCore(path.getStart());
+        pushCore(path.getFinish());
     }
-    logger.trace() << "Push " << path.getStart().getId() << " " << path.getFinish().getId() << std::endl;
-    pushCore(path.getStart());
-    pushCore(path.getFinish());
     if(path.calculateSize() > 2 || (path.calculateSize() == 2 && (!path.frontEdge().isPrefix() || !path.backEdge().isSuffix()))) {
         logger.trace() << "Merging path " << path.str() << std::endl;
         // TODO: switch to Supregraph and move this functionality to it!!!

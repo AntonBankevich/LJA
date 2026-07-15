@@ -87,9 +87,9 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     dbg_storage.trackSuffixes(logger, threads, spg, 0, 10000000);
     ag::AlignedReadStatisticsTracker SPGCoverage(logger, threads ,spg, dbg_storage, dbg_storage.getSuffixes());
     spg.disableHashing();
-    ag::EdgeInfo edge_info = ag::EdgePrintStyles::defaultDotInfo() +
+    ag::EdgeInfo edge_info = ag::EdgePrintStyles::defaultDotInfo() + ag::EdgeInfo::Labeler(SPGCoverage.getEdgeLabeler());
                                   ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler());
-    ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo() + ag::VertexInfo::Labeler(SPGCoverage.getLabeler()), edge_info);
+    ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler()), edge_info);
     std::experimental::filesystem::path figs = dir/ "figs";
     recreate_dir(figs);
     printer.printDot(figs / "supregraph_initial.dot", spg);
@@ -123,14 +123,15 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     AndreyRule rule(dbg_storage.getSuffixes(), unique_storage);
     spg::Multiplexer multiplexer(spg, dbg_storage, rule, 200000);
 //    multiplexer.fullMultiplex(logger, threads);
-    printer.setEdgeInfo(ag::EdgePrintStyles::spgLabeler() + ag::EdgePrintStyles::simpleColorer("black") +
-                        ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler()));
-    printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() + ag::VertexInfo::Labeler(SPGCoverage.getLabeler())+
+    printer.setEdgeInfo(ag::EdgePrintStyles::spgLabeler()
+        + ag::EdgeInfo::Labeler(SPGCoverage.getEdgeLabeler())
+        + ag::EdgePrintStyles::simpleColorer("black")
+        + ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler()));
+    printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler())+
         ag::VertexPrintStyles::defaultDotColorer() + ag::VertexPrintStyles::defaultTooltiper() +
         ag::VertexInfo::Colorer(unique_storage.getColorer("white", "green")));
     printer += dll_tracker.getPrinter();
     printer.printDot(dir/"initial.dot", spg);
-    ds::DoublyLinkedList<Segment<Vertex>> segments;
     size_t cnt = 1;
     while (!multiplexer.finished()) {
         auto res = multiplexer.process(logger, threads);

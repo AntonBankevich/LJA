@@ -47,6 +47,8 @@ namespace ag {
         bool empty() const {return edge_pairs.empty();}
         bool incConnected(Edge &edge) const;
         bool outConnected(Edge &edge) const;
+        bool incConnected() const;
+        bool outConnected() const;
         bool allConnected() const;
         IterableStorage<std::vector<InOutEdgePair>::const_iterator> connections() const;
         IterableStorage<SkippingIterator<std::vector<InOutEdgePair>::const_iterator>> connectionsUnique() const;
