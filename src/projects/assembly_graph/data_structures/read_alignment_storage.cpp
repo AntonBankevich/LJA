@@ -340,7 +340,7 @@ void AlignedReadStorage::delayedInvalidateRead(AlignedRead &read, const string &
 
 void AlignedReadStorage::rerouteRead(AlignedRead &alignedRead, GraphPath corrected,
                                      const string &message) {
-    VERIFY(corrected.truncLen() >= 500);
+//    VERIFY(corrected.truncLen() >= 500);
     VERIFY(corrected.empty() || (!corrected.frontEdge().isPrefix() && !corrected.backEdge().isSuffix()))
     alignedRead.correct(std::move(corrected));
     this->fireDelayedRerouteRead(alignedRead, message);

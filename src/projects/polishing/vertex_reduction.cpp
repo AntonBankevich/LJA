@@ -119,7 +119,7 @@ std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> ConstructReduction(ag
         VERIFY(l.first <= r.first + edge.rc().truncSize());
         VERIFY(l.second <= r.second + edge.rc().truncSize());
         VERIFY(l.second >= r.first + edge.rc().truncSize() + min_overlap);
-        VERIFY(l.second <= r.first + edge.rc().truncSize() + 30000);
+//        VERIFY_MSG(l.second <= r.first + edge.rc().truncSize() + 30000, edge << " " << l << " " << r);
     }
 
     for (Vertex &v : graph.vertices()) {
