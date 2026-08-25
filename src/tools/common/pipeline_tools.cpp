@@ -185,7 +185,7 @@ ComplexStage::innerRun(logging::Logger &logger, size_t threads,
     std::string substage = "";
     size_t pos = restart_from.find('.');
     if(pos != size_t(-1)) {
-        substage = substage.substr(pos + 1, restart_from.size() - pos - 1);
+        substage = restart_from.substr(pos + 1, restart_from.size() - pos - 1);
         restart_from = restart_from.substr(0, pos);
     }
     if(restart_from != "none" && stages.find(restart_from) == stages.end()) {

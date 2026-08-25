@@ -1,12 +1,12 @@
 #pragma once
 #include "dbg/dbg_read_alignment_storage.hpp"
 #include "dbg/sparse_dbg.hpp"
-#include "error_correction.hpp"
+#include "dbg_correction_algorithm.hpp"
 #include "correction_utils.hpp"
 #include "bulge_path_marker.hpp"
 
 namespace dbg {
-    class ManyKCorrector : public AbstractCorrectionAlgorithm {
+    class ManyKCorrector : public dbg::AbstractDBGCorrectionAlgorithm {
     private:
         struct Bulge {
             ag::GraphPath left;
@@ -79,7 +79,7 @@ namespace dbg {
     public:
         ManyKCorrector(logging::Logger &logger, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads, size_t K,
                        size_t expectedCoverage,
-                       double reliable_threshold, double bad_threshold, bool diploid) : AbstractCorrectionAlgorithm(
+                       double reliable_threshold, double bad_threshold, bool diploid) : dbg::AbstractDBGCorrectionAlgorithm(
                 "ManyKCorrector"),
                                                                                         dbg(dbg), reads(reads), K(K),
                                                                                         expected_coverage(
@@ -91,7 +91,7 @@ namespace dbg {
 //            VERIFY(reads.getMaxLen() >= K);
         }
 
-        void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads) override;
+        void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads) override;
 
         ReadRecord splitRead(const ag::GraphPath &read_path) const;
 

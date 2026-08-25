@@ -1,7 +1,7 @@
 #include "correction_utils.hpp"
 using namespace ag;
 namespace dbg {
-    std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, double min_cov, size_t max_dist) {
+    std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, const std::function<bool(const Edge &)> &isReliable, size_t max_dist) {
         typedef std::pair<size_t, Vertex *> StoredValue;
         std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
         std::unordered_map<Vertex *, size_t> res;
@@ -13,7 +13,7 @@ namespace dbg {
                 res[next.second] = next.first;
                 for (Edge &edge: *next.second) {
                     size_t new_len = next.first + edge.truncSize();
-                    if ((edge.getCoverage() >= min_cov || edge.is_reliable) && new_len <= max_dist) {
+                    if (isReliable(edge) && new_len <= max_dist) {
                         queue.emplace(new_len, &edge.getFinish());
                     }
                 }
@@ -23,9 +23,9 @@ namespace dbg {
     }
 
     std::vector<GraphPath>
-    FindPlausibleBulgeAlternatives(const GraphPath &path, size_t max_diff, double min_cov) {
+    FindPlausibleBulgeAlternatives(const GraphPath &path, size_t max_diff, const std::function<bool(const Edge &)> &isReliable) {
         size_t max_len = path.truncLen() + max_diff;
-        std::unordered_map<Vertex *, size_t> reachable = findReachable(path.getFinish().rc(), min_cov, max_len);
+        std::unordered_map<Vertex *, size_t> reachable = findReachable(path.getFinish().rc(), isReliable, max_len);
         std::vector<GraphPath> res;
         GraphPath alternative(path.getStart());
         size_t iter_cnt = 0;
@@ -44,7 +44,7 @@ namespace dbg {
                 }
                 forward = false;
                 for (Edge &edge: alternative.getFinish()) {
-                    if ((edge.getCoverage() >= min_cov || edge.is_reliable) &&
+                    if (isReliable(edge) &&
                         reachable.find(&edge.getFinish().rc()) != reachable.end() &&
                         reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
                         len += edge.truncSize();
@@ -61,7 +61,7 @@ namespace dbg {
                 len -= old_edge.truncSize();
                 bool found = false;
                 for (Edge &edge: alternative.getFinish()) {
-                    if ((edge.getCoverage() >= min_cov || edge.is_reliable) &&
+                    if (isReliable(edge) &&
                         reachable.find(&edge.getFinish().rc()) != reachable.end() &&
                         reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
                         if (found) {
@@ -77,6 +77,13 @@ namespace dbg {
             }
         }
         return oneline::removeValue(res.begin(), res.end(), path);
+    }
+
+    std::vector<GraphPath>
+    FindPlausibleBulgeAlternatives(const GraphPath &path, size_t max_diff, double min_cov) {
+        return FindPlausibleBulgeAlternatives(path, max_diff, [min_cov](const Edge &e) {
+            return e.getCoverage() >= min_cov || e.is_reliable;
+        });
     }
 
     GraphPath FindReliableExtension(Vertex &start, size_t len, double min_cov) {

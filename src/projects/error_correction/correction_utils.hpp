@@ -3,9 +3,12 @@
 #include <assembly_graph/data_structures/suffix_tracker.hpp>
 #include "assembly_graph/random_access_paths.hpp"
 #include "dbg/sparse_dbg.hpp"
+#include <functional>
 
 namespace dbg {
     ag::GraphPath FindReliableExtension(Vertex &start, size_t len, double min_cov);
+    std::vector<ag::GraphPath> FindPlausibleBulgeAlternatives(const ag::GraphPath &path, size_t max_diff,
+                                                               const std::function<bool(const ag::Edge &)> &isReliable);
     std::vector<ag::GraphPath> FindPlausibleBulgeAlternatives(const ag::GraphPath &path, size_t max_diff, double min_cov);
     std::vector<ag::GraphPath> FindPlausibleTipAlternatives(const ag::GraphPath &path, size_t max_diff, double min_cov);
 

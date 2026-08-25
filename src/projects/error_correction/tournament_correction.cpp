@@ -136,7 +136,7 @@ namespace dbg {
 
     TournamentPathCorrector::TournamentPathCorrector(SparseDBG &sdbg, dbg::DBGAlignedReadStorage &reads_storage,
             double threshold, double reliable_threshold, bool diploid, size_t unique_threshold) :
-            AbstractCorrectionAlgorithm("TournamentCorrection"), sdbg(sdbg), reads_storage(reads_storage),
+            dbg::AbstractDBGCorrectionAlgorithm("TournamentCorrection"), sdbg(sdbg), reads_storage(reads_storage),
             threshold(threshold), reliable_threshold(reliable_threshold), diploid(diploid),
             unique_threshold(unique_threshold), max_size(0) {
     }
@@ -304,7 +304,7 @@ namespace dbg {
         }
     }
 
-    PrimitiveBulgeCorrector::PrimitiveBulgeCorrector(double threshold) : AbstractCorrectionAlgorithm(
+    PrimitiveBulgeCorrector::PrimitiveBulgeCorrector(double threshold) : ag::AbstractCorrectionAlgorithm(
             "PrimitiveBulgeCorrector"),
                                                                          threshold(threshold) {}
 
@@ -318,18 +318,18 @@ namespace dbg {
         TournamentPathCorrector tournamentPathCorrector(dbg, reads_storage, threshold, reliable_coverage, diploid,
                                                         unique_threshold);
         PrimitiveBulgeCorrector primitiveBulgeCorrector(bulge_threshold);
-        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
-        ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
-        ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
         SimpleRemoveUncovered(logger, threads, dbg);
         ag::MergeAllToEdges(logger, threads, dbg);
         DbgConstructionHelper(dbg.hasher()).checkConsistency(threads, logger, dbg);
-        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
-        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
-        ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
-        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, reads_storage);
         TipCorrectionPipeline(logger, dbg, reads_storage, threads, reliable_coverage);
-        ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
+        ag::ErrorCorrectionEngine(primitiveBulgeCorrector).run(logger, threads, dbg, reads_storage);
         RemoveUncovered(logger, threads, dbg, {&reads_storage.getReads(), &ref_storage.getReads()});
         for (dbg::Edge &edge: dbg.edges()) edge.is_reliable = edge.getCoverage() >= 2;
         CorrectTips(logger, threads, dbg, {&reads_storage});

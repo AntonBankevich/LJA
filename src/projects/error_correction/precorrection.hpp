@@ -1,11 +1,13 @@
 #pragma once
 #include "error_correction.hpp"
-class Precorrector : public AbstractCorrectionAlgorithm {
+#include <functional>
+class Precorrector : public ag::AbstractCorrectionAlgorithm {
 private:
-    double reliable_threshold;
+    std::function<bool(const ag::Edge &)> isReliable;
+    std::function<bool(const ag::Edge &)> isSuspicious;
 public:
-    Precorrector(double reliable_threshold) :
-            AbstractCorrectionAlgorithm("Precorrector"), reliable_threshold(reliable_threshold) {}
+    Precorrector(std::function<bool(const ag::Edge &)> isReliable, std::function<bool(const ag::Edge &)> isSuspicious) :
+            ag::AbstractCorrectionAlgorithm("Precorrector"), isReliable(std::move(isReliable)), isSuspicious(std::move(isSuspicious)) {}
 
     std::string correctRead(const std::string &name, ag::GraphPath &path) override;
 };

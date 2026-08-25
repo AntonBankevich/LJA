@@ -4,16 +4,18 @@
 #include "correction_utils.hpp"
 #include "dbg/sparse_dbg.hpp"
 
-ag::GraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, size_t max_size, dbg::Vertex *finish = nullptr) {
+ag::GraphPath FindOnlyPathForward(dbg::Vertex &start, const std::function<bool(const ag::Edge &)> &isReliable,
+                                   const std::function<bool(const ag::Edge &)> &isSuspicious,
+                                   size_t max_size, dbg::Vertex *finish = nullptr) {
     ag::GraphPath res(start);
     size_t sz = 0;
     while(sz < max_size) {
         dbg::Edge *next = nullptr;
         for(dbg::Edge &edge : res.getFinish()) {
-            if(edge.getCoverage() > 1 && edge.getCoverage() < reliable_coverage) {
+            if(!isSuspicious(edge) && !isReliable(edge)) {
                 next = nullptr;
                 break;
-            } else if(edge.getCoverage() >= reliable_coverage) {
+            } else if(isReliable(edge)) {
                 if(next != nullptr) {
                     next = nullptr;
                     break;
@@ -33,8 +35,9 @@ ag::GraphPath FindOnlyPathForward(dbg::Vertex &start, double reliable_coverage, 
     return std::move(res);
 }
 
-ag::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_coverage) {
-    ag::GraphPath res = FindOnlyPathForward(seg.contig().getStart(), reliable_coverage, seg.size());
+ag::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, const std::function<bool(const ag::Edge &)> &isReliable,
+                             const std::function<bool(const ag::Edge &)> &isSuspicious) {
+    ag::GraphPath res = FindOnlyPathForward(seg.contig().getStart(), isReliable, isSuspicious, seg.size());
     if(res.truncLen() >= seg.size()) {
         res.cutBack(res.truncLen() - seg.size());
         return std::move(res);
@@ -42,22 +45,23 @@ ag::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, double reliable_cover
         return {seg};
     }
 }
-bool isSimplestBulge(dbg::Vertex &start, dbg::Vertex &finish) {
+bool isSimplestBulge(dbg::Vertex &start, dbg::Vertex &finish, const std::function<bool(const ag::Edge &)> &isSuspicious) {
     return start.outDeg() == 2 && finish.inDeg() == 2 && start.front().getFinish() == finish &&
-        start.back().getFinish() == finish && start.front().getCoverage() == 1 && start.back().getCoverage() == 1;
+        start.back().getFinish() == finish && isSuspicious(start.front()) && isSuspicious(start.back());
 }
 
-ag::GraphPath PrecorrectBulge(dbg::Edge &bulge, double reliable_coverage) {
-    ag::GraphPath res = FindOnlyPathForward(bulge.getStart(), reliable_coverage, bulge.truncSize() + 20,
+ag::GraphPath PrecorrectBulge(dbg::Edge &bulge, const std::function<bool(const ag::Edge &)> &isReliable,
+                               const std::function<bool(const ag::Edge &)> &isSuspicious) {
+    ag::GraphPath res = FindOnlyPathForward(bulge.getStart(), isReliable, isSuspicious, bulge.truncSize() + 20,
                                            &bulge.getFinish());
     if(res.getFinish() == bulge.getFinish() && res.endClosed() && res.truncLen() + 20 > bulge.truncSize()) {
         return std::move(res);
     } else {
-        res = FindOnlyPathForward(bulge.getFinish().rc(), reliable_coverage, bulge.truncSize() + 20, &bulge.getStart().rc()).RC();
+        res = FindOnlyPathForward(bulge.getFinish().rc(), isReliable, isSuspicious, bulge.truncSize() + 20, &bulge.getStart().rc()).RC();
         if(res.getStart() == bulge.getStart() && res.startClosed() && res.truncLen() + 20 > bulge.truncSize())
             return std::move(res);
         else {
-            std::vector<ag::GraphPath> candidates = dbg::FindPlausibleBulgeAlternatives(ag::GraphPath(bulge), 10, reliable_coverage);
+            std::vector<ag::GraphPath> candidates = dbg::FindPlausibleBulgeAlternatives(ag::GraphPath(bulge), 10, isReliable);
             if(candidates.size() == 1 && candidates[0].truncLen() + 20 > bulge.truncSize() && candidates[0].truncLen() <
                                                                                             bulge.truncSize() + 20) {
                 return std::move(candidates[0]);
@@ -76,22 +80,22 @@ std::string Precorrector::correctRead(const std::string &name, ag::GraphPath &pa
     std::vector<std::string> message;
     for(ag::PathPosition pp = path.firstPosition(); pp != path.lastPosition(); ++pp) {
         ag::PathPosition ppp1 = pp + 1;
-        if(pp.nextEdge().getCoverage() != 1 ||
-           (pp != path.firstPosition() && pp.prevEdge().getCoverage() < reliable_threshold) ||
-           (ppp1 != path.lastPosition() && ppp1.nextEdge().getCoverage() < reliable_threshold)) {
+        if(!isSuspicious(pp.nextEdge()) ||
+           (pp != path.firstPosition() && !isReliable(pp.prevEdge())) ||
+           (ppp1 != path.lastPosition() && !isReliable(ppp1.nextEdge()))) {
             corrected_path += path.getSegment(pp);
             continue;
         }
         ag::GraphPath correction;
         std::string m = "";
         if(pp == path.firstPosition()) {
-            correction = PrecorrectTip(path.front().RC(), reliable_threshold).RC();
+            correction = PrecorrectTip(path.front().RC(), isReliable, isSuspicious).RC();
             m = "pit";
         } else if(ppp1 == path.lastPosition()) {
-            correction = PrecorrectTip(path.back(), reliable_threshold);
+            correction = PrecorrectTip(path.back(), isReliable, isSuspicious);
             m = "pot";
         } else {
-            if(isSimplestBulge(pp.getVertex(), ppp1.getVertex())) {
+            if(isSimplestBulge(pp.getVertex(), ppp1.getVertex(), isSuspicious)) {
                 dbg::Edge &other = pp.getVertex().front() == pp.nextEdge() ? pp.getVertex().back() : pp.getVertex().front();
                 dbg::EdgeId other_canonical = other.rc().getId() < other.getId() ? other.rc().getId() : other.getId();
                 dbg::EdgeId cur = pp.nextEdge().getId();
@@ -103,7 +107,7 @@ std::string Precorrector::correctRead(const std::string &name, ag::GraphPath &pa
                     correction = {pp.nextEdge()};
                 }
             } else {
-                correction = PrecorrectBulge(pp.nextEdge(), reliable_threshold);
+                correction = PrecorrectBulge(pp.nextEdge(), isReliable, isSuspicious);
                 m = "pb";
             }
         }

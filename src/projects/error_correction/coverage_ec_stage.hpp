@@ -9,15 +9,16 @@
 #include <dbg/dbg_construction.hpp>
 #include <dbg/graph_printing.hpp>
 #include <dbg/graph_stats.hpp>
-#include <dbg/aln_reads_reader.hpp>
+#include <dbg/graph_algorithms.hpp>
 #include "dbg/path_dumping.hpp"
 
 namespace dbg {
     std::unordered_map<std::string, std::experimental::filesystem::path>
     CoverageEC(logging::Logger &logger, const std::experimental::filesystem::path &dir,
-               const io::Library &reads_lib, const io::Library &pseudo_reads_lib, const io::Library &paths_lib, const io::Library &references_lib,
-               size_t threads, size_t k, size_t w, double threshold, double reliable_coverage,
-               bool diploid, bool dump_reads, bool debug, bool load) {
+               const io::Library &graph_lib, const io::Library &read_alignments_lib,
+               const io::Library &paths_lib, const io::Library &references_lib,
+               size_t threads, size_t k, double threshold, double reliable_coverage,
+               bool diploid, bool dump_reads, bool debug) {
         logger.info() << "Performing coverage-based error correction with k = " << k << std::endl;
         if (k % 2 == 0) {
             logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -25,31 +26,12 @@ namespace dbg {
         }
         ensure_dir_existance(dir);
         hashing::RollingHash hasher(k);
-        io::Library construction_lib = reads_lib + pseudo_reads_lib;
-        dbg::SparseDBG dbg = load ? LoadDBGFromEdgeSequences(logger, threads, {dir/"initial_dbg.gfa"}, hasher) :
-                             DBGPipeline(logger, hasher, w, construction_lib, dir, threads);
+        dbg::SparseDBG dbg = LoadDBGFromEdgeSequences(logger, threads, graph_lib, hasher);
         ag::Printer gfa_printer;
         ag::Printer dot_printer(ag::VertexPrintStyles::defaultDotInfo(), ag::EdgePrintStyles::defaultDotInfo());
         gfa_printer.setEdgeInfo(ag::EdgeInfo({&ag::GetEdgeNameForSaving},{}, {}));
-        if(debug && !load) {
-            logger.info() << "Printing graph to " << (dir/"initial_dbg.gfa") << std::endl;
-            gfa_printer.printGFA(dir/"initial_dbg.gfa", dbg);
-            logger.info() << "Finished printing graph" << std::endl;
-        }
         size_t extension_size = 800;
-        std::experimental::filesystem::path al_file = dir / "initial_alignments.aln";
-        dbg::SeqReader reader(reads_lib, logger, threads);
-        dbg::DBGAlignedReadStorage readStorage = load ?
-                dbg::DBGAlignedReadStorage::Load(logger, threads, al_file, dbg, true) :
-                dbg::DBGAlignedReadStorage(logger, threads, dbg,
-                    AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
-                                               true);
-        if (debug && !load) {
-            logger.info() << "Printing read alignments to " << al_file << std::endl;
-            readStorage.Save(al_file);
-            logger.info() << "Finished printing read alignments to " << al_file << std::endl;
-        }
-        dot_printer.printDot(dir / "initial_dbg.dot", dbg);
+        dbg::DBGAlignedReadStorage readStorage = dbg::DBGAlignedReadStorage::Load(logger, threads, read_alignments_lib.front(), dbg, true);
         if(debug) {
             readStorage.logReads(threads, dir/"read_log.txt");
             readStorage.logGraph(dbg, logger.getLoggerStream(logging::LogLevel::trace));
@@ -59,18 +41,22 @@ namespace dbg {
         if (debug) {
             PrintPaths(logger, threads, dir / "state_dump", "initial", dbg, readStorage, paths_lib, references_lib, true);
         }
-        Precorrector precorrector_early(4);
-        Precorrector precorrector_late(1.01);
+        Precorrector precorrector_early(
+                [](const ag::Edge &e) { return e.getCoverage() >= 4 || e.is_reliable; },
+                [](const ag::Edge &e) { return e.getCoverage() == 1; });
+        Precorrector precorrector_late(
+                [](const ag::Edge &e) { return e.getCoverage() >= 1.01 || e.is_reliable; },
+                [](const ag::Edge &e) { return e.getCoverage() == 1; });
         DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
         TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
-        ErrorCorrectionEngine(precorrector_early).run(logger, threads, dbg, readStorage);
+        ag::ErrorCorrectionEngine(precorrector_early).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         readStorage.stopTrackSuffixes();
         dbg.resetEdgeCodes(logger, threads);
         readStorage.trackSuffixes(logger, threads, dbg, 0, extension_size);
         if(debug) readStorage.getReads().checkConsistency();
-        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
+        ag::ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         DatasetParameters params = EstimateDatasetParameters(dbg, readStorage, true);
         params.PrintBasic(logger.getLoggerStream(logging::LogLevel::info));
@@ -88,12 +74,12 @@ namespace dbg {
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         dbg.resetEdgeCodes(logger, threads);
         readStorage.trackSuffixes(logger, threads, dbg, 0, 1000000);
-        ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
+        ag::ErrorCorrectionEngine(dimerCorrector).run(logger, threads, dbg, readStorage);
         ManyKCorrect(logger, threads, dbg, readStorage, threshold, reliable_coverage, 3500, 3, diploid);
-        ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
+        ag::ErrorCorrectionEngine(tournamentPathCorrector).run(logger, threads, dbg, readStorage);
         if (diploid)
-            ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
-        ErrorCorrectionEngine(precorrector_late).run(logger, threads, dbg, readStorage);
+            ag::ErrorCorrectionEngine(bpCorrector).run(logger, threads, dbg, readStorage);
+        ag::ErrorCorrectionEngine(precorrector_late).run(logger, threads, dbg, readStorage);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         {
             std::vector<ag::AlignedRead> pseudo_reads = PartialRR(logger, threads, dbg, readStorage.getSuffixes());
@@ -125,8 +111,8 @@ namespace dbg {
     class CoverageCorrectionStage : public Stage {
     public:
         CoverageCorrectionStage() : Stage(AlgorithmParameters(
-                {"k-mer-size=501", "window=2000", "coverage-threshold=3", "reliable-coverage=10", "diploid", "load", "dump-reads"},
-                {}, ""), {"reads", "pseudo_reads", "paths", "references"}, {"corrected_reads", "pseudo_reads", "final_dbg"}) {
+                {"k-mer-size=501", "coverage-threshold=3", "reliable-coverage=10", "diploid", "dump-reads"},
+                {}, ""), {"graph", "read_alignments", "paths", "references"}, {"corrected_reads", "pseudo_reads", "final_dbg"}) {
         }
 
     protected:
@@ -136,14 +122,12 @@ namespace dbg {
                  const AlgorithmParameterValues &parameterValues,
                  const std::unordered_map<std::string, io::Library> &input) override {
             size_t k = std::stoi(parameterValues.getValue("k-mer-size"));
-            size_t w = std::stoi(parameterValues.getValue("window"));
             double reliable_coverage = std::stod(parameterValues.getValue("reliable-coverage"));
             double threshold = std::stod(parameterValues.getValue("coverage-threshold"));
             bool diploid = parameterValues.getCheck("diploid");
-            bool load = parameterValues.getCheck("load");
-            return CoverageEC(logger, dir, input.find("reads")->second, input.find("pseudo_reads")->second,
-                              input.find("paths")->second, input.find("references")->second, threads, k, w, threshold, reliable_coverage, diploid,
-                              parameterValues.getCheck("dump-reads"), debug, load);
+            return CoverageEC(logger, dir, input.find("graph")->second, input.find("read_alignments")->second,
+                              input.find("paths")->second, input.find("references")->second, threads, k, threshold, reliable_coverage, diploid,
+                              parameterValues.getCheck("dump-reads"), debug);
         }
     };
 }

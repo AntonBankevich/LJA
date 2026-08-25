@@ -330,7 +330,7 @@ namespace dbg {
             return bulge.bulge;
     }
 
-    void ManyKCorrector::initialize(logging::Logger &logger, size_t threads, SparseDBG &dbg,
+    void ManyKCorrector::initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg,
                                     dbg::DBGAlignedReadStorage &reads) {
         CoverageReliableFiller cov(reliable_threshold);
         LengthReliableFiller len(20000, 3, 1);
@@ -369,6 +369,6 @@ namespace dbg {
         logger.info() << "Using K = " << K << " for error correction" << std::endl;
         ManyKCorrector algorithm(logger, dbg, reads_storage, K, expectedCoverage, reliable_threshold, threshold,
                                  diploid);
-        return ErrorCorrectionEngine(algorithm).run(logger, threads, dbg, reads_storage);
+        return ag::ErrorCorrectionEngine(algorithm).run(logger, threads, dbg, reads_storage);
     }
 }

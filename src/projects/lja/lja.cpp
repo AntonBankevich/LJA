@@ -1,8 +1,8 @@
 #include <supregraph/multiplexing_stage.hpp>
 #include "common/pipeline_tools.hpp"
 #include "trio/trio_stages.hpp"
+#include "dbg/dbg_construction_stage.hpp"
 #include "error_correction/coverage_ec_stage.hpp"
-#include "error_correction/no_correction_stage.hpp"
 #include "error_correction/topology_ec_stage.hpp"
 #include "polishing/polishing_stage.hpp"
 
@@ -36,20 +36,25 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
     ComplexStage lja(input_types, {"noec", "dimer-compress=32,32,1"});
     std::pair<std::string, std::string> corrected_reads;
     if(noec) {
-        SubstageRun &constructionStage = lja.addStage(NoCorrectionStage(), "Construction");
+        SubstageRun &constructionStage = lja.addStage(dbg::DBGConstructionStage(), "Construction");
         constructionStage.bindInput("reads", "", "reads");
         constructionStage.bindInput("pseudo_reads", "", "pseudo_reads");
-        constructionStage.bindInput("paths", "", "paths");
         corrected_reads = {"", "reads"};
     } else {
+        SubstageRun &graphConstruction1 = lja.addStage(dbg::DBGConstructionStage(), "GraphConstruction1");
+        graphConstruction1.bindInput("reads", "", "reads");
+        graphConstruction1.bindInput("pseudo_reads", "", "pseudo_reads");
         SubstageRun &correctionStage1 = lja.addStage(CoverageCorrectionStage(), "CoverageBasedCorrection");
-        correctionStage1.bindInput("reads", "", "reads");
-        correctionStage1.bindInput("pseudo_reads", "", "pseudo_reads");
+        correctionStage1.bindInput("graph", "GraphConstruction1", "graph");
+        correctionStage1.bindInput("read_alignments", "GraphConstruction1", "read_alignments");
         correctionStage1.bindInput("paths", "", "paths");
         correctionStage1.bindInput("references", "", "references");
+        SubstageRun &graphConstruction2 = lja.addStage(dbg::DBGConstructionStage(5001, 500), "GraphConstruction2");
+        graphConstruction2.bindInput("reads", "CoverageBasedCorrection", "corrected_reads");
+        graphConstruction2.bindInput("pseudo_reads", "CoverageBasedCorrection", "pseudo_reads");
         SubstageRun &correctionStage2 = lja.addStage(TopologyCorrectionStage(), "TopologyBasedCorrection");
-        correctionStage2.bindInput("reads", "CoverageBasedCorrection", "corrected_reads");
-        correctionStage2.bindInput("pseudo_reads", "CoverageBasedCorrection", "pseudo_reads");
+        correctionStage2.bindInput("graph", "GraphConstruction2", "graph");
+        correctionStage2.bindInput("read_alignments", "GraphConstruction2", "read_alignments");
         correctionStage2.bindInput("paths", "", "paths");
         correctionStage2.bindInput("references", "", "references");
         corrected_reads = {"TopologyBasedCorrection", "corrected_reads"};
@@ -66,9 +71,9 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
 //    }
     SubstageRun &rr = lja.addStage(spg::SupreGraphPhase(), "Multiplexing");
     if(noec) {
-        rr.bindInput("reads", "Construction", "final_aln");
-        rr.bindInput("extra_reads", "Construction", "extra_read_aln");
-        rr.bindInput("graph", "Construction", "final_dbg");
+        rr.bindInput("reads", "Construction", "read_alignments");
+        rr.bindInput("extra_reads", "Construction", "extra_reads");
+        rr.bindInput("graph", "Construction", "graph");
     } else {
         rr.bindInput("reads", "TopologyBasedCorrection", "final_aln");
         rr.bindInput("extra_reads", "TopologyBasedCorrection", "extra_read_aln");
@@ -102,9 +107,11 @@ int main(int argc, char **argv) {
     std::vector<std::string> command_line = oneline::initialize<std::string, char*>(argv, argv + argc);
     ComplexStage lja = ConstructLJApipeline(command_line);
     CLParser parser(lja.getStandaloneParameters(),
-                    {"o=output-dir", "t=threads", "k=CoverageBasedCorrection.k-mer-size", "K=K-mer-size"},
-                    {"K-mer-size=TopologyBasedCorrection.k-mer-size", "K-mer-size=Multiplexing.k-mer-size",
-                     "diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid"});
+                    {"o=output-dir", "t=threads", "k=k-mer-size", "K=K-mer-size"},
+                    {"k-mer-size=GraphConstruction1.k-mer-size", "k-mer-size=CoverageBasedCorrection.k-mer-size",
+                     "K-mer-size=GraphConstruction2.k-mer-size", "K-mer-size=TopologyBasedCorrection.k-mer-size", "K-mer-size=Multiplexing.k-mer-size",
+                     "diploid=CoverageBasedCorrection.diploid", "diploid=TopologyBasedCorrection.diploid",
+                     "no-topology-correction=TopologyBasedCorrection.no-topology-correction"});
     LoggedProgram lja_program("lja", std::move(lja), std::move(parser),
                               "Hello! You are running La Jolla Assembler (LJA), a tool for genome assembly from PacBio HiFi reads.",
                               "LJA pipeline finished.",

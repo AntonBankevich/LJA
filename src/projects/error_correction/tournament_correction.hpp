@@ -1,6 +1,6 @@
 #pragma once
 #include "dbg/graph_modification.hpp"
-#include "error_correction.hpp"
+#include "dbg_correction_algorithm.hpp"
 #include "multiplicity_estimation.hpp"
 #include "sequences/edit_distance.hpp"
 #include "tip_correction.hpp"
@@ -30,7 +30,7 @@ namespace dbg {
                         double threshold, double bulge_threshold, double reliable_coverage, bool diploid,
                         size_t unique_threshold, bool dump);
 
-    class TournamentPathCorrector : public AbstractCorrectionAlgorithm {
+    class TournamentPathCorrector : public dbg::AbstractDBGCorrectionAlgorithm {
     private:
         dbg::SparseDBG &sdbg;
         DBGAlignedReadStorage &reads_storage;
@@ -47,12 +47,12 @@ namespace dbg {
                                 double threshold, double reliable_threshold, bool diploid,
                                 size_t unique_threshold = 60000);
 
-        void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, DBGAlignedReadStorage &reads) override;
+        void initialize(logging::Logger &logger, size_t threads, dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads) override;
 
         std::string correctRead(const std::string &name, ag::GraphPath &path) override;
     };
 
-    class PrimitiveBulgeCorrector : public AbstractCorrectionAlgorithm {
+    class PrimitiveBulgeCorrector : public ag::AbstractCorrectionAlgorithm {
     private:
         double threshold;
     public:

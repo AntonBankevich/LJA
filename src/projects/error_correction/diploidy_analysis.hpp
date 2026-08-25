@@ -2,7 +2,8 @@
 
 #include "uniqueness.hpp"
 #include "dbg/sparse_dbg.hpp"
-#include "error_correction.hpp"
+#include "dbg/dbg_read_alignment_storage.hpp"
+#include "dbg_correction_algorithm.hpp"
 
 namespace ag {
     class BulgePath {
@@ -194,7 +195,7 @@ namespace ag {
 }
 
 namespace dbg {
-    class BulgePathCorrector : public AbstractCorrectionAlgorithm {
+    class BulgePathCorrector : public dbg::AbstractDBGCorrectionAlgorithm {
     private:
         struct PathPos {
             size_t path_ind;
@@ -230,7 +231,7 @@ namespace dbg {
         double threshold;
     public:
         BulgePathCorrector(dbg::SparseDBG &dbg, dbg::DBGAlignedReadStorage &reads, size_t unique_length,
-                           double threshold) : AbstractCorrectionAlgorithm("BulgePathFixer"),
+                           double threshold) : dbg::AbstractDBGCorrectionAlgorithm("BulgePathFixer"),
                                                unique_length(unique_length), threshold(threshold) {
         }
 
