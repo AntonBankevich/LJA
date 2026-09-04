@@ -71,10 +71,16 @@ void spg::UniqueVertexStorage::fireMergePath(const ag::RAGraphPath &path, Vertex
 void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) {
     fireMergePath(path.asRAPath(), vertex);
 }
-spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, const std::function<bool(Vertex &)> &is_unique) : ag::ResolutionListener(spg, "UniqueVertexStorage"){
+spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, const std::function<bool(Vertex &)> &is_unique, size_t unique_threshold)
+            : ag::ResolutionListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold){
+    for (Vertex &vertex : spg.vertices()) {fireAddVertex(vertex);}
     for(Vertex &vertex : spg.vertices()) {
         if(is_unique(vertex))
             add(vertex);
     }
+}
+
+spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, size_t unique_threshold): ag::ResolutionListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold) {
+    for (Vertex &vertex : spg.vertices()) {fireAddVertex(vertex);}
 }
 

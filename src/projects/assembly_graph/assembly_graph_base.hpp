@@ -327,6 +327,14 @@ namespace ag {
         size_t size() const { return seq.size(); }
         size_t getStartSize() const {return 0;};
         size_t truncSize() const {return seq.size();}
+        size_t innerSize() const {
+            size_t covered = 0;
+            if (!isForwardTerminal() && !front().isSuffix())
+                covered += front().getFinish().size();
+            if (!isBackwardTerminal() && rc().front().isSuffix())
+                covered += rc().front().getFinish().size();
+            return size() >= covered ? size() - covered : 0;
+        }
 
 //        Incident edges
         typename std::list<Edge>::iterator begin() const { return outgoing_.begin(); }
@@ -358,6 +366,8 @@ namespace ag {
         bool isInfLeft() const { return inf_left; }
         bool isInfRight() const { return inf_right; }
         bool isCore() const;
+        bool isForwardTerminal() const {return begin() == end();}
+        bool isBackwardTerminal() const {return rc().begin() == rc().end();}
         bool isOuter() const;
 
 

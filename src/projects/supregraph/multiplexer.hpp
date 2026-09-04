@@ -27,6 +27,14 @@ namespace spg {
         void pushCore(Vertex &vertex);
         Vertex &popCore();
 
+//        Lets callers drive multiplexing through a progressively loosened vertex-size threshold:
+//        core_queue is already ordered by vertex size, so raising this and checking hasReadyCore()
+//        is enough to gate which cores get resolved without touching multiplex()/merge().
+        void setMaxCoreLength(size_t new_max_core_length) {max_core_length = new_max_core_length;}
+        size_t getMaxCoreLength() const {return max_core_length;}
+        bool hasReadyCore() const {return !core_queue.empty() && core_queue.begin()->first <= max_core_length;}
+        bool hasPendingMerge() const {return !merge_queue.empty();}
+
         std::vector<VertexId> multiplex(logging::Logger &logger, size_t threads, Vertex &vertex);
         std::vector<VertexId> merge(logging::Logger &logger, size_t threads, Vertex &vertex);
 

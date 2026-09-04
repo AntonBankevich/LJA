@@ -83,7 +83,10 @@ std::string Precorrector::correctRead(const std::string &name, ag::GraphPath &pa
         if(!isSuspicious(pp.nextEdge()) ||
            (pp != path.firstPosition() && !isReliable(pp.prevEdge())) ||
            (ppp1 != path.lastPosition() && !isReliable(ppp1.nextEdge()))) {
-            corrected_path += path.getSegment(pp);
+            corrected_path += pp.nextEdge();
+            if (pp == path.firstPosition()) corrected_path.setCutLeft(path.leftCut());
+            if (ppp1 == path.lastPosition()) corrected_path.setCutRight(path.rightCut());
+            VERIFY(path.getStart() == corrected_path.getStart());
             continue;
         }
         ag::GraphPath correction;
@@ -118,7 +121,7 @@ std::string Precorrector::correctRead(const std::string &name, ag::GraphPath &pa
         corrected_path += correction;
     }
     if(!message.empty()) {
-        path = corrected_path;
+        path = std::move(corrected_path);
     }
     return join("_", message);
 }

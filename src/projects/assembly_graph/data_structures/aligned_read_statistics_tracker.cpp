@@ -21,7 +21,13 @@ void ag::AlignedReadStatisticsTracker::addPath(const GraphPath &path, __int64_t 
         VERIFY(!path.backEdge().isSuffix());
         path.backEdge().read_tail_length += (path.backEdge().fullSize() - path.rightCut()) * mult;
         path.backEdge().read_tail_count += mult;
-        path.frontEdge().outgoing_read_count -= mult;
+        for (Edge &e : path.edges()) {
+            if (!e.isSuffix()) {
+                e.outgoing_read_count += mult;
+            }
+        }
+        if (!path.frontEdge().isSuffix())
+            path.frontEdge().outgoing_read_count -= mult;
         // if (!path.frontEdge().isSuffix() && path.leftCut() > path.getStart().size()) {
         //     std::cout << path.frontEdge() << std::endl;
         //

@@ -206,5 +206,48 @@ namespace ag {
         is.close();
         return std::move(res);
     }
+    bool HasSupport(Vertex &vertex) {
+        size_t support = vertex.subread_count + vertex.covering_read_count;
+        for(Edge &edge : vertex) {
+            support += edge.outgoing_read_count + edge.read_tail_count;
+            support += edge.rc().outgoing_read_count + edge.rc().read_tail_count;
+        }
+        return support > 0;
+    }
+
+    //This procedure only allows to remove outer vertices. It is iterative and removes unsupported vertices outer layer by outer layer.
+    void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, AssemblyGraph &spg) {
+        logger.trace() << "Removing completely uncovered edges" << std::endl;
+        omp_set_num_threads(threads);
+        std::vector<VertexId> vertices_to_check;
+        for (Vertex &vertex: spg.verticesUnique()) {if (vertex.isOuter()) vertices_to_check.emplace_back(vertex.getId());}
+        while (!vertices_to_check.empty()) {
+            std::vector<VertexId> vertices_to_delete;
+            for(Vertex &vertex : spg.verticesUnique()) {
+                if (vertex.isOuter() && !HasSupport(vertex))
+                    vertices_to_delete.emplace_back(vertex.getId());
+            }
+            vertices_to_check.clear();
+            for(VertexId &vid : vertices_to_delete) {
+                if (!vid->isForwardTerminal()) {
+                    VERIFY(vid->front().isSuffix());
+                    vertices_to_check.emplace_back(vid->front().getFinish().getCanonical().getId());
+                }
+                if (!vid->isBackwardTerminal()) {
+                    VERIFY(vid->rc().front().isSuffix());
+                    vertices_to_check.emplace_back(vid->rc().front().getFinish().getCanonical().getId());
+                }
+            }
+            std::sort(vertices_to_check.begin(), vertices_to_check.end());
+            vertices_to_check.erase(std::unique(vertices_to_check.begin(), vertices_to_check.end()), vertices_to_check.end());
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(vertices_to_delete, spg)
+            for(size_t i = 0; i < vertices_to_delete.size(); i++) {
+                spg.isolateAndMark(*vertices_to_delete[i]);
+            }
+            logger.trace() << "Removed " << vertices_to_delete.size() << " vertices." << std::endl;
+        }
+        logger.trace() << "Finished removing completely uncovered vertices." << std::endl;
+        ag::MergeAllSPG(logger, threads, spg);
+    }
 
 }

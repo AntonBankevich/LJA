@@ -15,4 +15,5 @@ namespace ag {
     Vertex &MergePathSPG(const GraphPath &path, AssemblyGraph &graph);
     void MergeAllSPG(logging::Logger &logger, size_t threads, AssemblyGraph &graph);
     AssemblyGraph LoadSupregraphFromGFA(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &path);
+    void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, AssemblyGraph &spg);
 }

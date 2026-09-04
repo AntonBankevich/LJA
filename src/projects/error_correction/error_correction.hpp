@@ -26,7 +26,7 @@ namespace ag {
             algorithm.initialize(logger, threads, graph, reads_storage);
             logger.info() << "Correcting reads using algorithm " << algorithm.getName() << std::endl;
             ParallelCounter cnt(threads);
-            omp_set_num_threads(threads);
+            omp_set_num_threads(1);
             logging::ProgressBar progressBar(logger, reads_storage.size(), threads);
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(std::cout, reads_storage, logger, cnt, progressBar)
             for(size_t read_ind = 0; read_ind < reads_storage.size(); read_ind++) {

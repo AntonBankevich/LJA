@@ -14,6 +14,7 @@ namespace spg {
     class UniqueVertexStorage : public ag::ResolutionListener {
     private:
         std::unordered_set<ag::ConstVertexId> unique;
+        size_t unique_threshold;
 
 //        TODO: redo this using corporeal indicator
         VertexId nextOutAfterDelete(Vertex &cur, Vertex &deleted_core);
@@ -23,9 +24,10 @@ namespace spg {
 
     public:
         template<class I>
-        UniqueVertexStorage(ag::AssemblyGraph &spg, I begin, I end);
-        UniqueVertexStorage(ag::AssemblyGraph &spg, const std::function<bool(Vertex &)> &is_unique);
-        explicit UniqueVertexStorage(ag::AssemblyGraph &spg) : ag::ResolutionListener(spg, "UniqueVertexStorage") {}
+        UniqueVertexStorage(ag::AssemblyGraph &spg, I begin, I end, size_t unique_threshold = 1000000);
+        UniqueVertexStorage(ag::AssemblyGraph &spg, const std::function<bool(Vertex &)> &is_unique, size_t unique_threshold = 1000000);
+        explicit UniqueVertexStorage(ag::AssemblyGraph &spg, size_t unique_threshold = 1000000);
+
         UniqueVertexStorage(UniqueVertexStorage &&) = default;
         UniqueVertexStorage(const UniqueVertexStorage &) = delete;
 
@@ -39,6 +41,7 @@ namespace spg {
             };
         }
 
+        void fireAddVertex(Vertex &vertex) override {if (vertex.innerSize() >= unique_threshold) add(vertex);}
         void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;
         void fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) override;
         void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &vertex) override {};
@@ -49,7 +52,9 @@ namespace spg {
 }
 
 template<class I>
-spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, I begin, I end) : ag::ResolutionListener(spg, "UniqueVertexStorage") {
+spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, I begin, I end, size_t unique_threshold) :
+            ag::ResolutionListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold) {
+    for (Vertex &vertex : spg.vertices()) {fireAddVertex(vertex);}
     for(;begin != end; ++begin) {
         add(*begin);
     }
