@@ -83,8 +83,8 @@ std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> ConstructReduction(ag
     }
     for (Vertex &v: graph.verticesUnique()) {
         if (v.isCore() && v.inDeg() >= 2 && v.outDeg() >= 2 && v.size() < max_repeat) {
-            size_t left = std::min(v.rc().front().getFinish().size(), v.rc().back().getFinish().size());
-            size_t right = std::min(v.front().getFinish().size(), v.back().getFinish().size());
+            size_t left = std::min(v.incFrontVertex().size(), v.incBackVertex().size());
+            size_t right = std::min(v.frontVertex().size(), v.backVertex().size());
             if (left > right && left > 2 * v.size()) {
                 CollapseCoreVertexToPrefix(v.rc(), min_overlap, reduction);
             } else if (right >= left && right > 2 * v.size()) {
@@ -93,7 +93,7 @@ std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> ConstructReduction(ag
         }
     }
     for (Vertex &vertex : graph.verticesUnique()) {
-        if (!vertex.isJunction() && vertex.isCore() && !vertex.front().getFinish().isJunction()) {
+        if (!vertex.isJunction() && vertex.isCore() && !vertex.frontVertex().isJunction()) {
             CollapseCoreVertexToPrefix(vertex, min_overlap, reduction);
         }
     }

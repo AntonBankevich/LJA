@@ -91,7 +91,7 @@ namespace spg {
 //                loop = loop.Subseq(v.rc().front().fullSize() / 2, loop.size() / 2);
 //            }
 //            loop = !loop + loop;
-//            VERIFY(v.rc().front() == v.rc().front().rc())
+//            VERIFY(v.rc().front() == v.incFront())
 //        }
 //        spg::Vertex &newv = g.addSPGVertex(loop, true, false, false);
 //        g.addSPEdgeLockFree(newv, newv);
@@ -154,7 +154,7 @@ namespace spg {
 //            if (v.inDeg() == 1 || v.outDeg() != 1)
 //                continue;
 //            VERIFY(vmap.find(v.getId()) != vmap.end());
-//            OVertex &u = v.front().getFinish();
+//            OVertex &u = v.frontVertex()
 //            if (u.inDeg() == 1)
 //                continue;
 //            VERIFY(vmap.find(u.getId()) != vmap.end());

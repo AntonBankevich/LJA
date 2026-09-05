@@ -2,6 +2,7 @@
 #include "assembly_graph/dll_path.hpp"
 
 #include "path_spy.hpp"
+#include "path_tracker.hpp"
 #include "assembly_graph/dll_path_storage.hpp"
 #include "assembly_graph/data_structures/aligned_read_statistics_tracker.hpp"
 
@@ -12,7 +13,7 @@ void spg::CleanSupregraph(ag::AssemblyGraph &dbg) {
             ends.emplace_back(v.getId());
     for(VertexId vid : ends) {
         while(vid->inDeg() == 0 && vid->outDeg() == 1 && vid->front().isPrefix()) {
-            VertexId next = vid->front().getFinish().getId();
+            VertexId next = vid->frontVertex().getId();
             dbg.isolateAndMark(*vid);
             vid = next;
         }
@@ -41,29 +42,6 @@ void PrintConnectedComponents(ag::Printer &printer, const std::experimental::fil
         ccnt++;
     }
 }
-
-void PreparePathTracker(logging::Logger &logger, size_t threads, dbg::SparseDBG &spg, size_t w,
-            const io::Library &paths, spg::OldPathTracker &path_tracker) {
-    std::vector<Contig> contigs = io::SeqReader(paths).readAllAsContigs();
-    dbg::KmerIndex index(spg);
-    index.fillAnchors(logger, threads, spg, w);
-    for (Contig &contig : contigs) {
-        std::vector<ag::AlignmentChain<Contig, ag::Edge>> al = index.carefulAlign(contig);
-        path_tracker.addPath(contig.getInnerId(), al);
-    }
-}
-
-void PrepareDLLPathTracker(logging::Logger &logger, size_t threads, dbg::SparseDBG &spg, size_t w,
-            const io::Library &paths, ag::DLLAlignmentStorage &path_tracker) {
-    std::vector<Contig> contigs = io::SeqReader(paths).readAllAsContigs();
-    dbg::KmerIndex index(spg);
-    index.fillAnchors(logger, threads, spg, w);
-    for (Contig &contig : contigs) {
-        std::vector<ag::AlignmentChain<Contig, ag::Edge>> al = index.carefulAlign(contig);
-        path_tracker.addContig(contig, al);
-    }
-}
-
 
 std::unordered_map<std::string, std::experimental::filesystem::path>
 spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, size_t k,
@@ -96,16 +74,15 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     std::vector<ag::EdgeId> eids = oneline::map(spg.edgesUnique().begin(), spg.edgesUnique().end(), IdTransformer<Edge>());
     UniqueVertexStorage unique_storage(spg);
     OldVertexTracker vertex_tracker(spg, debug);
-    OldPathTracker path_tracker(spg, vertex_tracker, printer, dir/"state_dump");
     ag::DLLAlignmentStorage dll_tracker(spg);
+    std::unique_ptr<spg::PathTracker> path_tracker;
 
     if (debug) {
-        // PreparePathTracker(logger, threads, spg, w, paths, path_tracker);
         PrepareDLLPathTracker(logger, threads, spg, w, paths, dll_tracker);
         dll_tracker.print(logger.debug());
+        path_tracker = std::make_unique<spg::PathTracker>(spg, dll_tracker, printer, dir / "path_tracking");
     } else {
         vertex_tracker.detach();
-        path_tracker.detach();
         dll_tracker.detach();
     }
     ag::LoggingListener modificationLogger(spg, logger.getLoggerStream(logging::LogLevel::trace));

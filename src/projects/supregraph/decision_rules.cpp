@@ -111,10 +111,10 @@ void spg::AndreyRule::uniqueHeuristic(spg::VertexResolutionPlan &res) {
 bool checkForwardLoop(ag::Vertex &v) {
     if(v.outDeg() != 1)
         return false;
-    ag::Vertex &next = v.front().getFinish();
+    ag::Vertex &next = v.frontVertex();
     if(next.isJunction())
         return false;
-    return next.front().getFinish() == v;
+    return next.frontVertex() == v;
 }
 void spg::AndreyRule::noChoiceHeuristic(spg::VertexResolutionPlan &res) {
     Vertex &core = res.getCore();
@@ -137,14 +137,15 @@ spg::VertexResolutionPlan spg::AndreyRule::judgeNontrivial(spg::Vertex &v) {
     for(Edge &edge : v.incoming()) {
         const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
         for(Edge &out : v) {
-            if(rec.countStartsWith(ag::GraphPath(out)) > 0) {
-                res.add(edge, out);
+            size_t support = rec.countStartsWith(ag::GraphPath(out));
+            if(support) {
+                res.add(edge, out, support);
             }
         }
     }
     if (!res.allConnected()) loopHeuristic(res);
     if (!res.allConnected()) uniqueHeuristic(res);
-    if (!res.allConnected()) noChoiceHeuristic(res);
+    // if (!res.allConnected()) noChoiceHeuristic(res);
     if(res.allConnected())
         return std::move(res);
     return {v};
@@ -198,14 +199,15 @@ ag::VertexResolutionPlan spg::RandomDecisionRule::judgeNontrivial(ag::Vertex &v)
     for(Edge &edge : v.incoming()) {
         const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
         for(Edge &out : v) {
-            if(rec.countStartsWith(ag::GraphPath(out)) > 0) {
-                res.add(edge, out);
+            size_t support = rec.countStartsWith(ag::GraphPath(out));
+            if(support > 0) {
+                res.add(edge, out, support);
             }
         }
     }
     if (!res.allConnected()) loopHeuristic(res);
     if (!res.allConnected()) uniqueHeuristic(res);
-    if (!res.allConnected()) noChoiceHeuristic(res);
+    // if (!res.allConnected()) noChoiceHeuristic(res);
     if(res.allConnected())
         return std::move(res);
     std::vector<std::pair<size_t, ag::EdgeId>> out = collectOut(v);
@@ -232,7 +234,7 @@ ag::VertexResolutionPlan spg::ObviousRule::judgeNontrivial(Vertex &v) {
         for(Edge &out : v) {
             size_t support = rec.countStartsWith(ag::GraphPath(out));
             if (support > 0) {
-                res.add(edge, out);
+                res.add(edge, out, support);
                 min_support = std::min(min_support, support);
                 connections++;
             }

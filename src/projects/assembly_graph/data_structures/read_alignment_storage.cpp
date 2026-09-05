@@ -28,7 +28,7 @@ void AlignedReadStorageMaintenance::fireResolveVertex(Vertex &core, const Vertex
                     new_subread_recs[new_vertex.getId()]->emplace_back(dir);
                 } else {
                     Vertex &new_start = resolution.get(dir.frontEdge(), (dir.firstPosition() + 1).nextEdge());
-                    dir.pop_front(new_start.rc().front().rc());
+                    dir.pop_front(new_start.incFront());
                     new_recs[new_start.front().getId()]->emplace_back(dir);
                 }
             }
@@ -50,7 +50,7 @@ void AlignedReadStorageMaintenance::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
             dir.setPath(GraphPath(v, dir.leftCut(), dir.rightCut()));
             subread_recs.emplace_back(dir);
         } else {
-            dir.pop_front(v.rc().front().rc());
+            dir.pop_front(v.incFront());
             new_recs.emplace_back(dir);
         }
     }
@@ -87,7 +87,7 @@ void AlignedReadStorageMaintenance::fireMergePath(const RAGraphPath &path, Verte
     VERIFY(new_vertex != path.getStart());//All-suffix and all-prefix paths should be handled by mergePathToEdge
     VERIFY(new_vertex != path.getFinish());
     Edge &forwardEdge = new_vertex.front();//Last edge is now a suffix edge from new_vertex to end of the path
-    Edge &backwardEdge = new_vertex.rc().front().rc();
+    Edge &backwardEdge = new_vertex.incFront();
     size_t left_skip = 0;
     size_t right_skip = new_vertex.size() - path.getStart().size();
     std::vector<AlignedReadDirection> &recs = storage->getOutgoingReads(forwardEdge);

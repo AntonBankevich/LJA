@@ -50,10 +50,10 @@ void spg::UniqueVertexStorage::fireResolveVertex(Vertex &core, const ag::VertexR
     for(Vertex &v : resolution.newVertices()) {
         VERIFY(v.inDeg() == 1);
         VERIFY(v.outDeg() == 1);
-        if(isUnique(v.front().getFinish()))
-            propagateUniqueness(v.front().getFinish(), core);
-        if(isUnique(v.rc().front().getFinish()))
-            propagateUniqueness(v.rc().front().getFinish(), core);
+        if(isUnique(v.frontVertex()))
+            propagateUniqueness(v.frontVertex(), core);
+        if(isUnique(v.incFrontVertex()))
+            propagateUniqueness(v.incFrontVertex(), core);
     }
 }
 

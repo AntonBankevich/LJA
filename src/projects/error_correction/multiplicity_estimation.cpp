@@ -246,13 +246,13 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
         Edge &e12 = start.front().truncSize() > start.back().truncSize() ? start.back() : start.front();
         VERIFY(e11.truncSize() >= e12.truncSize());
         size_t ind2 = end.rc().front().truncSize() > end.rc().back().truncSize() ? 1 : 0;
-        Edge &e31 = end.rc().front().truncSize() > end.rc().back().truncSize() ? end.rc().back().rc() : end.rc().front().rc();
-        Edge &e32 = end.rc().front().truncSize() > end.rc().back().truncSize() ? end.rc().front().rc() : end.rc().back().rc();
+        Edge &e31 = end.rc().front().truncSize() > end.rc().back().truncSize() ? end.incBack() : end.incFront();
+        Edge &e32 = end.rc().front().truncSize() > end.rc().back().truncSize() ? end.incFront() : end.incBack();
         VERIFY(e31.truncSize() <= e32.truncSize());
         if(e12.getFinish().outDeg() != 2 || e31.getStart().inDeg() != 2 || e11.getFinish() != e31.getStart() ||
                 e12.getFinish() != e32.getStart())
             return false;
-        Edge &e2 = e12.getFinish().front().getFinish() == e31.getStart() ? e12.getFinish().front() : e12.getFinish().back();
+        Edge &e2 = e12.getFinish().frontVertex() == e31.getStart() ? e12.getFinish().front() : e12.getFinish().back();
         if(!component.contains(e2.getStart()) || ! component.contains(e2.getFinish()))
             return false;
         bad_candidates = {&e11, &e2, &e32};
@@ -269,8 +269,8 @@ bool UniqueClassificator::processSimpleRepeat(const Component &component) {
     if(bad.getFinish() == end) {
         nonUnique.emplace(&end.rc().front());
         nonUnique.emplace(&end.rc().back());
-        nonUnique.emplace(&end.rc().back().rc());
-        nonUnique.emplace(&end.rc().back().rc());
+        nonUnique.emplace(&end.incBack());
+        nonUnique.emplace(&end.incBack());
     }
     for(Edge &edge : component.edgesInner()) {
         if(nonUnique.find(&edge) == nonUnique.end())
@@ -435,9 +435,9 @@ void UniqueClassificator::processSimpleComponent(logging::Logger &logger, const 
         return;
     }
     VERIFY(order.front()->inDeg() == 1);
-    VERIFY(!component.contains(order.front()->rc().front().getFinish()));
+    VERIFY(!component.contains(order.front()->rc().frontVertex()));
     VERIFY(order.back()->outDeg() == 1);
-    VERIFY(!component.contains(order.back()->front().getFinish()));
+    VERIFY(!component.contains(order.back()->frontVertex()));
     std::unordered_map<Vertex *, std::pair<Edge *, size_t>> prev;
     for(Vertex *cur : order) {
         Edge *pedge = nullptr;
@@ -530,13 +530,13 @@ std::pair<Edge *, Edge *> CheckLoopComponent(const Component &component) {
         return {nullptr, nullptr};
     if(end.inDeg() != 1 || end.outDeg() != 2)
         return {nullptr, nullptr};
-    Edge &back_edge = (end.front().getFinish() == start) ? end.front() : end.back();
+    Edge &back_edge = (end.frontVertex() == start) ? end.front() : end.back();
     if(forward_edge.truncSize() > 30000 || back_edge.truncSize() > 50000)
         return {nullptr, nullptr};
     if(back_edge.getStart() != end || back_edge.getFinish() != start)
         return {nullptr, nullptr};
     Edge &out = end.front() == back_edge ? end.back() : end.front();
-    Edge &in = start.rc().front().rc() == back_edge ? start.rc().back().rc() : start.rc().front().rc();
+    Edge &in = start.incFront() == back_edge ? start.incBack() : start.incFront();
     if(component.contains(out.getFinish()) || component.contains(in.getStart()))
         return {nullptr, nullptr};
     return {&forward_edge, &back_edge};
@@ -554,7 +554,7 @@ ag::AlignedReadStorage ResolveLoops(logging::Logger &logger, size_t threads, Spa
         Vertex &start = forward_edge.getStart();
         Vertex &end = forward_edge.getFinish();
         Edge &out = end.front() == back_edge ? end.back() : end.front();
-        Edge &in = start.rc().front().rc() == back_edge ? start.rc().back().rc() : start.rc().front().rc();
+        Edge &in = start.incFront() == back_edge ? start.incBack() : start.incFront();
         std::pair<double, double> tmp = minmaxCov(comp, reads_storage, more_unique.asFunction());
         double min_cov = tmp.first;
         double max_cov = tmp.second;

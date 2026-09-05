@@ -61,6 +61,10 @@ Vertex &ag::AssemblyGraph::mergePath(const GraphPath &path) {
         }
         return res;
     } else {
+//        Locks the two pre-existing (possibly shared-junction) vertices whose edge lists get mutated below;
+//        res is freshly created by this call and needs no lock. Mirrors mergePathToEdge's locking so that
+//        several mergePath calls on disjoint paths meeting at a shared junction can run in parallel.
+        Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getRCStart().getId()});
         Sequence seq = path.Seq();
         Vertex &res = addSPGVertex(seq, false, false, false);
         Edge &inc_edge = addSPEdgeLockFree(path.getStart(), res);
@@ -142,13 +146,13 @@ Vertex &AssemblyGraph::edgeToSupreVertex(Edge &edge) {
     res.front().setCorporeal(false);
     res.front().rc().setCorporeal(false);
     res.rc().front().setCorporeal(false);
-    res.rc().front().rc().setCorporeal(false);
+    res.incFront().setCorporeal(false);
     fireEdgeToSupreVertex(res, edge);
     removeEdgeLockFree(edge);
     res.front().setCorporeal(true);
     res.front().rc().setCorporeal(true);
     res.rc().front().setCorporeal(true);
-    res.rc().front().rc().setCorporeal(true);
+    res.incFront().setCorporeal(true);
     return res;
 }
 
@@ -181,7 +185,7 @@ AssemblyGraph::resolveVertex(Vertex &core, const VertexResolutionPlan &resolutio
         v.front().setCorporeal(true);
         v.front().rc().setCorporeal(true);
         v.rc().front().setCorporeal(true);
-        v.rc().front().rc().setCorporeal(true);
+        v.incFront().setCorporeal(true);
     }
     return std::move(result);
 }
@@ -264,11 +268,16 @@ bool Vertex::isOuter() const {
 
 
 Vertex &AssemblyGraph::addSelfRCVertex(VertexData data) {
-    typename Vertex::id_type id = maxVId + 1;
-    Vertex &res = innerAddVertex(id, true, std::move(data));
-    res.setRC(res);
-    this->fireAddVertex(res);
-    return res;
+    Vertex *res;
+#pragma omp critical
+    {
+        typename Vertex::id_type id = maxVId + 1;
+        Vertex &new_res = innerAddVertex(id, true, std::move(data));
+        new_res.setRC(new_res);
+        res = &new_res;
+    }
+    this->fireAddVertex(*res);
+    return *res;
 }
 
 IterableStorage<SkippingIterator<typename AssemblyGraph::vertex_iterator_type>> AssemblyGraph::vertices(bool unique) & {
@@ -384,20 +393,28 @@ void AssemblyGraph::resetMarkers() {
     }
 }
 
+//    Vertex id selection and vertex_list insertion have no per-vertex id to lock on yet, so this critical
+//    section is what makes concurrent addVertex/addVertexPair/addSelfRCVertex calls safe. Contract: no one
+//    iterates over the graph's vertex list while vertices are being added.
 Vertex &AssemblyGraph::addVertex(const Sequence &seq, const VertexData &data, typename Vertex::id_type id) {
-    if (id == 0) {
-        if(seq <= !seq)
-            id = maxVId + 1;
-        else
-            id = -maxVId - 1;
+    Vertex *res;
+#pragma omp critical
+    {
+        if (id == 0) {
+            if(seq <= !seq)
+                id = maxVId + 1;
+            else
+                id = -maxVId - 1;
+        }
+        maxVId = std::max(std::abs(id), maxVId);
+        Vertex &new_res = innerAddVertex(id, seq, data);
+        Vertex &new_rc = seq == !seq ? new_res : innerAddVertex(-id, !seq, data.RC());
+        new_res.setRC(new_rc);
+        new_res.setSeq(seq);
+        res = &new_res;
     }
-    maxVId = std::max(std::abs(id), maxVId);
-    Vertex & res = innerAddVertex(id, seq, data);
-    Vertex & rc = seq == !seq ? res : innerAddVertex(-id, !seq, data.RC());
-    res.setRC(rc);
-    res.setSeq(seq);
-    this->fireAddVertex(res);
-    return res;
+    this->fireAddVertex(*res);
+    return *res;
 }
 
 size_t AssemblyGraph::edgeCount() const {
@@ -660,11 +677,16 @@ void AssemblyGraph::resetEdgeCodes(logging::Logger &logger, size_t threads) {
 
 Vertex &AssemblyGraph::addVertexPair(VertexData data, typename Vertex::id_type id) {
     VERIFY(id >= 0);
-    if(id == 0)
-        id = maxVId + 1;
-    Vertex &rc = innerAddVertex(-id, false, data.RC());
-    Vertex &res = innerAddVertex(id, true, std::move(data));
-    res.setRC(rc);
-    this->fireAddVertex(res);
-    return res;
+    Vertex *res;
+#pragma omp critical
+    {
+        if(id == 0)
+            id = maxVId + 1;
+        Vertex &rc = innerAddVertex(-id, false, data.RC());
+        Vertex &new_res = innerAddVertex(id, true, std::move(data));
+        new_res.setRC(rc);
+        res = &new_res;
+    }
+    this->fireAddVertex(*res);
+    return *res;
 }

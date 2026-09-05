@@ -81,7 +81,7 @@ namespace ag {
                         return;
                     }
                 }
-                VERIFY(last.outDeg() == 2 && last.front().getFinish() == last.back().getFinish());
+                VERIFY(last.outDeg() == 2 && last.frontVertex() == last.backVertex());
                 path.emplace_back(last.front().getId(), last.back().getId());
             }
         }
@@ -171,7 +171,7 @@ namespace ag {
             if (outgoing_edge_cnt == 0) {return false;}
             if (outgoing_edge_cnt == 1) {return true;}
             if (v.outDeg() > 2) {return false;}
-            if (v.front().getFinish() != v.back().getFinish()) {return false;}
+            if (v.frontVertex() != v.backVertex()) {return false;}
             if (v.front().truncSize() > v.back().truncSize() * 1.3 ||
                 v.back().truncSize() > v.front().truncSize() * 1.3) {return false;}
             return true;

@@ -80,6 +80,12 @@ namespace ag {
 
         //        Make sure not to perform any other graph modifications in parallel with this method since it only blocks
 //        the first and the last vertices
+//        Invariant relied on by listeners (e.g. AlignedReadStatisticsTracker::fireMergePathToEdge): in a
+//        Supregraph, callers only ever pass paths whose edges are uniformly all-suffix or all-prefix, never
+//        a mix. mergePath enforces this by only calling mergePathToEdge on such homogeneous runs and merging
+//        any other (mixed) stretch into a vertex via fireMergePath instead. This is what guarantees the
+//        resulting new_edge is itself isSuffix()/isPrefix() to match the run it came from, and (by RC mirroring)
+//        that the mirrored call sees the opposite, homogeneous, isPrefix()/isSuffix() run.
         Edge &mergePathToEdge(const GraphPath &path);
         Edge &mergeTipsToEdge(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
 //        TODO: make it usable in parallel when parallel vertex adding is implemented

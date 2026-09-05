@@ -276,7 +276,7 @@ namespace dbg {
             }
             Vertex &start = edge.getStart();
             Vertex &end = edge.getFinish();
-            if (start.outDeg() != 2 || start.front().getFinish() != start.back().getFinish()) {
+            if (start.outDeg() != 2 || start.frontVertex() != start.backVertex()) {
                 continue;
             }
             Edge &alt = edge == start.front() ? start.back() : start.front();

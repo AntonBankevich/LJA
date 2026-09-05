@@ -147,9 +147,9 @@ namespace spg {
 ////        void addInnerSegment(const Segment<Vertex> &seg) const {
 ////            Vertex &v = seg.contig();
 //////            if(v.outDeg() == 1 && v.front().isSuffix())
-//////                VERIFY(seg.rightCut() >= v.front().getFinish().size());
+//////                VERIFY(seg.rightCut() >= v.frontVertex().size());
 //////            if(v.inDeg() == 1 && v.rc().front().isSuffix())
-//////                VERIFY(seg.leftCut() >= v.rc().front().getFinish().size());
+//////                VERIFY(seg.leftCut() >= v.rc().frontVertex().size());
 ////            inner_index[v.getId()] += seg;
 ////        }
 //

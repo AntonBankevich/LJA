@@ -6,7 +6,8 @@ std::ostream &ag::operator<<(std::ostream &stream, const InOutEdgePair &pair) {
     return stream << "(" << pair.first << "|" << pair.second << ")";
 }
 
-InOutEdgePair::InOutEdgePair(Edge &first, Edge &second) : first(first.getId()), second(second.getId()) {
+InOutEdgePair::InOutEdgePair(Edge &first, Edge &second, size_t support) :
+        first(first.getId()), second(second.getId()), support(support) {
     VERIFY(this->first->getFinish() == this->second->getStart());
 }
 
@@ -46,7 +47,7 @@ void VertexResolutionResult::add(Vertex &new_vertex, const InOutEdgePair &edgePa
     }
 }
 
-void VertexResolutionResult::add(Vertex &new_vertex, Edge &edge1, Edge &edge2) {add(new_vertex, {edge1, edge2});}
+// void VertexResolutionResult::add(Vertex &new_vertex, Edge &edge1, Edge &edge2) {add(new_vertex, {edge1, edge2});}
 
 IterableStorage<TransformingIterator<typename std::unordered_map<VertexId, InOutEdgePair>::const_iterator, Vertex>>
 VertexResolutionResult::newVertices() const {
@@ -67,9 +68,9 @@ std::ostream &ag::operator<<(std::ostream &stream, const VertexResolutionResult 
 
 void VertexResolutionPlan::add(const InOutEdgePair &edgePair) {
     VERIFY(edgePair.incoming().getFinish().getId() == v && edgePair.outgoing().getStart().getId() == v);
-    for(const InOutEdgePair &ep : edge_pairs)
+    for(InOutEdgePair &ep : edge_pairs)
         if(edgePair == ep)
-            return;
+            ep.addSupport(edgePair);
     edge_pairs.emplace_back(edgePair);
     InOutEdgePair rc = edgePair.RC();
     if(*v == v->rc() && rc != edgePair)

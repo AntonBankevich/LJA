@@ -80,13 +80,13 @@ private:
             if(v.outDeg() > 0 && v.outDeg() <= 2) {
                 bool ok = true;
                 for(Edge &e : v) {
-                    if(e.getFinish() != v.front().getFinish()) {
+                    if(e.getFinish() != v.frontVertex()) {
                         ok = false;
                         break;
                     }
                 }
-                if(ok && v.outDeg() == v.front().getFinish().inDeg())
-                    paths.link(v.getId(), v.front().getFinish().getId());
+                if(ok && v.outDeg() == v.frontVertex().inDeg())
+                    paths.link(v.getId(), v.frontVertex().getId());
             }
         }
         std::unordered_map<VertexId, std::vector<VertexId>> split = paths.nontrivialSubsets();
@@ -94,7 +94,7 @@ private:
             size_t len = 0;
             for(VertexId v : it.second) {
                 if(v->outDeg() > 0 && paths.get(v->begin()->getFinish().getId()) == it.first) {
-                    len += 2 * std::min(v->front().fullSize(), v->back().fullSize()) - v->front().getFinish().size() - v->size();
+                    len += 2 * std::min(v->front().fullSize(), v->back().fullSize()) - v->frontVertex().size() - v->size();
                 }
             }
             len /= 2;
@@ -283,7 +283,7 @@ private:
                     path.push_back(path.back()->getFinish().front().getId());
                 }
                 while(path.size() < 10 && path.front()->getStart().inDeg() == 1 && path.front()->getStart().getId() != start) {
-                    path.insert(path.begin(), path.front()->getStart().rc().front().rc().getId());
+                    path.insert(path.begin(), path.front()->getStart().incFront().getId());
                 }
                 if(path.front()->getStart().getId() == start && path.back()->getFinish().getId() == end) {
                     std::cout << "Found path that must must be correct";
@@ -353,8 +353,8 @@ private:
             if(!v.isCanonical())
                 continue;
             if(v.inDeg()== 2 && v.outDeg() == 2 && v.front() == v.back().rc() && v.front().fullSize() < 300000) {
-                Edge &in1 = v.rc().front().rc();
-                Edge &in2 = v.rc().front().rc();
+                Edge &in1 = v.incFront();
+                Edge &in2 = v.incFront();
                 Edge &b1 = v.front();
                 Edge &b2 = v.back();
                 if(to_remove.find(b1.getId()) != to_remove.end()|| to_remove.find(b2.getId()) != to_remove.end())

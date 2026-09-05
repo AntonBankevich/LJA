@@ -158,8 +158,10 @@ namespace ag {
         std::vector<EdgeId> label = {};
         size_t outgoing_read_count = 0;//for non-suffix edges only: the number of reads that cross the right border of start vertex
         size_t min_equivalent_size = 0;//Size of the minimal equivalent segment that crosses the vertex/edge border
-        size_t read_tail_count = 0;
-        size_t read_tail_length = 0;
+        size_t read_tail_count = 0; //For non-suffix edges this is the number of reads that contain start vertex,
+        //at least one nucleotide to the right and enter this edge for at least one nucleotide and end in this edge
+        size_t read_tail_length = 0; //For reads counted in read_tail_count this is the total number of nucleotides that
+        // the read has in this edge after it covers the entire start vertex
     protected:
 
 //        dbg-specific fields
@@ -177,9 +179,14 @@ namespace ag {
         bool inf_left = false;
         bool inf_right = false;
     public:
-        size_t subread_length = 0;
-        size_t subread_count = 0;
-        size_t covering_read_count = 0;
+        size_t subread_count = 0;//Number of reads that are substrings of this vertex and have never been substrings of
+        //two unrelated vertices in the graph at once: read r counts if it is a substring of v and whenever it is a
+        //substring of u and w that are vertices in some intermediate state of the graph, either u is a substring of w
+        //or vise versa. In other words a vertex that contains r as a substring has never been resolved in the graph.
+        size_t subread_length = 0;//Total length of subreads counted in subread_count.
+        size_t covering_read_count = 0;//Number of reads that cover this vertex and at least one nucleotide to the left and right
+        // for vertices with outgoing non-suffix edges covering_read_count = sum of read_tail_count and covering_read_count
+        // for all outgoing edges and their end vertices correspondingly
         VertexData() = default;
         VertexData RC() const {return {*this};}
         static VertexData SPGData(bool cyclic, bool inf_left, bool inf_right);
@@ -319,30 +326,36 @@ namespace ag {
         Vertex &operator=(const Vertex &) = delete;
         virtual ~Vertex()= default;
 
-//        Sequence methods
+        //        Sequence methods
         virtual Sequence getSeq() const { return seq; }
         Sequence truncSeq() const {return seq;}
 
-//        Size methods
+        //        Size methods
         size_t size() const { return seq.size(); }
         size_t getStartSize() const {return 0;};
         size_t truncSize() const {return seq.size();}
         size_t innerSize() const {
             size_t covered = 0;
             if (!isForwardTerminal() && !front().isSuffix())
-                covered += front().getFinish().size();
+                covered += frontVertex().size();
             if (!isBackwardTerminal() && rc().front().isSuffix())
-                covered += rc().front().getFinish().size();
+                covered += rc().frontVertex().size();
             return size() >= covered ? size() - covered : 0;
         }
 
-//        Incident edges
+        //        Incident edges
         typename std::list<Edge>::iterator begin() const { return outgoing_.begin(); }
         typename std::list<Edge>::iterator end() const { return outgoing_.end(); }
         IterableStorage<TransformingIterator<typename std::list<Edge>::iterator, Edge>> incoming();
         IterableStorage<TransformingIterator<typename std::list<Edge>::const_iterator, const Edge>> incoming() const;
         Edge &front() const { return outgoing_.front(); }
         Edge &back() const { return outgoing_.back(); }
+        Edge &incFront() const {return rc().front().rc();}
+        Edge &incBack() const {return rc().back().rc();}
+        Vertex &frontVertex() const {return front().getFinish();}
+        Vertex &backVertex() const {return back().getFinish();}
+        Vertex &incFrontVertex() const {return incFront().getStart();}
+        Vertex &incBackVertex() const {return incBack().getStart();}
         Edge &getOutgoing(unsigned char c) const;
 //        This method works even when iterator points to end when next edge is a suffix edge
         template<class I>

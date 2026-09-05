@@ -46,8 +46,8 @@ ag::GraphPath PrecorrectTip(const Segment<dbg::Edge> &seg, const std::function<b
     }
 }
 bool isSimplestBulge(dbg::Vertex &start, dbg::Vertex &finish, const std::function<bool(const ag::Edge &)> &isSuspicious) {
-    return start.outDeg() == 2 && finish.inDeg() == 2 && start.front().getFinish() == finish &&
-        start.back().getFinish() == finish && isSuspicious(start.front()) && isSuspicious(start.back());
+    return start.outDeg() == 2 && finish.inDeg() == 2 && start.frontVertex() == finish &&
+        start.backVertex() == finish && isSuspicious(start.front()) && isSuspicious(start.back());
 }
 
 ag::GraphPath PrecorrectBulge(dbg::Edge &bulge, const std::function<bool(const ag::Edge &)> &isReliable,

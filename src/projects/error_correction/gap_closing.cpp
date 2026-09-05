@@ -122,11 +122,11 @@ namespace dbg {
         }
         omp_set_num_threads(threads);
         for(Connection &connection : patches) {
-            if(connection.tip1->rc().front().rc() != connection.tip2->rc().front() &&
+            if(connection.tip1->incFront() != connection.tip2->rc().front() &&
                     connection.tip1->rc().front() != connection.tip2->rc().front() &&
-                    connection.tip1->rc().front() != connection.tip1->rc().front().rc() &&
-                    connection.tip2->rc().front() != connection.tip2->rc().front().rc())
-                dbg.mergeTipsToEdge(connection.tip1->rc().front().rc(), connection.tip2->rc().front(), std::move(connection.al));
+                    connection.tip1->rc().front() != connection.tip1->incFront() &&
+                    connection.tip2->rc().front() != connection.tip2->incFront())
+                dbg.mergeTipsToEdge(connection.tip1->incFront(), connection.tip2->rc().front(), std::move(connection.al));
         }
     }
 }

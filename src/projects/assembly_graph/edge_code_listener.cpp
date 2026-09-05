@@ -6,7 +6,7 @@ void EdgeCodeListener::fireMergePath(const RAGraphPath &path, Vertex &new_vertex
     VERIFY(new_vertex.inDeg() == 1);
     SequenceBuilder sb;
     for(Edge &e : path.edges()) sb.append(e.edge_code);
-    new_vertex.rc().front().rc().edge_code = sb.BuildSequence();
+    new_vertex.incFront().edge_code = sb.BuildSequence();
 }
 
 void EdgeCodeListener::fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {
@@ -34,12 +34,12 @@ void EdgeCodeListener::fireSplitEdge(Edge &edge, const RAGraphPath &split) {
 
 void EdgeCodeListener::fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {
     for(Vertex &new_vertex : resolution.newVertices()) {
-        new_vertex.rc().front().rc().edge_code = resolution.get(new_vertex).outgoing().edge_code;
+        new_vertex.incFront().edge_code = resolution.get(new_vertex).outgoing().edge_code;
     }
 }
 
 void EdgeCodeListener::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
-    v.rc().front().rc().edge_code = e.edge_code;
+    v.incFront().edge_code = e.edge_code;
 }
 
 void EdgeCodeListener::fireAddEdge(Edge &new_edge) {new_edge.edge_code = new_edge.isSuffix() ? Sequence() : new_edge.truncSeq().Subseq(0, 1);}

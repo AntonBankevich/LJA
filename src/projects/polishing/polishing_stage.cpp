@@ -46,7 +46,7 @@ bool CheckMergeRight(Vertex &vertex, const std::unordered_map<VertexId, Segment<
 bool ExtendLeft(Vertex &vertex, const std::unordered_map<VertexId, Segment<Vertex>> &segs) {
     if(vertex.inDeg() != 1 || !vertex.rc().front().isSuffix())
         return false;
-    Vertex &prev = vertex.rc().front().getFinish().rc();
+    Vertex &prev = vertex.incFrontVertex();
     return CheckMergeRight(prev, segs);
 }
 

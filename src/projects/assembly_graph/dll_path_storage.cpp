@@ -2,6 +2,7 @@
 
 #include "dll_path.hpp"
 #include "sequences/contigs.hpp"
+#include <unordered_set>
 
 namespace ag {
     class Edge;
@@ -130,7 +131,7 @@ void ag::DLLAlignmentStorage::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
             insertBefore(v, pos, AlignmentFragment::InnerFragment(pos->seg, v, pos->cut_left));
         } else {
             if (link_left) {
-                insertBefore(v.rc().front().rc(), pos, AlignmentFragment::EdgeSegment(pos->seg, v.rc().front().rc(), pos->cut_left));
+                insertBefore(v.incFront(), pos, AlignmentFragment::EdgeSegment(pos->seg, v.incFront(), pos->cut_left));
             }
             if (link_right) {
                 insertAfter(v.front(), pos, AlignmentFragment::EdgeSegment(pos->seg, v.front(), pos->cut_left));
@@ -163,10 +164,10 @@ void ag::DLLAlignmentStorage::fireMergePath(const RAGraphPath &path, Vertex &new
             size_t cut_right = new_vertex.size() - cut_left - len;
             bool linked = false;
             if (cut_left == 0) {
-                AlignmentFragment new_al = AlignmentFragment::EdgeSegment(seg, new_vertex.rc().front().rc(), 0);
+                AlignmentFragment new_al = AlignmentFragment::EdgeSegment(seg, new_vertex.incFront(), 0);
                 if (prev_pos->isLinked(new_al)) {
                     VERIFY(shift == 0);
-                    insertAfter(new_vertex.rc().front().rc(), prev_pos, new_al);
+                    insertAfter(new_vertex.incFront(), prev_pos, new_al);
                     linked = true;
                 }
             }
@@ -308,8 +309,8 @@ void ag::DLLAlignmentStorage::fireResolveVertex(Vertex &core, const VertexResolu
                 bool is_linked = false;
                 if (left.prev()->isLinked(*left)) {
                     AlignmentFragment al = AlignmentFragment::EdgeSegment(left->seg.unite(right->seg),
-                                                                          new_vertex.rc().front().rc(), left->cut_left);
-                    insertBefore(new_vertex.rc().front().rc(), left, al);
+                                                                          new_vertex.incFront(), left->cut_left);
+                    insertBefore(new_vertex.incFront(), left, al);
                     is_linked = true;
                 }
                 if (right->isLinked(*right.next())) {
@@ -326,6 +327,20 @@ void ag::DLLAlignmentStorage::fireResolveVertex(Vertex &core, const VertexResolu
             }
         }
     }
+}
+
+std::vector<std::string> ag::DLLAlignmentStorage::contigNames(const Vertex &vertex) const {
+    std::vector<std::string> res;
+    if (!hasRecords(vertex))
+        return res;
+    std::unordered_set<std::string> seen;
+    for (const DLLPosition &pos : vertex_map.at(vertex.getId())) {
+        VERIFY(pos->isInnerFragment());
+        const std::string &name = pos->seg.contig().getInnerId();
+        if (seen.insert(name).second)
+            res.push_back(name);
+    }
+    return res;
 }
 
 std::function<std::string(const ag::Vertex &)> ag::DLLAlignmentStorage::getVertexTooltipper() const {

@@ -8,8 +8,8 @@ int main(int argc, char **argv) {
 //    mg = MultiGraphHelper::TransformToEdgeGraph(mg, k);
 //    std::cout << "dbg " << mg.size() << " " << mg.edgeCount() << std::endl;
 //    for(Vertex & v: mg.vertices()) {
-//        if(v.inDeg() == 1 && v.outDeg() == 1 && v.front() != v.rc().front().rc()) {
-//            std::cout << "1-in-1-out vertex " << v.getId() << " " << v.front().getId() << v.rc().front().rc().getId() << std::endl;
+//        if(v.inDeg() == 1 && v.outDeg() == 1 && v.front() != v.incFront()) {
+//            std::cout << "1-in-1-out vertex " << v.getId() << " " << v.front().getId() << v.incFront().getId() << std::endl;
 //        }
 //    }
     return 0;

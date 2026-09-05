@@ -129,7 +129,7 @@ namespace ag {
                     graph.mergePath(p1);
                 if (p2.calculateSize() > 2)
                     graph.mergePath(p2);
-                return new_path.getStart().front().getFinish();
+                return new_path.getStart().frontVertex();
             } else {
                 return graph.mergePath(new_path);
             }
@@ -231,11 +231,11 @@ namespace ag {
             for(VertexId &vid : vertices_to_delete) {
                 if (!vid->isForwardTerminal()) {
                     VERIFY(vid->front().isSuffix());
-                    vertices_to_check.emplace_back(vid->front().getFinish().getCanonical().getId());
+                    vertices_to_check.emplace_back(vid->frontVertex().getCanonical().getId());
                 }
                 if (!vid->isBackwardTerminal()) {
                     VERIFY(vid->rc().front().isSuffix());
-                    vertices_to_check.emplace_back(vid->rc().front().getFinish().getCanonical().getId());
+                    vertices_to_check.emplace_back(vid->rc().frontVertex().getCanonical().getId());
                 }
             }
             std::sort(vertices_to_check.begin(), vertices_to_check.end());

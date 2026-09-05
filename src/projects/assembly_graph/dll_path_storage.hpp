@@ -46,6 +46,10 @@ namespace ag {
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override {}
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
 
+//        Names (contig ids, still RC-oriented e.g. "-name") of all contigs with a fragment
+//        anchored at vertex as an inner fragment, deduplicated. Empty if vertex is untracked.
+        std::vector<std::string> contigNames(const Vertex &vertex) const;
+
         std::function<std::string(const Vertex &)> getVertexTooltipper() const;
         std::function<std::string(const Edge &)> getEdgeTooltipper() const;
         std::function<std::string(const Edge &)> getEdgeColorer() const;

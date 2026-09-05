@@ -14,19 +14,8 @@ namespace ag {
         static void addPath(const GraphPath &path, __int64_t mult = 1);
         void fillFromStorage(logging::Logger &logger, size_t threads);
         SuffixTracker &suffixTracker() {return *suffix_tracker;}
-        void processNewOuterVertex(Vertex &new_vertex) {
-            for (AlignedReadDirection dir : storage->getSubstringReads(new_vertex.getId())) {
-                new_vertex.subread_length += dir.getPath().len();
-                new_vertex.subread_count += 1;
-            }
-            Edge &inc = new_vertex.rc().front().rc();
-            for (AlignedReadDirection dir : storage->getOutgoingReads(inc.rc())) {
-                inc.read_tail_length += inc.fullSize() - dir.leftCut();
-                inc.read_tail_count += 1;
-            }
-            const SuffixRecord &rec = suffixTracker().getSuffixRecord(inc.rc());
-            new_vertex.covering_read_count = rec.getNumberOfPaths() - inc.read_tail_count;
-        }
+        void processNewOuterVertex(Vertex &new_vertex);
+
     public:
         explicit AlignedReadStatisticsTracker(logging::Logger &logger, size_t threads, ag::AssemblyGraph &graph,
                     ag::AlignedReadStorage &storage, ag::SuffixTracker &suffix_tracker);

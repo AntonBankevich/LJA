@@ -9,8 +9,8 @@ namespace spg {
 
     class DecisionRule {
         bool checkForkForward(ag::Vertex &v) {
-            return v.outDeg() == 1 && v.inDeg() > 1 && (v.front().getFinish().outDeg() != 1 ||
-                (v.front().getFinish().front().isSuffix() && v.front().getFinish().front().getFinish().outDeg() != 1));
+            return v.outDeg() == 1 && v.inDeg() > 1 && (v.frontVertex().outDeg() != 1 ||
+                (v.frontVertex().front().isSuffix() && v.frontVertex().frontVertex().outDeg() != 1));
         }
     public:
         DecisionRule() {}
