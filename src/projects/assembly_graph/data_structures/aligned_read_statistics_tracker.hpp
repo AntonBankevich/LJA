@@ -66,4 +66,43 @@ namespace ag {
             return res;
         }
     };
+
+//    Maintains collection of coverage samples stored in vertices.
+    class CoverageSamplingTracker : public ag::AlignedReadStorageListener, public ag::ResolutionListener {
+    private:
+        size_t k;
+        std::vector<double> window_capacity;
+        double total_bases = 0;
+//      Distribution of read lengths is used to inform the multiplier to be used for sampling contribution to coverage
+        double windowCapacity(size_t s) const;
+        double multiplier(size_t s) const {double wc = windowCapacity(s); return wc == 0 ? 0.0 : total_bases / wc;}
+        double kpomer_multiplier;
+//        One-pass, thread-parallel scan of every read's full aligned length, building cnt_ge/sum_ge.
+        void fillLengthHistogram(ag::AlignedReadStorage &storage, size_t threads);
+//       Similar to DBG path processing for coverage update, but instead of k+1-mers, segments of variable
+//       size are considered and processed individually.
+        void processPath(const GraphPath &path, __int64_t mult);
+//        Sample information is stored in one of two types of records: k+1-mer chunk record or a record for
+//        a larger segment. This method chooses how to process new information properly.
+        void adjustSupport(Vertex &v, size_t left, size_t right, __int64_t mult);
+    public:
+        CoverageSamplingTracker(ag::AssemblyGraph &graph, ag::AlignedReadStorage &storage, size_t k, size_t threads);
+
+        void fireAddRead(const ag::AlignedRead &read) override;
+        void fireRerouteRead(ag::AlignedRead &read) override;
+        void fireInvalidateRead(ag::AlignedRead &read) override;
+
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
+        void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
+        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
+
+        std::function<std::string(const Vertex &)> getVertexLabeler() const {
+            std::function<std::string(const Vertex &)> res = [](const Vertex &v) -> std::string {
+                if (!v.hasCoverageInfo())
+                    return "SPGCov:-";
+                return "SPGCov:" + std::to_string(v.getSPGCoverage()) + "(raw:" + std::to_string(v.getRawSPGCoverage()) + ")";
+            };
+            return res;
+        }
+    };
 }

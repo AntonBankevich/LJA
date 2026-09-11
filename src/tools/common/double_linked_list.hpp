@@ -12,13 +12,13 @@
 namespace ds {
 template <class T>
 class ListPosition;
-// template <class T>
-// class ListDirection;
-    
+template <class T>
+class ListDirection;
+
 template <typename T>
 class DoublyLinkedList {
     friend class ListPosition<T>;
-    // friend class ListDirection<T>;
+    friend class ListDirection<T>;
     struct Node {
         friend class DoublyLinkedList<T>;
         friend class ListPosition<T>;
@@ -55,7 +55,7 @@ public:
     DoublyLinkedList() = default;
     DoublyLinkedList(std::initializer_list<T> il);
     DoublyLinkedList(const DoublyLinkedList& o);
-    DoublyLinkedList(DoublyLinkedList&& o) noexcept {*this = o;}
+    DoublyLinkedList(DoublyLinkedList&& o) noexcept {*this = std::move(o);}
     DoublyLinkedList& operator=(const DoublyLinkedList& o);
     DoublyLinkedList& operator=(DoublyLinkedList&& other) noexcept;
     virtual ~DoublyLinkedList() { clear(); }
@@ -65,6 +65,11 @@ public:
     iterator end() noexcept { return {&sentinel}; }
     iterator head() noexcept { return {sentinel.next}; }
     iterator tail() noexcept { return {sentinel.prev}; }
+
+    // ── direction ────────────────────────────────────────────
+    ListDirection<T> direction(bool backward) noexcept;
+    ListDirection<T> forward() noexcept { return direction(false); }
+    ListDirection<T> backward() noexcept { return direction(true); }
 
     // ── capacity ─────────────────────────────────────────────
     bool empty() const noexcept { return sentinel.next == &sentinel; }
@@ -96,6 +101,20 @@ public:
     iterator erase(iterator it) {return {erase_node(it.getNode())};}
     iterator insert_before(iterator pos, const T& v) {VERIFY(pos != begin()); return {pos.getNode()->insertBefore(v)};}
     iterator insert_after(iterator pos, const T& v) {VERIFY(pos != end()); return {pos.getNode()->insertAfter(v)};}
+
+//    Moves all of other's elements to the back of this list (O(1): relinks the two boundary nodes,
+//    never touches anything in between). other must be an rvalue: it is left empty by this call, so the
+//    caller has to give it up, same as std::move-ing into any other draining operation.
+    DoublyLinkedList &operator+=(DoublyLinkedList &&other) noexcept {
+        if (other.empty())
+            return *this;
+        Node *other_head = other.sentinel.next;
+        Node *other_tail = other.sentinel.prev;
+        sentinel.prev->connect(other_head);
+        other_tail->connect(&sentinel);
+        other.sentinel.next = other.sentinel.prev = &other.sentinel;
+        return *this;
+    }
 };
 
 template<typename T>
@@ -166,7 +185,7 @@ DoublyLinkedList<T>::DoublyLinkedList(std::initializer_list<T> il) {for (const T
 
 template<typename T>
 DoublyLinkedList<T>::DoublyLinkedList(const DoublyLinkedList &o) {
-    for (Node* n = o.head(); n != o.end(); n = n->next)
+    for (Node* n = o.sentinel.next; n != &o.sentinel; n = n->next)
         push_back(n->value);
 }
 
@@ -174,7 +193,7 @@ template<typename T>
 DoublyLinkedList<T> & DoublyLinkedList<T>::operator=(const DoublyLinkedList &o) {
     if (this == &o) return *this;
     clear();
-    for (Node* n = o.head(); n != o.end(); n = n->next)
+    for (Node* n = o.sentinel.next; n != &o.sentinel; n = n->next)
         push_back(n->value);
     return *this;
 }
@@ -204,75 +223,30 @@ void DoublyLinkedList<T>::clear() {
         delete n;
         n = nx;
     }
-    sentinel = {};
+    sentinel.next = sentinel.prev = &sentinel;
 }
 
-// template <typename T>
-// class ListPosition {
-//     friend class DoublyLinkedList<T>;
-//     friend class ListDirection<T>;
-// private:
-//     typedef typename DoublyLinkedList<T>::Node Node;
-//     ListPosition(Node* n, bool bwd = false) : node(n), is_backward(bwd) {}
-// public:
-//     // ── fields ───────────────────────────────────────────────
-//     Node* node        = nullptr;
-//     bool     is_backward = false;
-//
-//     // ── iterator_traits ──────────────────────────────────────
-//     using iterator_category = std::bidirectional_iterator_tag;
-//     using value_type        = T;
-//     using difference_type   = std::ptrdiff_t;
-//     using pointer           = T*;
-//     using reference         = T;
-// private:
-//     Node *getNode() const { return node;}
-//
-// public:
-//
-//     // ── operators ────────────────────────────────────────────
-//     reference operator*()  const { return is_backward ? node->value.RC() : node->value; }
-//     // T* operator->() const { return &node->value; }
-//     void set(const T&val) {
-//         if (is_backward) node->value = val.RC();
-//         else node->value = val;
-//     }
-//
-//     ListPosition next() const noexcept { return ListPosition(is_backward ? node->prev : node->next, is_backward); }
-//     ListPosition prev() const noexcept { return ListPosition(is_backward ? node->next : node->prev, is_backward); }
-//
-//     ListPosition& operator++() noexcept {
-//         node = is_backward ? node->prev : node->next;
-//         return *this;
-//     }
-//     ListPosition operator++(int) noexcept { ListPosition t = *this; ++(*this); return t; }
-//
-//     ListPosition& operator--() noexcept {
-//         node = is_backward ? node->next : node->prev;
-//         return *this;
-//     }
-//     ListPosition operator--(int) noexcept { ListPosition t = *this; --(*this); return t; }
-//
-//     bool operator==(const ListPosition& o) const noexcept { return node == o.node && is_backward == o.is_backward; }
-//     bool operator!=(const ListPosition& o) const noexcept { return node != o.node || is_backward != o.is_backward; }
-// };
-
-    template <typename T>
+//    A position within a DoublyLinkedList. is_backward is set once at construction (by whichever
+//    DoublyLinkedList/ListDirection created it) and never changes afterward — every operation on a
+//    position (next/prev/++/--/insertBefore/insertAfter) is expressed in terms of its own logical
+//    direction, so a position obtained from a backward ListDirection behaves, end to end, as if it were
+//    walking an already-reversed list.
+template <typename T>
 class ListPosition {
     friend class DoublyLinkedList<T>;
+    friend class ListDirection<T>;
 private:
     typedef typename DoublyLinkedList<T>::Node Node;
-    ListPosition(Node* n) : node(n) {}
-public:
-    // ── fields ───────────────────────────────────────────────
     Node* node = nullptr;
-
+    bool is_backward = false;
+    ListPosition(Node* n, bool backward = false) : node(n), is_backward(backward) {}
+public:
     // ── iterator_traits ──────────────────────────────────────
     using iterator_category = std::bidirectional_iterator_tag;
     using value_type        = T;
     using difference_type   = std::ptrdiff_t;
     using pointer           = T*;
-    using reference         = const T&;
+    using reference         = T&;
 private:
     Node *getNode() const { return node;}
 
@@ -280,115 +254,109 @@ public:
     ListPosition() = default;
 
     // ── operators ────────────────────────────────────────────
+//    Mutable, so a plain range-for over a direction (for (T &x : list.backward())) can update elements
+//    in place — direction only changes traversal order, never read/write access.
     reference operator*()  const { return node->value; }
     T* operator->() const { return &node->value; }
     void erase();
     void extract() {node->extract();}
     bool valid() const noexcept {return node != nullptr;}
     bool extracted() const noexcept {return node->extracted();}
+    bool isBackward() const noexcept {return is_backward;}
 
-    ListPosition insertAfter(const T& v) {return {this->node->insertAfter(v)};}
-    ListPosition insertBefore(const T& v) {return {this->node->insertBefore(v)};}
-
-    ListPosition next() const noexcept { return ListPosition(node->next); }
-    ListPosition prev() const noexcept { return ListPosition(node->prev); }
-    ListPosition& operator++() noexcept {node = node->next;return *this;}
-    ListPosition operator++(int) noexcept { return {node->next}; }
-    ListPosition& operator--() noexcept { node = node->prev; return *this;}
-    ListPosition operator--(int) noexcept {return {node->prev};}
-
-    bool operator==(const ListPosition& o) const noexcept { return node == o.node; }
-    bool operator!=(const ListPosition& o) const noexcept { return node != o.node; }
-};
-
-    template<typename T>
-    void ListPosition<T>::erase() {
-        if (!node->extracted())
-            node->extract();
-        delete node;
-        node = nullptr;
+//    v appears immediately before/after *this logically: physically after/before when is_backward.
+    ListPosition insertBefore(const T& v) {
+        return is_backward ? ListPosition(node->insertAfter(v), true) : ListPosition(node->insertBefore(v), false);
+    }
+    ListPosition insertAfter(const T& v) {
+        return is_backward ? ListPosition(node->insertBefore(v), true) : ListPosition(node->insertAfter(v), false);
     }
 
-    // template <typename T>
-// class ListDirection {
-// private:
-//     typedef typename DoublyLinkedList<T>::Node Node;
-// public:
-//     // ── fields ───────────────────────────────────────────────
-//     DoublyLinkedList<T>* list;
-//     bool is_backward;
-//
-//     // ── constructors ─────────────────────────────────────────
-//     ListDirection(DoublyLinkedList<T>& l, bool bwd = false)
-//         : list(&l), is_backward(bwd) {}
-//
-//     // Directions are cheap to copy (pointer + bool).
-//     ListDirection(const ListDirection&)            = default;
-//     ListDirection& operator=(const ListDirection&) = default;
-//
-//     // ── direction helpers ────────────────────────────────────
-//     // A new Direction over the same list in the opposite direction.
-//     ListDirection reversed() const { return Direction(*list, !is_backward); }
-//
-//     // ── capacity ─────────────────────────────────────────────
-//     bool        empty() const noexcept { return list->empty(); }
-//     std::size_t size()  const noexcept { return list->size();  }
-//
-//     // ── iterators ────────────────────────────────────────────
-//     // begin() → logical first element (== end() when empty).
-//     // end()   → sentinel; --end() yields logical last element.
-//     ListPosition<T> begin() const noexcept {
-//         return ListPosition<T>(is_backward ? list->sentinel.prev() : list->sentinel.next(), is_backward);
-//     }
-//     ListPosition<T> end() const noexcept {
-//         return ListPosition<T>(list->sentinel, is_backward);
-//     }
-//
-//     // ── logical element access ───────────────────────────────
-//     T front() const {
-//         list->need_nonempty("front");
-//         return is_backward ? list->back().RC() : list->front();
-//     }
-//     T back() const {
-//         list->need_nonempty("back");
-//         return is_backward ? list->front().RC() : list->back();
-//     }
-//
-//     // ── push / pop ───────────────────────────────────────────
-//     // "front" and "back" are logical, not physical.
-//     void push_front(const T& v) { is_backward ? list->push_back(v.RC()) : list->push_front(v); }
-//     void push_back (const T& v) { is_backward ? list->push_front(v.RC()) : list->push_back(v); }
-//
-//     void pop_front() { is_backward ? list->pop_back()  : list->pop_front(); }
-//     void pop_back()  { is_backward ? list->pop_front() : list->pop_back();  }
-//
-//     ListPosition<T> insert_before(ListPosition<T> it, const T& v) {
-//         Node* inserted = is_backward
-//             ? list->insert_after (it.node, v)
-//             : list->insert_before(it.node, v);
-//         return ListPosition<T>(inserted, is_backward);
-//     }
-//
-//     // insert_after(it, v): v appears immediately after *it logically.
-//     ListPosition<T> insert_after(ListPosition<T> it, const T& v) {
-//         Node* inserted = is_backward
-//             ? list->insert_before(it.node, v)
-//             : list->insert_after (it.node, v);
-//         return ListPosition<T>(inserted, is_backward);
-//     }
-//
-//     // ── erase ────────────────────────────────────────────────
-//     // Returns iterator to the logical next element after the erased one.
-//     ListPosition<T> erase(ListPosition<T> it) {
-//         if (it.node == list->end())
-//             throw std::invalid_argument("erase: end iterator");
-//         // Save logical successor before the node disappears.
-//         Node* logical_next = is_backward ? it.node->prev : it.node->next;
-//         list->erase_node(it.node);
-//         return ListPosition<T>(logical_next, is_backward);
-//     }
-//
-//     // ── misc ─────────────────────────────────────────────────
-//     void clear() { list->clear(); }
-// };
+    ListPosition next() const noexcept { return {is_backward ? node->prev : node->next, is_backward}; }
+    ListPosition prev() const noexcept { return {is_backward ? node->next : node->prev, is_backward}; }
+    ListPosition& operator++() noexcept {node = is_backward ? node->prev : node->next; return *this;}
+    ListPosition operator++(int) noexcept { ListPosition t = *this; ++(*this); return t; }
+    ListPosition& operator--() noexcept { node = is_backward ? node->next : node->prev; return *this;}
+    ListPosition operator--(int) noexcept { ListPosition t = *this; --(*this); return t; }
+
+    bool operator==(const ListPosition& o) const noexcept { return node == o.node && is_backward == o.is_backward; }
+    bool operator!=(const ListPosition& o) const noexcept { return !(*this == o); }
+};
+
+template<typename T>
+void ListPosition<T>::erase() {
+    if (!node->extracted())
+        node->extract();
+    delete node;
+    node = nullptr;
+}
+
+//    A view of a DoublyLinkedList that walks it in a fixed logical direction. Forward and backward
+//    directions share the same underlying nodes and sentinel — "logical front/back" just swaps which
+//    physical end push/pop/begin touch, and every ListPosition it hands out already knows its own
+//    direction (see ListPosition above), so begin()/end()/insert_before/insert_after/erase all behave as
+//    if the list had actually been reversed, in O(1), without touching or copying a single node.
+template <typename T>
+class ListDirection {
+private:
+    DoublyLinkedList<T>* list;
+    bool is_backward;
+public:
+    ListDirection(DoublyLinkedList<T>& l, bool backward) : list(&l), is_backward(backward) {}
+
+    // Directions are cheap to copy (pointer + bool).
+    ListDirection(const ListDirection&)            = default;
+    ListDirection& operator=(const ListDirection&) = default;
+
+    // A new Direction over the same list in the opposite direction.
+    ListDirection reversed() const { return {*list, !is_backward}; }
+    bool isBackward() const noexcept { return is_backward; }
+
+    // ── capacity ─────────────────────────────────────────────
+    bool        empty() const noexcept { return list->empty(); }
+    std::size_t calculateSize()  const noexcept { return list->calculateSize();  }
+
+    // ── iterators ────────────────────────────────────────────
+    // begin() → logical first element (== end() when empty).
+    // end()   → sentinel; --end() yields logical last element.
+    ListPosition<T> begin() const noexcept {
+        typename DoublyLinkedList<T>::iterator p = is_backward ? list->tail() : list->head();
+        return {p.getNode(), is_backward};
+    }
+    ListPosition<T> end() const noexcept {
+        typename DoublyLinkedList<T>::iterator p = list->end();
+        return {p.getNode(), is_backward};
+    }
+
+    // ── logical element access ───────────────────────────────
+    const T& front() const { list->need_nonempty("front"); return *begin(); }
+    const T& back() const {
+        list->need_nonempty("back");
+        typename DoublyLinkedList<T>::iterator p = is_backward ? list->head() : list->tail();
+        return *p;
+    }
+
+    // ── push / pop ───────────────────────────────────────────
+    // "front" and "back" are logical, not physical.
+    void push_front(const T& v) { is_backward ? list->push_back(v) : list->push_front(v); }
+    void push_back (const T& v) { is_backward ? list->push_front(v) : list->push_back(v); }
+
+    void pop_front() { is_backward ? list->pop_back()  : list->pop_front(); }
+    void pop_back()  { is_backward ? list->pop_front() : list->pop_back();  }
+
+//    it must be a position from this same direction (e.g. from begin()/next()); ListPosition's own
+//    insertBefore/insertAfter are already direction-aware, so there is nothing left to swap here.
+    ListPosition<T> insert_before(ListPosition<T> it, const T& v) { return it.insertBefore(v); }
+    ListPosition<T> insert_after(ListPosition<T> it, const T& v) { return it.insertAfter(v); }
+
+    // Returns a position to the logical successor of the erased element.
+    ListPosition<T> erase(ListPosition<T> it) {
+        ListPosition<T> logical_next = it.next();
+        it.erase();
+        return logical_next;
+    }
+};
+
+template<typename T>
+ListDirection<T> DoublyLinkedList<T>::direction(bool backward) noexcept { return {*this, backward}; }
 }

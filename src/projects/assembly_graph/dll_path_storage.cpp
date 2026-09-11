@@ -10,7 +10,7 @@ namespace ag {
 
 void ag::DLLAlignmentStorage::addContig(Contig &contig, DLLAlignmentPath &&p) {
     DLLAlignmentPath &path = (alignments[contig.getInnerId()] = std::move(p));
-    for (DLLPosition pos = path.begin(); pos != path.end(); ++pos) {
+    for (DLLPathPosition pos = path.begin(); pos != path.end(); ++pos) {
         if (pos->isEdgeSegment()) {
             edge_map[pos->edge].emplace_back(pos);
         } else if (pos->isInnerFragment()) {
@@ -21,38 +21,38 @@ void ag::DLLAlignmentStorage::addContig(Contig &contig, DLLAlignmentPath &&p) {
     }
 }
 
-ag::DLLAlignmentStorage::DLLPosition ag::DLLAlignmentStorage::insertBefore(Edge &edge, DLLPosition pos,
+ag::DLLAlignmentStorage::DLLPathPosition ag::DLLAlignmentStorage::insertBefore(Edge &edge, DLLPathPosition pos,
     AlignmentFragment fragment) {
     VERIFY(fragment.checkSeqMatch());
     VERIFY(fragment.edge== edge.getId());
-    DLLPosition new_pos = pos.insertBefore(fragment);
+    DLLPathPosition new_pos = pos.insertBefore(fragment);
     edge_map[edge.getId()].emplace_back(new_pos);
     return new_pos;
 }
 
-ag::DLLAlignmentStorage::DLLPosition ag::DLLAlignmentStorage::insertAfter(Edge &edge, DLLPosition pos,
+ag::DLLAlignmentStorage::DLLPathPosition ag::DLLAlignmentStorage::insertAfter(Edge &edge, DLLPathPosition pos,
     AlignmentFragment fragment) {
     VERIFY(fragment.checkSeqMatch());
     VERIFY(fragment.edge== edge.getId());
-    DLLPosition new_pos = pos.insertAfter(fragment);
+    DLLPathPosition new_pos = pos.insertAfter(fragment);
     edge_map[edge.getId()].emplace_back(new_pos);
     return new_pos;
 }
 
-ag::DLLAlignmentStorage::DLLPosition ag::DLLAlignmentStorage::insertBefore(Vertex &vertex, DLLPosition pos,
+ag::DLLAlignmentStorage::DLLPathPosition ag::DLLAlignmentStorage::insertBefore(Vertex &vertex, DLLPathPosition pos,
     AlignmentFragment fragment) {
     VERIFY(fragment.checkSeqMatch());
     VERIFY(fragment.vertex== vertex.getId());
-    DLLPosition new_pos = pos.insertBefore(fragment);
+    DLLPathPosition new_pos = pos.insertBefore(fragment);
     vertex_map[vertex.getId()].emplace_back(new_pos);
     return new_pos;
 }
 
-ag::DLLAlignmentStorage::DLLPosition ag::DLLAlignmentStorage::insertAfter(Vertex &vertex, DLLPosition pos,
+ag::DLLAlignmentStorage::DLLPathPosition ag::DLLAlignmentStorage::insertAfter(Vertex &vertex, DLLPathPosition pos,
     AlignmentFragment fragment) {
     VERIFY(fragment.checkSeqMatch());
     VERIFY(fragment.vertex== vertex.getId());
-    DLLPosition new_pos = pos.insertAfter(fragment);
+    DLLPathPosition new_pos = pos.insertAfter(fragment);
     vertex_map[vertex.getId()].emplace_back(new_pos);
     return new_pos;
 }
@@ -79,7 +79,7 @@ ag::DLLAlignmentPath & ag::DLLAlignmentStorage::addContig(Contig new_contig,
 void ag::DLLAlignmentStorage::fireDeleteVertex(Vertex &v) {
     if (!hasRecords(v))
         return;
-    for (DLLPosition &pos : vertex_map.at(v.getId())) {
+    for (DLLPathPosition &pos : vertex_map.at(v.getId())) {
         VERIFY(pos.valid());
         VERIFY(pos->isInnerFragment());
         pos.erase();
@@ -90,11 +90,11 @@ void ag::DLLAlignmentStorage::fireDeleteVertex(Vertex &v) {
 void ag::DLLAlignmentStorage::fireDeleteEdge(Edge &e) {
     if (!hasRecords(e))
         return;
-    for (DLLPosition &pos : edge_map.at(e.getId())) {
+    for (DLLPathPosition &pos : edge_map.at(e.getId())) {
         if (!pos.valid()) continue;
         if (!pos.extracted()) {
             if (pos->edge->isSuffix()) {
-                DLLPosition cur_pos = pos;
+                DLLPathPosition cur_pos = pos;
                 while (cur_pos.prev()->isLinked(*cur_pos) && cur_pos->edge->isSuffix()) {
                     cur_pos = cur_pos.prev();
                     cur_pos.next().extract();
@@ -105,7 +105,7 @@ void ag::DLLAlignmentStorage::fireDeleteEdge(Edge &e) {
                     cur_pos.extract();
                 }
             } else if (pos->edge->isPrefix()) {
-                DLLPosition cur_pos = pos;
+                DLLPathPosition cur_pos = pos;
                 while (cur_pos->isLinked(*cur_pos.next()) && cur_pos->edge->isPrefix()) {
                     cur_pos = cur_pos.next();
                     cur_pos.prev().extract();
@@ -124,7 +124,7 @@ void ag::DLLAlignmentStorage::fireDeleteEdge(Edge &e) {
 
 void ag::DLLAlignmentStorage::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
     if (!hasRecords(e)) return;
-    for (DLLPosition &pos : edge_map.at(e.getId())) {
+    for (DLLPathPosition &pos : edge_map.at(e.getId())) {
         bool link_left = pos.prev()->isLinked(*pos);
         bool link_right = pos->isLinked(*pos.next());
         if (!link_left && !link_right) {
@@ -146,12 +146,12 @@ void ag::DLLAlignmentStorage::fireMergePath(const RAGraphPath &path, Vertex &new
     for (Edge &edge: path.edges()) {
         if (!hasRecords(edge))
             continue;
-        for (DLLPosition &pos : edge_map.at(edge.getId())) {
+        for (DLLPathPosition &pos : edge_map.at(edge.getId())) {
             if (!pos.valid() || pos.extracted())
                 continue;
             size_t cut_left = shift + pos->cut_left;
-            DLLPosition next_pos = pos.next();
-            DLLPosition prev_pos = pos.prev();
+            DLLPathPosition next_pos = pos.next();
+            DLLPathPosition prev_pos = pos.prev();
             size_t len = pos->edge->fullSize() - pos->cut_left - pos->cut_right;
             Segment<Contig> seg = pos->seg;
             for (; next_pos.prev()->isLinked(*next_pos) && next_pos->edge->getStart() != path.getFinish(); next_pos = next_pos.next()) {
@@ -189,7 +189,7 @@ void ag::DLLAlignmentStorage::fireMergePath(const RAGraphPath &path, Vertex &new
     shift = 0;
     for (Vertex &v : path.innerVertices()) {
         if (hasRecords(v))
-            for (DLLPosition &pos : vertex_map.at(v.getId())) {
+            for (DLLPathPosition &pos : vertex_map.at(v.getId())) {
                 if (!pos.valid())
                     continue;
                 insertBefore(new_vertex, pos, AlignmentFragment::InnerFragment(pos->seg, new_vertex, shift + pos->cut_left));
@@ -204,12 +204,12 @@ void ag::DLLAlignmentStorage::fireMergePathToEdge(const RAGraphPath &path, Edge 
     for (Edge &edge: path.edges()) {
         if (!hasRecords(edge))
             continue;
-        for (DLLPosition &pos : edge_map.at(edge.getId())) {
+        for (DLLPathPosition &pos : edge_map.at(edge.getId())) {
             if (!pos.valid() || pos.extracted())
                 continue;
             size_t extra_shift = 0;
             AlignmentFragment new_fragment = AlignmentFragment::EdgeSegment(pos->seg, new_edge, shift + pos->cut_left);
-            DLLPosition last_pos = pos.next();
+            DLLPathPosition last_pos = pos.next();
             for (; last_pos.prev()->isLinked(*last_pos); last_pos = last_pos.next()) {
                 AlignmentFragment edge_fragment = AlignmentFragment::EdgeSegment(last_pos->seg, new_edge, shift + extra_shift + last_pos->cut_left);
                 new_fragment = new_fragment.merge(edge_fragment);
@@ -224,7 +224,7 @@ void ag::DLLAlignmentStorage::fireMergePathToEdge(const RAGraphPath &path, Edge 
     Vertex &new_vertex = new_edge.isSuffix() ? new_edge.getStart() : new_edge.getFinish();
     for (Vertex &v : path.innerVertices()) {
         if (hasRecords(v))
-            for (DLLPosition &pos : vertex_map.at(v.getId())) {
+            for (DLLPathPosition &pos : vertex_map.at(v.getId())) {
                 if (!pos.valid())
                     continue;
                 insertBefore(new_vertex, pos, AlignmentFragment::InnerFragment(pos->seg, new_vertex, shift + pos->cut_left));
@@ -246,7 +246,7 @@ void ag::DLLAlignmentStorage::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Ed
             match_size++;
         }
         size_t min_right_cut = left_al.queryLength() - match_size;
-        for (DLLPosition &pos : edge_map.at(left.getId())) {
+        for (DLLPathPosition &pos : edge_map.at(left.getId())) {
             if (!pos.valid()) continue;
             VERIFY(!pos.extracted());
             if (left.truncSize() > pos->cut_left + min_right_cut) {
@@ -256,7 +256,7 @@ void ag::DLLAlignmentStorage::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Ed
             }
             pos.extract();
         }
-        for (DLLPosition &pos : edge_map.at(left.rc().getId())) {
+        for (DLLPathPosition &pos : edge_map.at(left.rc().getId())) {
             if (!pos.valid()) continue;
             VERIFY(!pos.extracted());
             if (left.rc().truncSize() > pos->cut_right + min_right_cut) {
@@ -273,7 +273,7 @@ void ag::DLLAlignmentStorage::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Ed
 void ag::DLLAlignmentStorage::fireSplitEdge(Edge &edge, const RAGraphPath &split) {
     if (!hasRecords(edge))
         return;
-    for (DLLPosition &pos : edge_map.at(edge.getId())) {
+    for (DLLPathPosition &pos : edge_map.at(edge.getId())) {
         size_t e_left_cut = 0;
         size_t e_right_cut = edge.truncSize();
         for (Edge &e : split.edges()) {
@@ -298,11 +298,11 @@ void ag::DLLAlignmentStorage::fireResolveVertex(Vertex &core, const VertexResolu
     for (Edge &inc: core.incoming()) {
         if (!hasRecords(inc))
             continue;
-        for (DLLPosition &pos : edge_map.at(inc.getId())) {
+        for (DLLPathPosition &pos : edge_map.at(inc.getId())) {
             VERIFY(pos.next()->isEdgeSegment());
             VERIFY(pos.next()->edge->getStart() == core);
-            DLLPosition left = pos;
-            DLLPosition right = pos.next();
+            DLLPathPosition left = pos;
+            DLLPathPosition right = pos.next();
             VERIFY(left->isLinked(*right));
             if (resolution.contains(*left->edge, *right->edge)) {
                 Vertex &new_vertex = resolution.get(*left->edge, *right->edge);
@@ -329,15 +329,29 @@ void ag::DLLAlignmentStorage::fireResolveVertex(Vertex &core, const VertexResolu
     }
 }
 
-std::vector<std::string> ag::DLLAlignmentStorage::contigNames(const Vertex &vertex) const {
+std::vector<std::string> ag::DLLAlignmentStorage::passingContigs(const Vertex &vertex) const {
     std::vector<std::string> res;
     if (!hasRecords(vertex))
         return res;
     std::unordered_set<std::string> seen;
-    for (const DLLPosition &pos : vertex_map.at(vertex.getId())) {
+    for (const DLLPathPosition &pos : vertex_map.at(vertex.getId())) {
         VERIFY(pos->isInnerFragment());
         const std::string &name = pos->seg.contig().getInnerId();
         if (seen.insert(name).second)
+            res.push_back(name);
+    }
+    return res;
+}
+
+std::vector<std::string> ag::DLLAlignmentStorage::passingForwardContigs(const Vertex &vertex) const {
+    std::vector<std::string> res;
+    if (!hasRecords(vertex))
+        return res;
+    std::unordered_set<std::string> seen;
+    for (const DLLPathPosition &pos : vertex_map.at(vertex.getId())) {
+        VERIFY(pos->isInnerFragment());
+        const std::string &name = pos->seg.contig().getInnerId();
+        if (!startsWith(name, "-") && seen.insert(name).second)
             res.push_back(name);
     }
     return res;
@@ -347,7 +361,7 @@ std::function<std::string(const ag::Vertex &)> ag::DLLAlignmentStorage::getVerte
     std::function<std::string(const Vertex &)> res = [this](const Vertex &v)->std::string {
         if (!hasRecords(v)) return "";
         std::stringstream ss;
-        for (DLLPosition pos : vertex_map.at(v.getId())) {
+        for (DLLPathPosition pos : vertex_map.at(v.getId())) {
             AlignmentFragment f = *pos;
             ss << f << "\n";
         }
@@ -360,7 +374,7 @@ std::function<std::string(const ag::Edge &)> ag::DLLAlignmentStorage::getEdgeToo
     std::function<std::string(const Edge &)> res = [this](const Edge &e)->std::string {
         if (!hasRecords(e)) return "";
         std::stringstream ss;
-        for (DLLPosition pos : edge_map.at(e.getId())) {
+        for (DLLPathPosition pos : edge_map.at(e.getId())) {
             AlignmentFragment f = *pos;
             ss << f << "\n";
         }
@@ -409,14 +423,14 @@ void ag::DLLAlignmentStorage::print(std::ostream &out) {
     out << "Vertices" << std::endl;
     for (auto &p: vertex_map) {
         out << p.first << std::endl;
-        for (DLLPosition pos: p.second) {
+        for (DLLPathPosition pos: p.second) {
             out << *pos << std::endl;
         }
     }
     out << "Edges" << std::endl;
     for (auto &p: edge_map) {
         out << p.first << std::endl;
-        for (DLLPosition pos: p.second) {
+        for (DLLPathPosition pos: p.second) {
             out << *pos << std::endl;
         }
     }

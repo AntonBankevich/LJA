@@ -64,10 +64,14 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
                                                                               false);
     dbg_storage.trackSuffixes(logger, threads, spg, 0, 10000000);
     ag::AlignedReadStatisticsTracker SPGCoverage(logger, threads ,spg, dbg_storage, dbg_storage.getSuffixes());
+//    Separate listener computing per-vertex SPG coverage (see CoverageSamplingTracker); must be attached
+//    before the edgeToSupreVertex loop below so it can seed samples from the original DBG edges.
+    ag::CoverageSamplingTracker spgVertexCoverage(spg, dbg_storage, k, threads);
     spg.disableHashing();
     ag::EdgeInfo edge_info = ag::EdgePrintStyles::defaultDotInfo() + ag::EdgeInfo::Labeler(SPGCoverage.getEdgeLabeler());
                                   ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler());
-    ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler()), edge_info);
+    ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler()) +
+                         ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), edge_info);
     std::experimental::filesystem::path figs = dir/ "figs";
     recreate_dir(figs);
     printer.printDot(figs / "supregraph_initial.dot", spg);
@@ -105,6 +109,7 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
         + ag::EdgePrintStyles::simpleColorer("black")
         + ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler()));
     printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler())+
+        ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()) +
         ag::VertexPrintStyles::defaultDotColorer() + ag::VertexPrintStyles::defaultTooltiper() +
         ag::VertexInfo::Colorer(unique_storage.getColorer("white", "green")));
     printer += dll_tracker.getPrinter();

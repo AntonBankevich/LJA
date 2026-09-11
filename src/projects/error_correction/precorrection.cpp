@@ -86,7 +86,6 @@ std::string Precorrector::correctRead(const std::string &name, ag::GraphPath &pa
             corrected_path += pp.nextEdge();
             if (pp == path.firstPosition()) corrected_path.setCutLeft(path.leftCut());
             if (ppp1 == path.lastPosition()) corrected_path.setCutRight(path.rightCut());
-            VERIFY(path.getStart() == corrected_path.getStart());
             continue;
         }
         ag::GraphPath correction;

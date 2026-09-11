@@ -12,19 +12,19 @@ namespace ag {
 
     class DLLAlignmentStorage : public ResolutionListener {
     public:
-        typedef DLLAlignmentPath::iterator DLLPosition;
+        typedef DLLAlignmentPath::iterator DLLPathPosition;
     private:
         std::list<Contig> contigs;
         std::unordered_map<std::string, DLLAlignmentPath> alignments;
-        std::unordered_map<ConstVertexId, std::vector<DLLPosition>> vertex_map;
-        std::unordered_map<ConstEdgeId, std::vector<DLLPosition>> edge_map;
+        std::unordered_map<ConstVertexId, std::vector<DLLPathPosition>> vertex_map;
+        std::unordered_map<ConstEdgeId, std::vector<DLLPathPosition>> edge_map;
 
         void addContig(Contig & contig, DLLAlignmentPath && p);
 
-        DLLPosition insertBefore(Edge &edge, DLLPosition pos, AlignmentFragment fragment);
-        DLLPosition insertAfter(Edge &edge, DLLPosition pos, AlignmentFragment fragment);
-        DLLPosition insertBefore(Vertex &vertex, DLLPosition pos, AlignmentFragment fragment);
-        DLLPosition insertAfter(Vertex &vertex, DLLPosition pos, AlignmentFragment fragment);
+        DLLPathPosition insertBefore(Edge &edge, DLLPathPosition pos, AlignmentFragment fragment);
+        DLLPathPosition insertAfter(Edge &edge, DLLPathPosition pos, AlignmentFragment fragment);
+        DLLPathPosition insertBefore(Vertex &vertex, DLLPathPosition pos, AlignmentFragment fragment);
+        DLLPathPosition insertAfter(Vertex &vertex, DLLPathPosition pos, AlignmentFragment fragment);
 
         bool hasRecords(const Vertex &vertex) const {return vertex_map.find(vertex.getId()) != vertex_map.end();}
         bool hasRecords(const Edge &edge) const {return edge_map.find(edge.getId()) != edge_map.end();}
@@ -48,7 +48,8 @@ namespace ag {
 
 //        Names (contig ids, still RC-oriented e.g. "-name") of all contigs with a fragment
 //        anchored at vertex as an inner fragment, deduplicated. Empty if vertex is untracked.
-        std::vector<std::string> contigNames(const Vertex &vertex) const;
+        std::vector<std::string> passingContigs(const Vertex &vertex) const;
+        std::vector<std::string> passingForwardContigs(const Vertex &vertex) const;
 
         std::function<std::string(const Vertex &)> getVertexTooltipper() const;
         std::function<std::string(const Edge &)> getEdgeTooltipper() const;

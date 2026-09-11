@@ -4,6 +4,8 @@
 #include "common/object_id.hpp"
 #include "common/omp_utils.hpp"
 #include "common/id_index.hpp"
+#include "common/double_linked_list.hpp"
+#include "data_structures/coverage_samples.hpp"
 #include "sequences/contigs.hpp"
 #include <list>
 #include <vector>
@@ -170,6 +172,7 @@ namespace ag {
         EdgeData() = default;
         EdgeData RC() const {return {};}
     };
+
     struct VertexData {
         static const hashing::htype default_hash;
     protected:
@@ -187,6 +190,12 @@ namespace ag {
         size_t covering_read_count = 0;//Number of reads that cover this vertex and at least one nucleotide to the left and right
         // for vertices with outgoing non-suffix edges covering_read_count = sum of read_tail_count and covering_read_count
         // for all outgoing edges and their end vertices correspondingly
+        CoverageSamples coverage_info;
+        double getSPGCoverage() const {return double(coverage_info.support) / coverage_info.weight;}
+//        Same ratio computed from the unscaled (no read-length correction) vote counts -- see
+//        CoverageSamples::raw_support/Sample::raw_support.
+        double getRawSPGCoverage() const {return double(coverage_info.raw_support) / coverage_info.weight;}
+        bool hasCoverageInfo() const {return coverage_info.weight > 0;}
         VertexData() = default;
         VertexData RC() const {return {*this};}
         static VertexData SPGData(bool cyclic, bool inf_left, bool inf_right);

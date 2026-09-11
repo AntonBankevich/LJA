@@ -93,6 +93,9 @@ namespace ag {
 
         Edge &chooseSplitColumn(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
 
+//        Only ever called as part of the DBG->SPG transformation, before any resolution/merging happens,
+//        so edge's start vertex is still a plain DBG vertex: edge.getStartSize() == k for whatever k the
+//        DBG was built with.
         Vertex &edgeToSupreVertex(Edge &edge);
 //        Unlike mergePathToEdge/splitEdge, this is not expected to be called in parallel yet: listeners'
 //        fireResolveVertex implementations are not written to be thread-safe against concurrent calls.
