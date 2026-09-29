@@ -375,22 +375,18 @@ std::string RAGraphPath::str() const {
     return ss.str();
 }
 
-
 Segment<Edge> RAGraphPath::back() const {
     return {backEdge(), (size() == 1 ? leftCut() : 0), backEdge().truncSize() - rightCut()};
 }
-
 
 Segment<Edge> RAGraphPath::front() const {
     return {frontEdge(), leftCut(), size() == 1 ? frontEdge().truncSize() - rightCut() : frontEdge().truncSize()};
 }
 
-
 Segment<Edge> RAGraphPath::operator[](size_t i) const {
     return {getEdge(i), i == 0 ? leftCut() : 0,
             i == size() - 1 ? backEdge().truncSize() - rightCut() : getEdge(i).truncSize()};
 }
-
 
 typename RAGraphPath::segment_iterator RAGraphPath::begin() const {
     std::function<Segment<Edge>(size_t)> transformer = [this](size_t ind) -> Segment<Edge> {

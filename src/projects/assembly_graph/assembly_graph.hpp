@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_set>
 #include <alignment/alignment_form.hpp>
 #include "assembly_graph_base.hpp"
 #include "graph_listeners.hpp"
@@ -23,7 +24,6 @@ namespace ag {
         typedef std::list<Vertex> vertex_storage_type;
         typedef typename std::list<Vertex>::iterator vertex_iterator_type;
         typedef typename std::list<Vertex>::const_iterator const_vertex_iterator_type;
-
     private:
 //    TODO: replace with perfect hash map? It is parallel, maybe faster and compact.
         vertex_storage_type vertex_list;
@@ -57,9 +57,15 @@ namespace ag {
         void removeMarked();
         void resetMarkers();
 
+        // This method resorves a chunk of Ids. In this case management of ids in thes segment is delegated to whomever
+        // requested this chunk. Imprtant for reproducibility of results.
+        // Ides reserved this way can can be used as parameters of addVertex.
+        // TODO: make all calls of addVertex with specified id only use reserved ids.
+        Vertex::id_type reserveVertexIds(size_t num);
+
         Vertex &addVertexPair(VertexData data, typename Vertex::id_type id = 0);
         Vertex &addSelfRCVertex(VertexData data);
-        Vertex &addVertex(const Sequence &seq, typename Vertex::id_type id = 0) {return addVertex(seq, {}, id);}
+        Vertex &addVertex(const Sequence &seq, typename Vertex::id_type id = Vertex::id_type()) {return addVertex(seq, {}, id);}
         Vertex &addVertex(const Vertex &other_graph_vertex);
         Vertex &addSPGVertex(Sequence seq, bool cyclic, bool inf_left, bool inf_right, Vertex::id_type id = Vertex::id_type());
         Edge &addSPEdgeLockFree(Vertex &start, Vertex &end, ag::Edge::id_type eid = {}, ag::Edge::id_type rcid = {});
@@ -87,6 +93,7 @@ namespace ag {
 //        resulting new_edge is itself isSuffix()/isPrefix() to match the run it came from, and (by RC mirroring)
 //        that the mirrored call sees the opposite, homogeneous, isPrefix()/isSuffix() run.
         Edge &mergePathToEdge(const GraphPath &path);
+        Edge &mergePathToEdgeLockFree(const GraphPath &path);
         Edge &mergeTipsToEdge(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
 //        TODO: make it usable in parallel when parallel vertex adding is implemented
         GraphPath splitEdge(Edge &edge, const std::vector<EdgePosition> &split_positions);
@@ -102,9 +109,12 @@ namespace ag {
 //        TODO: make resolveVertex (and listeners' fireResolveVertex) safe to call concurrently, the way
 //        MergeAllToEdges runs mergePathToEdge in parallel across disjoint unbranching paths.
         ag::VertexResolutionResult resolveVertex(Vertex &core, const VertexResolutionPlan &resolution);
-        Vertex &mergePath(const GraphPath &path);
+        //Only merges paths that start/end with non-suffix/non-prefix edges. Thread safe.
+        Vertex &mergePath(const GraphPath &path, Vertex::id_type id = 0);
+        Vertex &mergePathLockFree(const GraphPath &path, Vertex::id_type id = 0);
+        //Uses a combination of mergePath/mergePathToEdge/resolveVertex to merge any path
+        Vertex &mergeComplexPath(const GraphPath &path, Vertex::id_type id = 0);
         Vertex &mergeLoop(const GraphPath &path);
-
 
         IterableStorage<SkippingIterator<AssemblyGraph::vertex_iterator_type>> vertices(bool unique = false) &;
         IterableStorage<SkippingIterator<AssemblyGraph::vertex_iterator_type>> vertices(bool unique = false) && = delete;

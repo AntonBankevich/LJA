@@ -12,8 +12,8 @@ namespace ag {
     std::vector<GraphPath> AllUnbranchingPaths(logging::Logger &logger, size_t threads, AssemblyGraph &graph);
     void MergePathsToEdges(logging::Logger &logger, size_t threads, AssemblyGraph &graph, const std::vector<GraphPath> &paths);
     void MergeAllToEdges(logging::Logger &logger, size_t threads, AssemblyGraph &graph);
-    Vertex &MergePathSPG(const GraphPath &path, AssemblyGraph &graph);
+    Vertex &MergePathOrLoop(const GraphPath &path, AssemblyGraph &graph, Vertex::id_type id = 0);
     void MergeAllSPG(logging::Logger &logger, size_t threads, AssemblyGraph &graph);
     AssemblyGraph LoadSupregraphFromGFA(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &path);
-    void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, AssemblyGraph &spg);
+    size_t SimpleRemoveUncovered(logging::Logger &logger, size_t threads, AssemblyGraph &spg);
 }

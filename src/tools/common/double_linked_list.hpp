@@ -115,6 +115,17 @@ public:
         other.sentinel.next = other.sentinel.prev = &other.sentinel;
         return *this;
     }
+
+    DoublyLinkedList &insertFront(DoublyLinkedList &&other) noexcept {
+        if (other.empty())
+            return *this;
+        Node *other_head = other.sentinel.next;
+        Node *other_tail = other.sentinel.prev;
+        other_tail->connect(sentinel.next);
+        sentinel.connect(other_head);
+        other.sentinel.next = other.sentinel.prev = &other.sentinel;
+        return *this;
+    }
 };
 
 template<typename T>

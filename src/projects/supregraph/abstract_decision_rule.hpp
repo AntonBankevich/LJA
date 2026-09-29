@@ -14,8 +14,9 @@ namespace spg {
         }
     public:
         DecisionRule() {}
-        virtual VertexResolutionPlan judgeNontrivial(ag::Vertex &v) = 0;
+        virtual VertexResolutionPlan judgeNontrivial(ag::Vertex & vertex) = 0;
         virtual VertexResolutionPlan judge(ag::Vertex &v);
+        virtual bool judgeFlip(ag::GraphPath path) = 0;
 
         virtual void check() {};// I do not remember what this method is for and there are no implementations. Depricated.
 

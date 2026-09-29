@@ -164,13 +164,29 @@ void ag::AlignedReadStatisticsTracker::fireResolveVertex(Vertex &core, const Ver
         } else {
             new_inc.min_equivalent_size = core.size() + 2;
             new_inc.outgoing_read_count = it.second.getSupport();
-            VERIFY(it.second.getSupport() == suffix_tracker->getSuffixRecord(it.second.incoming()).countStartsWith(GraphPath(it.second.outgoing())));
+            VERIFY(core.inDeg() == 1 || core.outDeg() == 1 || it.second.getSupport() == suffix_tracker->getSuffixRecord(it.second.incoming()).countStartsWith(GraphPath(it.second.outgoing())));
         }
     }
 }
 
+double ag::AlignedReadStatisticsTracker::countCoverage(const Vertex &vertex) const {
+    double total_length = vertex.subread_length;
+    size_t sz = vertex.size();
+    for (Edge &edge : vertex) {
+        if (edge.isSuffix()) {
+            total_length += edge.rc().read_tail_length;
+        }
+    }
+    for (Edge &edge : vertex.rc()) {
+        if (edge.isSuffix())
+            total_length += edge.rc().read_tail_length;
+    }
+
+    return total_length / vertex.size() + vertex.covering_read_count;
+}
+
 ag::CoverageSamplingTracker::CoverageSamplingTracker(ag::AssemblyGraph &graph, ag::AlignedReadStorage &storage,
-                                                       size_t k, size_t threads) :
+                                                     size_t k, size_t threads) :
         ag::AlignedReadStorageListener(storage, "CoverageSamplingTracker"),
         ag::ResolutionListener(graph, "CoverageSamplingTracker"), k(k) {
     fillLengthHistogram(storage, threads);
@@ -228,7 +244,9 @@ void ag::CoverageSamplingTracker::fireResolveVertex(Vertex &core, const VertexRe
     } else if (core.inDeg() == 1) {
         core.incFrontVertex().coverage_info += std::move(core.coverage_info.shift(core.rc().front().truncSize()));
     } else if (core.outDeg() == 1) {
-        core.frontVertex().coverage_info += std::move(core.coverage_info);
+        // std::cout << "oppa1"<< std::endl;
+        core.frontVertex().coverage_info.insertFront(std::move(core.coverage_info));
+        // std::cout << "oppa2"<< std::endl;
     } else {
         for (const auto &rec : resolution) {
             Vertex &new_vertex = *rec.first;
@@ -238,54 +256,67 @@ void ag::CoverageSamplingTracker::fireResolveVertex(Vertex &core, const VertexRe
             new_vertex.coverage_info.addResolutionSample(start, finish, pair.getSupport(), multiplier(finish - start));
         }
     }
+    for (Vertex &new_vertex : resolution.newVertices()) {
+        processNewOuterVertex(new_vertex);
+    }
 }
 
 void ag::CoverageSamplingTracker::fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {
-    std::vector<Vertex *> inner;
-    for (Vertex &v : path.innerVertices())
-        inner.push_back(&v);
-    size_t offset = path.getStart().size();
-    size_t idx = 0;
+    __int64_t shift = 0;
     for (Edge &e : path.edges()) {
-        offset += e.truncSize();
-        if (idx == inner.size())
-            continue;
-        Vertex &v = *inner[idx];
-        VERIFY(offset >= v.size());
-        v.coverage_info.shift(__int64_t(offset) - __int64_t(v.size()));
-        new_vertex.coverage_info += std::move(v.coverage_info);
-        idx++;
+        if (e == path.backEdge())
+            break;
+        shift += e.rc().truncSize();
+        e.getFinish().coverage_info.shift(shift);
+        new_vertex.coverage_info += std::move(e.getFinish().coverage_info);
+    }
+    processNewOuterVertex(new_vertex);
+}
+
+void ag::CoverageSamplingTracker::fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {
+    __int64_t shift = 0;
+    CoverageSamples collected_samples;
+    for (Edge &e : path.edges()) {
+        if (e == path.backEdge())
+            break;
+        shift += e.rc().truncSize();
+        e.getFinish().coverage_info.shift(shift);
+        collected_samples += std::move(e.getFinish().coverage_info);
+    }
+    if (new_edge.isSuffix())
+        new_edge.getStart().coverage_info += std::move(collected_samples);
+    else if (new_edge.isPrefix()) {
+        new_edge.getFinish().coverage_info.insertFront(std::move(collected_samples));
+    } else {VERIFY(false);}
+}
+
+void ag::CoverageSamplingTracker::adjustSingleSupport(ag::CoverageSamples &info, ag::CoverageSamples::SampleView &view, size_t left, size_t right, __int64_t mult) {
+    bool is_kpomer = view.sample.type == CoverageSamples::SampleType::kpomer;
+    size_t unit_size = is_kpomer ? k + 1 : view.size();
+    size_t overlap_left = std::max(view.start(), left);
+    size_t overlap_right = std::min(view.finish(), right);
+    if (overlap_right >= overlap_left + unit_size) {
+        double m = is_kpomer ? kpomer_multiplier : multiplier(unit_size);
+        __int64_t raw_delta = __int64_t(overlap_right - overlap_left - unit_size + 1) * mult;
+        info.support += double(raw_delta) * m;
+        view.sample.raw_support += raw_delta;
+        info.raw_support += raw_delta;
     }
 }
 
 void ag::CoverageSamplingTracker::adjustSupport(Vertex &v, size_t left, size_t right, __int64_t mult) {
     CoverageSamples &info = v.coverage_info;
-//        Samples are stored in position order regardless of kind. If the affected range reaches the
-//        vertex's own end (right == v.size()), scanning back-to-front lets us stop as soon as we drop
-//        below left instead of walking through the whole unaffected prefix; otherwise scanning
-//        front-to-back stops as soon as we reach right. Either direction is correct — this only picks the
-//        one that can abort earliest.
-    bool backward = right == v.size();
-    IterableStorage<CoverageSamples::SampleIterator> samples = backward ? info.getRSamples() : info.getSamples();
-    for (CoverageSamples::SampleView view : samples) {
-        if (backward ? view.finish() <= left : view.start() >= right)
-            break;
-//        unit_size is the length of a single witness: k+1 nucleotides for a kpomer k+1-mer, or the whole
-//        sample for a resolution witness (one atomic, all-or-nothing unit). [overlap_left, overlap_right)
-//        is the honest overlap between the sample's own window and the read's covered range; the number
-//        of unit_size-long witnesses that fit entirely inside it is its length minus unit_size plus 1.
-//        Each such witness is scaled by multiplier(unit_size) -- see the class declaration -- so votes
-//        for samples of different lengths remain comparable/combinable.
-        bool is_kpomer = view.sample.type == CoverageSamples::SampleType::kpomer;
-        size_t unit_size = is_kpomer ? k + 1 : view.size();
-        size_t overlap_left = std::max(view.start(), left);
-        size_t overlap_right = std::min(view.finish(), right);
-        if (overlap_right > overlap_left + unit_size - 1) {
-            double m = is_kpomer ? kpomer_multiplier : multiplier(unit_size);
-            __int64_t raw_delta = __int64_t(overlap_right - overlap_left - unit_size + 1) * mult;
-            info.support += double(raw_delta) * m;
-            view.sample.raw_support += raw_delta;
-            info.raw_support += raw_delta;
+    if (right == v.size()) {
+        for (CoverageSamples::SampleView view : info.getRSamples()) {
+            if (view.finish() <= left + k)
+                break;
+            adjustSingleSupport(info, view, left, right, mult);
+        }
+    } else {
+        for (CoverageSamples::SampleView view : info.getSamples()) {
+            if (view.start() + k >= right)
+                break;
+            adjustSingleSupport(info, view, left, right, mult);
         }
     }
 }

@@ -79,6 +79,7 @@ namespace ag {
         explicit GraphPath(Iterator begin, Iterator end);
 
         std::string str() const;
+        std::string strSPG() const;
         RAGraphPath asRAPath() const;
         size_t calculateSize() const;
 
@@ -187,6 +188,11 @@ namespace ag {
         friend class GraphPath;
     protected:
         VertexId vid;
+//        Distinguishes the last real vertex position (is_end == false, fpos/rpos already at the deck
+//        boundary) from the one-past-it sentinel (is_end == true) that lets edge iteration ("while pos
+//        != endPosition()") and vertex iteration (which needs to visit lastPosition() itself) share the
+//        same fpos/rpos values without ambiguity.
+        bool is_end;
 //        fpos and rpos correspond to the iteration direction.
         NuclDeck::Iterator rpos;
         NuclDeck::Iterator fpos;
@@ -200,68 +206,47 @@ namespace ag {
                     operator--();
         }
     public:
-        PathPosition(VertexId cur, NuclDeck::Iterator fpos, NuclDeck::Iterator rpos) : vid(cur), fpos(fpos), rpos(rpos) {
+        PathPosition(VertexId cur, NuclDeck::Iterator fpos, NuclDeck::Iterator rpos, bool is_end = false) :
+                vid(cur), is_end(is_end), fpos(fpos), rpos(rpos) {
         }
-        PathPosition(Vertex &cur, NuclDeck::Iterator fpos, NuclDeck::Iterator rpos) : vid(cur.getId()), fpos(fpos), rpos(rpos) {
+        PathPosition(Vertex &cur, NuclDeck::Iterator fpos, NuclDeck::Iterator rpos, bool is_end = false) :
+                vid(cur.getId()), is_end(is_end), fpos(fpos), rpos(rpos) {
         }
-        PathPosition(NuclDeck::Iterator fpos, NuclDeck::Iterator rpos) : vid({}), fpos(fpos), rpos(rpos) {
+//        Only used for the vertex-less sentinel returned for invalid paths -- always past-the-end.
+        PathPosition(NuclDeck::Iterator fpos, NuclDeck::Iterator rpos) : vid({}), is_end(true), fpos(fpos), rpos(rpos) {
         }
         PathPosition(const PathPosition &) = default;
         PathPosition(PathPosition &&)  noexcept = default;
         PathPosition &operator=(const PathPosition &) = default;
         PathPosition &operator=(PathPosition &&) = default;
 
-        Edge &nextEdge() const {return vid->getOutgoingByIterator(fpos);}
-        Edge &prevEdge() const {return vid->rc().getOutgoingByIterator(rpos).rc();}
-        Vertex &getVertex() const {return *vid;}
+        Edge &nextEdge() const {VERIFY(!is_end); return vid->getOutgoingByIterator(fpos);}
+        Edge &prevEdge() const {VERIFY(!is_end); return vid->rc().getOutgoingByIterator(rpos).rc();}
+        Vertex &getVertex() const {VERIFY(!is_end); return *vid;}
         NuclDeck::Iterator getFPos() const {return fpos;}
         NuclDeck::Iterator getRPos() const {return rpos;}
+        size_t getNumericPosition() const;
 
 
-//        This method is for minor optimization. we avoid calling nextEdge() if we already know the next edge.
+        //        This method is for minor optimization. we avoid calling nextEdge() if we already know the next edge.
 
-        PathPosition &operator+=(Edge &edge) {
-//            for(size_t i = 0; i < edge.getCode().size(); i++) {
-//                VERIFY(*fpos == edge.getCode()[i]);
-//                ++fpos;
-//            }
-//            for(size_t i = 0; i < edge.rc().getCode().size(); i++) {
-//                --rpos;
-//                VERIFY(*rpos == edge.rc().getCode()[edge.rc().getCode().size() - 1 - i]);
-//            }
-//            vid = edge.getFinish().getId();
-            fpos += edge.getCode().size();
-            rpos -= edge.rc().getCode().size();
-            vid = edge.getFinish().getId();
-            return *this;
-        }
+        PathPosition &operator+=(Edge &edge);
 
-        PathPosition &operator++() {
-            return operator+=(nextEdge());
-        }
+        //        Advancing past the last vertex turns this position into the past-the-end sentinel instead of
+//        fetching a nonexistent next edge; advancing the sentinel itself is not supported.
+//        Both fpos and rpos must be at their respective boundary before concluding there is no next
+//        edge: in a Supregraph an edge is recorded in only one of fsplits/rsplits (a trailing run of
+//        suffix edges only advances rpos, a trailing run of prefix edges only advances fpos), so either
+//        one alone reaching its end can still leave a real next edge reachable through the other.
+        PathPosition &operator++();
 
-        PathPosition &operator--() {
-            Edge &edge = prevEdge();
-            fpos -= edge.getCode().size();
-            rpos += edge.rc().getCode().size();
-            vid = edge.getStart().getId();
-            return *this;
-        }
-
-        PathPosition operator+(int d) const {
-            PathPosition res = *this;
-            res.move(d);
-            return res;
-        }
-
+        //        Mirror of operator++: stepping back from the past-the-end sentinel just lands back on the
+//        last vertex (vid/fpos/rpos already describe it), without touching prevEdge().
+        PathPosition &operator--();
+        PathPosition operator+(int d) const;
         PathPosition operator-(int d) const {return *this + (-d);}
-        PathPosition RC() const {return {vid->rc(), rpos, fpos};}
-
-        bool operator==(const PathPosition &other) const {
-            VERIFY(&fpos.getDeck()==&other.fpos.getDeck());
-            VERIFY(&rpos.getDeck()==&other.rpos.getDeck());
-            return fpos == other.fpos && rpos == other.rpos;
-        }
+        PathPosition RC() const {VERIFY(!is_end); return {vid->rc(), rpos, fpos};}
+        bool operator==(const PathPosition &other) const;
         bool operator<=(const PathPosition &other) const {return fpos <= other.fpos && rpos >= other.rpos;}
         bool operator!=(const PathPosition &other) const { return !(*this == other); }
         bool operator<(const PathPosition &other) const {return *this <= other && *this != other;}

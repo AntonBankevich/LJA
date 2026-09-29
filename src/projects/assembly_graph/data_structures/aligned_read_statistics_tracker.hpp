@@ -34,21 +34,8 @@ namespace ag {
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;;
 
-        double countCoverage(const Vertex &vertex) const {
-            double total_length = vertex.subread_length;
-            size_t sz = vertex.size();
-            for (Edge &edge : vertex) {
-                if (edge.isSuffix()) {
-                    total_length += edge.rc().read_tail_length;
-                }
-            }
-            for (Edge &edge : vertex.rc()) {
-                if (edge.isSuffix())
-                    total_length += edge.rc().read_tail_length;
-            }
+        double countCoverage(const Vertex &vertex) const;
 
-            return total_length / vertex.size() + vertex.covering_read_count;
-        }
         std::function<std::string(const Vertex &)> getVertexLabeler() const {
             std::function<std::string(const Vertex &)> res = [this](const Vertex &v) -> std::string {
                 return "Cov:" + std::to_string(countCoverage(v)) + "(" + std::to_string(v.subread_length) + "," +
@@ -64,6 +51,40 @@ namespace ag {
                 return "OutCov:" + std::to_string(e.outgoing_read_count) + "(len: " + std::to_string(e.min_equivalent_size) + ")";
             };
             return res;
+        }
+
+        void printStatistics(std::ostream &out, ag::AssemblyGraph &graph) const {
+            size_t uncovered = 0;
+            size_t one_read = 0;
+            size_t one_read_isolated = 0;
+            size_t unknown = 0;
+            size_t total = 0;
+            for (Vertex &v: graph.verticesUnique()) {
+                total++;
+                if (!v.hasCoverageInfo())
+                    unknown++;
+                else if (v.getRawIntSPGCoverage() == 0)
+                    uncovered++;
+                else if (v.getRawSPGCoverage() <= 1.0001) {
+                    if (v.outDeg() == 0 && v.inDeg() == 0)
+                        one_read_isolated++;
+                    else
+                        one_read++;
+                }
+            }
+            out << "Vertex coverage statistics:\nTotal: " << total << "\nunknown: " << unknown << "\nuncovered: " <<
+                uncovered << "\n1-read: " << one_read << "\n1-read isolated: " << one_read_isolated << std::endl;
+            out << "Unreliable reads:\n";
+            for (AlignedRead & read : *storage) {
+                if (!read.valid() || read.getPath().isLegacy())
+                    return;
+                for (Vertex &v: read.getPath().vertices()) {
+                    if (v.hasCoverageInfo() && v.getRawIntSPGCoverage() < 1.0001) {
+                        out << read.getId() << "\n" << read.getPath().strSPG() << "\n";
+                    }
+                }
+            }
+            out << std::endl;
         }
     };
 
@@ -82,9 +103,24 @@ namespace ag {
 //       Similar to DBG path processing for coverage update, but instead of k+1-mers, segments of variable
 //       size are considered and processed individually.
         void processPath(const GraphPath &path, __int64_t mult);
-//        Sample information is stored in one of two types of records: k+1-mer chunk record or a record for
+        void adjustSingleSupport(ag::CoverageSamples &info, ag::CoverageSamples::SampleView &view, size_t left,
+                                 size_t right,
+                                 __int64_t mult);
+        //        Sample information is stored in one of two types of records: k+1-mer chunk record or a record for
 //        a larger segment. This method chooses how to process new information properly.
         void adjustSupport(Vertex &v, size_t left, size_t right, __int64_t mult);
+        void processNewOuterVertex(ag::Vertex &new_vertex) {
+            Vertex &start = new_vertex.incFrontVertex();
+            Vertex &end = new_vertex.incBackVertex();
+            if (start.isCore() && start.outDeg() == 1) {
+                new_vertex.coverage_info.insertFront(std::move(start.coverage_info));
+                start.coverage_info = {};
+            }
+            if (end.isCore() && end.inDeg() == 1) {
+                new_vertex.coverage_info += std::move(end.coverage_info.shift(new_vertex.size() - end.size()));
+                end.coverage_info = {};
+            }
+        }
     public:
         CoverageSamplingTracker(ag::AssemblyGraph &graph, ag::AlignedReadStorage &storage, size_t k, size_t threads);
 
@@ -95,6 +131,7 @@ namespace ag {
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
+        void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
 
         std::function<std::string(const Vertex &)> getVertexLabeler() const {
             std::function<std::string(const Vertex &)> res = [](const Vertex &v) -> std::string {

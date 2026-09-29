@@ -1,82 +1,10 @@
 #include "correction_utils.hpp"
+#include "path_alternatives.hpp"
 using namespace ag;
 namespace dbg {
-    std::unordered_map<Vertex *, size_t> findReachable(Vertex &start, const std::function<bool(const Edge &)> &isReliable, size_t max_dist) {
-        typedef std::pair<size_t, Vertex *> StoredValue;
-        std::priority_queue<StoredValue, std::vector<StoredValue>, std::greater<>> queue;
-        std::unordered_map<Vertex *, size_t> res;
-        queue.emplace(0, &start);
-        while (!queue.empty()) {
-            StoredValue next = queue.top();
-            queue.pop();
-            if (res.find(next.second) == res.end()) {
-                res[next.second] = next.first;
-                for (Edge &edge: *next.second) {
-                    size_t new_len = next.first + edge.truncSize();
-                    if (isReliable(edge) && new_len <= max_dist) {
-                        queue.emplace(new_len, &edge.getFinish());
-                    }
-                }
-            }
-        }
-        return std::move(res);
-    }
-
     std::vector<GraphPath>
     FindPlausibleBulgeAlternatives(const GraphPath &path, size_t max_diff, const std::function<bool(const Edge &)> &isReliable) {
-        size_t max_len = path.truncLen() + max_diff;
-        std::unordered_map<Vertex *, size_t> reachable = findReachable(path.getFinish().rc(), isReliable, max_len);
-        std::vector<GraphPath> res;
-        GraphPath alternative(path.getStart());
-        size_t iter_cnt = 0;
-        size_t len = 0;
-        bool forward = true;
-        while (true) {
-            iter_cnt += 1;
-            if (iter_cnt > 10000)
-                return {path};
-            if (forward) {
-                if (alternative.getFinish() == path.getFinish() && len + max_diff >= path.truncLen()) {
-                    res.emplace_back(alternative);
-                    if (res.size() > 30) {
-                        return {path};
-                    }
-                }
-                forward = false;
-                for (Edge &edge: alternative.getFinish()) {
-                    if (isReliable(edge) &&
-                        reachable.find(&edge.getFinish().rc()) != reachable.end() &&
-                        reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
-                        len += edge.truncSize();
-                        alternative += edge;
-                        forward = true;
-                        break;
-                    }
-                }
-            } else {
-                if (alternative.empty())
-                    break;
-                Edge &old_edge = alternative.back().contig();
-                alternative.pop_back();
-                len -= old_edge.truncSize();
-                bool found = false;
-                for (Edge &edge: alternative.getFinish()) {
-                    if (isReliable(edge) &&
-                        reachable.find(&edge.getFinish().rc()) != reachable.end() &&
-                        reachable[&edge.getFinish().rc()] + edge.truncSize() + len <= max_len) {
-                        if (found) {
-                            len += edge.truncSize();
-                            alternative += edge;
-                            forward = true;
-                            break;
-                        } else if (&edge == &old_edge) {
-                            found = true;
-                        }
-                    }
-                }
-            }
-        }
-        return oneline::removeValue(res.begin(), res.end(), path);
+        return ag::FindAlternativeSegments(path, max_diff, isReliable);
     }
 
     std::vector<GraphPath>
@@ -109,59 +37,9 @@ namespace dbg {
 
     std::vector<GraphPath>
     FindPlausibleTipAlternatives(const GraphPath &path, size_t max_diff, double min_cov) {
-        size_t k = path.getStart().size();
-        size_t max_len = path.truncLen() + max_diff;
-        std::vector<GraphPath> res;
-        VERIFY(path.leftCut() == 0);
-        GraphPath alternative(path.getStart());
-        size_t iter_cnt = 0;
-        size_t len = 0;
-        size_t tip_len = path.truncLen();
-        bool forward = true;
-        while (true) {
-            iter_cnt += 1;
-            if (iter_cnt > 10000)
-                return {path};
-            if (forward) {
-                forward = false;
-                if (len >= tip_len + max_diff) {
-                    res.emplace_back(alternative);
-                    if (res.size() > 10) {
-                        return {path};
-                    }
-                } else {
-                    for (Edge &edge: alternative.getFinish()) {
-                        if (edge.getCoverage() >= min_cov || edge.is_reliable) {
-                            len += edge.truncSize();
-                            alternative += edge;
-                            forward = true;
-                            break;
-                        }
-                    }
-                }
-            } else {
-                if (alternative.empty())
-                    break;
-                Edge &old_edge = alternative.back().contig();
-                alternative.pop_back();
-                len -= old_edge.truncSize();
-                bool found = false;
-                for (Edge &edge: alternative.getFinish()) {
-                    if (edge.getCoverage() >= min_cov || edge.is_reliable) {
-                        if (found) {
-                            len += edge.truncSize();
-                            alternative += edge;
-                            forward = true;
-                            break;
-                        } else if (&edge == &old_edge) {
-                            found = true;
-                        }
-                    }
-                }
-            }
-        }
-        return oneline::filter<GraphPath, std::vector<GraphPath>::iterator>(res.begin(), res.end(),
-                                            [&path](const GraphPath &other) -> bool {return !other.startsWith(path);});
+        return ag::FindAlternativeTips(path, max_diff, [min_cov](const Edge &e) {
+            return e.getCoverage() >= min_cov || e.is_reliable;
+        });
     }
 
     GraphPath FindLongestCoveredForwardExtension(Edge &start, size_t max_size, double min_rel_cov, double max_err_cov) {

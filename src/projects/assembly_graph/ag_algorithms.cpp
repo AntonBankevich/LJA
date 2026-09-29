@@ -67,13 +67,11 @@ namespace ag {
                     for (auto &v: to_merge.innerVertices()) {
                         v.mark();
                     }
-                    if (to_merge.getStart() < to_merge.getFinish().rc() ||
-                        (to_merge.getStart() == to_merge.getFinish().rc()) &&
-                        !to_merge.isSingleton() &&
-                        (to_merge.calculateSize() > 2 || (to_merge.calculateSize() == 2 && (!to_merge.frontEdge().isPrefix() || !to_merge.backEdge().isSuffix()))) &&
-                        to_merge.frontEdge().truncSeq() <= to_merge.backEdge().rc().truncSeq()) {
-                        result.emplace_back(to_merge);
-                    }
+                    if (to_merge.frontEdge() > to_merge.backEdge().rc())
+                        return;
+                    if (to_merge.calculateSize() == 2 && to_merge.frontEdge().isPrefix() && to_merge.backEdge().isSuffix())
+                        return;
+                    result.emplace_back(to_merge);
                 };
         processObjects(graph.edges().begin(), graph.edges().end(), logger, threads, pathTask);
         logger.trace() << "Collecting circular unbranching paths" << std::endl;
@@ -99,9 +97,9 @@ namespace ag {
         ParallelProcessor<const GraphPath>(task, logger, threads).processObjects(paths.begin(), paths.end());
     }
 
-    Vertex &MergePathSPG(const GraphPath &path, AssemblyGraph &graph) {
+    Vertex &MergePathOrLoop(const GraphPath &path, AssemblyGraph &graph, Vertex::id_type id) {
         if(path.getStart().isJunction())
-            return graph.mergePath(path);
+            return graph.mergeComplexPath(path, id);
         else {
             VERIFY(path.getStart() == path.getFinish());
             // TODO: Create real loop merging here
@@ -131,19 +129,20 @@ namespace ag {
                     graph.mergePath(p2);
                 return new_path.getStart().frontVertex();
             } else {
-                return graph.mergePath(new_path);
+                return graph.mergePath(new_path, id);
             }
         }
     }
 
     void
-    MergePathsSPG(logging::Logger &logger, AssemblyGraph &graph, const std::vector<GraphPath> &paths) {
+    MergePathsSPG(logging::Logger &logger, size_t threads, AssemblyGraph &graph, const std::vector<GraphPath> &paths) {
         logger.trace() << "Merging unbranching paths" << std::endl;
+        int first_id = graph.reserveVertexIds(paths.size());
         std::function<void(size_t, const GraphPath &)> task =
-                [&graph](size_t pos, const GraphPath &path) {
-                    MergePathSPG(path, graph);
+                [&graph, first_id](size_t pos, const GraphPath &path) {
+                    MergePathOrLoop(path, graph, first_id + pos);
                 };
-        ParallelProcessor<const GraphPath>(task, logger, 1).processObjects(paths.begin(), paths.end());
+        ParallelProcessor<const GraphPath>(task, logger, threads).processObjects(paths.begin(), paths.end());
     }
 
     void MergeAllToEdges(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {
@@ -158,9 +157,10 @@ namespace ag {
 
     // TODO: make this work in parallel after concurrent adding vertices to the graph is implemented.
     void MergeAllSPG(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {
-        graph.resetMarkers();
+        // graph.resetMarkers();
+        omp_set_num_threads(threads);
         auto unbranching_paths = AllUnbranchingPaths(logger, threads, graph);
-        MergePathsSPG(logger, graph, unbranching_paths);
+        MergePathsSPG(logger, threads, graph, unbranching_paths);
         logger.trace() << "Removing isolated vertices" << std::endl;
         graph.removeMarked();
         graph.removeIsolated();
@@ -206,37 +206,43 @@ namespace ag {
         is.close();
         return std::move(res);
     }
-    bool HasSupport(Vertex &vertex) {
-        size_t support = vertex.subread_count + vertex.covering_read_count;
-        for(Edge &edge : vertex) {
-            support += edge.outgoing_read_count + edge.read_tail_count;
-            support += edge.rc().outgoing_read_count + edge.rc().read_tail_count;
-        }
-        return support > 0;
+    bool OuterVertexHasSupport(Vertex &vertex) {
+        size_t res = vertex.getRawIntSPGCoverage();
+        if (vertex.inDeg() == 1 && vertex.incFrontVertex().outDeg() == 1)
+            res += vertex.incFrontVertex().getRawIntSPGCoverage();
+        if (vertex.outDeg() == 1 && vertex.frontVertex().inDeg() == 1)
+            res += vertex.frontVertex().getRawIntSPGCoverage();
+        return res > 0;
+        // size_t support = vertex.subread_count + vertex.covering_read_count;
+        // for(Edge &edge : vertex) {
+        //     support += edge.outgoing_read_count + edge.read_tail_count;
+        //     support += edge.rc().outgoing_read_count + edge.rc().read_tail_count;
+        // }
+        // return support > 0;
     }
 
     //This procedure only allows to remove outer vertices. It is iterative and removes unsupported vertices outer layer by outer layer.
-    void SimpleRemoveUncovered(logging::Logger &logger, size_t threads, AssemblyGraph &spg) {
+    size_t SimpleRemoveUncovered(logging::Logger &logger, size_t threads, AssemblyGraph &spg) {
         logger.trace() << "Removing completely uncovered edges" << std::endl;
         omp_set_num_threads(threads);
         std::vector<VertexId> vertices_to_check;
-        for (Vertex &vertex: spg.verticesUnique()) {if (vertex.isOuter()) vertices_to_check.emplace_back(vertex.getId());}
+        for (Vertex &vertex: spg.verticesUnique()) {
+            VERIFY(!vertex.marked());
+            if (vertex.isOuter())
+                vertices_to_check.emplace_back(vertex.getId());
+        }
+        size_t res = 0;
         while (!vertices_to_check.empty()) {
             std::vector<VertexId> vertices_to_delete;
-            for(Vertex &vertex : spg.verticesUnique()) {
-                if (vertex.isOuter() && !HasSupport(vertex))
-                    vertices_to_delete.emplace_back(vertex.getId());
+            for(VertexId vid : vertices_to_check) {
+                if (vid->isOuter() && !OuterVertexHasSupport(*vid))
+                    vertices_to_delete.emplace_back(vid);
             }
             vertices_to_check.clear();
-            for(VertexId &vid : vertices_to_delete) {
-                if (!vid->isForwardTerminal()) {
-                    VERIFY(vid->front().isSuffix());
-                    vertices_to_check.emplace_back(vid->frontVertex().getCanonical().getId());
-                }
-                if (!vid->isBackwardTerminal()) {
-                    VERIFY(vid->rc().front().isSuffix());
-                    vertices_to_check.emplace_back(vid->rc().frontVertex().getCanonical().getId());
-                }
+            for(VertexId vid : vertices_to_delete) {
+                for (Vertex & vdir : ThisAndRC(*vid))
+                    for (Edge &edge : vdir)
+                        vertices_to_check.emplace_back(edge.getFinish().getCanonical().getId());
             }
             std::sort(vertices_to_check.begin(), vertices_to_check.end());
             vertices_to_check.erase(std::unique(vertices_to_check.begin(), vertices_to_check.end()), vertices_to_check.end());
@@ -245,9 +251,12 @@ namespace ag {
                 spg.isolateAndMark(*vertices_to_delete[i]);
             }
             logger.trace() << "Removed " << vertices_to_delete.size() << " vertices." << std::endl;
+            res += vertices_to_delete.size();
+            vertices_to_delete.clear();
         }
         logger.trace() << "Finished removing completely uncovered vertices." << std::endl;
         ag::MergeAllSPG(logger, threads, spg);
+        return res;
     }
 
 }

@@ -3,5 +3,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_library(lja_ec STATIC correction_utils.cpp manyk_correction.cpp multiplicity_estimation.cpp tournament_correction.cpp
         dimer_correction.cpp tip_correction.cpp mult_correction.cpp precorrection.cpp
-        reliable_fillers.cpp gap_closing.cpp diploidy_analysis.cpp)
+        reliable_fillers.cpp gap_closing.cpp diploidy_analysis.cpp reliable_vertex_correction.cpp
+        path_alternatives.cpp reliable_path_correction.cpp vertex_reliable_fillers.cpp)
 target_link_libraries (lja_ec lja_dbg m)

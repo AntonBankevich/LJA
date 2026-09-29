@@ -79,12 +79,11 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     UniqueVertexStorage unique_storage(spg);
     OldVertexTracker vertex_tracker(spg, debug);
     ag::DLLAlignmentStorage dll_tracker(spg);
-    std::unique_ptr<spg::PathTracker> path_tracker;
 
     if (debug) {
         PrepareDLLPathTracker(logger, threads, spg, w, paths, dll_tracker);
         dll_tracker.print(logger.debug());
-        path_tracker = std::make_unique<spg::PathTracker>(spg, dll_tracker, printer, dir / "path_tracking");
+        dll_tracker.startDrawing(dir / "path_tracking", printer);
     } else {
         vertex_tracker.detach();
         dll_tracker.detach();

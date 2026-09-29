@@ -24,6 +24,9 @@ namespace spg {
         Multiplexer(Multiplexer &&) = delete;
         Multiplexer(Multiplexer &) = delete;
 
+        //During reset the graph is believed to have all unbranching paths merged.
+        void reset();
+
         void pushCore(Vertex &vertex);
         Vertex &popCore();
 
@@ -35,6 +38,7 @@ namespace spg {
         bool hasReadyCore() const {return !core_queue.empty() && core_queue.begin()->first <= max_core_length;}
         bool hasPendingMerge() const {return !merge_queue.empty();}
 
+        // std::vector<VertexId> flipRepeat(logging::Logger &logger, size_t threads, Vertex &vertex);
         std::vector<VertexId> multiplex(logging::Logger &logger, size_t threads, Vertex &vertex);
         std::vector<VertexId> merge(logging::Logger &logger, size_t threads, Vertex &vertex);
 

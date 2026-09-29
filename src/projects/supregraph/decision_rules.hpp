@@ -32,7 +32,9 @@ namespace spg {
         void uniqueHeuristic(VertexResolutionPlan &res);
         void noChoiceHeuristic(VertexResolutionPlan &res);
 
-        VertexResolutionPlan judgeNontrivial(Vertex &v) override;
+        VertexResolutionPlan judgeNontrivial(ag::Vertex &v) override;
+        bool judgeFlip(ag::GraphPath path) override;
+
         void check() override {
         }
     };
@@ -59,7 +61,9 @@ namespace spg {
         explicit ObviousRule(ag::SuffixTracker &suffixes) :
                 suffixes(&suffixes) {}
 
-        VertexResolutionPlan judgeNontrivial(Vertex &v) override;
+        VertexResolutionPlan judgeNontrivial(ag::Vertex &v) override;
+        bool judgeFlip(ag::GraphPath path) override;
+
 
         void check() override {
         }

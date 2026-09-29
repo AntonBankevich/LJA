@@ -138,11 +138,14 @@ PathPosition GraphPath::lastPosition() const {
 }
 
 PathPosition GraphPath::endPosition() const {
-    return {fsplits.end(), rsplits.begin()};
+//    Carries the real finish vertex (not just the vertex-less sentinel) so that it matches whatever
+//    lastPosition() turns into via operator++, and so operator-- can step it back to lastPosition()
+//    without needing an external vertex lookup.
+    return valid() ? PathPosition(getFinish(), fsplits.end(), rsplits.begin(), true) : PathPosition(fsplits.end(), rsplits.begin());
 }
 
 PathPosition GraphPath::rcEndPosition() const {
-    return {rsplits.end(), fsplits.begin()};
+    return valid() ? PathPosition(getStart().rc(), rsplits.end(), fsplits.begin(), true) : PathPosition(rsplits.end(), fsplits.begin());
 }
 
 GraphPath GraphPath::subPath(PathPosition from) const { return subPath(from, lastPosition()); }
@@ -162,9 +165,9 @@ GraphPath GraphPath::subPath(PathPosition from, PathPosition to) const {
         res += cur.nextEdge();
         ++cur;
     }
-    if(from == firstPosition() && to != firstPosition())
+    if(from == firstPosition())// && to != firstPosition())
         res.setCutLeft(cut_left);
-    if(to == lastPosition() && from != lastPosition())
+    if(to == lastPosition())// && from != lastPosition())
         res.setCutRight(cut_right);
     return std::move(res);
 }
@@ -176,10 +179,18 @@ void GraphPath::operator+=(const GraphPath &other) {
     } else if(!valid()) {
         *this = other;
     } else if(cut_right > 0 && !empty()) {
+        //Joining of paths with non-zero cuts is allowed only in DBG through shared edge
         Edge &old = backEdge();
+        VERIFY(!backEdge().isPrefix());
+        VERIFY(!backEdge().isSuffix());
+        VERIFY(old.getStart().size() == old.getFinish().size());
+        VERIFY(old == other.frontEdge());
+        VERIFY(cut_right + other.cut_left == old.truncSize());
         fsplits.replaceBack(old.getCode().size(), other.fsplits);
         rsplits.replaceFront(old.rc().getCode().size(), other.rsplits);
     } else {
+        VERIFY(cut_right == 0);
+        VERIFY(other.cut_left == 0);
         fsplits.push_back(other.fsplits);
         rsplits.push_front(other.rsplits);
     }
@@ -306,6 +317,66 @@ PathDirection &PathDirection::operator=(GraphPath &&other) {
     return *this;
 }
 
+size_t PathPosition::getNumericPosition() const {
+    PathPosition cur = *this;
+    size_t res = 0;
+    while (cur.getFPos() != cur.getFPos().getDeck().begin() ||  cur.getRPos() != cur.getRPos().getDeck().end()) {
+        --cur;
+        res++;
+    }
+    return res;
+}
+
+PathPosition & PathPosition::operator+=(Edge &edge) {
+    //            for(size_t i = 0; i < edge.getCode().size(); i++) {
+    //                VERIFY(*fpos == edge.getCode()[i]);
+    //                ++fpos;
+    //            }
+    //            for(size_t i = 0; i < edge.rc().getCode().size(); i++) {
+    //                --rpos;
+    //                VERIFY(*rpos == edge.rc().getCode()[edge.rc().getCode().size() - 1 - i]);
+    //            }
+    //            vid = edge.getFinish().getId();
+    fpos += edge.getCode().size();
+    rpos -= edge.rc().getCode().size();
+    vid = edge.getFinish().getId();
+    is_end = false;
+    return *this;
+}
+
+PathPosition & PathPosition::operator++() {
+    VERIFY(!is_end);
+    if(fpos == fpos.getDeck().end() && rpos == rpos.getDeck().begin()) {
+        is_end = true;
+        return *this;
+    }
+    return operator+=(nextEdge());
+}
+
+PathPosition & PathPosition::operator--() {
+    if(is_end) {
+        is_end = false;
+        return *this;
+    }
+    Edge &edge = prevEdge();
+    fpos -= edge.getCode().size();
+    rpos += edge.rc().getCode().size();
+    vid = edge.getStart().getId();
+    return *this;
+}
+
+PathPosition PathPosition::operator+(int d) const {
+    PathPosition res = *this;
+    res.move(d);
+    return res;
+}
+
+bool PathPosition::operator==(const PathPosition &other) const {
+    VERIFY(&fpos.getDeck()==&other.fpos.getDeck());
+    VERIFY(&rpos.getDeck()==&other.rpos.getDeck());
+    return fpos == other.fpos && rpos == other.rpos && vid == other.vid && is_end == other.is_end;
+}
+
 PathDirection &PathDirection::operator=(const GraphPath &other) {
     if(rc)
         *path = other.RC();
@@ -345,6 +416,26 @@ std::string GraphPath::str() const {
         ss << "->" << edge.rc().getCode() << edge.rc().truncSize() << "(" << edge.getInnerId().eid << "|" << edge.getCoverage()<< "|" <<
            edge.rc().getInnerId().eid << ")" << edge.getCode() << edge.truncSize() << "->" << edge.getFinish().getInnerId() << "(" <<
            edge.getFinish().size() << ")";
+    }
+    ss << "]" << rightCut();
+    return ss.str();
+}
+
+std::string GraphPath::strSPG() const {
+    if (!valid())
+        return "";
+    std::stringstream ss;
+    if (isLegacy()) {
+        ss << "Legacy:" << leftCut()  << "[" << getStart().getInnerId() << "(" << getStart().size() << ")]" <<rightCut();
+        return ss.str();
+    }
+    ss << leftCut() << "[" << getStart().getInnerId() << "(" << getStart().size() << "|" <<
+        (getStart().hasCoverageInfo() ? std::to_string(getStart().getSPGCoverage()) : "-") << ")";
+    for (const Edge &edge: edges()) {
+        std::string cov_str = edge.getFinish().hasCoverageInfo() ? std::to_string(edge.getFinish().getSPGCoverage()) : "-";
+        ss << "->" << edge.rc().getCode() << edge.rc().truncSize() << "(" << edge.getInnerId().eid << "|" <<
+           edge.rc().getInnerId().eid << ")" << edge.getCode() << edge.truncSize() << "->" << edge.getFinish().getInnerId() << "(" <<
+           edge.getFinish().size() << "|" << cov_str << ")";
     }
     ss << "]" << rightCut();
     return ss.str();
@@ -447,6 +538,8 @@ GraphPath &GraphPath::extend(const Sequence &seq) {
     for (size_t cpos = 0; cpos < seq.size(); cpos++) {
         unsigned char c = seq[cpos];
         if (endClosed()) {
+            while (getFinish().outDeg() == 1 && getFinish().front().isSuffix())
+                operator+=(getFinish().front());
             Vertex &v = getFinish();
             if (v.hasOutgoing(c)) {
                 Edge &edge = v.getOutgoing(c);

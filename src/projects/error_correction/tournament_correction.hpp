@@ -5,10 +5,9 @@
 #include "sequences/edit_distance.hpp"
 #include "tip_correction.hpp"
 #include "correction_utils.hpp"
+#include "path_alternatives.hpp"
 
 namespace dbg {
-    size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump = false);
-
     std::vector<ag::GraphPath>
     FilterAlternatives(const ag::GraphPath &initial, const std::vector<ag::GraphPath> &als,
                        size_t max_diff, double threshold);
@@ -16,8 +15,6 @@ namespace dbg {
     ag::GraphPath
     chooseBulgeCandidate(const ag::GraphPath &bulge, const dbg::DBGAlignedReadStorage &reads_storage, double threshold,
                          std::vector<ag::GraphPath> &read_alternatives, std::string &message);
-
-    std::pair<ag::GraphPath, size_t> BestAlignmentPrefix(const ag::GraphPath &al, const Sequence &seq, size_t max_diff);
 
     ag::GraphPath processTip(const ag::GraphPath &tip,
                               const std::vector<ag::GraphPath> &alternatives,

@@ -284,17 +284,34 @@ void SuffixTracker::fireMergePath(const RAGraphPath &path, Vertex &vertex) {
     VERIFY(vertex != path.getFinish());
     VERIFY(vertex != path.getStart());
     VERIFY(!path.backEdge().isPrefix());
-    SuffixRecord &old_rec = getSuffixRecord(path.backEdge());
     SuffixRecord &new_rec = getSuffixRecord(vertex.front());
-    new_rec.paths = std::move(old_rec.paths);
-    new_rec.num_of_ends = old_rec.num_of_ends;
-    new_rec.num_of_paths = old_rec.num_of_paths;
-
-    // RAGraphPath rc_path = path.RC();
-    // for(Edge &e : rc_path.edges()) {
-    //     if (!e.rc().isPrefix()) {
-    //         edge_data.at(vertex.front().getId()).paths = std::move(edge_data.at(e.rc().getId()).paths);
-    //         return;
+    VERIFY(!path.backEdge().isPrefix());
+    if (!path.backEdge().isPrefix()) {
+        SuffixRecord &old_rec = getSuffixRecord(path.backEdge());
+        new_rec.paths = std::move(old_rec.paths);
+        new_rec.num_of_ends = old_rec.num_of_ends;
+        new_rec.num_of_paths = old_rec.num_of_paths;
+    }
+    // else {
+    //     if (!path.backEdge().isPrefix()) {
+    //         SuffixRecord &old_rec = getSuffixRecord(path.backEdge());
+    //         new_rec.paths = std::move(old_rec.paths);
+    //         new_rec.num_of_ends = old_rec.num_of_ends;
+    //     } else {
+    //         size_t last_suffix = path.size() - 1;
+    //         size_t shift = 0;
+    //         while (path.getEdge(last_suffix).isPrefix()) {
+    //             shift += path.getEdge(last_suffix).getCode().size();
+    //             last_suffix--;
+    //         }
+    //         SuffixRecord &old_rec = getSuffixRecord(path.getEdge(last_suffix));
+    //         new_rec.num_of_ends += old_rec.num_of_ends;
+    //         for (auto &suffix_rec : old_rec.paths) {
+    //             if (suffix_rec.first.size() <= shift)
+    //                 new_rec.num_of_ends += suffix_rec.second;
+    //             else
+    //                 new_rec.directAddPath(suffix_rec.first.Subseq(shift, suffix_rec.first.size()), suffix_rec.second);
+    //         }
     //     }
     // }
 }

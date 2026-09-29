@@ -155,6 +155,15 @@ bool Vertex::hasOutgoingSuffix() const {
     return false;
 }
 
+size_t Vertex::corporealOutDeg() const {
+    size_t cnt = 0;
+    for (Edge &e : outgoing_) {
+        if (e.corporeal)
+            ++cnt;
+    }
+    return cnt;
+}
+
 bool Vertex::isPalindrome() const {return *this == rc();}
 
 Edge &Vertex::getOutgoing(unsigned char c) const {

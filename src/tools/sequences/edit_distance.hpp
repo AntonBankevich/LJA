@@ -120,7 +120,7 @@ inline std::pair<size_t, size_t> bestPrefix(const Sequence &s1, const Sequence &
         return {std::min(s1.size(), s2.size()), std::min(s1.size(), s2.size())};
     size_t res = s2.size();
     for(size_t j = from; j <= to; j++)
-        if(cur[j] < cur[res])
+        if(cur[j] <= cur[res])
             res = j;
     return {res, cur[res]};
 }

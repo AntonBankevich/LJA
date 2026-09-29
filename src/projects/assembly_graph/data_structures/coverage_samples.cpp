@@ -71,3 +71,11 @@ CoverageSamples &CoverageSamples::operator+=(CoverageSamples &&other) {
     raw_support += other.raw_support;
     return *this;
 }
+
+CoverageSamples &CoverageSamples::insertFront(CoverageSamples &&other) {
+    samples.insertFront(std::move(other.samples));
+    weight += other.weight;
+    support += other.support;
+    raw_support += other.raw_support;
+    return *this;
+}

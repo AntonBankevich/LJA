@@ -151,6 +151,23 @@ spg::VertexResolutionPlan spg::AndreyRule::judgeNontrivial(spg::Vertex &v) {
     return {v};
 }
 
+bool spg::AndreyRule::judgeFlip(ag::GraphPath path) {
+    VERIFY(path.valid() && path.startClosed() && path.endClosed());
+    VERIFY(path.getStart().inDeg() > 1);
+    VERIFY(path.getFinish().outDeg() > 2);
+    VERIFY(path.empty() || path.getStart().outDeg() == 1);
+    VERIFY(path.empty() || path.getFinish().inDeg() == 1);
+    // return v.covering_read_count > 0;
+    for (Edge &edge : path.getStart().incoming()) {
+        const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
+        for (auto &suffix_rec : rec) {
+            if (suffix_rec.second > 0 && suffix_rec.first.size() > path.getFSplits().size())
+                return true;
+        }
+    }
+    return false;
+}
+
 std::vector<std::pair<size_t, ag::EdgeId>> spg::RandomDecisionRule::collectOut(Vertex &v) {
     std::vector<std::pair<size_t, ag::EdgeId>> res;
     for (Edge &edge : v) {
@@ -245,4 +262,22 @@ ag::VertexResolutionPlan spg::ObviousRule::judgeNontrivial(Vertex &v) {
     if (simmple && min_support >= simple_support && v.size() <= max_simple_length) return res;
     if (!simmple && min_support >= complex_support && v.size() <= max_complex_length) return res;
     return {v};
+}
+
+bool spg::ObviousRule::judgeFlip(ag::GraphPath path) {
+    VERIFY(path.valid() && path.startClosed() && path.endClosed());
+    VERIFY(path.getStart().inDeg() > 1);
+    VERIFY(path.getFinish().outDeg() > 2);
+    VERIFY(path.empty() || path.getStart().outDeg() == 1);
+    VERIFY(path.empty() || path.getFinish().inDeg() == 1);
+    // return v.covering_read_count > 0;
+    for (Edge &edge : path.getStart().incoming()) {
+        const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
+        for (auto &suffix_rec : rec) {
+            if (suffix_rec.second > 0 && suffix_rec.first.size() > path.getFSplits().size())
+                return true;
+        }
+    }
+    return false;
+    // return v.covering_read_count > 0;
 }

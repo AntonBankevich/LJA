@@ -271,7 +271,7 @@ namespace ag {
             }
             for (VertexId VertexId: extended) {
                 Vertex &v = *VertexId;
-                std::string label = v.size() < 10 ? v.getSeq().str() : join(" : ", vertexInfo.get_label_info(v));
+                std::string label = v.size() < 10 ? v.getSeq().str() : join("\\n", vertexInfo.get_label_info(v));
                 std::string color = join(":", vertexInfo.get_color_info(v));
                 std::string tooltip = join(" : ", vertexInfo.get_tooltip_info(v));
                 os << VertexId.innerId();
@@ -319,7 +319,7 @@ namespace ag {
 
     void DrawSplit(const ag::Component &component, const std::experimental::filesystem::path &dir,
                    size_t len = 100000) const {
-        ensure_dir_existance(dir);
+        recreate_dir(dir);
         std::vector<ag::Component> split = ag::LengthSplitter(len).split(component);
         for (size_t i = 0; i < split.size(); i++) {
             std::experimental::filesystem::path f = dir / (std::to_string(i) + ".dot");

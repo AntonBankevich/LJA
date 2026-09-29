@@ -69,6 +69,7 @@ namespace ag {
             bool operator!=(const SampleIterator &other) const;
             SampleIterator &operator++();
             SampleIterator operator++(int);
+            reference operator->() const {return **this;}
 
             SampleView operator*() const;
         };
@@ -82,5 +83,6 @@ namespace ag {
 //        Shift coordinates of all substrings by delta.
         CoverageSamples &shift(__int64_t delta);
         CoverageSamples &operator+=(CoverageSamples &&other);
+        CoverageSamples &insertFront(CoverageSamples &&other);
     };
 }

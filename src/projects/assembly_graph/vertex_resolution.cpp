@@ -139,6 +139,15 @@ bool VertexResolutionPlan::allConnected() const {
     return true;
 }
 
+VertexResolutionPlan VertexResolutionPlan::SimplePlan(Vertex &v) {
+    VertexResolutionPlan plan(v);
+    for (Edge &inc : v.incoming())
+        for (Edge &out : v) {
+            plan.add(inc, out);
+        }
+    return plan;
+}
+
 VertexResolutionPlan VertexResolutionPlan::RC() const {
     VertexResolutionPlan res(v->rc());
     for(const InOutEdgePair &ep : edge_pairs) {

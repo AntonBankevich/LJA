@@ -7,6 +7,7 @@ ag::AlignmentFragment ag::AlignmentFragment::InnerFragment(Segment<Contig> seg, 
 }
 
 ag::AlignmentFragment ag::AlignmentFragment::EdgeSegment(Segment<Contig> seg, Edge &edge, size_t from) {
+    VERIFY(edge.fullSize() >= from + seg.size());
     return {seg, {}, edge.getId(), from, edge.fullSize() - from - seg.size()};
 }
 

@@ -7,9 +7,25 @@ ag::VertexResolutionPlan spg::DecisionRule::judge(ag::Vertex &v) {
     //     return {v};
     // if (v.rc().outDeg() == 1 && !checkForkForward(v.rc()))
     //     return {v};
-    if (v.outDeg() == 1 && v.frontVertex().outDeg() == 1)
+    VERIFY(v.inDeg() != 1);
+    VERIFY(v.outDeg() != 1);
+    // if (v.inDeg() == 1 && v.outDeg() > 1) {
+    //     if (judgeFlip(v.incFrontVertex()))
+    //         return VertexResolutionPlan::SimplePlan(v);
+    //     else
+    //         return {v};
+    // }
+    // if (v.inDeg() > 1 && v.outDeg() == 1) {
+    //     if (judgeFlip(v.frontVertex()))
+    //         return VertexResolutionPlan::SimplePlan(v);
+    //     else
+    //         return {v};
+    // }
+    if (v.inDeg() <= 1 && v.outDeg() <= 1)
+        return VertexResolutionPlan::SimplePlan(v);
+    if (v.inDeg() == 0 || v.outDeg() == 0 && v.inDeg() + v.outDeg() > 1)
         return {v};
-    if (v.rc().outDeg() == 1 && v.rc().frontVertex().outDeg() == 1)
-        return {v};
+    VERIFY(v.inDeg() > 1);
+    VERIFY(v.outDeg() > 1);
     return judgeNontrivial(v);
 }

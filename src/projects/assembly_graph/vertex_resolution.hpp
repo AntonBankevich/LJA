@@ -49,6 +49,8 @@ namespace ag {
         void sort() const;
     public:
         VertexResolutionPlan(Vertex &v) : v(v.getId()) {} // NOLINT(google-explicit-constructor)
+        static VertexResolutionPlan SimplePlan(Vertex &v);
+
         VertexResolutionPlan RC() const;
 
         Vertex &getCore() const {return *v;}

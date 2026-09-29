@@ -4,33 +4,10 @@
 #include "error_correction.hpp"
 #include "dimer_correction.hpp"
 #include "reliable_fillers.hpp"
+#include "path_alternatives.hpp"
 #include <alignment/ksw_aligner.hpp>
 
 namespace dbg {
-    size_t tournament(const Sequence &bulge, const std::vector<Sequence> &candidates, bool dump) {
-        size_t winner = 0;
-        std::vector<size_t> dists;
-//        KSWAligner aligner(1,0,0,0);
-        size_t max_dist = std::max<size_t>(20, bulge.size() / 100);
-        for (size_t i = 0; i < candidates.size(); i++) {
-            dists.push_back(edit_distance(bulge, candidates[i], max_dist));
-            if (dists.back() < dists[winner])
-                winner = i;
-        }
-        if (dists[winner] >= max_dist)
-            return -1;
-        for (size_t i = 0; i < candidates.size(); i++) {
-            if (i != winner && dists[i] < max_dist) {
-                size_t diff = edit_distance(candidates[winner], candidates[i], max_dist);
-                VERIFY(dists[winner] <= dists[i] + diff);
-                VERIFY(dists[i] <= dists[winner] + diff);
-                if (dists[i] < max_dist && dists[i] != dists[winner] + diff)
-                    return -1;
-            }
-        }
-        return winner;
-    }
-
     std::vector<ag::GraphPath>
     FilterAlternatives(const ag::GraphPath &initial, const std::vector<ag::GraphPath> &als,
                        size_t max_diff, double threshold) {
@@ -72,7 +49,7 @@ namespace dbg {
             for (ag::GraphPath &cand: read_alternatives_filtered) {
                 candidates.push_back(cand.truncSeq());
             }
-            size_t winner = tournament(old, candidates);
+            size_t winner = ag::tournament(old, candidates);
             if (winner != size_t(-1)) {
                 read_alternatives_filtered = {read_alternatives_filtered[winner]};
             }
@@ -89,16 +66,6 @@ namespace dbg {
         }
     }
 
-    std::pair<ag::GraphPath, size_t> BestAlignmentPrefix(const ag::GraphPath &al, const Sequence &seq, size_t max_diff) {
-        Sequence candSeq = al.truncSeq();
-        std::pair<size_t, size_t> bp = bestPrefix(seq, candSeq, max_diff);
-        size_t len = bp.first;
-        Sequence prefix = candSeq.Subseq(0, len);
-        ag::GraphPath res(al.getStart());
-        res.extend(prefix);
-        return {res, bp.second};
-    }
-
     ag::GraphPath processTip(const ag::GraphPath &tip,
                               const std::vector<ag::GraphPath> &alternatives,
                               double threshold, string &message) {
@@ -108,7 +75,7 @@ namespace dbg {
         std::vector<ag::GraphPath> trunc_alignments;
         Sequence old = tip.truncSeq();
         for (const ag::GraphPath &al: read_alternatives_filtered) {
-            std::pair<ag::GraphPath, size_t> tres = BestAlignmentPrefix(al, old, 10 + (al.truncLen() / 50));
+            std::pair<ag::GraphPath, size_t> tres = ag::bestAlignmentPrefix(al, old, 10 + (al.truncLen() / 50));
             if (tres.second < 10 + (al.truncLen() / 50))
                 trunc_alignments.emplace_back(std::move(tres.first));
         }
@@ -120,7 +87,7 @@ namespace dbg {
                 Sequence candSeq = cand.truncSeq();
                 candidates.push_back(candSeq);
             }
-            size_t winner = tournament(old, candidates);
+            size_t winner = ag::tournament(old, candidates);
             if (winner != size_t(-1)) {
                 trunc_alignments = {trunc_alignments[winner]};
             }

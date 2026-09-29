@@ -296,6 +296,10 @@ public:
     IterableStorage(const Iterator &_begin, const Iterator &_end) : _begin(_begin), _end(_end) {
     }
 
+    typename Iterator::reference front() const {
+        return *_begin;
+    }
+
     Iterator begin() const {
         return _begin;
     }

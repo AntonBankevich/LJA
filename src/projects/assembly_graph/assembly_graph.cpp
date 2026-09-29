@@ -37,50 +37,59 @@ Vertex &ag::AssemblyGraph::addSPGVertex(Sequence seq, bool cyclic, bool inf_left
     return res;
 }
 
-Vertex &ag::AssemblyGraph::mergePath(const GraphPath &path) {
+Vertex &ag::AssemblyGraph::mergeComplexPath(const GraphPath &path, Vertex::id_type id) {
+    Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getStart().rc().getId(), path.getRCStart().getId(), path.getFinish().rc().getId()});
     VERIFY(path.startClosed() && path.endClosed());
-    PathPosition p = path.firstPosition();
-    while (p != path.lastPosition() && p.nextEdge().isSuffix())
-        ++p;
-    bool updown = true;
-    for (PathPosition p1 = p; p1 != path.lastPosition(); ++p1) {
-        if (!p1.nextEdge().isSuffix()) {
-            updown = false;
-            break;
-        }
-    }
-    if (updown) {
-        GraphPath left_path = path.subPath(path.firstPosition(), p);
-        GraphPath right_path = path.subPath(p, path.lastPosition());
-        Vertex & res = p.getVertex();
-        if (left_path.calculateSize() > 1) {
-            mergePathToEdge(left_path);
-        }
-        if (right_path.calculateSize() > 1) {
-            mergePathToEdge(right_path);
-        }
-        return res;
-    } else {
-//        Locks the two pre-existing (possibly shared-junction) vertices whose edge lists get mutated below;
-//        res is freshly created by this call and needs no lock. Mirrors mergePathToEdge's locking so that
-//        several mergePath calls on disjoint paths meeting at a shared junction can run in parallel.
-        Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getRCStart().getId()});
-        Sequence seq = path.Seq();
-        Vertex &res = addSPGVertex(seq, false, false, false);
-        Edge &inc_edge = addSPEdgeLockFree(path.getStart(), res);
-        inc_edge.setCorporeal(false);
-        inc_edge.rc().setCorporeal(false);
-        Edge &out_edge = res == res.rc() ? inc_edge.rc() : addSPEdgeLockFree(res, path.getFinish());
-        out_edge.setCorporeal(false);
-        out_edge.rc().setCorporeal(false);
-        fireMergePath(path.asRAPath(), res);
-        isolateAndMark(path.innerVertices().begin(), path.innerVertices().end());
-        inc_edge.setCorporeal(true);
-        inc_edge.rc().setCorporeal(true);
-        out_edge.setCorporeal(true);
-        out_edge.rc().setCorporeal(true);
-        return res;
-    }
+    VERIFY(path.calculateSize() > 1);
+    VERIFY(path.calculateSize() > 2 || !path.frontEdge().isPrefix() || !path.backEdge().isSuffix());
+    if (path.truncLen() == 0)
+        return mergePathToEdgeLockFree(path).getStart();
+    if (path.RC().truncLen() == 0)
+        return mergePathToEdgeLockFree(path.RC()).getFinish();
+    PathPosition left = path.firstPosition();
+    PathPosition right = path.lastPosition();
+    while (left.nextEdge().isSuffix())
+        ++left;
+    while (right.prevEdge().isPrefix())
+        --right;
+    if (left != path.firstPosition() && left != path.firstPosition() + 1)
+        mergePathToEdgeLockFree(path.subPath(path.firstPosition(), left));
+    if (right != path.lastPosition() && right != path.lastPosition() - 1)
+        mergePathToEdgeLockFree(path.subPath(right, path.lastPosition()));
+    if (left != path.firstPosition())
+        resolveVertex(left.getVertex(), VertexResolutionPlan::SimplePlan(left.getVertex()));
+    if (right != path.lastPosition() && path != path.RC() && left != right)
+        resolveVertex(right.getVertex(), VertexResolutionPlan::SimplePlan(right.getVertex()));
+    return mergePathLockFree(path, id);
+}
+
+Vertex &ag::AssemblyGraph::mergePath(const GraphPath &path, Vertex::id_type id) {
+    Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getStart().rc().getId(), path.getRCStart().getId(), path.getFinish().rc().getId()});
+    return mergePathLockFree(path, id);
+}
+Vertex &ag::AssemblyGraph::mergePathLockFree(const GraphPath &path, Vertex::id_type id) {
+    VERIFY(path.startClosed() && path.endClosed());
+    // if (path.truncLen() == 0)
+    //     return mergePathToEdge(path).getStart();
+    // if (path.RC().truncLen() == 0)
+    //     return mergePathToEdge(path.RC()).getFinish();
+    VERIFY(!path.frontEdge().isSuffix());
+    VERIFY(!path.backEdge().isPrefix());
+    Sequence seq = path.Seq();
+    Vertex &res = addSPGVertex(seq, false, false, false, seq.isCanonical() ? id : -id);
+    Edge &inc_edge = addSPEdgeLockFree(path.getStart(), res);
+    inc_edge.setCorporeal(false);
+    inc_edge.rc().setCorporeal(false);
+    Edge &out_edge = res == res.rc() ? inc_edge.rc() : addSPEdgeLockFree(res, path.getFinish());
+    out_edge.setCorporeal(false);
+    out_edge.rc().setCorporeal(false);
+    fireMergePath(path.asRAPath(), res);
+    isolateAndMark(path.innerVertices().begin(), path.innerVertices().end());
+    inc_edge.setCorporeal(true);
+    inc_edge.rc().setCorporeal(true);
+    out_edge.setCorporeal(true);
+    out_edge.rc().setCorporeal(true);
+    return res;
 }
 
 size_t SmallestShift(const Sequence &seq) {
@@ -140,6 +149,7 @@ Vertex &AssemblyGraph::edgeToSupreVertex(Edge &edge) {
     VERIFY(!edge.isPrefix());
     Sequence seq = edge.fullSeq();
     Vertex &res = addVertex(seq);
+    VERIFY(res.size() == res.rc().size());
     addEdgeLockFree(res, edge.getFinish(), Sequence(), edge.rc().truncSeq());
     if(edge != edge.rc())
         addEdgeLockFree(res.rc(), edge.getStart().rc(), Sequence(), edge.truncSeq());
@@ -158,7 +168,7 @@ Vertex &AssemblyGraph::edgeToSupreVertex(Edge &edge) {
 
 VertexResolutionResult
 AssemblyGraph::resolveVertex(Vertex &core, const VertexResolutionPlan &resolution) {
-    VERIFY(core.isCore() && core.inDeg() > 0 && core.outDeg() > 0);
+    VERIFY(core.isCore());
     VertexResolutionResult result(core);
     for(const InOutEdgePair &p : resolution.connectionsUnique()) {
         VERIFY(p.incoming().getFinish() == core);
@@ -393,6 +403,11 @@ void AssemblyGraph::resetMarkers() {
     }
 }
 
+Vertex::id_type AssemblyGraph::reserveVertexIds(size_t num) {
+    maxVId += num;
+    return maxVId - num + 1;
+}
+
 //    Vertex id selection and vertex_list insertion have no per-vertex id to lock on yet, so this critical
 //    section is what makes concurrent addVertex/addVertexPair/addSelfRCVertex calls safe. Contract: no one
 //    iterates over the graph's vertex list while vertices are being added.
@@ -410,7 +425,7 @@ Vertex &AssemblyGraph::addVertex(const Sequence &seq, const VertexData &data, ty
         Vertex &new_res = innerAddVertex(id, seq, data);
         Vertex &new_rc = seq == !seq ? new_res : innerAddVertex(-id, !seq, data.RC());
         new_res.setRC(new_rc);
-        new_res.setSeq(seq);
+        // new_res.setSeq(seq);
         res = &new_res;
     }
     this->fireAddVertex(*res);
@@ -445,11 +460,30 @@ Vertex &AssemblyGraph::innerAddVertex(typename Vertex::id_type id, bool canonica
     return vertex_list.back();
 }
 
+bool id_cmp(Vertex::id_type a, Vertex::id_type b) {
+    if (std::abs(a) != std::abs(b))
+        return std::abs(a) < std::abs(b);
+    return a > b;
+}
 Vertex &AssemblyGraph::innerAddVertex(typename Vertex::id_type id, Sequence seq, VertexData data) {
     VERIFY(seq.isCanonical() == (id > 0));
     maxVId = std::max(std::abs(id), maxVId);
-    vertex_list.emplace_back(id, std::move(seq), std::move(data));
-    return vertex_list.back();
+    if (vertex_list.empty() || id_cmp(vertex_list.back().getInnerId(), id)) {
+        vertex_list.emplace_back(id, std::move(seq), std::move(data));
+        return vertex_list.back();
+    } else if (id_cmp(id, vertex_list.front().getInnerId())) {
+        vertex_list.emplace_front(id, std::move(seq), std::move(data));
+        return vertex_list.front();
+    } else {
+        auto it = vertex_list.end();
+        --it;
+        while (id_cmp(id, it->getInnerId())) {
+            VERIFY(it != vertex_list.begin());
+            --it;
+        }
+        ++it;
+        return *vertex_list.emplace(it, id, std::move(seq), std::move(data));
+    }
 }
 
 Edge &AssemblyGraph::addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &full_sequence, EdgeData data,
@@ -476,8 +510,6 @@ Edge &AssemblyGraph::addEdgeLockFree(Vertex &start, Vertex &end,
     VERIFY(res.fullSize() == res.rc().fullSize());
     this->fireAddEdge(res);
     return res;
-
-    return addEdgeLockFree(start, end, tseq, rctseq, data, eid, rcid);
 }
 
 void AssemblyGraph::removeEdgeLockFree(Edge &edge) {
@@ -512,16 +544,19 @@ void AssemblyGraph::isolateAndMark(Vertex &vertex) {
     }
 }
 
-//    TODO: when TAGraphPath is thoroughly damned, put it back here as a parameter.
 Edge &AssemblyGraph::mergePathToEdge(const GraphPath &path) {
+    Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getStart().rc().getId(), path.getRCStart().getId(), path.getFinish().rc().getId()});
+    return mergePathToEdgeLockFree(path);
+}
+//    TODO: when TAGraphPath is thoroughly damned, put it back here as a parameter.
+Edge &AssemblyGraph::mergePathToEdgeLockFree(const GraphPath &path) {
     VERIFY(!path.empty());
     VERIFY(path.endClosed() && path.startClosed());
-    Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getRCStart().getId()});
     for(Vertex &v : path.innerVertices()) {
         VERIFY(!v.marked());
     }
     VERIFY(!path.isSingleton());
-    VERIFY(path.getStart() == path.getFinish() || path.getStart() == path.getFinish().rc() || (path.getStart().isJunction() && path.getFinish().isJunction()));
+    // VERIFY(path.getStart() == path.getFinish() || path.getStart() == path.getFinish().rc() || (path.getStart().isJunction() && path.getFinish().isJunction()));
     SequenceBuilder sb;
     Sequence new_seq = path.Seq();
     Edge &new_edge = addEdgeLockFree(path.getStart(), path.getFinish(), new_seq);

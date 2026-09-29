@@ -95,6 +95,7 @@ namespace ag {
         bool isend;
     public:
         typedef T value_type;
+        typedef T &reference;
         RCIterator(T &obj, bool rc, bool isend) : val(&obj), rc(rc), isend(isend) {
         }
         static RCIterator begin(T &obj) {return {obj, false, false};}
@@ -117,7 +118,7 @@ namespace ag {
             ++res;
             return res;
         }
-        T& operator*() const {
+        reference operator*() const {
             VERIFY(!isend);
             if(rc)
                 return val->rc();
@@ -144,6 +145,12 @@ namespace ag {
     inline bool IsMarkerCorrect(EdgeMarker marker) {
         return marker == EdgeMarker::correct || marker == EdgeMarker::unique || marker == EdgeMarker::repeat;
     }
+
+    enum class VertexReliability {
+        unknown,
+        reliable,
+        unreliable
+    };
 
     class Edge;
     typedef ObjectId<Edge, EdgeIdType> EdgeId;
@@ -182,6 +189,8 @@ namespace ag {
         bool inf_left = false;
         bool inf_right = false;
     public:
+//        TODO: get rid of this or at least control access
+        mutable VertexReliability reliability = VertexReliability::unknown;
         size_t subread_count = 0;//Number of reads that are substrings of this vertex and have never been substrings of
         //two unrelated vertices in the graph at once: read r counts if it is a substring of v and whenever it is a
         //substring of u and w that are vertices in some intermediate state of the graph, either u is a substring of w
@@ -195,6 +204,7 @@ namespace ag {
 //        Same ratio computed from the unscaled (no read-length correction) vote counts -- see
 //        CoverageSamples::raw_support/Sample::raw_support.
         double getRawSPGCoverage() const {return double(coverage_info.raw_support) / coverage_info.weight;}
+        size_t getRawIntSPGCoverage() const {return coverage_info.raw_support;}
         bool hasCoverageInfo() const {return coverage_info.weight > 0;}
         VertexData() = default;
         VertexData RC() const {return {*this};}
@@ -372,6 +382,8 @@ namespace ag {
         bool hasOutgoing(unsigned char c) const;
         bool hasOutgoingSuffix() const;
         size_t outDeg() const { return _outDeg; }
+        size_t corporealOutDeg() const;
+
         size_t inDeg() const { return rc_->outgoing_.size(); }
         const Vertex &getCanonical() const {return isCanonical() ? *this : rc();}
         Vertex &getCanonical() {return isCanonical() ? *this : rc();}
@@ -381,6 +393,7 @@ namespace ag {
         VertexId getId() {return {getInnerId(), this};}
         ConstVertexId getId() const {return {getInnerId(), this};}
         bool marked() const { return mark_; }
+        bool isReliable() const { return reliability == VertexReliability::reliable; }
         Vertex &rc() { return *rc_; }
         const Vertex &rc() const { return *rc_; }
         std::array<int, 5> getMaxOutId() const {return max_out_id;}
