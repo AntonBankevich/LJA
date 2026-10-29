@@ -526,3 +526,24 @@ void ag::DLLAlignmentStorage::print(std::ostream &out) {
         }
     }
 }
+
+bool ag::DLLAlignmentStorage::checkConsistency() {
+    for (auto &named : alignments) {
+        DLLAlignmentPath &path = named.second;
+        for (DLLAlignmentPath::iterator it = path.begin(); it != path.end(); ++it) {
+            const AlignmentFragment &f = *it;
+            if (!f.valid())
+                return false;
+            if (f.isEdgeSegment()) {
+                if (edge_map.find(f.edge) == edge_map.end())
+                    return false;
+            } else if (f.isInnerFragment()) {
+                if (vertex_map.find(f.vertex) == vertex_map.end())
+                    return false;
+            } else {
+                return false;
+            }
+        }
+    }
+    return true;
+}

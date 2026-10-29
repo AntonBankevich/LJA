@@ -42,12 +42,12 @@ void spg::OldVertexTracker::addMultiEmbedding(Vertex &subvertex, Vertex &superve
     VERIFY(right >= left);
     VERIFY(subvertex.size() == right - left);
     VERIFY(subvertex.size() < supervertex.size() || subvertex == supervertex);
-    multi_embedding[subvertex.getId()].emplace_back(subvertex, supervertex, left, right);
-    multi_subvertices[supervertex.getId()].emplace_back(subvertex, supervertex, left, right);
+    direct_supervertices[subvertex.getId()].emplace_back(subvertex, supervertex, left, right);
+    direct_subvertices[supervertex.getId()].emplace_back(subvertex, supervertex, left, right);
 }
 
 size_t spg::OldVertexTracker::getVertexSize(VertexId vid) const {
-    const std::vector<DirectEmbedding> &embeddings = multi_embedding.at(vid);
+    const std::vector<DirectEmbedding> &embeddings = direct_supervertices.at(vid);
     if (embeddings.size() > 0) return embeddings.front().to - embeddings.front().from;
     return vid->size();
 }
@@ -63,72 +63,53 @@ void spg::OldVertexTracker::fireAddEdge(Edge &e) {
 void spg::OldVertexTracker::fireAddVertex(Vertex &v) {
     subvertices[v.getId()] = {};
     addEmbedding(v.getId(), {v, 0, v.size()});
-    multi_embedding[v.getId()] = {};
-    multi_subvertices[v.getId()] = {};
+    direct_supervertices[v.getId()] = {};
+    direct_subvertices[v.getId()] = {};
     vertex_seq[v.getId()] = v.getSeq();
 }
 
 void spg::OldVertexTracker::fireDeleteVertex(Vertex &v) {
-    subvertices.erase(v.getId());
-    multi_embedding[v.getId()].emplace_back(v, v, 0, v.size());
+//    Mark v as no longer alive with a self-embedding in its own direct_supervertices. getAllEmbeddings
+//    uses this marker (its `real` flag) to skip deleted vertices and climb to the minimal *living*
+//    vertices that still contain v's sequence. Without it, getAllEmbeddings can't tell alive from
+//    deleted and the "which living vertices is this read a substring of" query is meaningless.
+    direct_supervertices[v.getId()].emplace_back(v, v, 0, v.size());
 }
 
 void spg::OldVertexTracker::fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) {
     size_t start = 0;
     size_t end = path.getStart().size();
     std::vector<ag::VertexId> &subs = subvertices.at(new_vertex.getId());
-    std::vector<DirectEmbedding> &multi_subs = multi_subvertices[new_vertex.getId()];
+    std::vector<DirectEmbedding> &subvertices = direct_subvertices[new_vertex.getId()];
     size_t cnt = 0;
+    direct_supervertices[path.getStart().getId()].emplace_back(path.getStart(), new_vertex, 0, path.getStart().size());
+    subvertices.emplace_back(path.getStart(), new_vertex, 0, path.getStart().size());
     for (Edge &e : path.edges()) {
         end += e.truncSize();
         start += e.rc().truncSize();
-        multi_embedding[e.getFinish().getId()] = {{e.getFinish(), new_vertex, start, end}};
-        multi_subs.emplace_back(e.getFinish(), new_vertex, start, end);
+        direct_supervertices[e.getFinish().getId()] = {{e.getFinish(), new_vertex, start, end}};
+        subvertices.emplace_back(e.getFinish(), new_vertex, start, end);
         VERIFY(e.getFinish().getSeq() == new_vertex.getSeq().Subseq(start, end));
-        // addEmbedding(e.getFinish().getId(), {new_vertex, start, end}, subs);
-        for (VertexId &vid : subvertices.at(e.getFinish().getId())) {
-            auto it = subvertices.find(vid);
-            if (it != subvertices.end()) {
-                const Segment<ag::Vertex> &seg = vertex_embedding.at(vid);
-                VERIFY(seg.contig() == e.getFinish());
-                addEmbedding(vid, seg.nest({new_vertex, start, end}), subs);
-            }
-        }
-        cnt++;
-        if (cnt == path.size() - 1)
-            break;
     }
-}
-
-void spg::OldVertexTracker::fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) {
-    VERIFY(new_edge.isSuffix() || new_edge.isPrefix());
-    fireMergePath(path, new_edge.isSuffix() ? new_edge.getStart() : new_edge.getFinish());
 }
 
 void spg::OldVertexTracker::fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) {
-    if (resolution.newVertices().calculateSize() != 1) {
-        for (ag::VertexId vid : subvertices.at(core.getId())) {
-            vertex_embedding.erase(vid);
-        }
-    } else {
-        auto new_connection = *resolution.begin();
-        Vertex& new_vertex = *new_connection.first;
-        Segment<Vertex> seg = {new_vertex, new_connection.second.incoming().rc().truncSize(),
-            new_connection.second.incoming().rc().truncSize() + core.size()};
-        std::vector<VertexId> & new_subvertices = subvertices[new_vertex.getId()];
-        for (ag::VertexId vid : subvertices.at(core.getId())) {
-            Segment<Vertex> &embedding = vertex_embedding[vid];
-            addEmbedding(vid, embedding.nest(seg), new_subvertices);
-        }
+    for (auto p : resolution) {
+        addEmbedding(core.getId(), {*p.first, 1, core.size() + 1}, subvertices.at(core.getId()));
+//        Also record the embedding in direct_supervertices/direct_subvertices so getAllEmbeddings (which
+//        walks those) can climb from the resolved-away core to its living resolution instances. The
+//        instance sequence extends core by one nucleotide on each side, so core occupies [1, size+1).
+        addMultiEmbedding(core, *p.first, 1, core.size() + 1);
     }
-    subvertices.erase(core.getId());
 }
 
 std::vector<spg::OldVertexTracker::DirectEmbedding> spg::OldVertexTracker::getAllEmbeddings(VertexId vid) const {
     std::vector<DirectEmbedding> res;
     std::set<std::pair<size_t, DirectEmbedding>> recs;
     size_t sz = getVertexSize(vid);
-    recs.emplace(sz, DirectEmbedding(*vid, *vid, 0, sz));
+//    Use the VertexId ctor (not *vid): vid may be a deleted/legacy vertex, which is exactly the query
+//    this method answers, so it must never be dereferenced.
+    recs.emplace(sz, DirectEmbedding(vid, vid, 0, sz));
     std::vector<DirectEmbedding> result;
     while (!recs.empty()) {
         auto it = recs.begin();
@@ -136,7 +117,7 @@ std::vector<spg::OldVertexTracker::DirectEmbedding> spg::OldVertexTracker::getAl
         VERIFY(de.inner_vertex == vid);
         recs.erase(it);
         bool real = true;
-        for (const DirectEmbedding &next : multi_embedding.at(de.outer_vertex)) {
+        for (const DirectEmbedding &next : direct_supervertices.at(de.outer_vertex)) {
             if (next.inner_vertex == next.outer_vertex) {
                 real = false;
                 continue;
@@ -161,7 +142,7 @@ std::vector<spg::OldVertexTracker::DirectEmbedding> spg::OldVertexTracker::getAl
         DirectEmbedding de = it->second;
         VERIFY(de.outer_vertex == vid);
         recs.erase(it);
-        for (const DirectEmbedding &next : multi_subvertices.at(de.inner_vertex)) {
+        for (const DirectEmbedding &next : direct_subvertices.at(de.inner_vertex)) {
             if (next.inner_vertex == next.outer_vertex) {
                 continue;
             }
@@ -258,4 +239,16 @@ void spg::OldPathTracker::printPath(size_t id, ag::Printer &printer, const std::
     }
     ag::Printer p = printer + ag::VertexInfo::Colorer(ag::ConstMapping<Vertex>(vertices.begin(), vertices.end(), "orange"));
     p.printDot(f, ag::Component::neighbourhood(getFire<ag::AssemblyGraph>(), vertices, 10000, 20000));
+}
+
+std::vector<ag::VertexId> spg::readSubstringVertices(const ag::AlignedRead &read, const OldVertexTracker &tracker) {
+    std::set<ag::VertexId> seen;
+    if (!read.getPath().valid())
+        return {};
+    ag::VertexId v = read.getPath().getStartId();
+    for (const OldVertexTracker::DirectEmbedding &de : tracker.getAllEmbeddings(v))
+        seen.insert(de.outer_vertex);
+//    TODO: getAllEmbeddings returns every living vertex that contains v at any level; filtering to the
+//    minimal-by-substring containers (and canonicalising orientation) is a further refinement.
+    return {seen.begin(), seen.end()};
 }

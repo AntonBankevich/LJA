@@ -5,6 +5,35 @@
 
 using namespace spg;
 
+namespace {
+    void DiagSnapshot(const std::string &label, Vertex &v) {
+        if (!v.hasCoverageInfo())
+            return;
+        for (ag::CoverageSamples::SampleView view : v.coverage_info.getSamples()) {
+            Sequence sub = v.getSeq().Subseq(view.start(), view.finish());
+            std::cout << "[SNAP] " << label << " vertex=" << v.getId() << " [" << view.start() << "," << view.finish()
+                      << ") raw_support=" << view.sample.raw_support << " seq=" << sub << std::endl;
+        }
+    }
+    void DiagReadsSnapshot(const std::string &label, ag::AlignedReadStorage &reads, const std::vector<ag::ConstVertexId> &targets) {
+        for (ag::AlignedRead &read : reads) {
+            if (!read.valid())
+                continue;
+            bool touches = false;
+            for (Vertex &v : read.getPath().vertices()) {
+                if (std::find(targets.begin(), targets.end(), v.getId()) != targets.end()) { touches = true; break; }
+            }
+            if (!touches)
+                continue;
+            std::cout << "[RSNAP] " << label << " read=" << read.getId() << " leftCut=" << read.getPath().leftCut()
+                      << " rightCut=" << read.getPath().rightCut() << " path=";
+            for (Vertex &v : read.getPath().vertices())
+                std::cout << v.getId() << " ";
+            std::cout << std::endl;
+        }
+    }
+}
+
 Multiplexer::Multiplexer(ag::AssemblyGraph &graph, ag::AlignedReadStorage &reads, DecisionRule &rule, size_t max_core_length) :
                             graph(graph), reads(reads), rule(rule), max_core_length(max_core_length) {
     reset();
@@ -60,7 +89,18 @@ std::vector<VertexId> Multiplexer::multiplex(logging::Logger &logger, size_t thr
         for (auto it: rr.connectionsUnique()) {
             logger.trace() << it.incoming().getId() << " " << it.outgoing().getId() << std::endl;
         }
+//        DIAGNOSTIC: snapshot core's neighbors' own samples before/after resolveVertex, to check whether
+//        anything touches an untouched neighbor's coverage_info (it shouldn't -- sample coverage is
+//        supposed to be invariant across graph events).
+        std::vector<VertexId> diag_neighbors;
+        for (Edge &e : vertex.incoming()) diag_neighbors.push_back(e.getStart().getId());
+        for (Edge &e : vertex) diag_neighbors.push_back(e.getFinish().getId());
+        std::vector<ag::ConstVertexId> diag_targets(diag_neighbors.begin(), diag_neighbors.end());
+        for (VertexId nid : diag_neighbors) DiagSnapshot("BEFORE", *nid);
+        DiagReadsSnapshot("BEFORE", reads, diag_targets);
         ag::VertexResolutionResult vrres = graph.resolveVertex(vertex, rr);
+        for (VertexId nid : diag_neighbors) DiagSnapshot("AFTER", *nid);
+        DiagReadsSnapshot("AFTER", reads, diag_targets);
         std::vector<VertexId> candidates;
         std::vector<VertexId> res;
         for (Vertex &new_vertex: vrres.newVertices()) {

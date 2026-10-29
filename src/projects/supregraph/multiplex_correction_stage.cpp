@@ -1,7 +1,8 @@
 #include "multiplex_correction_stage.hpp"
-#include "assembly_graph/data_structures/aligned_read_statistics_tracker.hpp"
 #include "assembly_graph/dll_path_storage.hpp"
 #include "path_tracker.hpp"
+#include "sample_segment_tracker.hpp"
+#include "coverage_tracker.hpp"
 #include <limits>
 
 using namespace spg;
@@ -17,48 +18,30 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
         k += 1;
     }
-    hashing::RollingHash hasher(k, 239);
-    logger.info() << "Loading graph" << std::endl;
-    dbg::SparseDBG spg = graph_gfa.empty() ? DBGPipeline(logger, hasher, w, reads_files, dir, threads) :
-                         dbg::LoadDBGFromEdgeSequences(logger, threads, graph_gfa, hasher);
-    logger.info() << "Loading reads" << std::endl;
-    dbg::DBGAlignedReadStorage dbg_storage = dbg::DBGAlignedReadStorage::Load(logger, threads,
-                                                                              reads_files + extra_reads_files, spg,
-                                                                              true);
-    dbg_storage.trackSuffixes(logger, threads, spg, 0, 10000000);
-    dbg_storage.stopTrackCoverage();
-//    SPGCoverage stays attached as a listener for the whole run: it keeps outgoing_read_count
-//    correct through both the multiplexing (ResolutionListener) and correction (AlignedReadStorageListener)
-//    steps below, which is what lets the two be interleaved.
-    ag::AlignedReadStatisticsTracker SPGCoverage(logger, threads, spg, dbg_storage, dbg_storage.getSuffixes());
-//    Separate listener computing per-vertex SPG coverage (see CoverageSamplingTracker); must be attached
-//    before the edgeToSupreVertex loop below so it can seed samples from the original DBG edges.
-    ag::CoverageSamplingTracker spgVertexCoverage(spg, dbg_storage, k, threads);
-    spg.disableHashing();
-    ag::EdgeInfo edge_info = ag::EdgePrintStyles::defaultDotInfo() + ag::EdgeInfo::Labeler(SPGCoverage.getEdgeLabeler());
-    ag::DLLAlignmentStorage path_storage(spg);
-    ag::Printer printer(ag::VertexPrintStyles::spgLabeler() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler()) +
-                         ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), edge_info);
+    auto [spg, dbg_storage, path_storage] = ConstructSupregraphFromRawInput(logger, threads, dir, k, w, graph_gfa,
+                                                                             reads_files, extra_reads_files, paths, debug);
     if (debug) {
-        PrepareDLLPathTracker(logger, threads, spg, w, paths, path_storage);
-        path_storage.startLogging(logger.trace());
-        path_storage.startDrawing(dir / "path_tracking", printer);
-    } else {
-        path_storage.detach();
+        logger.info() << "[DIAG] checking consistency right after ConstructSupregraphFromRawInput" << std::endl;
+        VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed right after ConstructSupregraphFromRawInput");
     }
+    UniqueVertexStorage unique_storage(spg, unique_threshold);
+    spg::CoverageTracker spgVertexCoverage(spg, dbg_storage, k, logger, threads);
+    if (debug) {
+        logger.info() << "[DIAG] checking consistency right after UniqueVertexStorage/CoverageTracker construction" << std::endl;
+        VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed right after UniqueVertexStorage/CoverageTracker construction");
+    }
+    ag::Printer printer(ag::VertexPrintStyles::spgLabeler() +
+                         ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), ag::EdgePrintStyles::defaultDotInfo());
+    if (debug)
+        path_storage.startDrawing(dir / "path_tracking", printer);
     std::experimental::filesystem::path figs = dir / "figs";
     if (debug) {
         recreate_dir(figs);
-        ag::Printer dbg_printer(ag::VertexPrintStyles::defaultDotInfo() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler()) +
-                         ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), edge_info);
+        ag::Printer dbg_printer(ag::VertexPrintStyles::defaultDotInfo() +
+                         ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), ag::EdgePrintStyles::defaultDotInfo());
         dbg_printer.printDot(figs / "dbg_initial.dot", spg);
     }
-    std::vector<ag::EdgeId> eids = oneline::map(spg.edgesUnique().begin(), spg.edgesUnique().end(), IdTransformer<Edge>());
-    UniqueVertexStorage unique_storage(spg, 40000);
-    //TODO: create convert function that would return a new supregraph package an dthis runs in parallel.
-    for (ag::EdgeId eid : eids) {
-        Vertex &new_vertex = spg.edgeToSupreVertex(*eid);
-    }
+    dbg_storage.trackSuffixes(logger, threads, spg, 0, 10000000);
 
     ag::VertexCoverageReliableFiller vertexReliableFiller(vertex_coverage_threshold);
     ag::ReliablePathCorrector reliablePathCorrector;
@@ -72,9 +55,9 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     thresholds.push_back(std::numeric_limits<size_t>::max());
     spg::Multiplexer multiplexer(spg, dbg_storage, rule, thresholds.front());
     if (debug) {
-        printer.setEdgeInfo(ag::EdgePrintStyles::spgLabeler() + ag::EdgeInfo::Labeler(SPGCoverage.getEdgeLabeler()) +
+        printer.setEdgeInfo(ag::EdgePrintStyles::spgLabeler() +
                              ag::EdgePrintStyles::simpleColorer("black"));
-        printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() + ag::VertexInfo::Labeler(SPGCoverage.getVertexLabeler()) +
+        printer.setVertexInfo(ag::VertexPrintStyles::spgLabeler() +
                                ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()) +
                                ag::VertexPrintStyles::defaultDotColorer() + ag::VertexPrintStyles::defaultTooltiper() +
                                ag::VertexInfo::Colorer(unique_storage.getColorer("white", "green")));
@@ -88,6 +71,7 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
                        << (threshold == std::numeric_limits<size_t>::max() ? std::string("inf") : itos(threshold)) << std::endl;
         multiplexer.setMaxCoreLength(threshold);
         size_t mult_cnt = 0;
+        size_t iter_cnt = 0;
         while (multiplexer.hasReadyCore() || multiplexer.hasPendingMerge()) {
             auto res = multiplexer.process(logger, threads);
             if (debug && !res.empty()) {
@@ -95,26 +79,46 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
                 // printer.printDot(figs / ("supregraph_" + itos(cnt, 5) + ".dot"), ag::Component::neighbourhood(spg, res, 100000, 20));
                 cnt++;
             }
+            iter_cnt++;
+//            DIAGNOSTIC: every iteration, to localize exactly which operation breaks the index.
+            if (debug) {
+                logger.info() << "[DIAG] checking after multiplex iteration " << iter_cnt << " (threshold " << threshold << "), last op: " << res << std::endl;
+                VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after multiplex iteration " << iter_cnt << " (threshold " << threshold << "), last op: " << res);
+            }
             if (res.size() > 1)
                 mult_cnt++;
         }
-        // for (Vertex & v : spg.vertices()) {
-        //     if (v.isCore() && (v.inDeg() == 1 || v.outDeg() == 1)) {
-        //         VERIFY(v.coverage_info.weight == 0);
-        //     }
-        // }
-        logger.info() << "Multiplexing performed " << mult_cnt << " times" << std::endl;
+        logger.info() << "Multiplexing performed " << mult_cnt << " times (" << iter_cnt << " loop iterations)" << std::endl;
         spg.removeMarked();
+        if (debug) {
+            logger.info() << "[DIAG] checking after removeMarked (threshold " << threshold << ")" << std::endl;
+            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after removeMarked (threshold " << threshold << ")");
+        }
         logger.info() << "Filling reliable vertices" << std::endl;
         vertexReliableFiller.loggedRefill(logger, spg);
+        if (debug) {
+            logger.info() << "[DIAG] checking after loggedRefill (threshold " << threshold << ")" << std::endl;
+            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after loggedRefill (threshold " << threshold << ")");
+        }
         logger.info() << "Correcting read paths" << std::endl;
         ag::ErrorCorrectionEngine(reliablePathCorrector).run(logger, threads, spg, dbg_storage);
+        if (debug) {
+            logger.info() << "[DIAG] checking after ErrorCorrectionEngine (threshold " << threshold << ")" << std::endl;
+            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after ErrorCorrectionEngine (threshold " << threshold << ")");
+        }
         logger.info() << "Removing uncovered vertices" << std::endl;
         size_t removed_vertices = ag::SimpleRemoveUncovered(logger, threads, spg);
         logger.info() << "Removed " << removed_vertices << " uncovered vertices" << std::endl;
+        if (debug) {
+            logger.info() << "[DIAG] checking after SimpleRemoveUncovered (threshold " << threshold << ")" << std::endl;
+            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after SimpleRemoveUncovered (threshold " << threshold << ")");
+        }
         // TODO: make core queue in multiplexing listen to merging and simplify/remove reset
         multiplexer.reset();
-        SPGCoverage.printStatistics(logger.trace(), spg);
+        if (debug) {
+            logger.info() << "[DIAG] checking after multiplexer.reset (threshold " << threshold << ")" << std::endl;
+            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after multiplexer.reset (threshold " << threshold << ")");
+        }
         printer.printDot(dir / ("supregraph_" + itos(threshold, 5) + ".dot"), spg);
     }
     for (Vertex &v: spg.vertices())
@@ -123,12 +127,13 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     CleanSupregraph(spg);
     dbg_storage.stopTrackSuffixes();
     spg.resetEdgeCodes(logger, threads);
-    SPGCoverage.printStatistics(logger.trace(), spg);
     logger.info() << "Printing final graph" << std::endl;
     printer.printDot(dir / "supregraph_final.dot", spg);
     dbg_storage.getReads().Save(dir/"reads.aln");
     ag::Printer(ag::VertexPrintStyles::defaultLabeler()).printDirectGFA(dir / "supregraph_final.gfa", spg);
     printer.DrawSplit(ag::Component(spg), dir/"split", 30000);
+//    path_storage detaches itself automatically before spg is destroyed (see SupregraphFromRawInput's
+//    doc comment on struct member ordering).
     return {{"supregraph_final", dir / "supregraph_final.gfa"}};
 }
 

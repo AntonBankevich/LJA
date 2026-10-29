@@ -15,11 +15,11 @@ namespace spg {
 //    Combines multiplexing and ReliablePathCorrector-based error correction on a Supregraph: cores
 //    are multiplexed in order of increasing vertex size (Multiplexer::core_queue is already sorted
 //    this way) under a progressively loosened size threshold, with a correction pass run between
-//    threshold steps. Multiplexing untangles reads so later correction passes see better
-//    outgoing_read_count/coverage statistics, and correction cleans reads so later, larger cores get
+//    threshold steps. Multiplexing untangles reads so later correction passes see better sample
+//    coverage statistics, and correction cleans reads so later, larger cores get
 //    better-supported resolution judgements.
 //    Before each correction pass, VertexCoverageReliableFiller re-derives the VertexReliability
-//    marker from each vertex's current SPG coverage (see CoverageSamplingTracker), since both the
+//    marker from each vertex's current SPG coverage (see spg::CoverageTracker), since both the
 //    graph topology and the coverage estimates keep changing as multiplexing proceeds.
 //    Threshold schedule: initial_core_length, +step, +step, ... up to (and including) max_core_length,
 //    followed by one final unrestricted pass.

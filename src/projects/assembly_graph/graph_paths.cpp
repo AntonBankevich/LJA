@@ -485,17 +485,19 @@ void GraphPath::push_front(const GraphPath &other) {
     cut_left = other.cut_left;
 }
 
-void GraphPath::normalize() {
-    if(empty())
-        return;
-    while(frontEdge().isPrefix())
-        pop_front();
-    while(backEdge().isSuffix())
-        pop_back();
-}
-
 void GraphPath::pop_back() {
     pop_back(backEdge());
+}
+
+void GraphPath::pop_back(const GraphPath &path) {
+    VERIFY(path.getFinish() == getFinish());
+    VERIFY(fsplits.endsWith(path.fsplits));
+    VERIFY(rsplits.startsWith(path.rsplits));
+    fsplits.pop_back(path.fsplits.size());
+    rsplits.pop_front(path.rsplits.size());
+    size_t lost_len = path.truncLen();
+    cut_right -= std::min(cut_right, lost_len);
+    rc_start = path.start->rc().getId();
 }
 
 void GraphPath::pop_back(Edge &edge) {
@@ -522,6 +524,17 @@ void GraphPath::pop_front(Edge &edge) {
     size_t lost_len = edge.rc().truncSize();
     cut_left -= std::min(cut_left, lost_len);
     start = edge.getFinish().getId();
+}
+
+void GraphPath::pop_front(const GraphPath &path) {
+    VERIFY(path.getStart() == getStart());
+    VERIFY(fsplits.startsWith(path.fsplits));
+    VERIFY(rsplits.endsWith(path.rsplits));
+    fsplits.pop_front(path.fsplits.size());
+    rsplits.pop_back(path.rsplits.size());
+    size_t lost_len = path.RC().truncLen();
+    cut_left -= std::min(cut_left, lost_len);
+    start = path.getFinish().getId();
 }
 
 
@@ -705,11 +718,31 @@ void GraphPath::replace_back(Edge &edge) {
     rc_start = edge.getFinish().rc().getId();
 }
 
+void GraphPath::replace_back(const GraphPath &old_suffix, const GraphPath &new_suffix) {
+    VERIFY(new_suffix.valid());
+    VERIFY(old_suffix.getStart() == new_suffix.getStart());
+    VERIFY(fsplits.endsWith(old_suffix.fsplits));
+    VERIFY(rsplits.startsWith(old_suffix.rsplits));
+    fsplits.replaceBack(old_suffix.getFSplits().size(), new_suffix.getFSplits());
+    rsplits.replaceFront(old_suffix.getRSplits().size(), new_suffix.getRSplits());
+    rc_start = new_suffix.rc_start;
+}
+
 void GraphPath::replace_front(Edge &edge) {
     Edge &old = frontEdge();
     fsplits.replaceFront(old.getCode().size(), edge.getCode());
     rsplits.replaceBack(old.rc().getCode().size(), edge.rc().getCode());
     start = edge.getStart().getId();
+}
+
+void GraphPath::replace_front(const GraphPath &old_prefix, const GraphPath &new_prefix) {
+    VERIFY(new_prefix.valid());
+    VERIFY(old_prefix.getFinish() == new_prefix.getFinish());
+    VERIFY(fsplits.startsWith(old_prefix.fsplits));
+    VERIFY(rsplits.endsWith(old_prefix.rsplits));
+    fsplits.replaceFront(old_prefix.getFSplits().size(), new_prefix.getFSplits());
+    rsplits.replaceBack(old_prefix.getRSplits().size(), new_prefix.getRSplits());
+    start = new_prefix.start;
 }
 
 bool GraphPath::isSingleton() const {

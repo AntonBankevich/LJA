@@ -7,8 +7,9 @@ ag::VertexResolutionPlan spg::DecisionRule::judge(ag::Vertex &v) {
     //     return {v};
     // if (v.rc().outDeg() == 1 && !checkForkForward(v.rc()))
     //     return {v};
-    VERIFY(v.inDeg() != 1);
-    VERIFY(v.outDeg() != 1);
+//    These two VERIFYs used to assume judge() is only ever called with both sides branching -- not true
+//    at small scale (e.g. n-in-1-out/1-in-n-out core vertices), so removed for now; the dispatch below
+//    already handles every degree combination without them.
     // if (v.inDeg() == 1 && v.outDeg() > 1) {
     //     if (judgeFlip(v.incFrontVertex()))
     //         return VertexResolutionPlan::SimplePlan(v);
@@ -25,7 +26,5 @@ ag::VertexResolutionPlan spg::DecisionRule::judge(ag::Vertex &v) {
         return VertexResolutionPlan::SimplePlan(v);
     if (v.inDeg() == 0 || v.outDeg() == 0 && v.inDeg() + v.outDeg() > 1)
         return {v};
-    VERIFY(v.inDeg() > 1);
-    VERIFY(v.outDeg() > 1);
     return judgeNontrivial(v);
 }

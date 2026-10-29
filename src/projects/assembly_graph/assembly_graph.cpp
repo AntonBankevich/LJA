@@ -64,31 +64,62 @@ Vertex &ag::AssemblyGraph::mergeComplexPath(const GraphPath &path, Vertex::id_ty
 }
 
 Vertex &ag::AssemblyGraph::mergePath(const GraphPath &path, Vertex::id_type id) {
-    Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getStart().rc().getId(), path.getRCStart().getId(), path.getFinish().rc().getId()});
+    std::vector<VertexId> vids = {path.getStart().getId(), path.getStart().rc().getId(), path.getFinish().getId(), path.getFinish().rc().getId()};
+    {
+        Locker<VertexId> locker = Locker<VertexId>::FromVector(vids);
+        for(VertexId vid : {path.getStart().getId(), path.getFinish().getId()}) {
+            for (Edge &edge : vid->incoming()) {
+                vids.push_back(edge.getStart().getId());
+                vids.push_back(edge.getStart().rc().getId());
+            }
+        }
+    }
+    Locker<VertexId> full_locker = Locker<VertexId>::FromVector(vids);
     return mergePathLockFree(path, id);
 }
+
 Vertex &ag::AssemblyGraph::mergePathLockFree(const GraphPath &path, Vertex::id_type id) {
     VERIFY(path.startClosed() && path.endClosed());
-    // if (path.truncLen() == 0)
-    //     return mergePathToEdge(path).getStart();
-    // if (path.RC().truncLen() == 0)
-    //     return mergePathToEdge(path.RC()).getFinish();
-    VERIFY(!path.frontEdge().isSuffix());
-    VERIFY(!path.backEdge().isPrefix());
-    Sequence seq = path.Seq();
-    Vertex &res = addSPGVertex(seq, false, false, false, seq.isCanonical() ? id : -id);
-    Edge &inc_edge = addSPEdgeLockFree(path.getStart(), res);
-    inc_edge.setCorporeal(false);
-    inc_edge.rc().setCorporeal(false);
-    Edge &out_edge = res == res.rc() ? inc_edge.rc() : addSPEdgeLockFree(res, path.getFinish());
-    out_edge.setCorporeal(false);
-    out_edge.rc().setCorporeal(false);
+    VERIFY(path.getStart().outDeg() == 1);
+    VERIFY(path.getFinish().inDeg() == 1);
+    VERIFY(path.getStart() != path.getFinish());
+    VERIFY(path.getStart() != path.getFinish().rc() || path == path.RC());
+    size_t len = path.calculateSize();
+    VertexId resId = {};
+//    Snapshot the path's vertices now, before the edge additions below mutate the graph. Re-walking
+//    path.vertices() afterwards would re-navigate the modified graph and over-run the path end.
+    std::vector<VertexId> path_vertices;
+    for (Vertex &v : path.vertices()) {
+        path_vertices.push_back(v.getId());
+        if (v.size() == len) resId = v.getId();
+    }
+    Vertex &res = resId.valid() ? *resId : addSPGVertex(path.Seq(), false, false, false, path.Seq().isCanonical() ? id : -id);
+    Sequence tseq = res.seq.Subseq(path.getStart().size());
+    if (res != path.getStart())
+        for (Edge &edge : path.getStart().incoming()) {
+            Edge & new_edge = addEdgeLockFree(edge.getStart(), res, edge.truncSeq() + tseq, edge.rc().truncSeq());
+            new_edge.setCorporeal(false);
+            new_edge.rc().setCorporeal(false);
+        }
+    if (path.getStart() != path.getFinish().rc() && res != path.getFinish()) {
+        Sequence rctseq = res.rc().seq.Subseq(path.getFinish().size());
+        for (Edge &edge : path.getFinish()) {
+            if (edge.getFinish() != path.getStart()) {
+                Edge & new_edge = addEdgeLockFree(res, edge.getFinish(), edge.truncSeq(), edge.rc().truncSeq() + rctseq);
+                new_edge.setCorporeal(false);
+                new_edge.rc().setCorporeal(false);
+            }
+        }
+    }
     fireMergePath(path.asRAPath(), res);
-    isolateAndMark(path.innerVertices().begin(), path.innerVertices().end());
-    inc_edge.setCorporeal(true);
-    inc_edge.rc().setCorporeal(true);
-    out_edge.setCorporeal(true);
-    out_edge.rc().setCorporeal(true);
+    for (VertexId vid : path_vertices)
+        if (*vid != res)
+            isolateAndMark(*vid);
+    for (Vertex &v : ThisAndRC(res))
+        for (Edge &new_edge : v) {
+            new_edge.setCorporeal(true);
+            new_edge.rc().setCorporeal(true);
+        }
     return res;
 }
 
@@ -166,36 +197,80 @@ Vertex &AssemblyGraph::edgeToSupreVertex(Edge &edge) {
     return res;
 }
 
+VertexResolutionPlan FixPlan(const VertexResolutionPlan &plan, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+    VertexResolutionPlan new_plan(plan.getCore());
+    for (auto &p : plan.connectionsUnique()) {
+//        Use the stable edge ids (not incoming()/outgoing(), which would dereference edges that
+//        ExtendAdjacent may already have freed). The mapped extension edges are always live.
+        new_plan.add({*extensions.at(p.incomingId()), *extensions.at(p.outgoingId()), p.getSupport()});
+    }
+    return new_plan;
+}
+
+std::unordered_map<EdgeId, EdgeId> AssemblyGraph::ExtendAdjacent(Vertex &core) {
+    std::unordered_map<EdgeId, EdgeId> extensions;
+    for (Vertex &v : ThisAndRC(core)) {
+        for (Edge &edge : v.incoming()) {
+            extensions[edge.getId()] = edge.getId();
+            extensions[edge.rc().getId()] = edge.rc().getId();
+        }
+    }
+    // Every corporeal edge entering `core` must become a suffix edge into core, so that after the
+    // resolution core's whole neighbourhood is suffix/prefix structured. edgeToSupreVertex turns such
+    // an edge X->core into X->supreV (prefix) + supreV->core (suffix), removing the original edge (and
+    // its rc). We must therefore (a) snapshot the edges to extend before mutating the graph - the
+    // incoming set itself changes as new suffix edges appear - and (b) capture each edge's rc id before
+    // edgeToSupreVertex frees it, since the old handles are dangling afterwards. The extensions map is
+    // keyed by edge id (comparison does not dereference), so stale keys stay valid as keys; only the
+    // mapped value is updated, to the new suffix edge (and its rc for the rc key).
+    std::vector<EdgeId> to_extend;
+    for (Vertex &v : ThisAndRC(core)) {
+        for (Edge &edge : v.incoming()) {
+            if (!edge.isSuffix())
+                to_extend.push_back(edge.getId());
+        }
+    }
+    for (EdgeId eid : to_extend) {
+        EdgeId rc_eid = eid->rc().getId();
+        Vertex &new_vertex = edgeToSupreVertex(*eid);
+        Edge &suffix_edge = new_vertex.front();
+        extensions.at(eid) = suffix_edge.getId();
+        extensions.at(rc_eid) = suffix_edge.rc().getId();
+    }
+    return std::move(extensions);
+}
+
 VertexResolutionResult
 AssemblyGraph::resolveVertex(Vertex &core, const VertexResolutionPlan &resolution) {
+    //TODO. make it work in parallel. Probably lock vertex and neighbours.
     VERIFY(core.isCore());
+    VERIFY(core.inDeg() > 1);
+    VERIFY(core.outDeg() > 1);
     VertexResolutionResult result(core);
-    for(const InOutEdgePair &p : resolution.connectionsUnique()) {
+    std::unordered_map<EdgeId, EdgeId> extensions = ExtendAdjacent(core);
+    VertexResolutionPlan plan = FixPlan(resolution, extensions);
+    std::vector<EdgeId> new_edges;
+    for(const InOutEdgePair &p : plan.connectionsUnique()) {
         VERIFY(p.incoming().getFinish() == core);
-        if(p.middle() != core)
-            continue;
         VERIFY(p.outgoing().getStart() == core);
-        VERIFY(p.incoming().isSuffix());
-        VERIFY(p.outgoing().isPrefix());
-        Sequence seq = p.getSeq();
-        Vertex &newv = addVertex(seq);
+        Vertex &newv = addVertex(p.getSeq());
         result.add(newv, p);
-        Edge &out = addEdgeLockFree(p.incoming().getStart(), newv, newv.getSeq());
+        Edge &out = addEdgeLockFree(p.incoming().getStart(), newv, p.outgoing().truncSeq().Subseq(0, 1), p.incoming().rc().truncSeq().Subseq(1));
+        new_edges.push_back(out.getId());
         out.setCorporeal(false);
         out.rc().setCorporeal(false);
         if(newv != newv.rc()) {
-            Edge &inc = addEdgeLockFree(newv, p.outgoing().getFinish(), newv.getSeq());
+            Edge &inc = addEdgeLockFree(p.outgoing().getFinish().rc(), newv.rc(), p.incoming().rc().truncSeq().Subseq(0, 1), p.outgoing().truncSeq().Subseq(1));
+            new_edges.push_back(inc.getId());
             inc.setCorporeal(false);
             inc.rc().setCorporeal(false);
         }
     }
     fireResolveVertex(core, result);
     isolateAndMark(core);
-    for(Vertex &v : result.newVertices()) {
-        v.front().setCorporeal(true);
-        v.front().rc().setCorporeal(true);
-        v.rc().front().setCorporeal(true);
-        v.incFront().setCorporeal(true);
+    for (EdgeId eid : new_edges) {
+        eid->setCorporeal(true);
+        eid->rc().setCorporeal(true);
     }
     return std::move(result);
 }
@@ -513,6 +588,9 @@ Edge &AssemblyGraph::addEdgeLockFree(Vertex &start, Vertex &end,
 }
 
 void AssemblyGraph::removeEdgeLockFree(Edge &edge) {
+    // Only corporeal (already-existing) edges are ever removed: graph operations add new edges as
+    // non-corporeal, run listeners, remove old (corporeal) edges, then mark the new ones corporeal.
+    VERIFY(edge.corporeal);
     this->fireDeleteEdge(edge);
     if(edge != edge.rc())
         edge.getFinish().rc().innerRemoveEdge(edge.rc());

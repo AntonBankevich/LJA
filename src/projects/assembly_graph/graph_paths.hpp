@@ -94,6 +94,9 @@ namespace ag {
         Vertex &getStart() const { return *start; }
         Vertex &getFinish() const { return rc_start->rc(); }
         Vertex &getRCStart() const {return *rc_start;}
+//        Legacy-safe: returns the start vertex id without dereferencing it. For a legacy path (whose
+//        start vertex no longer exists) getStart() would deref a null pointer; this does not.
+        VertexId getStartId() const { return start; }
         Segment<Edge> getSegment(PathPosition position) const;
         bool empty() const { return fsplits.empty() && rsplits.empty(); }
 //        It is important to keep track of how this method behaves when graph is modified in parallel.
@@ -118,9 +121,15 @@ namespace ag {
         void pop_front();
         void pop_front(Edge &edge);
         void pop_back(Edge &edge);
+        void pop_front(const GraphPath &path);
+        void pop_back(const GraphPath &path);
         void replace_back(Edge &edge);
         void replace_front(Edge &edge);
-        void normalize();
+        void replace_back(const GraphPath &old_suffix, const GraphPath &new_suffix);
+        void replace_front(const GraphPath &old_prefix, const GraphPath &new_prefix);
+//        Deliberately a no-op (see definition): paths are no longer trimmed to the shortest-by-vertex-
+//        count form, since that trimming is exactly what used to make reads lose credit for anchors they
+//        genuinely cover. Kept only so any dormant/future caller doesn't silently reintroduce that rule.
         void invalidate() {*this = {};}
         void setCutLeft(size_t value);
         void setCutRight(size_t value);
@@ -285,10 +294,20 @@ namespace ag {
         void pop_back() const { return rc ? path->pop_front() : path->pop_back(); }
         void pop_front(Edge &edge) const { return rc ? path->pop_back(edge.rc()) : path->pop_front(edge); }
         void pop_back(Edge &edge) const { return rc ? path->pop_front(edge.rc()) : path->pop_back(edge); }
+        void pop_front(const GraphPath &sub) const { return rc ? this->path->pop_back(sub.RC()) : this->path->pop_front(sub); }
+        void pop_back(const GraphPath &sub) const { return rc ? this->path->pop_front(sub.RC()) : this->path->pop_back(sub); }
         void push_front(Edge &edge) const {if(rc) *path += edge.rc(); else path->push_front(edge);}
         void push_back(Edge &edge) const {if(rc) path->push_front(edge.rc()); else *path += edge;}
         void replace_front(Edge &edge) const {if(rc) path->replace_back(edge.rc()); else path->replace_front(edge);}
         void replace_back(Edge &edge) const {if(rc) path->replace_front(edge.rc()); else path->replace_back(edge);}
+        void replace_front(const GraphPath &old_prefix, const GraphPath &new_prefix) const {
+            if(rc) this->path->replace_back(old_prefix.RC(), new_prefix.RC());
+            else this->path->replace_front(old_prefix, new_prefix);
+        }
+        void replace_back(const GraphPath &old_suffix, const GraphPath &new_suffix) const {
+            if(rc) this->path->replace_front(old_suffix.RC(), new_suffix.RC());
+            else this->path->replace_back(old_suffix, new_suffix);
+        }
         void operator+=(Edge &edge) const { push_back(edge);}
         void operator+=(Segment<Edge> seg) const { if(rc) path->push_front(seg.RC()); else *path += seg;}
         void operator+=(const GraphPath &other) const { if(rc) path->push_front(other.RC()); else *path += other;}

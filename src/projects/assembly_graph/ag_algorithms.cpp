@@ -213,12 +213,6 @@ namespace ag {
         if (vertex.outDeg() == 1 && vertex.frontVertex().inDeg() == 1)
             res += vertex.frontVertex().getRawIntSPGCoverage();
         return res > 0;
-        // size_t support = vertex.subread_count + vertex.covering_read_count;
-        // for(Edge &edge : vertex) {
-        //     support += edge.outgoing_read_count + edge.read_tail_count;
-        //     support += edge.rc().outgoing_read_count + edge.rc().read_tail_count;
-        // }
-        // return support > 0;
     }
 
     //This procedure only allows to remove outer vertices. It is iterative and removes unsupported vertices outer layer by outer layer.

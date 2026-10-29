@@ -15,12 +15,12 @@ TEST(AlignedReadStorageTest, BasicAddAndConsistency) {
     EXPECT_TRUE(storage.checkConsistency());
 
     // read0 starts at edge 0 and ends at edge 2; read1 starts at edge 2 and ends at edge 4.
-    EXPECT_EQ(storage.startCnt(*chain[0]), 1u);
-    EXPECT_EQ(storage.startCnt(*chain[2]), 1u);
+    EXPECT_EQ(storage.getOutgoingReads(chain[0]->getStart()).size(), 1u);
+    EXPECT_EQ(storage.getOutgoingReads(chain[2]->getStart()).size(), 1u);
     // Both reads end within edges 2 and 4 respectively - i.e. rc() of those edges is where the
     // reverse-direction reads start.
-    EXPECT_EQ(storage.startCnt(chain[2]->rc()), 1u);
-    EXPECT_EQ(storage.startCnt(chain[4]->rc()), 1u);
+    EXPECT_EQ(storage.getOutgoingReads(chain[2]->rc().getStart()).size(), 1u);
+    EXPECT_EQ(storage.getOutgoingReads(chain[4]->rc().getStart()).size(), 1u);
 }
 
 TEST(AlignedReadStorageTest, InvalidateReadDropsStartCounts) {
@@ -32,13 +32,13 @@ TEST(AlignedReadStorageTest, InvalidateReadDropsStartCounts) {
 
     ag::AlignedReadStorage storage(gb.graph, std::move(reads));
     ASSERT_TRUE(storage.checkConsistency());
-    ASSERT_EQ(storage.startCnt(*chain[0]), 1u);
+    ASSERT_EQ(storage.getOutgoingReads(chain[0]->getStart()).size(), 1u);
 
     ag::AlignedRead &read = storage[0];
     storage.delayedInvalidateRead(read, "test invalidate");
     storage.apply(read);
 
     EXPECT_FALSE(read.valid());
-    EXPECT_EQ(storage.startCnt(*chain[0]), 0u);
+    EXPECT_EQ(storage.getOutgoingReads(chain[0]->getStart()).size(), 0u);
     EXPECT_TRUE(storage.checkConsistency());
 }

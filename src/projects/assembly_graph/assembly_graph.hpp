@@ -84,14 +84,8 @@ namespace ag {
 //        TODO: this should be run in parallel
         void resetEdgeCodes(logging::Logger &logger, size_t threads);
 
-        //        Make sure not to perform any other graph modifications in parallel with this method since it only blocks
-//        the first and the last vertices
-//        Invariant relied on by listeners (e.g. AlignedReadStatisticsTracker::fireMergePathToEdge): in a
-//        Supregraph, callers only ever pass paths whose edges are uniformly all-suffix or all-prefix, never
-//        a mix. mergePath enforces this by only calling mergePathToEdge on such homogeneous runs and merging
-//        any other (mixed) stretch into a vertex via fireMergePath instead. This is what guarantees the
-//        resulting new_edge is itself isSuffix()/isPrefix() to match the run it came from, and (by RC mirroring)
-//        that the mirrored call sees the opposite, homogeneous, isPrefix()/isSuffix() run.
+
+        //This method should only be used for DBG graphs.
         Edge &mergePathToEdge(const GraphPath &path);
         Edge &mergePathToEdgeLockFree(const GraphPath &path);
         Edge &mergeTipsToEdge(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
@@ -104,6 +98,9 @@ namespace ag {
 //        so edge's start vertex is still a plain DBG vertex: edge.getStartSize() == k for whatever k the
 //        DBG was built with.
         Vertex &edgeToSupreVertex(Edge &edge);
+
+        std::unordered_map<EdgeId, EdgeId> ExtendAdjacent(Vertex &core);
+
 //        Unlike mergePathToEdge/splitEdge, this is not expected to be called in parallel yet: listeners'
 //        fireResolveVertex implementations are not written to be thread-safe against concurrent calls.
 //        TODO: make resolveVertex (and listeners' fireResolveVertex) safe to call concurrently, the way

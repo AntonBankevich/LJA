@@ -49,6 +49,10 @@ namespace ag {
             size_t finish() const;
         };
 
+        bool empty() const {return samples.empty();}
+        SampleView front() {return *SampleIterator(samples.forward().begin());}
+        SampleView back() {return *SampleIterator(samples.backward().begin());}
+
 //        Bidirectional iterator over list of records and computes true coordinates of substrings.
         class SampleIterator {
         private:

@@ -17,8 +17,15 @@ namespace ag {
         InOutEdgePair(Edge & first, Edge &second, size_t support);
         Edge & incoming() const {return *first;};
         Edge & outgoing() const {return *second;};
+//        Stable ids of the paired edges. Unlike incoming()/outgoing() these never dereference the
+//        edges, so they stay valid map keys even after the edges have been freed (e.g. by
+//        edgeToSupreVertex inside ExtendAdjacent, before FixPlan re-maps the resolution plan).
+        EdgeId incomingId() const {return first;};
+        EdgeId outgoingId() const {return second;};
         InOutEdgePair RC() const {return {second->rc(), first->rc(), support};}
-        Sequence getSeq() const {return first->getStart().getSeq() + second->truncSeq();}
+        Sequence getSeq() const {
+            return first->rc().truncSeq().Subseq(0, 1).rc() + first->getFinish().getSeq() + second->truncSeq().Subseq(0, 1);
+        }
         Vertex &middle() const {return first->getFinish();}
         size_t getSupport() const {return support;}
         void addSupport(const InOutEdgePair &other) {
@@ -58,6 +65,8 @@ namespace ag {
         void add(Edge &edge1, Edge &edge2, size_t support = 0) {add({edge1, edge2, support});}
 
         bool empty() const {return edge_pairs.empty();}
+        size_t incEdgeConnections(Edge &edge) const;
+        size_t outEdgeConnections(Edge &edge) const;
         bool incConnected(Edge &edge) const;
         bool outConnected(Edge &edge) const;
         bool incConnected() const;

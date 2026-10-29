@@ -15,6 +15,24 @@ namespace ag {
 //  TODO: move starts to Maintenance and add AddRead method, which can only be invoked before Maintenance is enabled
     class AlignedReadStorage : public AlignedReadStorageFire {
         friend class AlignedReadStorageMaintenance;
+        void Normalize(GraphPath &path) {
+            size_t right_cut = path.rightCut();
+            path.setCutRight(0);
+            while (path.getFinish().outDeg() == 1 && !path.getFinish().frontVertex().coverage_info.empty() &&
+                path.getFinish().frontVertex().size() - path.getFinish().frontVertex().coverage_info.front().finish() <=
+                right_cut + path.getFinish().front().truncSize() ) {
+                right_cut += path.getFinish().front().truncSize();
+                path += path.getFinish().front();
+            }
+            path.setCutRight(right_cut);
+            size_t left_cut = path.leftCut();
+            path.setCutLeft(0);
+            while (path.getStart().inDeg() == 1 && !path.getStart().incFrontVertex().coverage_info.empty() &&
+                path.getStart().incFrontVertex().coverage_info.back().start() <= left_cut + path.getStart().incFront().rc().truncSize() ) {
+                path.push_front(path.getStart().incFront());
+                left_cut += path.getStart().incFront().rc().truncSize();
+            }
+        }
     private:
         typedef std::vector<AlignedReadDirection> DirectionRecord;
         // Both maps store unique_ptrs by value and move them around.
@@ -22,7 +40,7 @@ namespace ag {
         // returned by the accessors below stays valid even while other keys are inserted/erased,
         // and provides concurrent insert/erase/find with local locks (see SuffixTracker::edge_data).
         std::vector <AlignedRead> reads;
-        libcuckoo::cuckoohash_map <ConstEdgeId, std::unique_ptr<DirectionRecord>> starts;
+        libcuckoo::cuckoohash_map <ConstVertexId, std::unique_ptr<DirectionRecord>> starts;
         libcuckoo::cuckoohash_map <ConstVertexId, std::unique_ptr<DirectionRecord>> reads_inside_vertices;
         ag::AlignedReadStorageMaintenance * maintenance = nullptr;
 
@@ -33,15 +51,15 @@ namespace ag {
 //        functions rather than calling find_fn on `starts`/`reads_inside_vertices` directly.
 //        Structural map operations (insert/erase/contains/lock_table) are used directly at their
 //        call sites, since AlignedReadStorageMaintenance is a friend of this class.
-        DirectionRecord &getOutgoingReadsRecord(ConstEdgeId eid) {
+        DirectionRecord &getOutgoingReadsRecord(ConstVertexId vid) {
             DirectionRecord *res = nullptr;
-            starts.find_fn(eid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
+            starts.find_fn(vid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
             VERIFY(res != nullptr);
             return *res;
         }
-        const DirectionRecord &getOutgoingReadsRecord(ConstEdgeId eid) const {
+        const DirectionRecord &getOutgoingReadsRecord(ConstVertexId vid) const {
             const DirectionRecord *res = nullptr;
-            starts.find_fn(eid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
+            starts.find_fn(vid, [&res](const std::unique_ptr<DirectionRecord> &ptr) { res = ptr.get(); });
             VERIFY(res != nullptr);
             return *res;
         }
@@ -71,10 +89,13 @@ namespace ag {
                            std::vector<AlignedRead> reads);
         virtual ~AlignedReadStorage();
 
-        const std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(const Edge &edge) const;
-        const std::vector<AlignedReadDirection> &getOutgoingReads(const Edge &edge) const;
-        std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(const Edge &edge);
-        std::vector<AlignedReadDirection> &getOutgoingReads(const Edge &edge);
+//        Reads whose canonical path starts at this vertex (non-empty paths: the read leaves the vertex on
+//        one of its outgoing edges). Reads starting on a specific edge are this set filtered by
+//        dir.frontEdge() == edge.
+        const std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(const Vertex &vertex) const;
+        const std::vector<AlignedReadDirection> &getOutgoingReads(const Vertex &vertex) const;
+        std::vector<AlignedReadDirection> &getOutgoingReadsLockFree(const Vertex &vertex);
+        std::vector<AlignedReadDirection> &getOutgoingReads(const Vertex &vertex);
         const std::vector<AlignedReadDirection> &getSubstringReadsLockFree(VertexId vertex) const;
         const std::vector<AlignedReadDirection> &getSubstringReads(VertexId vertex) const;
         std::vector<AlignedReadDirection> &getSubstringReadsLockFree(VertexId vertex);
@@ -91,7 +112,6 @@ namespace ag {
         AlignedRead &operator[](size_t ind) { return reads[ind]; }
 
         size_t size() const { return reads.size(); }
-        size_t startCnt(const Edge &edge) const {return getOutgoingReadsRecord(edge.getId()).size();}
 
         void delayedInvalidateRead(AlignedRead &read, const std::string &message);
         void rerouteRead(AlignedRead &alignedRead, GraphPath corrected, const string &message);
@@ -123,14 +143,23 @@ namespace ag {
         friend class AlignedReadStorage;
     private:
         AlignedReadStorage *storage;
+//        Moves every read recorded as a pure substring of `from` (reads_inside_vertices[from], i.e. reads
+//        that never reach an edge) onto `to`, re-expressing cut_left/cut_right for from's position-0
+//        mapping onto to's position `shift` -- the exact read-side counterpart of how
+//        SampleSegmentTracker moves a vertex's coverage_info (shift()/insertFront()/+=) in
+//        fireResolveVertex's three unambiguous cases, where core is destroyed but has exactly one real
+//        neighbor to transfer onto. Must be called with the same destination and shift
+//        SampleSegmentTracker uses for `from`, so a read's recorded position never drifts from where its
+//        sample segment actually lives.
+        void migrateSubstringReads(Vertex &from, Vertex &to, size_t shift);
     public:
         AlignedReadStorageMaintenance(AssemblyGraph &graph, AlignedReadStorage &storage);
         AlignedReadStorageMaintenance(AlignedReadStorageMaintenance &&other) = default;
 
         void fireAddVertex(Vertex &vertex) override;
         void fireDeleteVertex(Vertex &vertex) override;
-        void fireAddEdge(Edge &edge) override;
-        void fireDeleteEdge(Edge &edge) override;
+//        `starts` and `reads_inside_vertices` are keyed by vertex now (see fireAddVertex/fireDeleteVertex),
+//        so edge addition/removal needs no bookkeeping here; the base-class no-op handlers are used.
 
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
 //        TODO: implement properly

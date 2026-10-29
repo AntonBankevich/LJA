@@ -157,7 +157,6 @@ bool spg::AndreyRule::judgeFlip(ag::GraphPath path) {
     VERIFY(path.getFinish().outDeg() > 2);
     VERIFY(path.empty() || path.getStart().outDeg() == 1);
     VERIFY(path.empty() || path.getFinish().inDeg() == 1);
-    // return v.covering_read_count > 0;
     for (Edge &edge : path.getStart().incoming()) {
         const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
         for (auto &suffix_rec : rec) {
@@ -168,78 +167,6 @@ bool spg::AndreyRule::judgeFlip(ag::GraphPath path) {
     return false;
 }
 
-std::vector<std::pair<size_t, ag::EdgeId>> spg::RandomDecisionRule::collectOut(Vertex &v) {
-    std::vector<std::pair<size_t, ag::EdgeId>> res;
-    for (Edge &edge : v) {
-        res.emplace_back(edge.outgoing_read_count, edge.getId());
-    }
-    return res;
-}
-
-ag::Edge & spg::RandomDecisionRule::findAvailableInc(const VertexResolutionPlan &plan) {
-    ag::EdgeId res;
-    for (Edge &edge : plan.getCore().incoming()) {
-        if (!plan.incConnected(edge) && (!res.valid() || res->rc().outgoing_read_count > edge.rc().outgoing_read_count)) {
-            res = edge.getId();
-        }
-    }
-    if (res.valid())
-        return *res;
-    for (Edge &edge : plan.getCore().incoming()) {
-        if (!unique_storage->isUnique(edge.getStart()) && (!res.valid() || res->rc().outgoing_read_count > edge.rc().outgoing_read_count)) {
-            res = edge.getId();
-        }
-    }
-    return *res;
-}
-
-ag::Edge & spg::RandomDecisionRule::findAvailableOut(const VertexResolutionPlan &plan) {
-    ag::EdgeId res;
-    for (Edge &edge : plan.getCore()) {
-        if (!plan.outConnected(edge) && (!res.valid() || res->outgoing_read_count > edge.outgoing_read_count)) {
-            res = edge.getId();
-        }
-    }
-    if (res.valid())
-        return *res;
-    for (Edge &edge : plan.getCore()) {
-        if (!unique_storage->isUnique(edge.getFinish()) && edge.fullSize() <= 30000 &&
-            (!res.valid() || res->outgoing_read_count > edge.outgoing_read_count)) {
-            res = edge.getId();
-        }
-    }
-    return *res;
-}
-
-ag::VertexResolutionPlan spg::RandomDecisionRule::judgeNontrivial(ag::Vertex &v) {
-    VertexResolutionPlan res(v);
-    for(Edge &edge : v.incoming()) {
-        const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
-        for(Edge &out : v) {
-            size_t support = rec.countStartsWith(ag::GraphPath(out));
-            if(support > 0) {
-                res.add(edge, out, support);
-            }
-        }
-    }
-    if (!res.allConnected()) loopHeuristic(res);
-    if (!res.allConnected()) uniqueHeuristic(res);
-    // if (!res.allConnected()) noChoiceHeuristic(res);
-    if(res.allConnected())
-        return std::move(res);
-    std::vector<std::pair<size_t, ag::EdgeId>> out = collectOut(v);
-    std::vector<std::pair<size_t, ag::EdgeId>> inc_rc = collectOut(v.rc());
-    std::sort(out.begin(), out.end());
-    std::sort(inc_rc.begin(), inc_rc.end());
-    while (true) {
-        Edge &inc = findAvailableInc(res);
-        Edge &out = findAvailableOut(res);
-        if (res.incConnected(inc) && res.outConnected(out))
-            return res;
-        res.add(inc, out);
-    }
-    return {v};
-}
 
 ag::VertexResolutionPlan spg::ObviousRule::judgeNontrivial(Vertex &v) {
     VertexResolutionPlan res(v);
@@ -270,7 +197,6 @@ bool spg::ObviousRule::judgeFlip(ag::GraphPath path) {
     VERIFY(path.getFinish().outDeg() > 2);
     VERIFY(path.empty() || path.getStart().outDeg() == 1);
     VERIFY(path.empty() || path.getFinish().inDeg() == 1);
-    // return v.covering_read_count > 0;
     for (Edge &edge : path.getStart().incoming()) {
         const ag::SuffixRecord &rec = suffixes->getSuffixRecord(edge);
         for (auto &suffix_rec : rec) {
@@ -279,5 +205,4 @@ bool spg::ObviousRule::judgeFlip(ag::GraphPath path) {
         }
     }
     return false;
-    // return v.covering_read_count > 0;
 }

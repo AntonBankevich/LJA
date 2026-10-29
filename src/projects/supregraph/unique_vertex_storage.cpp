@@ -46,28 +46,15 @@ bool spg::UniqueVertexStorage::isUnique(const Vertex &v) const {
     return unique.find(v.getId()) != unique.end();
 }
 
-void spg::UniqueVertexStorage::fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) {
-    for(Vertex &v : resolution.newVertices()) {
-        VERIFY(v.inDeg() == 1);
-        VERIFY(v.outDeg() == 1);
-        if(isUnique(v.frontVertex()))
-            propagateUniqueness(v.frontVertex(), core);
-        if(isUnique(v.incFrontVertex()))
-            propagateUniqueness(v.incFrontVertex(), core);
-    }
-}
-
 void spg::UniqueVertexStorage::fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) {
-    for(Edge &e : path.edges()) {
-        if(isUnique(e.getStart())) {
+    for(Vertex &v : path.vertices()) {
+        if(isUnique(v)) {
             add(vertex);
             return;
         }
     }
-    if(isUnique(path.backEdge().getFinish())) {
-        add(vertex);
-    }
 }
+
 void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) {
     fireMergePath(path.asRAPath(), vertex);
 }

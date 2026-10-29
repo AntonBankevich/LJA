@@ -189,6 +189,23 @@ Edge &Vertex::getOutgoing(unsigned char c) const {
     return outgoing_.front();
 }
 
+Edge &Vertex::getNonCorporealOutgoing(unsigned char c) const {
+    size_t cnt = 0;
+    for (Edge &edge : outgoing_) {
+        if (!edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == c)) {
+            cnt++;
+        }
+    }
+    VERIFY(cnt <= 1);
+    for (Edge &edge : outgoing_) {
+        if (!edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == c)) {
+            return edge;
+        }
+    }
+    VERIFY(false);
+    return outgoing_.front();
+}
+
 Edge &Vertex::innerAddEdge(Vertex &end, const Sequence &tseq, EdgeData data, EdgeIdType eid) {
     if (!eid.valid()) {
         int code = tseq.empty() ? 4 : tseq[0];

@@ -28,8 +28,8 @@ namespace spg {
     private:
         //A vertex has a recorded self-embedding iff it was already removed from the graph
         std::unordered_map<ag::ConstVertexId, Sequence> vertex_seq;
-        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> multi_embedding;
-        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> multi_subvertices;
+        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> direct_supervertices;
+        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> direct_subvertices;
         std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> vertex_embedding;
         std::unordered_map<ag::ConstVertexId, std::vector<ag::VertexId>> subvertices;
         bool debug;
@@ -52,7 +52,7 @@ namespace spg {
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {}
         void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {VERIFY(false);}
-        void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override;
+        void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override {VERIFY(false);}
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &left_al, const AlignmentForm &right_al) override {
             VERIFY(false);
@@ -63,6 +63,15 @@ namespace spg {
         std::vector<DirectEmbedding> getAllEmbeddings(VertexId v) const;
         std::vector<DirectEmbedding> getAllSubvertices(VertexId v) const;
     };
+
+//    "Which currently-alive vertices is this read a substring of?" A read whose MES extension fit inside
+//    a single vertex is equivalent to a vertex V = the vertex its path lies within (V may already be
+//    deleted, in which case the read carries a legacy path whose start is V). This walks
+//    OldVertexTracker's embedding records up from V, past vertices that have since been removed, to the
+//    minimal living vertices that still contain V's sequence, and returns them (there may be more than
+//    one). Only meaningful for reads equivalent to a vertex (substring/legacy reads); a read spanning a
+//    real path corresponds to a compact path instead and is out of scope here.
+    std::vector<ag::VertexId> readSubstringVertices(const ag::AlignedRead &read, const OldVertexTracker &tracker);
 
     class OldPathTracker : public ag::ResolutionListener {
         struct WatchPath {

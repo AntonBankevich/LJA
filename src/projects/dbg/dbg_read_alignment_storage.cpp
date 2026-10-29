@@ -41,7 +41,7 @@ void DBGAlignedReadStorage::stopTrackCoverage() {
     coverageTracker = nullptr;
 }
 
-void DBGAlignedReadStorage::trackSuffixes(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t _min_len,
+void DBGAlignedReadStorage::trackSuffixes(logging::Logger &logger, size_t threads, ag::AssemblyGraph &dbg, size_t _min_len,
                                           size_t _max_len) {
     stopTrackSuffixes();
     logger.info() << "Storing suffixes of read paths of length up to " << _max_len << std::endl;

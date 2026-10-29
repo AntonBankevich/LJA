@@ -42,9 +42,10 @@ namespace spg {
         }
 
         void fireAddVertex(Vertex &vertex) override {if (vertex.innerSize() >= unique_threshold) add(vertex);}
-        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;
+        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override {};
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {};
         void fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) override;
-        void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &vertex) override {};
+        void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &vertex) override {VERIFY(false);};
         void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {VERIFY(false);};
         void fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) override;
         void fireDeleteVertex(spg::Vertex &v) override {unique.erase(v.getId());}

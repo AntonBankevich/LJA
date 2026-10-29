@@ -32,10 +32,6 @@ namespace ag {
         Storage paths;
         size_t zero_cnt = 0;
         size_t max_suffix_len;
-        int num_of_ends = 0;
-//        num_of_paths counts occurrences of this edge at any position except the last one, i.e. it is
-//        exactly the total count stored in paths (num_of_ends is tracked separately and is never folded in).
-        int num_of_paths = 0;
 
         void lock() const { eid->getStart().lock(); }
         void unlock() const { eid->getStart().unlock(); }
@@ -61,7 +57,6 @@ namespace ag {
         const_iterator end() const { return paths.end(); }
         iterator begin() { return paths.begin(); }
         iterator end() { return paths.end(); }
-        size_t getNumberOfEnds() const;
 
         size_t getNumberOfPaths() const;
 
@@ -79,7 +74,7 @@ namespace ag {
 //For each occurence of vertex in a read only one subpath is stored
 //The subpath is chosen as the shortest path such that total length of edges, starting from the second is at least max_length
 //If read stops before subpath of required length is found, read suffix is stored regardless of its length
-//For current implementation min_len=0 . Otherwise num_of_ends is calculated incorrectly.
+//For current implementation min_len=0 .
     class SuffixTracker : public AlignedReadStorageListener, public ResolutionListener {
     protected:
         // This map stores unique_ptrs by value and moves them around.
@@ -109,14 +104,12 @@ namespace ag {
         SuffixTracker(const SuffixTracker &other) = delete;
 
         SuffixRecord &getSuffixRecord(const Edge &edge) {
-            VERIFY(!edge.isPrefix());
             SuffixRecord *res = nullptr;
             edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
             VERIFY(res != nullptr);
             return *res;
         }
         const SuffixRecord &getSuffixRecord(const Edge &edge) const {
-            VERIFY(!edge.isPrefix());
             const SuffixRecord *res = nullptr;
             edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
             VERIFY(res != nullptr);

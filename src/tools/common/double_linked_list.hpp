@@ -86,8 +86,11 @@ public:
     }
 
     // ── element access ───────────────────────────────────────
-    const T& front() { need_nonempty("front"); return *head(); }
-    const T& back() { need_nonempty("back");  return *tail(); }
+    const T& front() const { need_nonempty("front"); return *head(); }
+    const T& back() const { need_nonempty("back");  return *tail(); }
+
+    T& front() { need_nonempty("front"); return *head(); }
+    T& back() { need_nonempty("back");  return *tail(); }
 
     // ── basic modifiers ──────────────────────────────────────
     void push_back (const T& v) { sentinel.insertBefore(v); }

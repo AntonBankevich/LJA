@@ -42,7 +42,7 @@ namespace dbg {
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                          const AlignmentForm &, const AlignmentForm &) override {
     //        The same call ran for rc event will take care of coverage from left
-            for(ag::AlignedReadDirection dir : storage->getOutgoingReads(right)) {
+            for(ag::AlignedReadDirection dir : storage->getOutgoingReads(right.getStart())) {
                 int64_t len(new_edge.truncSize() - dir.leftCut());
                 if(dir.getFSplits().size() <= left.getCode().size() + right.getCode().size())
                     len -= dir.rightCut();
@@ -53,7 +53,12 @@ namespace dbg {
         }
         void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {
             for(Edge &e : split.edges()) {
-                for (ag::AlignedReadDirection dir: storage->getOutgoingReads(e)) {
+                for (ag::AlignedReadDirection dir: storage->getOutgoingReads(e.getStart())) {
+//                    split.frontEdge().getStart() survives the split and may branch, so its bucket also
+//                    holds reads leaving on sibling edges; the interior pieces' starts are fresh outDeg-1
+//                    vertices where this is always true.
+                    if(dir.frontEdge() != e)
+                        continue;
                     int64_t len(e.truncSize() - dir.leftCut());
                     if(dir.getFSplits().size() <= e.getCode().size())
                         len -= dir.rightCut();
@@ -103,7 +108,7 @@ namespace dbg {
 
         void logReads(size_t threads, const std::experimental::filesystem::path& path);
         void logGraph(SparseDBG &dbg, std::ostream &os);
-        void trackSuffixes(logging::Logger &logger, size_t threads, SparseDBG &dbg, size_t _min_len, size_t _max_len);
+        void trackSuffixes(logging::Logger &logger, size_t threads, ag::AssemblyGraph &dbg, size_t _min_len, size_t _max_len);
         void stopTrackSuffixes();
         void stopTrackCoverage();
         void checkCoverage(const SparseDBG &dbg) const;

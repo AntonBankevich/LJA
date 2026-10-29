@@ -6,7 +6,17 @@ void EdgeCodeListener::fireMergePath(const RAGraphPath &path, Vertex &new_vertex
     VERIFY(new_vertex.inDeg() == 1);
     SequenceBuilder sb;
     for(Edge &e : path.edges()) sb.append(e.edge_code);
-    new_vertex.incFront().edge_code = sb.BuildSequence();
+    Sequence new_code = sb.BuildSequence();
+    // The new boundary edges are still non-corporeal here, so look them up with getNonCorporealOutgoing
+    // (getOutgoing only sees corporeal edges).
+    for (Edge &e : path.getStart().incoming()) {
+        Edge &new_edge = new_vertex.rc().getNonCorporealOutgoing(e.rc().firstNucl()).rc();
+        new_edge.edge_code = e.edge_code + new_code;
+    }
+    for (Edge &e : path.getFinish()) {
+        Edge &new_edge = new_vertex.getNonCorporealOutgoing(e.firstNucl());
+        new_edge.edge_code = e.edge_code;
+    }
 }
 
 void EdgeCodeListener::fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {

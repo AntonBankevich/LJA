@@ -99,6 +99,22 @@ void VertexResolutionPlan::sort() const {
     sorted = true;
 }
 
+size_t VertexResolutionPlan::incEdgeConnections(Edge &edge) const {
+    size_t res = 0;
+    for(const auto &it : edge_pairs)
+        if(edge == it.incoming())
+            res++;
+    return res;
+}
+
+size_t VertexResolutionPlan::outEdgeConnections(Edge &edge) const {
+    size_t res = 0;
+    for (const auto &it : edge_pairs)
+        if(edge == it.outgoing())
+            res++;
+    return res;
+}
+
 bool VertexResolutionPlan::incConnected(Edge &edge) const {
     for(const auto &it : edge_pairs)
         if(edge == it.incoming())

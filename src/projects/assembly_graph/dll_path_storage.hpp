@@ -136,6 +136,13 @@ namespace ag {
         std::vector<std::string> passingContigs(const Vertex &vertex) const;
         std::vector<std::string> passingForwardContigs(const Vertex &vertex) const;
 
+//        Validity check for tests: every fragment of every tracked path must be a valid edge- or
+//        inner-fragment whose edge/vertex is still indexed in edge_map/vertex_map (i.e. a live element -
+//        fireDeleteEdge/fireDeleteVertex erase those index entries), and each index position must point
+//        back at a live list node. After edge deletions the path may be fragmented (gaps where edges
+//        were removed) but must never reference a deleted edge/vertex. Returns false on any violation.
+        bool checkConsistency();
+
         std::function<std::string(const Vertex &)> getVertexTooltipper() const;
         std::function<std::string(const Edge &)> getEdgeTooltipper() const;
         std::function<std::string(const Edge &)> getEdgeColorer() const;
