@@ -13,6 +13,18 @@ add_executable(tests test_repeat_resolution/test_mdbg.cpp test_repeat_resolution
         test_assembly_graph/test_suffix_tracker.cpp
         test_assembly_graph/test_graph_modification.cpp
         test_assembly_graph/test_listener_invariants.cpp
-        test_assembly_graph/test_spg_listeners.cpp)
+        test_assembly_graph/test_spg_listeners.cpp
+        test_assembly_graph/test_graph_invariants.cpp
+        test_assembly_graph/test_sample_segments.cpp
+        test_assembly_graph/test_dbg_coverage.cpp
+        test_assembly_graph/test_label_storage.cpp
+        test_assembly_graph/test_dll_path_storage.cpp
+        test_assembly_graph/test_read_correction.cpp
+        test_assembly_graph/test_nucl_deck.cpp
+        test_assembly_graph/random_graph_utils.cpp
+        test_assembly_graph/test_dbg_aligner.cpp
+        test_assembly_graph/test_common_utils.cpp
+        test_assembly_graph/test_loop_resolution.cpp
+        test_assembly_graph/test_self_rc_core.cpp)
 target_include_directories(tests PRIVATE test_assembly_graph)
 target_link_libraries(tests gtest gtest_main lja_spg lja_dbg lja_alignment lja_ec)

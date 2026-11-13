@@ -3,6 +3,7 @@
 #include "abstract_decision_rule.hpp"
 
 #include "read_storage.hpp"
+#include "supregraph.hpp"
 #include <unordered_set>
 #include <common/logging.hpp>
 #include <assembly_graph/data_structures/suffix_tracker.hpp>
@@ -12,7 +13,7 @@ namespace spg {
 
     class Multiplexer {
     private:
-        ag::AssemblyGraph &graph;
+        Supregraph &graph;
         DecisionRule &rule;
         size_t max_core_length;
         std::set<std::pair<size_t, VertexId>> core_queue;//Store only canonical vertices
@@ -20,14 +21,17 @@ namespace spg {
 //        TODO: remove reads parameter
         ag::AlignedReadStorage &reads;
     public:
-        Multiplexer(ag::AssemblyGraph &graph, ag::AlignedReadStorage &reads, DecisionRule &rule, size_t max_core_length);
+        Multiplexer(Supregraph &graph, ag::AlignedReadStorage &reads, DecisionRule &rule, size_t max_core_length);
         Multiplexer(Multiplexer &&) = delete;
         Multiplexer(Multiplexer &) = delete;
 
-        //During reset the graph is believed to have all unbranching paths merged.
+        //Non-junction vertices are queued for merging, fork junctions for multiplexing.
         void reset();
 
-        void pushCore(Vertex &vertex);
+//        Everything multiplex() creates goes to merge first; merge() always yields a vertex, which goes on to
+//        multiplex() only if it is a fork junction (in-degree > 1 and out-degree > 1). pushToMultiplex ignores others.
+        void pushToMerge(Vertex &vertex);
+        void pushToMultiplex(Vertex &vertex);
         Vertex &popCore();
 
 //        Lets callers drive multiplexing through a progressively loosened vertex-size threshold:

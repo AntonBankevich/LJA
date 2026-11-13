@@ -21,13 +21,14 @@ void spg::OldVertexTracker::addEmbedding(VertexId old, Segment<Vertex> embedding
 }
 
 spg::OldVertexTracker::OldVertexTracker(ag::ResolutionFire &fire, bool debug):
-        ag::ResolutionListener(fire, "OldVertexTracker"), debug(debug) {
+        SPGListener(fire, "OldVertexTracker"), debug(debug) {
     ag::AssemblyGraph &ag = getFire<ag::AssemblyGraph>();
-    for (Edge &edge : ag.edges()) {
-        fireAddEdge(edge);
-    }
+//    Vertices first: fireAddVertex resets the vertex's records, so it must not run after its edges were recorded.
     for (Vertex &v : ag.vertices()) {
         fireAddVertex(v);
+    }
+    for (Edge &edge : ag.edges()) {
+        fireAddEdge(edge);
     }
 }
 
@@ -77,19 +78,18 @@ void spg::OldVertexTracker::fireDeleteVertex(Vertex &v) {
 }
 
 void spg::OldVertexTracker::fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) {
+//    Every vertex of the path is embedded into new_vertex at its offset; its earlier embeddings stay valid.
     size_t start = 0;
     size_t end = path.getStart().size();
-    std::vector<ag::VertexId> &subs = subvertices.at(new_vertex.getId());
-    std::vector<DirectEmbedding> &subvertices = direct_subvertices[new_vertex.getId()];
-    size_t cnt = 0;
+    std::vector<DirectEmbedding> &new_subs = direct_subvertices[new_vertex.getId()];
     direct_supervertices[path.getStart().getId()].emplace_back(path.getStart(), new_vertex, 0, path.getStart().size());
-    subvertices.emplace_back(path.getStart(), new_vertex, 0, path.getStart().size());
+    new_subs.emplace_back(path.getStart(), new_vertex, 0, path.getStart().size());
     for (Edge &e : path.edges()) {
         end += e.truncSize();
         start += e.rc().truncSize();
-        direct_supervertices[e.getFinish().getId()] = {{e.getFinish(), new_vertex, start, end}};
-        subvertices.emplace_back(e.getFinish(), new_vertex, start, end);
         VERIFY(e.getFinish().getSeq() == new_vertex.getSeq().Subseq(start, end));
+        direct_supervertices[e.getFinish().getId()].emplace_back(e.getFinish(), new_vertex, start, end);
+        new_subs.emplace_back(e.getFinish(), new_vertex, start, end);
     }
 }
 
@@ -101,6 +101,82 @@ void spg::OldVertexTracker::fireResolveVertex(Vertex &core, const ag::VertexReso
 //        instance sequence extends core by one nucleotide on each side, so core occupies [1, size+1).
         addMultiEmbedding(core, *p.first, 1, core.size() + 1);
     }
+}
+
+bool spg::OldVertexTracker::checkConsistency(std::ostream &os) {
+    ag::AssemblyGraph &graph = getGraph();
+    bool ok = true;
+    std::unordered_set<ag::ConstVertexId> live;
+    for (Vertex &v : graph.vertices()) {
+        live.insert(v.getId());
+//        1.
+        auto seq = vertex_seq.find(v.getId());
+        if (seq == vertex_seq.end() || seq->second != v.getSeq() || direct_supervertices.count(v.getId()) == 0 ||
+                direct_subvertices.count(v.getId()) == 0) {
+            os << "OldVertexTracker: live vertex " << v.getId() << " has no records or a wrong sequence" << std::endl;
+            ok = false;
+        }
+    }
+    auto contains = [](const std::vector<DirectEmbedding> &list, const DirectEmbedding &de) {
+        return std::find(list.begin(), list.end(), de) != list.end();
+    };
+    for (const auto &p : direct_supervertices) {
+        bool dead_marker = false;
+        for (const DirectEmbedding &de : p.second) {
+            if (de.inner_vertex != p.first) {
+                os << "OldVertexTracker: embedding filed under the wrong vertex " << p.first << std::endl;
+                ok = false;
+            } else if (de.outer_vertex == de.inner_vertex) {
+                dead_marker = true;
+            } else {
+//                2, 3.
+                auto inner = vertex_seq.find(de.inner_vertex), outer = vertex_seq.find(de.outer_vertex);
+                auto subs = direct_subvertices.find(de.outer_vertex);
+                if (inner == vertex_seq.end() || outer == vertex_seq.end() || de.to > outer->second.size() ||
+                        de.from > de.to || inner->second != outer->second.Subseq(de.from, de.to)) {
+                    os << "OldVertexTracker: embedding of " << de.inner_vertex << " into " << de.outer_vertex
+                       << " [" << de.from << "," << de.to << ") does not hold" << std::endl;
+                    ok = false;
+                }
+                if (subs == direct_subvertices.end() || !contains(subs->second, de)) {
+                    os << "OldVertexTracker: embedding of " << de.inner_vertex << " into " << de.outer_vertex
+                       << " is missing among the subvertices of " << de.outer_vertex << std::endl;
+                    ok = false;
+                }
+            }
+        }
+//        4.
+        if (dead_marker == (live.count(p.first) > 0)) {
+            os << "OldVertexTracker: vertex " << p.first << (dead_marker ? " is live but marked dead" : " is dead but not marked") << std::endl;
+            ok = false;
+        }
+    }
+    for (const auto &p : direct_subvertices)
+        for (const DirectEmbedding &de : p.second) {
+            auto sups = direct_supervertices.find(de.inner_vertex);
+            if (de.outer_vertex != p.first || sups == direct_supervertices.end() || !contains(sups->second, de)) {
+                os << "OldVertexTracker: subvertex record of " << de.inner_vertex << " in " << p.first
+                   << " has no matching supervertex record" << std::endl;
+                ok = false;
+            }
+        }
+//    5.
+    auto recorded = [&](Vertex &inner, const DirectEmbedding &de) {
+        auto it = direct_supervertices.find(inner.getId());
+        return it != direct_supervertices.end() && contains(it->second, de);
+    };
+    for (Edge &e : graph.edges()) {
+        bool missing = false;
+        if (e.isPrefix())
+            missing = !recorded(e.getStart(), DirectEmbedding(e.getStart(), e.getFinish(), 0, e.getStart().size()));
+        else if (e.isSuffix())
+            missing = !recorded(e.getFinish(), DirectEmbedding(e.getFinish(), e.getStart(), e.rc().truncSize(), e.getStart().size()));
+        if (missing) {
+            os << "OldVertexTracker: the embedding of edge " << e.getId() << " is not recorded" << std::endl;
+            ok = false;
+        }
+    }
+    return ok;
 }
 
 std::vector<spg::OldVertexTracker::DirectEmbedding> spg::OldVertexTracker::getAllEmbeddings(VertexId vid) const {
@@ -154,91 +230,6 @@ std::vector<spg::OldVertexTracker::DirectEmbedding> spg::OldVertexTracker::getAl
         VERIFY(vertex_seq.at(de.inner_vertex) == vertex_seq.at(de.outer_vertex).Subseq(de.from, de.to));
     }
     return result;
-}
-
-void spg::OldPathTracker::addPath(const std::string &name, const std::vector<ag::AlignmentChain<Contig, ag::Edge>> &als) {
-    std::experimental::filesystem::path p = dir / (itos(paths.size(), 2) + "_" + name);
-    ensure_dir_existance(p);
-    paths.emplace_back(name, als, p);
-    for (VertexId &vid : paths.back().vertices) {
-        vertex_watch[vid].emplace_back(paths.size() - 1);
-    }
-}
-
-void spg::OldPathTracker::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
-    auto it = vertex_watch.find(e.getStart().getId());
-    if (it != vertex_watch.end())
-        for (size_t pid : it->second) {
-            for (size_t i = 0; i < paths[pid].vertices.size(); i++) {
-                if (paths[pid].vertices[i] == e.getStart().getId() && e.getCode() == paths[pid].edge_codes[i]) {
-                    paths[pid].vertices[i] = v.getId();
-                    paths[pid].edge_codes[i] = {};
-                }
-            }
-        }
-}
-
-void spg::OldPathTracker::fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) {
-    std::vector<size_t> pathIds;
-    for (Vertex &v : path.vertices()) {
-        auto it = vertex_watch.find(v.getId());
-        if (it != vertex_watch.end()) {
-            pathIds.insert(pathIds.end(), it->second.begin(), it->second.end());
-            if (it->first != path.getStart().getId() && it->first != path.getFinish().getId()) {
-                vertex_watch.erase(it);
-            }
-        }
-    }
-    std::sort(pathIds.begin(), pathIds.end());
-    pathIds.erase(std::unique(pathIds.begin(), pathIds.end()), pathIds.end());
-    vertex_watch[new_vertex.getId()] = pathIds;
-    if (pathIds.size() == 0) return;
-    ag::Printer p = *printer + ag::EdgeInfo::Colorer(ag::ConstMapping<Edge>(path.edges().begin(), path.edges().end(), "red")) +
-                    ag::VertexInfo::Colorer(ag::ConstMapping(new_vertex, "blue"));
-    for (size_t pid : pathIds) {
-        printPath(pid, p, "MergePath_" + itos(new_vertex.getInnerId()), CollectIds<Vertex>(path.vertices().begin(), path.vertices().end()));
-    }
-}
-
-void spg::OldPathTracker::fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) {
-    auto it = vertex_watch.find(core.getId());
-    if (it == vertex_watch.end()) return;
-    std::vector<size_t> pathIds = it->second;
-    if (pathIds.size() == 0) return;
-    ag::Printer p = *printer + ag::VertexInfo::Colorer(ag::ConstMapping(core, "red")) +
-        ag::VertexInfo::Colorer(ag::ConstMapping<Vertex>(resolution.newVertices().begin(), resolution.newVertices().end(), "blue"));
-    for (size_t pid : pathIds) {
-        printPath(pid, p, "ResolveVertex_" + itos(core.getInnerId()), CollectIds<Vertex>(resolution.newVertices().begin(), resolution.newVertices().end()));
-    }
-    vertex_watch.erase(it);
-}
-
-spg::OldPathTracker::WatchPath::WatchPath(std::string name, const std::vector<ag::AlignmentChain<Contig, Edge>> &chain,
-    std::experimental::filesystem::path out_dir) :
-    name(std::move(name)), out_dir(out_dir) {
-    ag::EdgeId prev_eid = {};
-    for (const ag::AlignmentChain<Contig, Edge> &al : chain) {
-        if (prev_eid != al.seg_to.contig().getId()) {
-            vertices.emplace_back(al.seg_to.contig().getStart().getId());
-            edge_codes.emplace_back(al.seg_to.contig().getCode());
-            prev_eid = al.seg_to.contig().getId();
-        }
-    }
-}
-
-void spg::OldPathTracker::printPath(size_t id, ag::Printer &printer, const std::string &message, const std::vector<ag::VertexId> &extra_vertices) {
-    std::experimental::filesystem::path f = paths[id].out_dir / (itos(paths[id].cnt, 4) + + "_" + message + ".dot");
-    paths[id].cnt++;
-    std::vector<VertexId> vertices = extra_vertices;
-    for (VertexId vid : paths[id].vertices) {
-        Segment<Vertex> seg = tracker->getPosition(vid);
-        if (seg.valid()) {
-            vertices.emplace_back(seg.contig().getId());
-            VERIFY_MSG(tracker->checkExists(seg.contig().getId()), seg.contig().getId());
-        }
-    }
-    ag::Printer p = printer + ag::VertexInfo::Colorer(ag::ConstMapping<Vertex>(vertices.begin(), vertices.end(), "orange"));
-    p.printDot(f, ag::Component::neighbourhood(getFire<ag::AssemblyGraph>(), vertices, 10000, 20000));
 }
 
 std::vector<ag::VertexId> spg::readSubstringVertices(const ag::AlignedRead &read, const OldVertexTracker &tracker) {

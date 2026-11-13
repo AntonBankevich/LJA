@@ -5,10 +5,18 @@
 
 namespace dbg {
     using ag::GraphPath;
-    class CoverageTracker : public ag::AlignedReadStorageListener, public ag::ResolutionListener {
+//    DBG only. intCov(e) is the total size of the segments of all valid stored reads on e plus their segments on
+//    e.rc(): every read contributes its forward and its backward (k+1)-mers. So a self-rc edge (a match between the
+//    forward and the rc genome) gets each read's contribution twice.
+    class DBGAlignedReadStorage;
+    class CoverageTracker : public ag::AlignedReadStorageListener, public DBGListener {
+        friend class DBGAlignedReadStorage;
     private:
         ag::AlignedReadStorage *storage;
         static void addPath(const GraphPath &path, __int64_t mult = 1) {
+//            Legacy paths are empty subreads of deleted vertices: no edges, and their vertex must not be touched.
+            if (!path.valid() || path.isLegacy())
+                return;
             for(ag::PathPosition pp = path.firstPosition(); pp != path.lastPosition(); ++pp) {
                 __int64_t val = __int64_t(path.getSegment(pp).size()) * mult;
                 Edge &edge = pp.nextEdge();
@@ -27,7 +35,7 @@ namespace dbg {
         }
     public:
         explicit CoverageTracker(logging::Logger &logger, size_t threads, ag::AlignedReadStorage &storage, ag::ResolutionFire &graph) :
-            ag::AlignedReadStorageListener(storage, "CoverageTracker"), ag::ResolutionListener(graph, "CoverageTracker"), storage(&storage) {
+            ag::AlignedReadStorageListener(storage, "CoverageTracker"), DBGListener(graph, "CoverageTracker"), storage(&storage) {
             fillFromStorage(logger, threads);
         }
         void fireAddRead(const ag::AlignedRead &read) override {addPath(read.getPath());}
@@ -39,40 +47,18 @@ namespace dbg {
             for(Edge &e : path.edges())
                 new_edge.incCov(int64_t(e.intCov()));
         }
-        void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
-                                         const AlignmentForm &, const AlignmentForm &) override {
-    //        The same call ran for rc event will take care of coverage from left
-            for(ag::AlignedReadDirection dir : storage->getOutgoingReads(right.getStart())) {
-                int64_t len(new_edge.truncSize() - dir.leftCut());
-                if(dir.getFSplits().size() <= left.getCode().size() + right.getCode().size())
-                    len -= dir.rightCut();
-                new_edge.incCov(len);
-                VERIFY(len > 0);
-                new_edge.rc().incCov(len);
-            }
+//        Adds the coverage of the reads whose path starts with the new edge e; returns whether some of them leave e.
+//        Reads are already moved by AlignedReadStorageMaintenance. A read ending inside e is seen again from e.rc()
+//        (by the mirrored call, or by this one for a self-rc e), so only e gets its part. A read leaving e is not, so
+//        both strands get it. Reads entering e from elsewhere are the other direction of such reads.
+        bool addReadsStartingWith(Edge &e);
+        void fireMergeTipsToEdge(Edge &new_edge, Edge &, Edge &, const AlignmentForm &, const AlignmentForm &) override {
+            addReadsStartingWith(new_edge);
         }
-        void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {
-            for(Edge &e : split.edges()) {
-                for (ag::AlignedReadDirection dir: storage->getOutgoingReads(e.getStart())) {
-//                    split.frontEdge().getStart() survives the split and may branch, so its bucket also
-//                    holds reads leaving on sibling edges; the interior pieces' starts are fresh outDeg-1
-//                    vertices where this is always true.
-                    if(dir.frontEdge() != e)
-                        continue;
-                    int64_t len(e.truncSize() - dir.leftCut());
-                    if(dir.getFSplits().size() <= e.getCode().size())
-                        len -= dir.rightCut();
-                    else {
-                        VERIFY(e == split.backEdge());
-                        e.rc().incCov(len);
-                    }
-                    e.incCov(len);
-                }
-            }
-        }
-        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {
-            VERIFY(false);
-        }
+//        No read may cross a split point, so only reads on the last piece can leave it.
+        void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override;
+        bool checkConsistency(std::ostream &os) override;
+        bool fireCheckConsistency(std::ostream &os) override {return checkConsistency(os);}
     };
 
 //    Create a proper structure that can work with multiple libraries
@@ -103,7 +89,8 @@ namespace dbg {
             }
         }
 
-        DBGAlignedReadStorage(DBGAlignedReadStorage&&) = default;
+//        The trackers move with the storage: the source no longer owns them, and they are pointed at the new storage.
+        DBGAlignedReadStorage(DBGAlignedReadStorage &&other) noexcept;
         DBGAlignedReadStorage& operator=(DBGAlignedReadStorage&&) = delete;
 
         void logReads(size_t threads, const std::experimental::filesystem::path& path);
@@ -111,7 +98,7 @@ namespace dbg {
         void trackSuffixes(logging::Logger &logger, size_t threads, ag::AssemblyGraph &dbg, size_t _min_len, size_t _max_len);
         void stopTrackSuffixes();
         void stopTrackCoverage();
-        void checkCoverage(const SparseDBG &dbg) const;
+        void checkCoverage() const;
         static DBGAlignedReadStorage Load(logging::Logger &logger, size_t threads, const io::Library &lib, SparseDBG &dbg, bool track_cov);
         static DBGAlignedReadStorage Load(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &path, SparseDBG &dbg,
                                           bool track_cov);

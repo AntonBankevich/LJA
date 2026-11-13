@@ -2,7 +2,9 @@
 #include "alignment_chain.hpp"
 #include "dll_path.hpp"
 #include "common/dir_utils.hpp"
+#include "libcuckoo/cuckoohash_map.hh"
 #include <memory>
+#include <mutex>
 
 namespace ag {
     class DLLAlignmentPath : public ds::DoublyLinkedList<AlignmentFragment>{
@@ -68,20 +70,35 @@ namespace ag {
     public:
         typedef DLLAlignmentPath::iterator DLLPathPosition;
     private:
+        typedef std::vector<DLLPathPosition> PositionRecord;
+//        Graph operations may run in parallel on disjoint parts of the graph (e.g. isolating vertices), so the indices
+//        are concurrent maps (records behind unique_ptrs keep their addresses), and every change to a contig's path is
+//        made under that contig's lock: neighbouring fragments of one path may belong to edges handled by different
+//        threads. contigs, alignments and path_locks only change in addContig, which is not concurrent.
         std::list<Contig> contigs;
         std::unordered_map<std::string, DLLAlignmentPath> alignments;
-        std::unordered_map<ConstVertexId, std::vector<DLLPathPosition>> vertex_map;
-        std::unordered_map<ConstEdgeId, std::vector<DLLPathPosition>> edge_map;
+        std::unordered_map<const Contig *, std::unique_ptr<std::mutex>> path_locks;
+        libcuckoo::cuckoohash_map<ConstVertexId, std::unique_ptr<PositionRecord>> vertex_map;
+        libcuckoo::cuckoohash_map<ConstEdgeId, std::unique_ptr<PositionRecord>> edge_map;
 
         void addContig(Contig & contig, DLLAlignmentPath && p);
+        std::mutex &pathLock(const Contig &contig) const {return *path_locks.at(&contig);}
+//        The record of an indexed vertex/edge (VERIFYs that there is one).
+        PositionRecord &getRecords(ConstVertexId vid) const;
+        PositionRecord &getRecords(ConstEdgeId eid) const;
 
         DLLPathPosition insertBefore(Edge &edge, DLLPathPosition pos, AlignmentFragment fragment);
         DLLPathPosition insertAfter(Edge &edge, DLLPathPosition pos, AlignmentFragment fragment);
         DLLPathPosition insertBefore(Vertex &vertex, DLLPathPosition pos, AlignmentFragment fragment);
         DLLPathPosition insertAfter(Vertex &vertex, DLLPathPosition pos, AlignmentFragment fragment);
 
-        bool hasRecords(const Vertex &vertex) const {return vertex_map.find(vertex.getId()) != vertex_map.end();}
-        bool hasRecords(const Edge &edge) const {return edge_map.find(edge.getId()) != edge_map.end();}
+//        When the edge of the fragment at pos is deleted, its uncut start (finish) vertex stays in the path as an inner
+//        fragment, unless the neighbouring fragment already covers it.
+        void keepStart(DLLPathPosition pos);
+        void keepFinish(DLLPathPosition pos);
+
+        bool hasRecords(const Vertex &vertex) const {return vertex_map.contains(vertex.getId());}
+        bool hasRecords(const Edge &edge) const {return edge_map.contains(edge.getId());}
 
         std::ostream *log_stream = nullptr;
         std::unique_ptr<PathDrawer> drawer;
@@ -119,29 +136,36 @@ namespace ag {
 
         //TODO: change interface to avoid direct usage of dbg related AlignmentChain objects
         DLLAlignmentPath &addContig(Contig new_contig, std::vector<AlignmentChain<Contig, Edge>> &als);
+        DLLAlignmentPath &getPath(const std::string &contig_name) {return alignments.at(contig_name);}
         void fireDeleteVertex(Vertex &v) override;
         void fireDeleteEdge(Edge &e) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) {VERIFY(false);}
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
+//        Same transformation as mergePathToEdge: the new prefix (suffix) edge spells its finish (start).
+        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override {fireMergePathToEdge(path, new_edge);}
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &left_al, const AlignmentForm &right_al) override;
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override {}
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
+        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
 //        Names (contig ids, still RC-oriented e.g. "-name") of all contigs with a fragment
 //        anchored at vertex as an inner fragment, deduplicated. Empty if vertex is untracked.
         std::vector<std::string> passingContigs(const Vertex &vertex) const;
         std::vector<std::string> passingForwardContigs(const Vertex &vertex) const;
 
-//        Validity check for tests: every fragment of every tracked path must be a valid edge- or
-//        inner-fragment whose edge/vertex is still indexed in edge_map/vertex_map (i.e. a live element -
-//        fireDeleteEdge/fireDeleteVertex erase those index entries), and each index position must point
-//        back at a live list node. After edge deletions the path may be fragmented (gaps where edges
-//        were removed) but must never reference a deleted edge/vertex. Returns false on any violation.
-        bool checkConsistency();
+//        Invariants (the path may be fragmented where edges were deleted):
+//        1. Every fragment spells its contig segment, is on a live edge/vertex and is indexed under it; every live
+//           index entry is such a fragment.
+//        2. Fragments run along the contig: segment ends are non-decreasing.
+//        3. The rc contig's path mirrors the contig's path fragment by fragment.
+//        4. Every occurrence of a live vertex that is a proper infix of the contig is in the path: an inner fragment
+//           on it, or an edge segment starting/ending at it without a cut on that side. Since graphs are
+//           non-redundant, this holds for any correct path given; operations must not lose such vertices.
+        bool checkConsistency(std::ostream &os) override;
 
         std::function<std::string(const Vertex &)> getVertexTooltipper() const;
         std::function<std::string(const Edge &)> getEdgeTooltipper() const;

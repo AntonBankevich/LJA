@@ -18,6 +18,8 @@ namespace dbg {
         anchor_map_type anchors;
         size_t w = 0;
         bool anchors_filled = false;
+//        In debug mode align also checks, at every step, that the read's k-mer is the current vertex's sequence.
+        bool debug = false;
 
         ag::AlignmentChain<Contig, dbg::Edge> extendLeft(const hashing::MovingKWH &kwh, Contig &contig) const;
         ag::AlignmentChain<Contig, dbg::Edge> extendRight(const hashing::MovingKWH &kwh, Contig &contig) const;
@@ -29,6 +31,7 @@ namespace dbg {
         explicit KmerIndex(SparseDBG &dbg);
 
         const hashing::RollingHash &hasher() const {return hasher_;}
+        void setDebug(bool value) {debug = value;}
 
         void addVertex(Vertex &vert) {
             if(vert.isCanonical())

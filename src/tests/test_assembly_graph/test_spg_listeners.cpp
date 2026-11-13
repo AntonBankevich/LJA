@@ -1,9 +1,9 @@
 #include "gtest/gtest.h"
 #include "random_graph_utils.hpp"
-#include "supregraph/sample_segment_tracker.hpp"
 #include "supregraph/coverage_tracker.hpp"
 #include "supregraph/unique_vertex_storage.hpp"
 #include "supregraph/path_spy.hpp"
+#include "supregraph/supregraph.hpp"
 
 // Tests for the supregraph-layer (spg) ResolutionListeners, exercised on a real supregraph built from a
 // random DBG via edgeToSupreVertex (ConvertToSupregraph). These require linking lja_spg.
@@ -14,8 +14,8 @@ namespace {
     constexpr size_t K = 5;
 }
 
-// CoverageTracker + SampleSegmentTracker. SampleSegmentTracker is attached BEFORE the conversion so its
-// fireEdgeToSupreVertex creates the per-vertex sample windows (zero support); CoverageTracker is then
+// CoverageTracker + SampleSegmentTracker. The graph's own SampleSegmentTracker creates the per-vertex sample
+// windows (zero support) in fireEdgeToSupreVertex during the conversion; CoverageTracker is then
 // built on the supregraph and fills real support by replaying the reads over those windows. Its
 // fireCheckConsistency subtracts every read's contribution, checks the support returns to the zero
 // baseline the samples were created at, and re-adds - so a true result validates BOTH listeners: the
@@ -27,11 +27,10 @@ TEST(SpgListeners, CoverageAndSampleSegmentConsistentOnSupregraph) {
         ag::AlignedReadStorage storage(rdbg.dbg, std::move(reads));
 
         ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg); // condense; vertices stay k-mers (size k)
-        spg::SampleSegmentTracker sst(rdbg.dbg, K);      // attach before conversion -> creates sample windows
         ConvertToSupregraph(rdbg.dbg);                   // edgeToSupreVertex on every corporeal edge
 
-        spg::CoverageTracker cov(rdbg.dbg, storage, K, QuietLogger(), 1); // ctor fills support from reads
-        EXPECT_TRUE(cov.fireCheckConsistency()) << "seed=" << seed;
+        spg::CoverageTracker cov(rdbg.dbg, storage, QuietLogger(), 1); // ctor fills support from reads
+        EXPECT_TRUE(cov.fireCheckConsistency(std::cerr)) << "seed=" << seed;
     }
 }
 
@@ -44,7 +43,6 @@ TEST(SpgListeners, UniqueVertexStorageMatchesThreshold) {
     std::vector<ag::AlignedRead> reads = ExtractAndAlignReads(rdbg, 40, 90, 2, 301);
     ag::AlignedReadStorage storage(rdbg.dbg, std::move(reads));
     ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
-    spg::SampleSegmentTracker sst(rdbg.dbg, K);
     ConvertToSupregraph(rdbg.dbg);
 
     // Pick a threshold from the actual innerSize distribution so it genuinely splits the vertex set.
@@ -77,7 +75,6 @@ TEST(SpgListeners, InnerSizeIsRcSymmetric) {
     std::vector<ag::AlignedRead> reads = ExtractAndAlignReads(rdbg, 40, 90, 2, 301);
     ag::AlignedReadStorage storage(rdbg.dbg, std::move(reads));
     ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
-    spg::SampleSegmentTracker sst(rdbg.dbg, K);
     ConvertToSupregraph(rdbg.dbg);
     for (ag::Vertex &v : rdbg.dbg.vertices())
         EXPECT_EQ(v.innerSize(), v.rc().innerSize())
@@ -107,6 +104,7 @@ TEST(SpgListeners, OldVertexTrackerReadSubstringQuery) {
     ag::VertexResolutionPlan plan(core);
     plan.add(p1.frontEdge(), p1.backEdge());
     plan.add(p2.frontEdge(), p2.backEdge());
+    g.dbg.disableHashing(); // resolution creates vertices longer than k
     ag::VertexResolutionResult res = g.dbg.resolveVertex(core, plan); // core deleted, embedded into instances
     std::set<ag::VertexId> instances;
     for (ag::Vertex &v : res.newVertices())
@@ -126,4 +124,71 @@ TEST(SpgListeners, OldVertexTrackerReadSubstringQuery) {
     for (ag::VertexId u : containers)
         EXPECT_NE(u->getSeq().str().find(Vseq), std::string::npos)
             << "reported container " << u->getId() << " must actually contain the read's sequence";
+}
+
+// OldVertexTracker through the supregraph pipeline: conversion, resolution, MergeAllSPG, flips. After each stage
+// its records are consistent, and the resolved-away core still climbs to living vertices that contain it.
+TEST(SpgListeners, OldVertexTrackerThroughPipeline) {
+    size_t queried = 0;
+    for (uint32_t seed = 1; seed <= 5; seed++) {
+        RandomDBG rdbg(RandomGenome(300, seed), K);
+        ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
+        rdbg.dbg.disableHashing();
+        spg::Supregraph spg = spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg));
+        spg::OldVertexTracker tracker(spg, true);
+        ASSERT_TRUE(tracker.checkConsistency(std::cerr)) << "seed=" << seed << " after attaching";
+        ag::VertexId core;
+        for (ag::Vertex &v : spg.vertices())
+            if (!core.valid() && v.size() == K && v.inDeg() == 2 && v.outDeg() == 2)
+                core = v.getId();
+        std::string core_seq = core.valid() ? core->getSeq().str() : "";
+        ResolveMatching(spg, K);
+        ASSERT_TRUE(tracker.checkConsistency(std::cerr)) << "seed=" << seed << " after resolution";
+        spg::MergeAllSPG(QuietLogger(), 1, spg);
+        ASSERT_TRUE(tracker.checkConsistency(std::cerr)) << "seed=" << seed << " after MergeAllSPG";
+        FlipAll(spg);
+        ASSERT_TRUE(tracker.checkConsistency(std::cerr)) << "seed=" << seed << " after flips";
+        if (core.valid()) {
+            std::unordered_set<ag::ConstVertexId> live;
+            for (ag::Vertex &v : spg.vertices())
+                live.insert(v.getId());
+            std::vector<spg::OldVertexTracker::DirectEmbedding> containers = tracker.getAllEmbeddings(core);
+            EXPECT_FALSE(containers.empty()) << "seed=" << seed;
+            for (const spg::OldVertexTracker::DirectEmbedding &de : containers) {
+                ASSERT_TRUE(live.count(de.outer_vertex)) << "seed=" << seed << " container " << de.outer_vertex << " is dead";
+                EXPECT_EQ(de.outer_vertex->getSeq().Subseq(de.from, de.to).str(), core_seq) << "seed=" << seed;
+            }
+            queried++;
+        }
+    }
+    EXPECT_GT(queried, 0u);
+}
+
+// spg::CoverageTracker through the supregraph pipeline. Built after conversion with several threads (atomic updates),
+// then resolutions by the reads' own pairs (support = read paths through the pair), MergeAllSPG and flips; after each
+// stage the stored coverage is exactly what replaying the reads gives.
+TEST(SpgListeners, CoverageTrackerThroughPipeline) {
+    size_t credited = 0;
+    for (uint32_t seed = 1; seed <= 5; seed++) {
+        RandomDBG rdbg(RandomGenome(300, seed), K);
+        std::unique_ptr<spg::Supregraph> spg_holder;
+        ag::AlignedReadStorage storage(rdbg.dbg, ExtractAndAlignReads(rdbg, 60, 60, 1, seed + 100));
+        ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
+        rdbg.dbg.disableHashing();
+        spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
+        spg::Supregraph &spg = *spg_holder;
+        spg::CoverageTracker cov(spg, storage, QuietLogger(), 4);
+        ASSERT_TRUE(cov.checkConsistency(std::cerr)) << "seed=" << seed << " after construction";
+        for (size_t i = 0; i < 10 && ResolveByReads(spg, storage, K); i++) {}
+        ASSERT_TRUE(cov.checkConsistency(std::cerr)) << "seed=" << seed << " after resolutions";
+        for (ag::Vertex &v : spg.vertices())
+            for (ag::CoverageSamples::SampleView view : v.coverage_info.getSamples())
+                if (view.sample.type == ag::CoverageSamples::SampleType::resolution && view.sample.raw_support > 0)
+                    credited++;
+        spg::MergeAllSPG(QuietLogger(), 1, spg);
+        ASSERT_TRUE(cov.checkConsistency(std::cerr)) << "seed=" << seed << " after MergeAllSPG";
+        FlipAll(spg);
+        ASSERT_TRUE(cov.checkConsistency(std::cerr)) << "seed=" << seed << " after flips";
+    }
+    EXPECT_GT(credited, 0u);
 }

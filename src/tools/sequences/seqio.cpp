@@ -163,7 +163,7 @@ void io::FASTQReader::inner_read() {
     std::string id, seq;
     std::getline(*stream, id);
     std::getline(*stream, seq);
-    if (seq.back() == '\r') seq.pop_back();
+    if (!seq.empty() && seq.back() == '\r') seq.pop_back();
     if (!id.empty() and !seq.empty()) {
         // verify here
         std::stringstream ss;
@@ -171,7 +171,7 @@ void io::FASTQReader::inner_read() {
         while(stream->peek() != EOF && stream->peek() != '+') {
             std::getline(*stream, seq);
             VERIFY(seq.empty() || seq[seq.size()-1] != '\n');
-            if (seq.back() == '\r') seq.pop_back();
+            if (!seq.empty() && seq.back() == '\r') seq.pop_back();
             if (seq.empty()) {
                 next = {};
                 break;
@@ -203,7 +203,7 @@ void io::FASTAReader::inner_read() {
     std::string id, seq;
     std::getline(*stream, id);
     std::getline(*stream, seq);
-    if (seq.back() == '\r') seq.pop_back();
+    if (!seq.empty() && seq.back() == '\r') seq.pop_back();
     //trim(seq);
     if (!id.empty() and !seq.empty()) {
         std::stringstream ss;
@@ -211,7 +211,7 @@ void io::FASTAReader::inner_read() {
         while(stream->peek() != EOF && stream->peek() != '>') {
             std::getline(*stream, seq);
             VERIFY(seq.empty() || seq[seq.size()-1] != '\n');
-            if (seq.back() == '\r') seq.pop_back();
+            if (!seq.empty() && seq.back() == '\r') seq.pop_back();
             //trim(seq);
             ss << seq;
         }

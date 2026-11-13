@@ -15,6 +15,14 @@ void VertexResolutionResult::innerAdd(Vertex &new_vertex, const InOutEdgePair &e
     VERIFY(new_vertices.find(new_vertex.getId()) == new_vertices.end());
     new_vertices.emplace(new_vertex.getId(), edgePair);
     edge_mapping[edgePair.incoming().getId()][edgePair.outgoing().getId()] = new_vertex.getId();
+    connection_counts[edgePair.incomingId()]++;
+    connection_counts[edgePair.outgoingId()]++;
+}
+
+void VertexResolutionResult::innerAdd(Edge &new_edge, const InOutEdgePair &edgePair) {
+    new_edges.emplace_back(new_edge.getId(), edgePair);
+    connection_counts[edgePair.incomingId()]++;
+    connection_counts[edgePair.outgoingId()]++;
 }
 
 VertexResolutionResult VertexResolutionResult::RC() const {
@@ -22,7 +30,22 @@ VertexResolutionResult VertexResolutionResult::RC() const {
     for(auto it : new_vertices) {
         res.innerAdd(it.first->rc(), it.second.RC());
     }
+    for(const auto &it : new_edges) {
+        res.innerAdd(it.first->rc(), it.second.RC());
+    }
     return std::move(res);
+}
+
+void VertexResolutionResult::add(Edge &new_edge, const InOutEdgePair &edgePair) {
+    innerAdd(new_edge, edgePair);
+    if(*core == core->rc() && new_edge != new_edge.rc()) {
+        innerAdd(new_edge.rc(), edgePair.RC());
+    }
+}
+
+size_t VertexResolutionResult::connections(Edge &edge) const {
+    auto it = connection_counts.find(edge.getId());
+    return it == connection_counts.end() ? 0 : it->second;
 }
 
 bool VertexResolutionResult::contains(Edge &edge1, Edge &edge2) const {
@@ -68,9 +91,12 @@ std::ostream &ag::operator<<(std::ostream &stream, const VertexResolutionResult 
 
 void VertexResolutionPlan::add(const InOutEdgePair &edgePair) {
     VERIFY(edgePair.incoming().getFinish().getId() == v && edgePair.outgoing().getStart().getId() == v);
-    for(InOutEdgePair &ep : edge_pairs)
-        if(edgePair == ep)
+    for(InOutEdgePair &ep : edge_pairs) {
+        if(edgePair == ep) {
             ep.addSupport(edgePair);
+            return;
+        }
+    }
     edge_pairs.emplace_back(edgePair);
     InOutEdgePair rc = edgePair.RC();
     if(*v == v->rc() && rc != edgePair)

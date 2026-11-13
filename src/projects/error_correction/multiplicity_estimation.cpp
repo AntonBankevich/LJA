@@ -192,7 +192,7 @@ void UniqueClassificator::classify(logging::Logger &logger, size_t unique_len,
     logger.info() << "Finished unique edges search. Found " << cnt << " unique edges" << std::endl;
     logger.info() << "Analysing repeats of multiplicity 2 and looking for additional unique edges" << std::endl;
     std::function<bool(const dbg::Edge &)> mult2 = [this](const dbg::Edge &edge) {
-        return MultiplicityBounds::lowerBound(edge) == 2 && MultiplicityBounds::lowerBound(edge) == 2;
+        return MultiplicityBounds::lowerBound(edge) == 2 && MultiplicityBounds::upperBound(edge) == 2;
     };
     split = ag::ConditionSplitter(mult2).splitGraph(dbg);
     cnt = 0;

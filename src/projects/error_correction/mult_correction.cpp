@@ -282,6 +282,7 @@ void correctReads(logging::Logger &logger, size_t threads, dbg::DBGAlignedReadSt
                   std::unordered_map<const Edge *, GraphPath> &unique_extensions) {
     omp_set_num_threads(threads);
     logger.info() << "Correcting reads using unique edge extensions" << std::endl;
+    reads_storage.getReads().startReadCorrection();
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(reads_storage, unique_extensions)
     for(size_t i = 0; i < reads_storage.getReads().size(); i++) {
         ag::AlignedRead &alignedRead = reads_storage.getReads()[i];
@@ -327,7 +328,6 @@ void CorrectBasedOnUnique(logging::Logger &logger, size_t threads, SparseDBG &sd
         return edge.getCoverage() < 2 || bad_edges.find(&edge) != bad_edges.end();
     };
     InvalidateBad(logger, threads, reads_storage.getReads(), 500, is_bad, "after_mult");
-    reads_storage.getReads().applyCorrections(logger, threads);
 }
 
 SetUniquenessStorage PathUniquenessClassifier(logging::Logger &logger, size_t threads, SparseDBG &dbg, DBGAlignedReadStorage &reads_storage,

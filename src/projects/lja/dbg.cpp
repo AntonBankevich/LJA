@@ -271,19 +271,14 @@ int main(int argc, char **argv) {
     if(!paths_lib.empty()) {
         logger << "Printing additional figures with paths" << std::endl;
         logger << "Aligning contigs from paths files" << std::endl;
-        AlignedContigStorage storage(dbg);
-        dbg::SeqReader reader(paths_lib, logger, threads);
-        for(StringContig scontig : reader) {
-            Contig contig = scontig.makeContig();
-            storage.addContig(std::move(contig));
-        }
-        storage.Fill(logger, threads, index);
+        DLLAlignmentStorage storage(dbg);
+        dbg::AddContigs(storage, index, dbg::SeqReader(paths_lib, logger, threads).readAllAsContigs());
         {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "paths.dot");
             Printer printer(VertexPrintStyles::defaultDotInfo(),
-                                       EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
+                                       EdgePrintStyles::defaultDotInfo() + storage.getEdgeInfo());
             printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }
@@ -307,13 +302,8 @@ int main(int argc, char **argv) {
     if(params.getCheck("print-all")) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        AlignedContigStorage storage(dbg);
-        dbg::SeqReader reader1(paths_lib, logger, threads);
-        for(StringContig scontig : reader1) {
-            Contig contig = scontig.makeContig();
-            storage.addContig(std::move(contig));
-        }
-        storage.Fill(logger, threads, index);
+        DLLAlignmentStorage storage(dbg);
+        dbg::AddContigs(storage, index, dbg::SeqReader(paths_lib, logger, threads).readAllAsContigs());
         dbg::SeqReader reader(paths_lib, logger, threads);
         size_t cnt = 0;
         for(StringContig scontig : reader) {
@@ -329,8 +319,8 @@ int main(int argc, char **argv) {
             Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
             Printer printer(VertexPrintStyles::defaultDotInfo(),
-                                       EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
-            printer.printDot(coordinates_dot, Component(dbg));
+                                       EdgePrintStyles::defaultDotInfo() + storage.getEdgeInfo());
+            printer.printDot(coordinates_dot, comp);
             coordinates_dot.close();
         }
     }
@@ -342,7 +332,6 @@ int main(int argc, char **argv) {
         logger.info() << "Aligning paths" << std::endl;
         std::vector<Component> comps;
         std::vector<std::ofstream *> os;
-        AlignedContigStorage storage(dbg);
         dbg::SeqReader reader(paths_lib, logger, threads);
         size_t cnt = 0;
         size_t radius = std::stoull(params.getValue("subdataset-radius"));
@@ -383,17 +372,17 @@ int main(int argc, char **argv) {
     if(!path_segments.empty()) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
-        AlignedContigStorage storage(dbg);
         std::vector<std::tuple<std::string, size_t, size_t, std::string>> seg_recs;
         for(const std::string& s : path_segments) {
             std::vector<std::string> parsed = split(s, "[,]");
             seg_recs.emplace_back(parsed[0], std::stoull(parsed[1]), std::stoull(parsed[2]), s);
         }
         std::vector<Contig> segs;
+        std::vector<Contig> contigs;
         dbg::SeqReader reader(paths_lib, logger, threads);
         for(StringContig scontig : reader) {
             Contig contig = scontig.makeContig();
-            storage.addContig(std::move(contig));
+            contigs.push_back(contig);
             for(auto & seg_rec : seg_recs) {
                 if(std::get<0>(seg_rec) == contig.getInnerId()) {
                     segs.emplace_back(contig.getSeq().Subseq(std::get<1>(seg_rec), std::min(contig.truncSize(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
@@ -402,9 +391,10 @@ int main(int argc, char **argv) {
                 }
             }
         }
-        storage.Fill(logger, threads, index);
+        DLLAlignmentStorage storage(dbg);
+        dbg::AddContigs(storage, index, contigs);
         Printer printer(VertexPrintStyles::defaultDotInfo(),
-                                   EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
+                                   EdgePrintStyles::defaultDotInfo() + storage.getEdgeInfo());
         for(Contig &seg : segs) {
             const std::experimental::filesystem::path seg_file = dir / ("seg_" + mask(seg.getInnerId()) + ".dot");
             logger.info() << "Printing segment " << seg.getInnerId() << " to dot file " << (seg_file) << std::endl;
@@ -412,7 +402,7 @@ int main(int argc, char **argv) {
             std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(seg);
             Component comp = Component::neighbourhood(dbg, contig_al, k + 100);
             coordinates_dot.open(seg_file);
-            printer.printDot(coordinates_dot, Component(dbg));
+            printer.printDot(coordinates_dot, comp);
             coordinates_dot.close();
         }
     }
@@ -420,19 +410,14 @@ int main(int argc, char **argv) {
     if(params.getCheck("genome-path")) {
         logger.info() << "Printing additional figures with reference alignments" << std::endl;
         logger.info() << "Aligning genome" << std::endl;
-        AlignedContigStorage storage(dbg);
-        dbg::SeqReader reader(genome_lib, logger, threads);
-        for(StringContig scontig : reader) {
-            Contig contig = scontig.makeContig();
-            storage.addContig(std::move(contig));
-        }
-        storage.Fill(logger, threads, index);
+        DLLAlignmentStorage storage(dbg);
+        dbg::AddContigs(storage, index, dbg::SeqReader(genome_lib, logger, threads).readAllAsContigs());
         {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;
             coordinates_dot.open(dir / "genome_path.dot");
             Printer printer(VertexPrintStyles::defaultDotInfo(),
-                                       EdgePrintStyles::defaultDotInfo() + storage.edgeInfo());
+                                       EdgePrintStyles::defaultDotInfo() + storage.getEdgeInfo());
             printer.printDot(coordinates_dot, Component(dbg));
             coordinates_dot.close();
         }

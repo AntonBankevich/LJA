@@ -15,7 +15,8 @@ namespace ag {
         virtual void fireDelayedInvalidateRead(AlignedRead &read, const std::string &message) {}
         virtual void fireInvalidateRead(AlignedRead &read) {}
         virtual void fireAppliedCorrections(size_t cnt) {}
-        virtual bool fireCheckConsistency() {return true;}
+//        Checks the listener's state against the stored reads, reporting every violation to os.
+        virtual bool fireCheckConsistency(std::ostream &os) {return true;}
     };
 
 
@@ -31,7 +32,8 @@ namespace ag {
         void fireDelayedInvalidateRead(AlignedRead &read, const std::string &message);
         void fireInvalidateRead(AlignedRead &read);
         void fireAppliedCorrections(size_t cnt);
-        bool fireCheckConsistency();
+//        Runs every listener's check (none is skipped after a failure).
+        bool fireCheckConsistency(std::ostream &os);
     };
 
 }

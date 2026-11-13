@@ -15,23 +15,49 @@ namespace ag {
 //  TODO: move starts to Maintenance and add AddRead method, which can only be invoked before Maintenance is enabled
     class AlignedReadStorage : public AlignedReadStorageFire {
         friend class AlignedReadStorageMaintenance;
-        void Normalize(GraphPath &path) {
-            size_t right_cut = path.rightCut();
+//        End of the leftmost sample segment of a sample record: a kpomer chunk stands for each of its (k+1)-mers.
+        size_t firstSegmentFinish(const CoverageSamples::SampleView &sample) const {
+            if (sample.sample.type == CoverageSamples::SampleType::kpomer) {
+                VERIFY(k > 0);
+                return sample.start() + k + 1;
+            }
+            return sample.finish();
+        }
+//        Extends the path forward through unbranching steps to every vertex whose first sample segment lies inside the
+//        read, passing through vertices without segments; trailing vertices without segments are dropped again. A DBG
+//        path (ending in a k-mer) is already normal.
+        void ExtendForward(GraphPath &path) const {
+            if (path.getFinish().size() == k)
+                return;
+            size_t cut_right = path.rightCut();
             path.setCutRight(0);
-            while (path.getFinish().outDeg() == 1 && !path.getFinish().frontVertex().coverage_info.empty() &&
-                path.getFinish().frontVertex().size() - path.getFinish().frontVertex().coverage_info.front().finish() <=
-                right_cut + path.getFinish().front().truncSize() ) {
-                right_cut += path.getFinish().front().truncSize();
-                path += path.getFinish().front();
+            while (!path.empty() && path.backEdge().isSuffix())
+                path.pop_back();
+            while (path.getFinish().outDeg() == 1) {
+                Edge &next = path.getFinish().front();
+                if (next.getFinish().coverage_info.empty() || firstSegmentFinish(next.getFinish().coverage_info.front()) + next.rc().truncSize() + cut_right <= path.getFinish().size()) {
+                    cut_right += next.truncSize();
+                    path += next;
+                } else {
+                    break;
+                }
             }
-            path.setCutRight(right_cut);
-            size_t left_cut = path.leftCut();
-            path.setCutLeft(0);
-            while (path.getStart().inDeg() == 1 && !path.getStart().incFrontVertex().coverage_info.empty() &&
-                path.getStart().incFrontVertex().coverage_info.back().start() <= left_cut + path.getStart().incFront().rc().truncSize() ) {
-                path.push_front(path.getStart().incFront());
-                left_cut += path.getStart().incFront().rc().truncSize();
+            while (!path.empty() && path.getFinish().coverage_info.empty()) {
+                cut_right -= path.backEdge().truncSize();
+                path.pop_back();
             }
+            path.setCutRight(cut_right);
+        }
+
+//        Invalid paths (unaligned reads) and legacy paths (their vertex is gone) are returned as they are.
+        GraphPath Normalize(GraphPath path) const {
+            if (!path.valid() || path.isLegacy())
+                return path;
+            ExtendForward(path);
+            path.swapDirection();
+            ExtendForward(path);
+            path.swapDirection();
+            return path;
         }
     private:
         typedef std::vector<AlignedReadDirection> DirectionRecord;
@@ -40,9 +66,16 @@ namespace ag {
         // returned by the accessors below stays valid even while other keys are inserted/erased,
         // and provides concurrent insert/erase/find with local locks (see SuffixTracker::edge_data).
         std::vector <AlignedRead> reads;
+//        k of the DBG the reads were aligned to. Kpomer sample chunks stand for all their (k+1)-mers, so read path
+//        normalization and its checks need k to know where the individual sample segments are.
+        size_t k = 0;
         libcuckoo::cuckoohash_map <ConstVertexId, std::unique_ptr<DirectionRecord>> starts;
         libcuckoo::cuckoohash_map <ConstVertexId, std::unique_ptr<DirectionRecord>> reads_inside_vertices;
+//        Subreads of deleted vertices, keyed by the deleted vertex's id (legacyId()). Their paths are LegacyPaths.
+        libcuckoo::cuckoohash_map <ConstVertexId, std::unique_ptr<DirectionRecord>> legacy_reads;
         ag::AlignedReadStorageMaintenance * maintenance = nullptr;
+//        See startReadCorrection.
+        bool read_correction = false;
 
         void updateStart(AlignedReadDirection dir);
 
@@ -75,8 +108,15 @@ namespace ag {
             VERIFY(res != nullptr);
             return *res;
         }
+//        Checks the read records without needing the graph: every valid read is filed exactly once per direction in the
+//        right map (starts / reads_inside_vertices / legacy_reads) under the right vertex, with no stale entries; every
+//        non-legacy path starts and ends at live vertices and can be followed edge by edge with its codes; cuts leave
+//        some sequence; a k-mer path end is needed by the read, any other end has a sample segment inside the read; the
+//        path equals its normal form. Reports every violation to os.
+        bool checkRecords(std::ostream &os);
     public:
-        bool checkConsistency();
+//        checkRecords plus every AlignedReadStorageListener's fireCheckConsistency.
+        bool checkConsistency(std::ostream &os = std::cerr);
 
         AlignedReadStorage() = default;
         AlignedReadStorage(AlignedReadStorage &&other)  noexcept;
@@ -84,10 +124,12 @@ namespace ag {
         AlignedReadStorage &operator=(AlignedReadStorage &&other) noexcept;
         AlignedReadStorage &operator=(const AlignedReadStorage &other) = delete;
 
+//        k is taken from graph.
         AlignedReadStorage(AssemblyGraph &graph, std::vector<AlignedRead> reads);
         AlignedReadStorage(logging::Logger &logger, size_t threads, AssemblyGraph &graph,
                            std::vector<AlignedRead> reads);
         virtual ~AlignedReadStorage();
+        size_t getK() const {return k;}
 
 //        Reads whose canonical path starts at this vertex (non-empty paths: the read leaves the vertex on
 //        one of its outgoing edges). Reads starting on a specific edge are this set filtered by
@@ -113,6 +155,12 @@ namespace ag {
 
         size_t size() const { return reads.size(); }
 
+//        The storage is in one of two modes. In graph mode (the default) the graph may change and reads may not. In read
+//        correction mode, entered by startReadCorrection, reads may be rerouted or invalidated and the graph may not
+//        change: graph listeners only maintain current paths, never pending corrections. applyCorrections applies all
+//        pending corrections and returns to graph mode.
+        void startReadCorrection() {VERIFY(!read_correction); read_correction = true;}
+        bool inReadCorrection() const {return read_correction;}
         void delayedInvalidateRead(AlignedRead &read, const std::string &message);
         void rerouteRead(AlignedRead &alignedRead, GraphPath corrected, const string &message);
         bool apply(AlignedRead &alignedRead);
@@ -130,6 +178,7 @@ namespace ag {
 
         void Save(const std::experimental::filesystem::path &path);
         void Save(std::ostream &os) const;
+//        TODO: the graph + read set save/load mechanism does not preserve sample segments (Vertex::coverage_info).
         static AlignedReadStorage Load(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &path,
                                        AssemblyGraph &graph);
         static AlignedReadStorage Load(logging::Logger &logger, size_t threads, std::istream &is, AssemblyGraph &graph);
@@ -152,6 +201,14 @@ namespace ag {
 //        SampleSegmentTracker uses for `from`, so a read's recorded position never drifts from where its
 //        sample segment actually lives.
         void migrateSubstringReads(Vertex &from, Vertex &to, size_t shift);
+//        Moves the reads of path's inner vertices to target, which spells the whole path (path position 0 is target's
+//        position 0) and is connected to the path's finish by to_finish (an edge, or the empty path if target is the
+//        finish). Reads starting at an inner vertex start at target, through to_finish if they reach the finish;
+//        otherwise they, like the inner vertices' subreads, become subreads of target.
+        void absorbInnerVertices(const RAGraphPath &path, Vertex &target, const GraphPath &to_finish);
+//        Files dir, whose path has just become empty, as a subread, together with its other direction (moved out of
+//        the starts of dir's start.rc()).
+        void fileAsSubread(const AlignedReadDirection &dir);
     public:
         AlignedReadStorageMaintenance(AssemblyGraph &graph, AlignedReadStorage &storage);
         AlignedReadStorageMaintenance(AlignedReadStorageMaintenance &&other) = default;
@@ -181,11 +238,16 @@ namespace ag {
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
+//        Reads starting at, and subreads of, the removed vertices move to the vertex that contains them.
+        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
+        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
         void fireAddRead(const AlignedRead &read) override;
         void fireRerouteRead(AlignedRead &read) override;
         void fireInvalidateRead(AlignedRead &read) override;
-        bool fireCheckConsistency() override;
+//        Every live vertex (and no deleted one) has a starts and a reads_inside_vertices record, plus
+//        storage->checkRecords.
+        bool checkConsistency(std::ostream &os) override;
     };
 
 //    TODO: get rid of this function as soon as Andrey's code is out.

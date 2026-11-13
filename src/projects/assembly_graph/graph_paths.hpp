@@ -47,9 +47,7 @@ namespace ag {
 
     public:
         GraphPath(const GraphPath &) = default;
-        GraphPath(GraphPath &&other)  noexcept {
-            *this = std::move(other);
-        }
+        GraphPath(GraphPath &&other) noexcept = default;
         GraphPath &operator=(const GraphPath &) = default;
         GraphPath &operator=(GraphPath &&other) noexcept  = default;
         explicit GraphPath(const RAGraphPath &path, size_t cut_left = 0, size_t cut_right = 0);
@@ -165,6 +163,8 @@ namespace ag {
 
 //        TODO: minimaze usage of this function. Use directions instead.
         GraphPath RC() const {return {rc_start, start, rsplits, fsplits, cut_right, cut_left};}
+//        Turns the path into its reverse complement in place, without copying (RC() makes a copy).
+        void swapDirection() {std::swap(start, rc_start); std::swap(fsplits, rsplits); std::swap(cut_left, cut_right);}
         GraphPath subPath(PathPosition from, PathPosition to) const;
         GraphPath subPath(PathPosition from) const;
         GraphPath operator+(const GraphPath &other) const;

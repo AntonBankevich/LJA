@@ -75,10 +75,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
-    ag::AlignedContigStorage storage(dbg);
-    for(StringContig stringContig : dbg::SeqReader(ref_lib, logger, threads)) {
-        storage.addContig(stringContig.makeContig());
-    }
+    std::vector<Contig> stored = dbg::SeqReader(ref_lib, logger, threads).readAllAsContigs();
     if(paths_lib.empty()) {
         logger.info() << "No paths provided. Splitting the whole graph." << std::endl;
 //        std::function<bool(const ag::Component&)> f = [bad_cov](const ag::Component &component) {
@@ -100,20 +97,21 @@ int main(int argc, char **argv) {
         for(StringContig scontig : io::SeqReader(paths_lib)) {
             Contig contig = scontig.makeContig();
             std::cout << contig.getInnerId() << " " << contig.truncSize() << " " << index.carefulAlign(contig).size() << std::endl;
-            storage.addContig(std::move(contig));
+            stored.push_back(contig);
             std::vector<ag::AlignmentChain<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
             subdatasets.emplace_back(ag::Component::neighbourhood(dbg, contig_al, k + radius));
             subdatasets.back().id = contig.getInnerId();
         }
     }
     for(StringContig stringContig: io::SeqReader(contig_lib)) {
-        storage.addContig(stringContig.makeContig());
+        stored.push_back(stringContig.makeContig());
     }
     logger.info() << "Filling path storage" << std::endl;
-    storage.Fill(logger, threads, index);
+    ag::DLLAlignmentStorage storage(dbg);
+    dbg::AddContigs(storage, index, stored);
     FillSubdatasets(subdatasets, {&readStorage}, true);//Assign reads to datasets
     size_t cnt = 0;
-    ag::Printer printer(ag::EdgePrintStyles::defaultDotInfo() + storage.edgeInfo() + ag::EdgeInfo::Tooltiper(readStorage.getSuffixes().labeler()));
+    ag::Printer printer(ag::EdgePrintStyles::defaultDotInfo() + storage.getEdgeInfo() + ag::EdgeInfo::Tooltiper(readStorage.getSuffixes().labeler()));
     printer.printDot(dir / "graph.dot", ag::Component(dbg));
     //printDot(dir / "graph.dot", ag::Component(dbg), storage.labeler() + readStorage.getSuffixes().labeler());
     for(const Subdataset &subdataset: subdatasets) {//Print subdatasets to disk

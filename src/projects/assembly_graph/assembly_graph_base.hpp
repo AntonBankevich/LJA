@@ -164,7 +164,6 @@ namespace ag {
     public:
 //        TODO: get rid of this or at least control access
         mutable bool is_reliable = false;
-        std::vector<EdgeId> label = {};
     protected:
 
 //        dbg-specific fields
@@ -373,8 +372,8 @@ namespace ag {
 //        This method works even when iterator points to end when next edge is a suffix edge
         template<class I>
         Edge &getOutgoingByIterator(I iterator) const;
+//        Must not be called on a vertex with an outgoing suffix edge.
         bool hasOutgoing(unsigned char c) const;
-        bool hasOutgoingSuffix() const;
         size_t outDeg() const { return _outDeg; }
         size_t corporealOutDeg() const;
 
@@ -458,15 +457,10 @@ namespace ag {
 
     template<class I>
     Edge &Vertex::getOutgoingByIterator(I iterator) const {
-        size_t cnt = 0;
+//        One pass, see getOutgoing. *iterator is read only for a non-empty code: before an edge with an empty code it
+//        may be the end of the codes.
         for (Edge &edge : outgoing_) {
-            if (edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == *iterator)) {
-                cnt++;
-            }
-        }
-        VERIFY(cnt <= 1);
-        for (Edge &edge : outgoing_) {
-            if (edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == *iterator)) {
+            if (edge.corporeal && (edge.getCode().empty() || edge.getCode()[0] == *iterator)) {
                 return edge;
             }
         }

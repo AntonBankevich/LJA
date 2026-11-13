@@ -20,8 +20,9 @@ namespace {
         std::string err;
         EXPECT_TRUE(ReadSeqsUnchanged(before, storage, err)) << ctx << "\n" << err;
         EXPECT_TRUE(storage.checkConsistency()) << ctx;
-        EXPECT_TRUE(tracker.fireCheckConsistency()) << ctx;
-        EXPECT_TRUE(EdgeCodesValid(graph, err)) << ctx << "\n" << err;
+        EXPECT_TRUE(tracker.fireCheckConsistency(std::cerr)) << ctx;
+        std::stringstream graph_report;
+        EXPECT_TRUE(graph.checkConsistency(graph_report)) << ctx << "\n" << graph_report.str();
         ag::SuffixTracker fresh(storage, graph, 0, 1000);
         fresh.fillFromStorage(QuietLogger(), 1);
         EXPECT_TRUE(SuffixContentEqual(tracker, fresh, graph, err)) << ctx << "\n" << err;
@@ -73,7 +74,7 @@ TEST(ListenerInvariants, RandomMergeAllPreservesInvariants) {
         std::string err;
         EXPECT_TRUE(ReadSeqsUnchanged(before, storage, err)) << "seed=" << seed << "\n" << err;
         EXPECT_TRUE(storage.checkConsistency()) << "seed=" << seed;
-        EXPECT_TRUE(tracker.fireCheckConsistency()) << "seed=" << seed;
+        EXPECT_TRUE(tracker.fireCheckConsistency(std::cerr)) << "seed=" << seed;
         EXPECT_TRUE(EdgeCodesValid(rdbg.dbg, err)) << "seed=" << seed << "\n" << err;
 
         ag::SuffixTracker fresh(storage, rdbg.dbg, 0, 1000);
@@ -173,6 +174,7 @@ TEST(ListenerInvariants, ResolveVertexSupregraphConsistent) {
     ag::VertexResolutionPlan plan(core);
     plan.add(storage[0].getPath().frontEdge(), storage[0].getPath().backEdge());
     plan.add(storage[1].getPath().frontEdge(), storage[1].getPath().backEdge());
+    g.dbg.disableHashing(); // resolution creates vertices longer than k
     g.dbg.resolveVertex(core, plan);
     g.dbg.removeMarked();
 
@@ -229,7 +231,7 @@ TEST(ListenerInvariants, SuffixTrackerFillsOnSupregraph) {
         // processPath-on-supregraph, so this exercises processPath's suffix-edge handling end to end.
         ag::SuffixTracker tracker(storage, rdbg.dbg, 0, 1000);
         tracker.fillFromStorage(QuietLogger(), 1);
-        EXPECT_TRUE(tracker.fireCheckConsistency()) << "seed=" << seed;
+        EXPECT_TRUE(tracker.fireCheckConsistency(std::cerr)) << "seed=" << seed;
         EXPECT_TRUE(storage.checkConsistency()) << "seed=" << seed;
     }
 }
@@ -259,7 +261,7 @@ TEST(ListenerInvariants, SuffixTrackerThroughConversionMatchesFresh) {
 
         std::string err;
         EXPECT_TRUE(SuffixContentEqual(carried, fresh, rdbg.dbg, err)) << "seed=" << seed << "\n" << err;
-        EXPECT_TRUE(carried.fireCheckConsistency()) << "carried self-consistent, seed=" << seed;
+        EXPECT_TRUE(carried.fireCheckConsistency(std::cerr)) << "carried self-consistent, seed=" << seed;
     }
 }
 
@@ -279,11 +281,11 @@ TEST(ListenerInvariants, DLLAlignmentToleratesDeletions) {
     auto al = index.carefulAlign(genome);
     ASSERT_FALSE(al.empty());
     dll.addContig(genome, al);
-    ASSERT_TRUE(dll.checkConsistency()) << "initial";
+    ASSERT_TRUE(dll.checkConsistency(std::cerr)) << "initial";
 
     // Merge operation: unbranching runs collapse; the tracked path must follow onto the merged edges.
     ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
-    EXPECT_TRUE(dll.checkConsistency()) << "after MergeAllToEdges";
+    EXPECT_TRUE(dll.checkConsistency(std::cerr)) << "after MergeAllToEdges";
 
     // Delete a selection of edges the path may run through. Each deletion fires fireDeleteEdge, which
     // must drop exactly the fragments on that edge and leave the rest of the path valid.
@@ -297,7 +299,7 @@ TEST(ListenerInvariants, DLLAlignmentToleratesDeletions) {
             continue; // keep it simple: only delete between non-degenerate vertices
         rdbg.dbg.removeEdge(*eid);
         deleted++;
-        ASSERT_TRUE(dll.checkConsistency()) << "after deleting edge " << i;
+        ASSERT_TRUE(dll.checkConsistency(std::cerr)) << "after deleting edge " << i;
     }
     EXPECT_GT(deleted, 0u);
 }
@@ -332,6 +334,7 @@ TEST(ListenerInvariants, MergePathOnInteriorSubpath) {
     size_t expIn = sub.getStart().inDeg();
     size_t expOut = sub.getFinish().outDeg();
 
+    g.dbg.disableHashing(); // the merged vertex is longer than k
     ag::Vertex &U = g.dbg.mergePath(sub);
     g.dbg.removeMarked();
 

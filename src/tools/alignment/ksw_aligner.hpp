@@ -26,7 +26,7 @@ public:
     KSWAligner(__int8_t scMch = 1, __int8_t scMis = 5, int gapo = 10, int gape = 2) :
             sc_mch(scMch), sc_mis(scMis), gapo(gapo), gape(gape) {}
 
-    inline __int64_t cost(const char *tseq, const char *qseq, const AlignmentForm &cigar) const;
+    __int64_t score(const char *tseq, const char *qseq, const AlignmentForm &cigar) const;
 
     AlignmentForm directAlignment(const std::string &tseq, const std::string &qseq, int width) const {
         return runAlignment(tseq.c_str(), qseq.c_str(), width);

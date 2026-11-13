@@ -7,6 +7,8 @@
 #include "common/fire_listeners.hpp"
 #include "common/logging.hpp"
 #include "alignment/alignment_form.hpp"
+#include <memory>
+#include <unordered_map>
 
 namespace ag {
 
@@ -30,13 +32,22 @@ namespace ag {
         virtual void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {}
         virtual void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) {}
         virtual void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {}
+//        path consists of prefix edges only, or (in the mirrored call) of suffix edges only; new_edge replaces it.
+        virtual void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) {}
         virtual void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                          const AlignmentForm &left_al, const AlignmentForm &right_al) {}
         virtual void fireSplitEdge(Edge &edge, const RAGraphPath &split) {}
 
         virtual void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {}
+//        Checks the invariants of whatever this listener maintains, reporting every violation to os.
+//        Run by AssemblyGraph::checkConsistency, so it may assume the graph structure itself is consistent.
+        virtual bool checkConsistency(std::ostream &os) {return true;}
+//        The graph this listener is attached to (AssemblyGraph is the only ResolutionFire).
+        AssemblyGraph &getGraph();
 
         virtual void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {};
+//        extensions maps every edge leaving core (and its rc) to the new edge that replaces it.
+        virtual void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {};
     };
 
     class ResolutionFire : public AbstractFire {
@@ -47,51 +58,89 @@ namespace ag {
         ResolutionFire(ResolutionFire &&other)   noexcept = default;
         ResolutionFire &operator=(ResolutionFire &&other)  noexcept = default;
 
+//        Mirrored arguments are computed once per event, not once per listener.
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {
+            std::unique_ptr<VertexResolutionResult> rc;
+            if(core != core.rc())
+                rc = std::make_unique<VertexResolutionResult>(resolution.RC());
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireResolveVertex(core, resolution);
+                if(rc)
+                    listener->fireResolveVertex(core.rc(), *rc);
+            }
+        }
+
+        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
+                listener->fireFlipVertex(core, extensions);
                 if(core != core.rc())
-                    listener->fireResolveVertex(core.rc(), resolution.RC());
+                    listener->fireFlipVertex(core.rc(), extensions);
             }
         }
 
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {
+            std::unique_ptr<RAGraphPath> rc;
+            if(new_vertex != new_vertex.rc())
+                rc = std::make_unique<RAGraphPath>(path.RC());
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergePath(path, new_vertex);
-                if(new_vertex != new_vertex.rc())
-                    listener->fireMergePath(path.RC(), new_vertex.rc());
+                if(rc)
+                    listener->fireMergePath(*rc, new_vertex.rc());
             }
         }
 
         void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
+            std::unique_ptr<GraphPath> rc;
+            if(new_vertex != new_vertex.rc())
+                rc = std::make_unique<GraphPath>(path.RC());
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergeLoop(path, new_vertex);
-                if(new_vertex != new_vertex.rc())
-                    listener->fireMergeLoop(path.RC(), new_vertex.rc());
+                if(rc)
+                    listener->fireMergeLoop(*rc, new_vertex.rc());
             }
         }
 
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {
+            std::unique_ptr<RAGraphPath> rc;
+            if(new_edge != new_edge.rc())
+                rc = std::make_unique<RAGraphPath>(path.RC());
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergePathToEdge(path, new_edge);
-                if(new_edge != new_edge.rc())
-                    listener->fireMergePathToEdge(path.RC(), new_edge.rc());
+                if(rc)
+                    listener->fireMergePathToEdge(*rc, new_edge.rc());
+            }
+        }
+
+//        Forward call gets the all-prefix path, the mirrored call the all-suffix path. A prefix edge is never its own rc.
+        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) {
+            RAGraphPath rc = path.RC();
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
+                listener->fireMergePrefixPath(path, new_edge);
+                listener->fireMergePrefixPath(rc, new_edge.rc());
             }
         }
 
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right, const AlignmentForm &left_al, const AlignmentForm &right_al) {
+            std::unique_ptr<AlignmentForm> rc_left, rc_right;
+            if(new_edge != new_edge.rc()) {
+                rc_left = std::make_unique<AlignmentForm>(right_al.RC());
+                rc_right = std::make_unique<AlignmentForm>(left_al.RC());
+            }
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireMergeTipsToEdge(new_edge, left, right, left_al, right_al);
-                if(new_edge != new_edge.rc())
-                    listener->fireMergeTipsToEdge(new_edge.rc(), right.rc(), left.rc(), right_al.RC(), left_al.RC());
+                if(rc_left)
+                    listener->fireMergeTipsToEdge(new_edge.rc(), right.rc(), left.rc(), *rc_left, *rc_right);
             }
         }
 
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) {
+            std::unique_ptr<RAGraphPath> rc;
+            if(edge != edge.rc())
+                rc = std::make_unique<RAGraphPath>(split.RC());
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireSplitEdge(edge, split);
-                if(edge != edge.rc())
-                    listener->fireSplitEdge(edge.rc(), split.RC());
+                if(rc)
+                    listener->fireSplitEdge(edge.rc(), *rc);
             }
         }
 
@@ -139,6 +188,15 @@ namespace ag {
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
                 listener->fireResetEdgeCodes(logger, threads, graph);
             }
+        }
+
+        bool fireCheckConsistency(std::ostream &os) {
+            bool ok = true;
+            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
+                if (!listener->checkConsistency(os))
+                    ok = false;
+            }
+            return ok;
         }
     };
 

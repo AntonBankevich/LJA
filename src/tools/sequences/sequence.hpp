@@ -124,7 +124,8 @@ public:
 
     Sequence copy() const {
         Sequence res = Sequence(size_, 0);
-        res.data_->InitFromNucls(*this, this->rtl_);
+//        operator[] already reads in this view's orientation.
+        res.data_->InitFromNucls(*this, false);
         return std::move(res);
 ;    }
 
@@ -142,8 +143,8 @@ public:
     size_t asNumber() const {
         size_t res = 0;
         if (rtl_) {
-            for(size_t i = from_ + size_ - 1; i + 1 >= from_ + 1; i++) {
-                res = (res << 2u) + (complement(data_->getNucl(i)));
+            for(size_t i = from_ + size_; i > from_; i--) {
+                res = (res << 2u) + (complement(data_->getNucl(i - 1)));
             }
         } else {
             for(size_t i = from_; i < from_ + size_; i++) {
@@ -269,7 +270,7 @@ public:
     }
 
     bool endsWith(const Sequence & other) const {
-        return subseqMatch(other, size() - other.size_, 0, other.size_);
+        return other.size_ <= size_ && subseqMatch(other, size() - other.size_, 0, other.size_);
     }
 
     bool nonContradicts(const Sequence & other) const {

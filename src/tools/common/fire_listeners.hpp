@@ -34,19 +34,28 @@ protected:
     Listener &getListener() {
         return *(static_cast<Listener *>(listeners.front()));
     }
+//    The listeners cast to Listener, iterated in place (no copy): listeners must not attach or detach while an event
+//    is being dispatched.
     template<class Listener>
-    std::vector<Listener *>
-//    IterableStorage<TransformingIterator<std::vector<AbstractListener *>::iterator, Listener>>
-    getListeners() {
-        std::function<Listener *(AbstractListener *&)> transform = [](AbstractListener *&listener) -> Listener *{
-            return (static_cast<Listener *>(listener));
+    class ListenerRange {
+        typedef std::vector<AbstractListener *>::const_iterator BaseIterator;
+        BaseIterator b, e;
+    public:
+        class Iterator {
+            BaseIterator it;
+        public:
+            explicit Iterator(BaseIterator it) : it(it) {}
+            Listener *operator*() const {return static_cast<Listener *>(*it);}
+            Iterator &operator++() {++it; return *this;}
+            bool operator!=(const Iterator &other) const {return it != other.it;}
         };
-        std::vector<Listener*> transformed = oneline::map(listeners.begin(), listeners.end(), transform);
-        return std::move(transformed);
-//        TransformingIterator<std::vector<AbstractListener *>::iterator, Listener> begin(listeners.begin(), listeners.end(), transform);
-//        TransformingIterator<std::vector<AbstractListener *>::iterator, Listener> end(listeners.end(), listeners.end(), transform);
-//        return {begin, end};
-//        return {{listeners.begin(), listeners.end(), transform}, {listeners.end(), listeners.end(), transform}};
+        ListenerRange(BaseIterator b, BaseIterator e) : b(b), e(e) {}
+        Iterator begin() const {return Iterator(b);}
+        Iterator end() const {return Iterator(e);}
+    };
+    template<class Listener>
+    ListenerRange<Listener> getListeners() const {
+        return {listeners.begin(), listeners.end()};
     }
 public:
     AbstractFire() = default;

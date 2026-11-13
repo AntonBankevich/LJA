@@ -4,8 +4,8 @@
 #include "path_spy.hpp"
 #include "path_tracker.hpp"
 #include "assembly_graph/dll_path_storage.hpp"
-#include "sample_segment_tracker.hpp"
 #include "coverage_tracker.hpp"
+#include "loop_resolution.hpp"
 
 void spg::CleanSupregraph(ag::AssemblyGraph &dbg) {
     std::vector<VertexId> ends;
@@ -47,7 +47,8 @@ void PrintConnectedComponents(ag::Printer &printer, const std::experimental::fil
 spg::SupregraphFromDBG
 spg::ConstructSupregraphFromDBG(logging::Logger &logger, size_t threads, size_t k, ag::AssemblyGraph &&graph,
                                 dbg::DBGAlignedReadStorage &&dbg_storage) {
-    Supregraph spg = Supregraph::FromDBG(logger, threads, std::move(graph), k);
+    VERIFY(graph.getK() == k);
+    Supregraph spg = Supregraph::FromDBG(logger, threads, std::move(graph));
     return {std::move(spg), std::move(dbg_storage)};
 }
 
@@ -74,7 +75,7 @@ spg::ConstructSupregraphFromRawInput(logging::Logger &logger, size_t threads, co
         path_storage.detach();
     }
     dbg.disableHashing();
-    Supregraph spg = Supregraph::FromDBG(logger, threads, std::move(dbg), k);
+    Supregraph spg = Supregraph::FromDBG(logger, threads, std::move(dbg));
     return {std::move(spg), std::move(dbg_storage), std::move(path_storage)};
 }
 
@@ -94,8 +95,8 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
 //    modificationLogger attach here too (rather than to the pre-conversion dbg, like path_storage does
 //    inside ConstructSupregraphFromRawInput) -- missing the edgeToSupreVertex conversions is an acceptable
 //    gap for these two debug-only trackers, and avoids them outliving `built` in local destruction order.
-    UniqueVertexStorage unique_storage(spg);
-    spg::CoverageTracker spgVertexCoverage(spg, dbg_storage, k, logger, threads);
+    UniqueVertexStorage unique_storage(spg, 40000);
+    spg::CoverageTracker spgVertexCoverage(spg, dbg_storage, logger, threads);
     dbg_storage.stopTrackCoverage();
     OldVertexTracker vertex_tracker(spg, debug);
     ag::LoggingListener modificationLogger(spg, logger.getLoggerStream(logging::LogLevel::trace));
@@ -103,8 +104,8 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
         vertex_tracker.detach();
         modificationLogger.detach();
     }
+//    Suffixes are not tracked yet here (trackSuffixes below), so no suffix tooltips in the initial picture.
     ag::EdgeInfo edge_info = ag::EdgePrintStyles::defaultDotInfo();
-                                  ag::EdgeInfo::Tooltiper(dbg_storage.getSuffixes().labeler());
     ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo() + ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), edge_info);
     std::experimental::filesystem::path figs = dir/ "figs";
     recreate_dir(figs);
@@ -129,7 +130,6 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
     printer += dll_tracker.getPrinter();
     printer.printDot(dir/"initial.dot", spg);
     size_t cnt = 1;
-    size_t iter_cnt = 0;
     while (!multiplexer.finished()) {
         auto res = multiplexer.process(logger, threads);
         if(debug && !res.empty()) {
@@ -137,20 +137,14 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
             printer.printDot(figs / ("supregraph_" + itos(cnt, 5) + ".dot"), ag::Component::neighbourhood(spg, res, 100000, 20));
             cnt++;
         }
-        iter_cnt++;
-//        Tied to actual loop iterations, not to debug/res.empty() -- those gate dot-file printing, not
-//        whether a graph edit happened (merge_queue draining, trivial tip removal, etc. all still edit
-//        the graph with an empty `res`). Periodic, not every iteration -- checkConsistency() is O(reads)
-//        (it walks every read twice over, once to clear, once to restore) and this is strictly a debug aid.
-        if (debug && iter_cnt % 20 == 0)
-            VERIFY_MSG(dbg_storage.checkConsistency(), "Read storage consistency check failed after iteration " << iter_cnt);
     }
-    if (debug)
-        logger.info() << "Multiplexing loop ran " << iter_cnt << " iterations, periodic consistency check ran "
-                       << (iter_cnt / 20) << " times" << std::endl;
     spg.removeMarked();
     if(debug) PrintConnectedComponents(printer, dir/"final_graph_figs", spg);
-    ag::MergeAllSPG(logger, debug ? 1 : threads, spg);
+    spg::MergeAllSPG(logger, debug ? 1 : threads, spg);
+    spg::ResolveLoops(logger, spg, dbg_storage.getSuffixes(), 10);
+    spg::MergeAllSPG(logger, debug ? 1 : threads, spg);
+    if (debug)
+        VERIFY_MSG(dbg_storage.checkConsistency(), "Read storage consistency check failed after loop resolution");
     CleanSupregraph(spg);
     if (debug) {
         for (Vertex &v : spg.vertices()) {

@@ -26,6 +26,12 @@ void ReadLogger::dump(ReadLogger::CountingSS &sublog) {
     sublog.clear();
 }
 
+ReadLogger::CountingSS &ReadLogger::threadLog() {
+    size_t thread = omp_get_thread_num();
+    VERIFY_MSG(thread < logs.size(), "ReadLogger was built for " << logs.size() << " threads, called from thread " << thread);
+    return logs[thread];
+}
+
 void ReadLogger::flush() {
     for (CountingSS &sublog: logs) {
         dump(sublog);
@@ -40,7 +46,7 @@ ReadLogger::~ReadLogger() {
 void ReadLogger::logRerouting(AlignedRead &alignedRead, const string &message) {
     const GraphPath &initial = alignedRead.getPath();
     const GraphPath &corrected = alignedRead.getCorrected();
-    CountingSS &ss = logs[omp_get_thread_num()];
+    CountingSS &ss = threadLog();
     size_t left = 0;
     PathPosition left_pos_initial = initial.firstPosition();//left position
     PathPosition left_pos_corrected = corrected.firstPosition();//left position
@@ -81,21 +87,13 @@ void ReadLogger::logRerouting(AlignedRead &alignedRead, const string &message) {
     }
 }
 
-void ReadLogger::fireAddRead(const AlignedRead &read) {
-    CountingSS &ss = logs[omp_get_thread_num()];
-    ss << read.getId() << "  new  " << read.getPath().str() << "\n";
-    if (ss.size() > 100000) {
-        dump(ss);
-    }
-}
-
 void ReadLogger::fireDelayedRerouteRead(AlignedRead &read, const string &message) {
     logRerouting(read, message);
 }
 
 void ReadLogger::logInvalidate(AlignedRead &alignedRead, const string &message) {
-    CountingSS &ss = logs[omp_get_thread_num()];
-    ss << alignedRead.getId() << " invalidated " << message << ")\n";
+    CountingSS &ss = threadLog();
+    ss << alignedRead.getId() << " invalidated " << message << "\n";
     ss << alignedRead.getId() << "    final    " << alignedRead.getPath().str() << "\n";
     if (ss.size() > 100000) {
         dump(ss);
@@ -103,7 +101,7 @@ void ReadLogger::logInvalidate(AlignedRead &alignedRead, const string &message) 
 }
 
 void ReadLogger::fireDelayedInvalidateRead(AlignedRead &read, const string &message) {
-    logRerouting(read, message);
+    logInvalidate(read, message);
 }
 
 ReadLogger::ReadLogger(AlignedReadStorageFire &fire, size_t threads,

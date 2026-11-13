@@ -147,14 +147,6 @@ bool Vertex::isJunction() const {
     return outDeg() != 1 || inDeg() != 1;
 }
 
-bool Vertex::hasOutgoingSuffix() const {
-    for(Edge &edge : *this) {
-        if(edge.truncSize() == 0)
-            return true;
-    }
-    return false;
-}
-
 size_t Vertex::corporealOutDeg() const {
     size_t cnt = 0;
     for (Edge &e : outgoing_) {
@@ -166,16 +158,11 @@ size_t Vertex::corporealOutDeg() const {
 
 bool Vertex::isPalindrome() const {return *this == rc();}
 
+//    Outgoing codes are unique by their first letter, and an empty code means the only outgoing edge
+//    (EdgeCodeListener::checkConsistency), so the first match is the one.
 Edge &Vertex::getOutgoing(unsigned char c) const {
-    size_t cnt = 0;
     for (Edge &edge : outgoing_) {
-        if (edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == c)) {
-            cnt++;
-        }
-    }
-    VERIFY(cnt <= 1);
-    for (Edge &edge : outgoing_) {
-        if (edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == c)) {
+        if (edge.corporeal && (edge.getCode().empty() || edge.getCode()[0] == c)) {
             return edge;
         }
     }
@@ -190,15 +177,8 @@ Edge &Vertex::getOutgoing(unsigned char c) const {
 }
 
 Edge &Vertex::getNonCorporealOutgoing(unsigned char c) const {
-    size_t cnt = 0;
     for (Edge &edge : outgoing_) {
-        if (!edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == c)) {
-            cnt++;
-        }
-    }
-    VERIFY(cnt <= 1);
-    for (Edge &edge : outgoing_) {
-        if (!edge.corporeal && (edge.isSuffix() || edge.getCode()[0] == c)) {
+        if (!edge.corporeal && (edge.getCode().empty() || edge.getCode()[0] == c)) {
             return edge;
         }
     }

@@ -93,6 +93,17 @@ namespace ag {
         processPath(PathPosition left, PathPosition right, int diff);
         void addSubpath(PathPosition left, PathPosition right) {processPath(left, right, 1);}
         void removeSubpath(PathPosition left, PathPosition right) {processPath(left, right, -1);}
+//        The edge's record, nullptr if it has none (one lookup).
+        SuffixRecord *findRecord(const Edge &edge) const {
+            SuffixRecord *res = nullptr;
+            edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
+            return res;
+        }
+//        If from has a record, gives it to `to`: whole or, with through, only the suffixes continuing through that edge,
+//        with its code cut off. moveRecord takes from's record, so it is only for a source deleted by the operation and
+//        not used again (also not by the mirrored call); copyRecord leaves it intact.
+        void moveRecord(const Edge &from, Edge &to, const Edge *through = nullptr);
+        void copyRecord(const Edge &from, Edge &to, const Edge *through = nullptr);
 
     public:
         SuffixTracker(AlignedReadStorage &storage, AssemblyGraph &graph, size_t _min_len, size_t _max_len);
@@ -103,15 +114,15 @@ namespace ag {
         SuffixTracker &operator=(const SuffixTracker &other) = delete;
         SuffixTracker(const SuffixTracker &other) = delete;
 
+//        Records exist on every DBG edge and on every incoming edge of a vertex with several incoming edges.
+        bool hasSuffixRecord(const Edge &edge) const {return edge_data.contains(edge.getId());}
         SuffixRecord &getSuffixRecord(const Edge &edge) {
-            SuffixRecord *res = nullptr;
-            edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
+            SuffixRecord *res = findRecord(edge);
             VERIFY(res != nullptr);
             return *res;
         }
         const SuffixRecord &getSuffixRecord(const Edge &edge) const {
-            const SuffixRecord *res = nullptr;
-            edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
+            const SuffixRecord *res = findRecord(edge);
             VERIFY(res != nullptr);
             return *res;
         }
@@ -120,14 +131,18 @@ namespace ag {
 
         std::function<std::string(const Edge &)> labeler() const;
 
-        bool fireCheckConsistency() override;
+//        Subtracting every stored read must empty every record; the reads are added back afterwards.
+        bool fireCheckConsistency(std::ostream &os) override;
 
         void fireAddRead(const AlignedRead &read) override;
         void fireRerouteRead(AlignedRead &read) override;
         void fireInvalidateRead(AlignedRead &read) override;
 
-        void fireAddEdge(Edge &edge) override;
         void fireDeleteEdge(Edge &edge) override;
+        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
+        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
+//        Every incoming edge of a vertex with several incoming edges has a record.
+        bool checkConsistency(std::ostream &os) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireMergePath(const RAGraphPath &path, Vertex &vertex) override;
         void fireMergeLoop(const ag::GraphPath  &path, Vertex &vertex) override {}

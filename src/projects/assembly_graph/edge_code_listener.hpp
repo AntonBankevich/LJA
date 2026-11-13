@@ -12,8 +12,13 @@ namespace ag {
     public:
         EdgeCodeListener(ResolutionFire &graph) : ResolutionListener(graph, "EdgeCodeListener") {}
         void fireAddEdge(Edge &new_edge) override;
+//        A suffix edge has an empty code. An edge with an empty code is the only outgoing edge of its start (it need not
+//        be a suffix edge). A non-empty code starts with the edge's first nucleotide, so outgoing edges of a vertex have
+//        distinct first code nucleotides.
+        bool checkConsistency(std::ostream &os) override;
         void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
+        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &, const AlignmentForm &) override;
         //        TODO: implement properly
@@ -21,5 +26,7 @@ namespace ag {
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
+        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
+
     };
 }

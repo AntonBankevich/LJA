@@ -1,4 +1,5 @@
 #pragma once
+#include "common/verify.hpp"
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
 #include <cstring>
@@ -36,7 +37,7 @@ public:
     NuclBuffer(const NuclBuffer &other) : _data(new ST[DataSize(other._size)]), _size(other._size) {
         memcpy(_data, other._data, (DataSize(other._size) << STNBits) >> 2u);
     }
-    NuclBuffer(NuclBuffer &&other)  noexcept : _data(other._data), _size(other._size) {other._data = nullptr;}
+    NuclBuffer(NuclBuffer &&other)  noexcept : _data(other._data), _size(other._size) {other._data = nullptr; other._size = 0;}
     NuclBuffer &operator=(NuclBuffer &&other)  noexcept {std::swap(_data, other._data); std::swap(_size, other._size); return *this;};
     NuclBuffer &operator=(const NuclBuffer &other) {*this = NuclBuffer(other); return *this;}
 
@@ -47,7 +48,7 @@ public:
     }
 
 
-    void InitZero() {memset(_data, 0, size());}
+    void InitZero() {memset(_data, 0, DataSize(size()) * sizeof(ST));}
     template<typename S>
     void InitFromNucls(const S &s, size_t sz, bool rc = false);
     template<typename S>
@@ -62,6 +63,10 @@ private:
 public:
     unsigned char getNucl(size_t pos) const {return (_data[pos >> STNBits] >> ((pos & (STN - 1u)) << 1u)) & 3u;}
     void setNucl(size_t pos, unsigned char value);
+//    The cnt (1..STN) nucleotides starting at pos, packed like a word of the buffer: the first one in the lowest bits.
+    ST getBits(size_t pos, size_t cnt) const;
+//    Writes cnt (1..STN) nucleotides packed as by getBits at pos, leaving the other nucleotides unchanged.
+    void setBits(size_t pos, size_t cnt, ST bits);
     const ST *data() const { return _data; }
     size_t size() const {return _size;}
     virtual ~NuclBuffer() {delete[] _data;}
@@ -178,8 +183,19 @@ private:
     static size_t mult;
 
     size_t getIndex(int pos) const;
+//    The buffer index of logical position pos, for any pos in [zero - capacity, zero + capacity); no bounds check, so
+//    it also serves positions just outside [left, right) that are about to be written.
+    size_t physical(int pos) const;
+//    Up to NuclBuffer::STN nucleotides from logical position pos, packed as by NuclBuffer::getBits; the range may wrap
+//    around the end of the buffer.
+    NuclBuffer::ST readBits(int pos, size_t cnt) const;
+    void writeBits(int pos, size_t cnt, NuclBuffer::ST bits);
+//    Moves the content into a new buffer of at least new_capacity nucleotides, starting at its beginning (zero = left).
+    void relinearize(size_t new_capacity);
+//    Makes room for n more nucleotides at the back (front) without any further reallocation.
+    void reserveBack(size_t n);
+    void reserveFront(size_t n);
 
-//    TODO: remake it with memcpy. Make borders always good.
     void resize();
 public:
     class IteratorInfo {
@@ -216,15 +232,20 @@ public:
         size_t getPos() const {return cur - deck->left;}
         const NuclDeck &getDeck() const {return *deck;}
     };
-    explicit NuclDeck(size_t size = initial) : data(size) {VERIFY(size > 0);}
+//    An empty deck holds no buffer; the first push allocates one.
+    NuclDeck() = default;
+    explicit NuclDeck(size_t size) : data(size) {VERIFY(size > 0);}
     template<class I>
     NuclDeck(I begin, I end);
+//    A copy of the range [begin, end) of another deck, word by word.
+    NuclDeck(Iterator begin, Iterator end);
     template<class S>
     explicit NuclDeck(const S&s) : data(s.size()) {push_back(s);}
     NuclDeck(const NuclDeck &) = default;
-    NuclDeck(NuclDeck &&) = default;
+//    A moved-from deck is empty (and may keep a buffer).
+    NuclDeck(NuclDeck &&other) noexcept;
     NuclDeck &operator=(const NuclDeck &other) = default;
-    NuclDeck &operator=(NuclDeck &&) = default;
+    NuclDeck &operator=(NuclDeck &&other) noexcept;
     size_t size() const {return right - left;}
     void push_back(unsigned char c);
     void push_back(const NuclDeck &s);
@@ -264,12 +285,14 @@ NuclDeck::NuclDeck(I begin, I end) : NuclDeck() {
 
 template<class S>
 void NuclDeck::push_back(const S &s) {
+    reserveBack(s.size());
     for(size_t i = 0; i < s.size(); i++)
         push_back((unsigned char)(dignucl(s[i])));
 }
 
 template<class S>
 void NuclDeck::push_front(const S &s) {
+    reserveFront(s.size());
     for(size_t i = s.size(); i > 0; i--)
         push_front(s[i - 1]);
 }

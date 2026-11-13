@@ -1,7 +1,6 @@
 #include "multiplex_correction_stage.hpp"
 #include "assembly_graph/dll_path_storage.hpp"
 #include "path_tracker.hpp"
-#include "sample_segment_tracker.hpp"
 #include "coverage_tracker.hpp"
 #include <limits>
 
@@ -20,16 +19,8 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     }
     auto [spg, dbg_storage, path_storage] = ConstructSupregraphFromRawInput(logger, threads, dir, k, w, graph_gfa,
                                                                              reads_files, extra_reads_files, paths, debug);
-    if (debug) {
-        logger.info() << "[DIAG] checking consistency right after ConstructSupregraphFromRawInput" << std::endl;
-        VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed right after ConstructSupregraphFromRawInput");
-    }
     UniqueVertexStorage unique_storage(spg, unique_threshold);
-    spg::CoverageTracker spgVertexCoverage(spg, dbg_storage, k, logger, threads);
-    if (debug) {
-        logger.info() << "[DIAG] checking consistency right after UniqueVertexStorage/CoverageTracker construction" << std::endl;
-        VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed right after UniqueVertexStorage/CoverageTracker construction");
-    }
+    spg::CoverageTracker spgVertexCoverage(spg, dbg_storage, logger, threads);
     ag::Printer printer(ag::VertexPrintStyles::spgLabeler() +
                          ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), ag::EdgePrintStyles::defaultDotInfo());
     if (debug)
@@ -80,50 +71,25 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
                 cnt++;
             }
             iter_cnt++;
-//            DIAGNOSTIC: every iteration, to localize exactly which operation breaks the index.
-            if (debug) {
-                logger.info() << "[DIAG] checking after multiplex iteration " << iter_cnt << " (threshold " << threshold << "), last op: " << res << std::endl;
-                VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after multiplex iteration " << iter_cnt << " (threshold " << threshold << "), last op: " << res);
-            }
             if (res.size() > 1)
                 mult_cnt++;
         }
         logger.info() << "Multiplexing performed " << mult_cnt << " times (" << iter_cnt << " loop iterations)" << std::endl;
         spg.removeMarked();
-        if (debug) {
-            logger.info() << "[DIAG] checking after removeMarked (threshold " << threshold << ")" << std::endl;
-            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after removeMarked (threshold " << threshold << ")");
-        }
         logger.info() << "Filling reliable vertices" << std::endl;
         vertexReliableFiller.loggedRefill(logger, spg);
-        if (debug) {
-            logger.info() << "[DIAG] checking after loggedRefill (threshold " << threshold << ")" << std::endl;
-            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after loggedRefill (threshold " << threshold << ")");
-        }
         logger.info() << "Correcting read paths" << std::endl;
         ag::ErrorCorrectionEngine(reliablePathCorrector).run(logger, threads, spg, dbg_storage);
-        if (debug) {
-            logger.info() << "[DIAG] checking after ErrorCorrectionEngine (threshold " << threshold << ")" << std::endl;
-            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after ErrorCorrectionEngine (threshold " << threshold << ")");
-        }
         logger.info() << "Removing uncovered vertices" << std::endl;
-        size_t removed_vertices = ag::SimpleRemoveUncovered(logger, threads, spg);
+        size_t removed_vertices = spg::SimpleRemoveUncovered(logger, threads, spg);
         logger.info() << "Removed " << removed_vertices << " uncovered vertices" << std::endl;
-        if (debug) {
-            logger.info() << "[DIAG] checking after SimpleRemoveUncovered (threshold " << threshold << ")" << std::endl;
-            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after SimpleRemoveUncovered (threshold " << threshold << ")");
-        }
         // TODO: make core queue in multiplexing listen to merging and simplify/remove reset
         multiplexer.reset();
-        if (debug) {
-            logger.info() << "[DIAG] checking after multiplexer.reset (threshold " << threshold << ")" << std::endl;
-            VERIFY_MSG(dbg_storage.checkConsistency(), "[DIAG] consistency check failed after multiplexer.reset (threshold " << threshold << ")");
-        }
         printer.printDot(dir / ("supregraph_" + itos(threshold, 5) + ".dot"), spg);
     }
     for (Vertex &v: spg.vertices())
         v.reliability = ag::VertexReliability::unknown;
-    ag::MergeAllSPG(logger, debug ? 1 : threads, spg);
+    spg::MergeAllSPG(logger, debug ? 1 : threads, spg);
     CleanSupregraph(spg);
     dbg_storage.stopTrackSuffixes();
     spg.resetEdgeCodes(logger, threads);

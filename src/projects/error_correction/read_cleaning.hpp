@@ -5,6 +5,7 @@ namespace dbg {
                               const std::function<bool(const Edge &)> &is_bad, const std::string &message) {
         omp_set_num_threads(threads);
         ParallelCounter cnt(threads);
+        reads.startReadCorrection();
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(cnt, reads, message, is_bad, min_read_size, std::cout)
         for (size_t i = 0; i < reads.size(); i++) {
             ag::AlignedRead &alignedRead = reads[i];
@@ -61,6 +62,7 @@ namespace dbg {
     inline void InvalidateSubreads(logging::Logger &logger, size_t threads, ag::AlignedReadStorage &storage, SparseDBG &graph) {
         ag::SuffixTracker tracker(storage, graph, 0, 1000000000);
         tracker.fillFromStorage(logger, threads);
+        storage.startReadCorrection();
         for (ag::AlignedRead &alignedRead: storage) {
             const ag::SuffixRecord &rec = tracker.getSuffixRecord(alignedRead.getPath().frontEdge());
             size_t cnt = rec.countStartsWith(alignedRead.getPath().subPath(alignedRead.getPath().firstPosition() + 1));

@@ -44,8 +44,9 @@ TEST(SuffixTrackerTest, InvalidateReadUpdatesRecord) {
     ag::AlignedRead &shortRead = f.storage[0];
     ASSERT_EQ(shortRead.getId(), "short");
 
+    f.storage.startReadCorrection();
     f.storage.delayedInvalidateRead(shortRead, "test");
-    f.storage.apply(shortRead);
+    f.storage.applyCorrections(TestLogger(), 1);
 
     EXPECT_TRUE(f.storage.checkConsistency());
 }
@@ -101,9 +102,10 @@ TEST(SuffixTrackerTest, SplitEdgeReadStartingInLastPieceStaysConsistent) {
     GraphBuilder gb(8);
     std::vector<ag::EdgeId> chain = gb.buildChain(3); // edges: e0 (to be split), e1 (after)
 
-    // Skips e0's start vertex (8 bases) plus the first 5 of e0's own 8 bases, i.e. starts strictly
-    // inside what will become e0's second piece [4,8), then continues into e1.
-    ag::GraphPath path(*chain[0], /*cut_left=*/13, /*cut_right=*/0);
+    // e0 spells a + b (8 bases each, no overlap), and the split vertex will be e0's bases [4,12). Starting at base 5
+    // puts the read past the split vertex's start (so it does not contain it) but before b (so e0 is needed: a read
+    // starting inside b would be a non-minimal path), then it continues into e1.
+    ag::GraphPath path(*chain[0], /*cut_left=*/5, /*cut_right=*/0);
     path += *chain[1];
 
     std::vector<ag::AlignedRead> reads;

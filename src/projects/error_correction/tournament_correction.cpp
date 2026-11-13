@@ -251,10 +251,12 @@ namespace dbg {
             if (edge.getCoverage() < 1 || alt.getCoverage() < 1) {
                 continue;
             }
-            if (edge.getCoverage() > alt.getCoverage()) {
+//            Reads move to the better covered side; on a tie only towards the smaller edge, so that the two sides are
+//            not swapped.
+            if (edge.getCoverage() > alt.getCoverage() || (edge.getCoverage() == alt.getCoverage() && edge < alt)) {
                 continue;
             }
-            if (edge.getCoverage() + alt.getCoverage() > threshold || edge.getCoverage() > alt.getCoverage()) {
+            if (edge.getCoverage() + alt.getCoverage() > threshold) {
                 continue;
             }
             corrected++;

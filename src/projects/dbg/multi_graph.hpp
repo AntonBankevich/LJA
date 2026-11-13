@@ -2,6 +2,7 @@
 
 #include "assembly_graph/random_access_paths.hpp"
 #include "assembly_graph/assembly_graph.hpp"
+#include "dbg_listener.hpp"
 #include <sequences/sequence.hpp>
 #include <sequences/contigs.hpp>
 #include <common/string_utils.hpp>
@@ -28,17 +29,17 @@ namespace multigraph {
     typedef Position<Edge> EdgePosition;
     typedef Segment<Edge> EdgeSegment;
 
-    class LabelStorage : public ag::ResolutionListener {
+//    For every live edge, the original edges it was merged from, in order. Ids are stored without pointers (legacy
+//    ids), since the original edges are deleted. The label of e.rc() is the rc of e's label.
+    class LabelStorage : public dbg::DBGListener {
     private:
         std::unordered_map<ConstEdgeId, std::vector<EdgeId>> labels;
     public:
         explicit LabelStorage(ag::AssemblyGraph &fire);
 
-        void fireAddEdge(Edge &e) override {labels[e.getId()] = {e.getId()};}
+        void fireAddEdge(Edge &e) override {labels[e.getId()] = {e.getId().legacyId()};}
         void fireDeleteEdge(Edge &e) override {labels.erase(e.getId());}
 
-        void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override {VERIFY(false);}
-        void fireMergeLoop(const ag::GraphPath  &path, Vertex &new_vertex) override {VERIFY(false);}
         void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override {
             std::vector<EdgeId> res;
             for(Edge &e: path.edges()) {
@@ -51,7 +52,8 @@ namespace multigraph {
                              const AlignmentForm &left_al, const AlignmentForm &right_al) override {VERIFY(false);}
         void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {VERIFY(false);}
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, ag::AssemblyGraph &graph) override {VERIFY(false);}
-        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override {VERIFY(false);};
+//        Every live edge, and only a live edge, has a non-empty label, as long as its rc's label.
+        bool checkConsistency(std::ostream &os) override;
         const std::vector<EdgeId> &getLabel(const Edge &edge) const {return labels.at(edge.getId());}
         std::string stringLabel(const Edge &edge) const {
             const std::vector<EdgeId> &label = labels.at(edge.getId());

@@ -44,6 +44,9 @@ namespace ag_test {
         return g;
     }
 
+    // Deterministic random genome without homopolymers (mergeTipsToEdge requires a properly collapsed junction).
+    std::string CollapsedGenome(size_t len, uint32_t seed);
+
     // Owns a hasher and the SparseDBG built from a genome (every k-mer a vertex). SparseDBG is neither
     // copyable nor movable, so this holder is built in place.
     struct RandomDBG {
@@ -100,12 +103,12 @@ namespace ag_test {
         }
     };
 
-    // Converts an assembly graph (e.g. a condensed SparseDBG) into a supregraph exactly the way
-    // Supregraph::FromDBG does: turn every corporeal (non prefix/suffix) edge into a supre-vertex via
-    // edgeToSupreVertex. No SampleSegmentTracker is attached here (coverage_info stays empty), which is
-    // fine for exercising the ag-layer listeners (SuffixTracker / AlignedReadStorageMaintenance /
-    // EdgeCodeListener).
-    inline void ConvertToSupregraph(ag::AssemblyGraph &graph) {
+    // Converts a (condensed) SparseDBG into a supregraph exactly the way Supregraph::FromDBG does: turn every
+    // corporeal (non prefix/suffix) edge into a supre-vertex via edgeToSupreVertex. The graph's own
+    // SampleSegmentTracker gives every new supre-vertex between two k-mers its kpomer chunk, as in the real
+    // pipeline. Hashing is disabled first, as in the pipeline: supre-vertices are longer than k.
+    inline void ConvertToSupregraph(dbg::SparseDBG &graph) {
+        graph.disableHashing();
         std::vector<ag::EdgeId> eids;
         for (ag::Edge &e : graph.edgesUnique())
             eids.push_back(e.getId());
@@ -113,6 +116,18 @@ namespace ag_test {
             if (!eid->isPrefix() && !eid->isSuffix())
                 graph.edgeToSupreVertex(*eid);
     }
+
+    // Resolves one 2-in/2-out k-mer junction of a supregraph by an arbitrary one-to-one matching (so a path may use
+    // a pair the plan does not have). Returns false if there is no such junction.
+    bool ResolveMatching(ag::AssemblyGraph &graph, size_t k);
+
+    // Resolves a junction k-mer (at least 2 in, 2 out) with exactly the (in, out) pairs the stored reads use (the
+    // multiplexing contract: no stored read is broken). Each read path through the pair, in either orientation, adds 1
+    // to its support. Returns false if there is no such junction.
+    bool ResolveByReads(ag::AssemblyGraph &graph, ag::AlignedReadStorage &storage, size_t k);
+
+    // Flips every vertex with a single incoming suffix edge and out-degree other than 1; returns how many.
+    size_t FlipAll(ag::AssemblyGraph &graph);
 
     inline size_t EdgeCount(const ag::GraphPath &path) {
         size_t n = 0;
@@ -144,16 +159,23 @@ namespace ag_test {
 
     // read id -> nucleotide sequence spelled by the read's path (respecting end cuts). The central
     // invariant under test: no graph operation may ever change this mapping for any read.
+    const std::string LEGACY_READ = "<legacy>";
+
     inline std::map<std::string, std::string> ReadSeqSnapshot(ag::AlignedReadStorage &storage) {
         std::map<std::string, std::string> res;
         for (ag::AlignedRead &r : storage) {
-            if (r.valid() && !r.getPath().empty())
+            // Include subreads (empty graph path, i.e. a substring of a single vertex) as long as they
+            // still spell a sequence -- a merge can legitimately turn a read into a subread of res.
+            // A subread of a deleted vertex becomes legacy: its vertex is gone, so it spells nothing any more.
+            if (r.valid() && r.getPath().isLegacy())
+                res[r.getId()] = LEGACY_READ;
+            else if (r.valid() && !r.getPath().Seq().empty())
                 res[r.getId()] = r.getPath().Seq().str();
         }
         return res;
     }
 
-    // Every read present before must still be present with an identical spelled sequence.
+    // Every read present before must still be present with an identical spelled sequence, or have become legacy.
     inline bool ReadSeqsUnchanged(const std::map<std::string, std::string> &before,
                                   ag::AlignedReadStorage &storage, std::string &err) {
         std::map<std::string, std::string> after = ReadSeqSnapshot(storage);
@@ -163,7 +185,7 @@ namespace ag_test {
                 err = "read " + kv.first + " disappeared / became invalid";
                 return false;
             }
-            if (it->second != kv.second) {
+            if (it->second != kv.second && it->second != LEGACY_READ) {
                 err = "read " + kv.first + " sequence changed:\n  before=" + kv.second + "\n  after =" + it->second;
                 return false;
             }
@@ -172,11 +194,16 @@ namespace ag_test {
     }
 
     // Normalized content of one SuffixRecord: suffix sequence -> total positive count.
+//    A stored suffix may end anywhere within its last edge's code (it was stored when that edge was shorter), so each is
+//    brought to its canonical form first: the codes up to the first character of the last edge it reaches.
     inline std::map<std::string, int> NormalizeSuffixRecord(const ag::SuffixRecord &rec) {
         std::map<std::string, int> m;
         for (const std::pair<Sequence, int> &p : rec.getSuffixes()) {
-            if (p.second > 0)
-                m[p.first.str()] += p.second;
+            if (p.second <= 0)
+                continue;
+            ag::GraphPath path(rec.getEdge().getFinish(), p.first);
+            Sequence codes(path.getFSplits());
+            m[codes.Subseq(0, codes.size() - path.backEdge().getCode().size() + 1).str()] += p.second;
         }
         return m;
     }
@@ -187,6 +214,15 @@ namespace ag_test {
     inline bool SuffixContentEqual(ag::SuffixTracker &live, ag::SuffixTracker &fresh,
                                    ag::AssemblyGraph &graph, std::string &err) {
         for (ag::Edge &e : graph.edges()) {
+//            The live tracker may keep records the fresh one would not create; every fresh record must be there too.
+            if (!fresh.hasSuffixRecord(e))
+                continue;
+            if (!live.hasSuffixRecord(e)) {
+                std::stringstream ss;
+                ss << "edge " << e.getId() << " has a fresh record but no live one";
+                err = ss.str();
+                return false;
+            }
             std::map<std::string, int> a = NormalizeSuffixRecord(live.getSuffixRecord(e));
             std::map<std::string, int> b = NormalizeSuffixRecord(fresh.getSuffixRecord(e));
             if (a != b) {

@@ -56,7 +56,8 @@ namespace multigraph {
         for (const Edge &edge: initial.edgesUnique()) {
             if (to_delete.find(edge.getId()) != to_delete.end())
                 continue;
-            if (to_delete_vertices.find(edge.getStart().getId()) == to_delete_vertices.end() ||
+//            An edge stays only if both its ends do.
+            if (to_delete_vertices.find(edge.getStart().getId()) == to_delete_vertices.end() &&
                 to_delete_vertices.find(edge.getFinish().getId()) == to_delete_vertices.end())
                 res.addEdgeLockFree(*vmap[edge.getStart().getId()], *vmap[edge.getFinish().getId()], edge.getSeq());
         }
@@ -294,9 +295,31 @@ namespace multigraph {
         }
     };
 
-    LabelStorage::LabelStorage(ag::AssemblyGraph &fire) : ag::ResolutionListener(fire, "LabelStorage") {
+    LabelStorage::LabelStorage(ag::AssemblyGraph &fire) : dbg::DBGListener(fire, "LabelStorage") {
         for(Edge &e : fire.edges())
-            labels[e.getId()] = {e.getId()};
+            labels[e.getId()] = {e.getId().legacyId()};
+    }
+
+    bool LabelStorage::checkConsistency(std::ostream &os) {
+        bool ok = true;
+        size_t live = 0;
+        for(Edge &e : getGraph().edges()) {
+            live++;
+            auto it = labels.find(e.getId());
+            auto rc_it = labels.find(e.rc().getId());
+            if(it == labels.end() || it->second.empty()) {
+                os << "LabelStorage: edge " << e.getId() << " has no label" << std::endl;
+                ok = false;
+            } else if(rc_it != labels.end() && rc_it->second.size() != it->second.size()) {
+                os << "LabelStorage: edge " << e.getId() << " and its rc have labels of different lengths" << std::endl;
+                ok = false;
+            }
+        }
+        if(labels.size() != live) {
+            os << "LabelStorage: " << labels.size() << " labels for " << live << " live edges" << std::endl;
+            ok = false;
+        }
+        return ok;
     }
 }
 template<>

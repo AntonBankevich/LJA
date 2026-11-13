@@ -83,7 +83,12 @@ namespace ag {
         VertexId core;
         std::unordered_map<VertexId, InOutEdgePair> new_vertices;
         std::unordered_map<EdgeId, std::unordered_map<EdgeId, VertexId>> edge_mapping;
+//        Pairs resolved by a single new edge in.start -> out.finish instead of a new vertex.
+        std::vector<std::pair<EdgeId, InOutEdgePair>> new_edges;
+//        Number of resolved pairs (vertex or edge outcome) each incoming/outgoing edge of core takes part in.
+        std::unordered_map<EdgeId, size_t> connection_counts;
         void innerAdd(Vertex &new_vertex, const InOutEdgePair &edgePair);
+        void innerAdd(Edge &new_edge, const InOutEdgePair &edgePair);
     public:
         VertexResolutionResult(Vertex &core) : core(core.getId()) {} // NOLINT(google-explicit-constructor)
         VertexResolutionResult RC() const;
@@ -96,6 +101,9 @@ namespace ag {
         Vertex &get(Edge &edge1, Edge &edge2) const;
         const InOutEdgePair &get(Vertex &new_vertex) const;
         void add(Vertex &new_vertex, const InOutEdgePair &edgePair);
+        void add(Edge &new_edge, const InOutEdgePair &edgePair);
+        const std::vector<std::pair<EdgeId, InOutEdgePair>> &newEdges() const {return new_edges;}
+        size_t connections(Edge &edge) const;
         // void add(Vertex &new_vertex, Edge &edge1, Edge &edge2);
         IterableStorage<TransformingIterator<typename std::unordered_map<VertexId, InOutEdgePair>::const_iterator, Vertex>> newVertices() const;
         std::unordered_map<VertexId, InOutEdgePair>::const_iterator begin() const {return new_vertices.begin();}

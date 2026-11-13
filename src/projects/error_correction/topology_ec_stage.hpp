@@ -48,10 +48,8 @@ TopologyEC(logging::Logger &logger, const std::experimental::filesystem::path &d
     ag::AlignedReadStorage extra_reads;
     if (!no_topology_correction) {
         InvalidateLowCovered(logger, threads, readStorage.getReads(), 1.01, 500, "after_gap1_1");
-        readStorage.getReads().applyCorrections(logger, threads);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         InvalidateLowCovered(logger, threads, readStorage.getReads(), threshold, 500, "after_gap1_1");
-        readStorage.getReads().applyCorrections(logger, threads);
         if(debug) PrintPaths(logger, threads, dir/ "state_dump", "bad", dbg, readStorage, paths_lib, references_lib, false);
         RemoveUncovered(logger, threads, dbg, {&readStorage.getReads(), &refStorage.getReads()});
         if(debug) PrintPaths(logger, threads, dir/ "state_dump", "uncovered1", dbg, readStorage, paths_lib, references_lib, false);

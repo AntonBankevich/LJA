@@ -115,6 +115,7 @@ size_t CorrectTips(logging::Logger &logger, size_t threads, SparseDBG &dbg,
     omp_set_num_threads(threads);
     ParallelCounter cnt(threads);
     for(dbg::DBGAlignedReadStorage *storageIt : storages) {
+        storageIt->getReads().startReadCorrection();
 #pragma omp parallel for default(none) schedule(dynamic, 100) shared(storageIt, cnt)
         for (size_t i = 0; i < storageIt->getReads().size(); i++) {
             ag::AlignedRead &read = storageIt->getReads()[i];

@@ -3,12 +3,12 @@
 
 using namespace spg;
 
-CoverageTracker::CoverageTracker(AssemblyGraph &graph, ag::AlignedReadStorage &storage, size_t k, logging::Logger &logger, size_t threads) :
-        ag::AlignedReadStorageListener(storage, "CoverageTracker"), ag::ResolutionListener(graph, "CoverageTracker"),
-        graph(graph), storage(&storage), k(k) {
+CoverageTracker::CoverageTracker(AssemblyGraph &graph, ag::AlignedReadStorage &storage, logging::Logger &logger, size_t threads) :
+        ag::AlignedReadStorageListener(storage, "CoverageTracker"), SPGListener(graph, "CoverageTracker"),
+        graph(graph), storage(&storage) {
     fillLengthHistogram(storage, threads);
     total_bases = windowCapacity(1);
-    kpomer_multiplier = multiplier(k + 1);
+    kpomer_multiplier = multiplier(graph.getK() + 1);
     fillFromStorage(logger, threads);
 }
 
@@ -17,7 +17,7 @@ void CoverageTracker::fillLengthHistogram(ag::AlignedReadStorage &storage, size_
     std::vector<std::vector<size_t>> thread_histograms(threads);
 #pragma omp parallel for default(none) shared(storage, thread_histograms) schedule(dynamic, 100)
     for (size_t i = 0; i < storage.size(); i++) {
-        if (!storage[i].valid())
+        if (!storage[i].valid() || storage[i].getPath().isLegacy())
             continue;
         std::vector<size_t> &hist = thread_histograms[omp_get_thread_num()];
         size_t len = storage[i].getPath().len();
@@ -52,20 +52,26 @@ double CoverageTracker::windowCapacity(size_t s) const {
 
 void CoverageTracker::adjustSingleSupport(ag::CoverageSamples &info, ag::CoverageSamples::SampleView &view, size_t left, size_t right, __int64_t mult) {
     bool is_kpomer = view.sample.type == ag::CoverageSamples::SampleType::kpomer;
-    size_t unit_size = is_kpomer ? k + 1 : view.size();
+    size_t unit_size = is_kpomer ? graph.getK() + 1 : view.size();
     size_t overlap_left = std::max(view.start(), left);
     size_t overlap_right = std::min(view.finish(), right);
     if (overlap_right >= overlap_left + unit_size) {
         double m = is_kpomer ? kpomer_multiplier : multiplier(unit_size);
         __int64_t raw_delta = __int64_t(overlap_right - overlap_left - unit_size + 1) * mult;
-        info.support += double(raw_delta) * m;
+        double delta = double(raw_delta) * m;
+//        Reads are replayed concurrently, and several of them may update the same vertex.
+#pragma omp atomic
+        info.support += delta;
+#pragma omp atomic
         view.sample.raw_support += raw_delta;
+#pragma omp atomic
         info.raw_support += raw_delta;
     }
 }
 
 void CoverageTracker::adjustSupport(Vertex &v, size_t left, size_t right, __int64_t mult) {
     ag::CoverageSamples &info = v.coverage_info;
+    const size_t k = graph.getK();
     if (right == v.size()) {
         for (ag::CoverageSamples::SampleView view : info.getRSamples()) {
             if (view.finish() <= left + k)
@@ -81,18 +87,25 @@ void CoverageTracker::adjustSupport(Vertex &v, size_t left, size_t right, __int6
     }
 }
 
+void CoverageTracker::adjustBothStrands(Vertex &v, size_t left, size_t right, __int64_t mult) {
+    adjustSupport(v, left, right, mult);
+    adjustSupport(v.rc(), v.size() - right, v.size() - left, mult);
+}
+
+//    The rc path visits v.rc() for every v of the path, with mirrored bounds, so both are credited in one walk.
 void CoverageTracker::processPath(const GraphPath &path, __int64_t mult) {
-    if (!path.valid())
+//    A legacy path is a subread of a deleted vertex: its windows are gone with the vertex.
+    if (!path.valid() || path.isLegacy())
         return;
     if (path.empty()) {
         Vertex &v = path.getStart();
-        adjustSupport(v, path.leftCut(), v.size() - path.rightCut(), mult);
+        adjustBothStrands(v, path.leftCut(), v.size() - path.rightCut(), mult);
         return;
     }
-    adjustSupport(path.getStart(), path.leftCut(), path.getStart().size(), mult);
+    adjustBothStrands(path.getStart(), path.leftCut(), path.getStart().size(), mult);
     for (Vertex &v : path.innerVertices())
-        adjustSupport(v, 0, v.size(), mult);
-    adjustSupport(path.getFinish(), 0, path.getFinish().size() - path.rightCut(), mult);
+        adjustBothStrands(v, 0, v.size(), mult);
+    adjustBothStrands(path.getFinish(), 0, path.getFinish().size() - path.rightCut(), mult);
 }
 
 void CoverageTracker::fillFromStorage(logging::Logger &logger, size_t threads) {
@@ -107,57 +120,56 @@ void CoverageTracker::fillFromStorage(logging::Logger &logger, size_t threads) {
 
 void CoverageTracker::fireAddRead(const ag::AlignedRead &read) {
     processPath(read.getPath(), 1);
-    processPath(read.getPath().RC(), 1);
 }
 
 void CoverageTracker::fireRerouteRead(ag::AlignedRead &read) {
     processPath(read.getPath(), -1);
-    processPath(read.getPath().RC(), -1);
     processPath(read.getCorrected(), 1);
-    processPath(read.getCorrected().RC(), 1);
 }
 
 void CoverageTracker::fireInvalidateRead(ag::AlignedRead &read) {
     processPath(read.getPath(), -1);
-    processPath(read.getPath().RC(), -1);
+}
+
+void CoverageTracker::fireEdgeToSupreVertex(Vertex &v, ag::Edge &e) {
+//    SampleSegmentTracker fired first; a window on v could not be credited with the reads already on e.
+    VERIFY(v.coverage_info.empty());
 }
 
 void CoverageTracker::fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) {
-//    Matches SampleSegmentTracker::fireResolveVertex creates fresh, zero-support resolution-sample windows on the new vertices that
-//    need a real value patched in here.
+//    SampleSegmentTracker gives a new vertex its one zero-support resolution window only when both edges of its pair
+//    have several partners; the pair's support is credited to it.
     for (const auto &rec : resolution) {
         Vertex &new_vertex = *rec.first;
-        VERIFY(new_vertex.coverage_info.samples.calculateSize() == 1);
-        adjustSupport(new_vertex, 0, new_vertex.size(), __int64_t(rec.second.getSupport()));
+        if (!new_vertex.coverage_info.empty()) {
+            VERIFY(new_vertex.coverage_info.samples.calculateSize() == 1);
+            adjustSupport(new_vertex, 0, new_vertex.size(), __int64_t(rec.second.getSupport()));
+        }
     }
 }
 
-bool CoverageTracker::fireCheckConsistency() {
-//    fireCheckConsistency is only ever called single-threaded, never concurrently with graph
-//    modifications or read edits -- see the same assumption in SuffixTracker::fireCheckConsistency.
-    for (AlignedRead &read : *storage) {
-        if (!read.valid())
-            continue;
-        processPath(read.getPath(), -1);
-        processPath(read.getPath().RC(), -1);
-    }
-    bool ok = true;
-    for (Vertex &v : graph.vertices()) {
-        if (!v.hasCoverageInfo())
-            continue;
-        if (v.coverage_info.raw_support != 0 || std::abs(v.coverage_info.support) > 1e-6) {
-            std::cout << "CoverageTracker inconsistency at vertex " << v.getId() << ": residual raw_support="
-                      << v.coverage_info.raw_support << " support=" << v.coverage_info.support
-                      << " after subtracting all current reads (expected exactly 0)" << std::endl;
-            ok = false;
+bool CoverageTracker::checkConsistency(std::ostream &os) {
+    for (AlignedRead &read : *storage)
+        if (read.valid()) {
+            processPath(read.getPath(), -1);
         }
-    }
-    for (AlignedRead &read : *storage) {
-        if (!read.valid())
-            continue;
-        processPath(read.getPath(), 1);
-        processPath(read.getPath().RC(), 1);
-    }
+    bool ok = true;
+    for (Vertex &v : graph.vertices())
+        if (v.hasCoverageInfo()) {
+            bool windows_zero = true;
+            for (ag::CoverageSamples::SampleView view : v.coverage_info.getSamples())
+                windows_zero = windows_zero && view.sample.raw_support == 0;
+            if (!windows_zero || v.coverage_info.raw_support != 0 || std::abs(v.coverage_info.support) > 1e-6) {
+                os << "CoverageTracker: vertex " << v.getId() << " keeps raw_support=" << v.coverage_info.raw_support
+                   << " support=" << v.coverage_info.support << (windows_zero ? "" : " (some window nonzero)")
+                   << " after subtracting all stored reads" << std::endl;
+                ok = false;
+            }
+        }
+    for (AlignedRead &read : *storage)
+        if (read.valid()) {
+            processPath(read.getPath(), 1);
+        }
     return ok;
 }
 

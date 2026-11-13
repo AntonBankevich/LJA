@@ -40,10 +40,11 @@ void AlignedReadStorageFire::fireAppliedCorrections(size_t cnt) {
     }
 }
 
-bool AlignedReadStorageFire::fireCheckConsistency() {
+bool AlignedReadStorageFire::fireCheckConsistency(std::ostream &os) {
+    bool ok = true;
     for (AlignedReadStorageListener *listener: getListeners<AlignedReadStorageListener>()) {
-        if(!listener->fireCheckConsistency())
-            return false;
+        bool listener_ok = listener->fireCheckConsistency(os);
+        ok = ok && listener_ok;
     }
-    return true;
+    return ok;
 }

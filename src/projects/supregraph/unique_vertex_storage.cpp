@@ -33,8 +33,8 @@ void spg::UniqueVertexStorage::propagateUniqueness(Vertex &uv, Vertex &deleted_c
 }
 
 void spg::UniqueVertexStorage::add(const Vertex &v) {
-    unique.emplace(v.getId());
-    unique.emplace(v.rc().getId());
+    unique.insert(v.getId(), true);
+    unique.insert(v.rc().getId(), true);
 }
 
 void spg::UniqueVertexStorage::remove(const Vertex &v) {
@@ -43,7 +43,7 @@ void spg::UniqueVertexStorage::remove(const Vertex &v) {
 }
 
 bool spg::UniqueVertexStorage::isUnique(const Vertex &v) const {
-    return unique.find(v.getId()) != unique.end();
+    return unique.contains(v.getId());
 }
 
 void spg::UniqueVertexStorage::fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) {
@@ -55,11 +55,24 @@ void spg::UniqueVertexStorage::fireMergePath(const ag::RAGraphPath &path, Vertex
     }
 }
 
+void spg::UniqueVertexStorage::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
+//    v spells e, so it contains both of e's ends.
+    if (isUnique(e.getStart()) || isUnique(e.getFinish()))
+        add(v);
+}
+
+void spg::UniqueVertexStorage::fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) {
+//    Every new vertex is a + core + b.
+    if (isUnique(core))
+        for (Vertex &newv : resolution.newVertices())
+            add(newv);
+}
+
 void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) {
     fireMergePath(path.asRAPath(), vertex);
 }
 spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, const std::function<bool(Vertex &)> &is_unique, size_t unique_threshold)
-            : ag::ResolutionListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold){
+            : SPGListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold){
     for (Vertex &vertex : spg.vertices()) {fireAddVertex(vertex);}
     for(Vertex &vertex : spg.vertices()) {
         if(is_unique(vertex))
@@ -67,7 +80,7 @@ spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, const std:
     }
 }
 
-spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, size_t unique_threshold): ag::ResolutionListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold) {
+spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, size_t unique_threshold): SPGListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold) {
     for (Vertex &vertex : spg.vertices()) {fireAddVertex(vertex);}
 }
 

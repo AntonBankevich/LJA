@@ -20,6 +20,8 @@ namespace ag {
         std::ofstream os;
 
         void dump(CountingSS &sublog);
+//        The calling thread's buffer; the logger must be built with at least as many threads as ever call it.
+        CountingSS &threadLog();
 
     public:
         ReadLogger(AlignedReadStorageFire &fire, size_t threads, const std::experimental::filesystem::path &out_file);
@@ -32,10 +34,9 @@ namespace ag {
         void flush();
         void logRerouting(AlignedRead &alignedRead, const std::string &message);
 
-        virtual void fireAddRead(const AlignedRead &read);
-        void fireDelayedRerouteRead(AlignedRead &read, const std::string &message);;
+        void fireDelayedRerouteRead(AlignedRead &read, const std::string &message) override;
         void logInvalidate(AlignedRead &alignedRead, const std::string &message);
-        void fireDelayedInvalidateRead(AlignedRead &read, const std::string &message);;
+        void fireDelayedInvalidateRead(AlignedRead &read, const std::string &message) override;
         void fireAppliedCorrections(size_t cnt) override {flush();}
     };
 }

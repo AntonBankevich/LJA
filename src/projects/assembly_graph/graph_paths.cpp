@@ -33,7 +33,7 @@ PathVertexIterator &PathVertexIterator::operator++() {
     return *this;
 }
 
-PathVertexIterator PathVertexIterator::operator++(int) { PathVertexIterator res = *this; ++res; return std::move(res); }
+PathVertexIterator PathVertexIterator::operator++(int) { PathVertexIterator res = *this; ++res; return res; }
 
 bool PathVertexIterator::operator==(const PathVertexIterator &other) const {return dir == other.dir && position == other.position;}
 
@@ -62,17 +62,35 @@ SegmentIterator GraphPath::begin() const {return {forward(), forward().firstPosi
 
 SegmentIterator GraphPath::end() const {return {forward(), forward().lastPosition()};}
 
+//    A cut may be longer than its end edge's trunc (e.g. a path ending with a suffix edge, whose trunc is empty): end
+//    edges covered by the cut are skipped, as in Seq(), and only the edges where the cuts end are cut.
 Sequence GraphPath::truncSeq() const {
-    SequenceBuilder sb;
-    PathPosition first = firstPosition();
-    PathPosition last = lastPosition();
-    for (PathPosition pp = first; pp != last;) {
-        Edge &edge = pp.nextEdge();
-        size_t left = pp == first ? cut_left : 0;
-        ++pp;
-        size_t right = pp == last ? cut_right : 0;
-        sb.append(edge.truncSeq().Subseq(left, edge.truncSize() - right));
+    std::vector<const Edge *> path_edges;
+    for (const Edge &edge : edges())
+        path_edges.push_back(&edge);
+    size_t first = 0;
+    size_t last = path_edges.size();
+    size_t left = cut_left;
+    size_t right = cut_right;
+    while (first < last && path_edges[first]->truncSize() <= left) {
+        left -= path_edges[first]->truncSize();
+        first++;
     }
+    while (first < last && path_edges[last - 1]->truncSize() <= right) {
+        right -= path_edges[last - 1]->truncSize();
+        last--;
+    }
+    if (first == last) {
+        VERIFY(left == 0 && right == 0);
+        return {};
+    }
+    if (first + 1 == last)
+        return path_edges[first]->truncSeq().Subseq(left, path_edges[first]->truncSize() - right);
+    SequenceBuilder sb;
+    sb.append(path_edges[first]->truncSeq().Subseq(left));
+    for (size_t i = first + 1; i + 1 < last; i++)
+        sb.append(path_edges[i]->truncSeq());
+    sb.append(path_edges[last - 1]->truncSeq().Subseq(0, path_edges[last - 1]->truncSize() - right));
     return sb.BuildSequence();
 }
 
@@ -159,17 +177,15 @@ GraphPath GraphPath::subPath(PathPosition from, PathPosition to) const {
         VERIFY(to == endPosition());
         return {};
     }
-    GraphPath res(from.getVertex());
-    PathPosition cur = from;
-    while(cur != to) {
-        res += cur.nextEdge();
-        ++cur;
-    }
+//    A path is its start vertex and its codes, so the sub-path is the code ranges between the two positions (rpos runs
+//    backwards along the path).
+    GraphPath res(from.getVertex().getId(), to.getVertex().rc().getId(), NuclDeck(from.fpos, to.fpos),
+                  NuclDeck(to.rpos, from.rpos));
     if(from == firstPosition())// && to != firstPosition())
         res.setCutLeft(cut_left);
     if(to == lastPosition())// && from != lastPosition())
         res.setCutRight(cut_right);
-    return std::move(res);
+    return res;
 }
 
 void GraphPath::operator+=(const GraphPath &other) {
@@ -225,19 +241,19 @@ void GraphPath::operator+=(Edge &other) {
 GraphPath GraphPath::operator+(const GraphPath &other) const {
     GraphPath res = *this;
     res += other;
-    return std::move(res);
+    return res;
 }
 
 GraphPath GraphPath::operator+(const Segment<Edge> &other) const {
     GraphPath res = *this;
     res += other;
-    return std::move(res);
+    return res;
 }
 
 GraphPath GraphPath::operator+(Edge &other) const {
     GraphPath res = *this;
     res += other;
-    return std::move(res);
+    return res;
 }
 
 void GraphPath::pop_back(size_t len) {
@@ -252,27 +268,23 @@ void GraphPath::pop_front(size_t len) {
 
 GraphPath &GraphPath::cutBack(size_t l) {
     VERIFY(l <= len());
-    size_t expected = len() - l;
     l += cut_right;
     while(!empty() && l >= backEdge().truncSize()) {
         l -= backEdge().truncSize();
         pop_back();
     }
     cut_right = l;
-    VERIFY(len() == expected);
     return *this;
 }
 
 GraphPath &GraphPath::cutFront(size_t l) {
     VERIFY(l <= len());
-    size_t expected = len() - l;
     l += cut_left;
     while(!empty() && l >= frontEdge().rc().truncSize()) {
         l -= frontEdge().rc().truncSize();
         pop_front();
     }
     cut_left = l;
-    VERIFY(len() == expected);
     return *this;
 }
 
@@ -562,8 +574,13 @@ GraphPath &GraphPath::extend(const Sequence &seq) {
                 return *this;
             }
         } else {
-            if (backEdge().truncSeq()[backEdge().truncSize() - rightCut()] == c) {
-                addStep();
+//            Inside the last edge: compare the rest of it with the sequence in one go.
+            Edge &edge = backEdge();
+            size_t edge_pos = edge.truncSize() - rightCut();
+            size_t n = std::min(rightCut(), seq.size() - cpos);
+            if (edge.truncSeq().Subseq(edge_pos, edge_pos + n) == seq.Subseq(cpos, cpos + n)) {
+                cut_right -= n;
+                cpos += n - 1;
             } else {
                 invalidate();
                 return *this;
@@ -699,7 +716,7 @@ GraphPath GraphPath::operator*(size_t mult) const {
     GraphPath res(getStart());
     for(size_t i = 0; i < mult; i++)
         res += *this;
-    return std::move(res);
+    return res;
 }
 
 RAGraphPath GraphPath::asRAPath() const {
@@ -708,7 +725,7 @@ RAGraphPath GraphPath::asRAPath() const {
         res += edge;
     res.setCutLeft(leftCut());
     res.setCutRight(rightCut());
-    return std::move(res);
+    return res;
 }
 
 void GraphPath::replace_back(Edge &edge) {

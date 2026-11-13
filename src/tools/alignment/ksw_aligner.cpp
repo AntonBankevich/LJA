@@ -6,7 +6,8 @@
 
 size_t KSWAligner::window = 1000;
 
-__int64_t KSWAligner::cost(const char *tseq, const char *qseq, const AlignmentForm &cigar) const {
+//    Affine score of the alignment: matches and mismatches in M runs, one gap penalty per D or I run.
+__int64_t KSWAligner::score(const char *tseq, const char *qseq, const AlignmentForm &cigar) const {
     unsigned long from_pos = 0;
     unsigned long to_pos = 0;
     __int64_t res = 0;
@@ -18,15 +19,13 @@ __int64_t KSWAligner::cost(const char *tseq, const char *qseq, const AlignmentFo
                 else
                     res -= sc_mis;
             }
+        } else {
+            res -= gapo + gape * (cp.length - 1);
         }
-        if(cp.type != CigarEvent::I) {
+        if(cp.type != CigarEvent::I)
             to_pos += cp.length;
-            res -= gapo + gape * (cp.length - 1);
-        }
-        if(cp.type != CigarEvent::D) {
+        if(cp.type != CigarEvent::D)
             from_pos += cp.length;
-            res -= gapo + gape * (cp.length - 1);
-        }
     }
     return res;
 }
@@ -39,30 +38,30 @@ AlignmentForm KSWAligner::iterativeBandAlign(const char *tseq, const char *qseq)
     }
     size_t cur_width = min_width;
     cur_width += std::min<int>(std::max(l1, l2) - std::min(l1, l2) + min_width, max_width);
-    __int64_t prev_cost = -1000000;
+    __int64_t prev_score = -1000000;
     while(true) {
         auto res = runAlignment(tseq, qseq, cur_width);
-        __int64_t new_cost = cost(tseq, qseq, res);
-        if(new_cost == prev_cost || cur_width == max_width)
+        __int64_t new_score = score(tseq, qseq, res);
+        if(new_score == prev_score || cur_width == max_width)
             return std::move(res);
-        prev_cost = new_cost;
+        prev_score = new_score;
         cur_width = std::min(cur_width * 2, max_width);
     }
     return runAlignment(tseq, qseq, cur_width);
 }
 
 AlignmentForm KSWAligner::iterativeBandExtend(const char *tseq, const char *qseq) const {
-    __int64_t prev_cost = -1000000;
+    __int64_t prev_score = -1000000;
     size_t cur_width = min_width;
     while(true) {
         auto res = runAlignment(tseq, qseq, cur_width, 100000);
-        __int64_t new_cost = cost(tseq, qseq, res);
-        if((new_cost == prev_cost && res.queryLength() == strlen(qseq)) || cur_width == max_width)
+        __int64_t new_score = score(tseq, qseq, res);
+        if((new_score == prev_score && res.queryLength() == strlen(qseq)) || cur_width == max_width)
             return std::move(res);
 //          if(MaxAlignmentShift(res) < min_width && Divergence(tseq, qseq, res) < max_divergence) {
 //              return std::move(res);
 //          }
-        prev_cost = new_cost;
+        prev_score = new_score;
         cur_width = std::min(cur_width * 2, max_width);
     }
     return runAlignment(tseq, qseq, cur_width, 100000);

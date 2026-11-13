@@ -6,6 +6,7 @@
 #include "assembly_graph/data_structures/component.hpp"
 #include "assembly_graph/random_access_paths.hpp"
 #include "assembly_graph/assembly_graph.hpp"
+#include "dbg_listener.hpp"
 #include "sequences/sequence.hpp"
 #include "sequences/seqio.hpp"
 #include "common/omp_utils.hpp"
@@ -33,13 +34,14 @@ namespace dbg {
 
     class SparseDBG;
 
-    class HashListener : public ag::ResolutionListener {
-    private:
-        hashing::RollingHash hasher;
+//    While attached, every vertex is a k-mer whose hash is the canonical rolling hash of its sequence (same on both
+//    strands, unique among canonical vertices). Operations creating longer vertices require disableHashing() first.
+    class HashListener : public DBGListener {
     public:
-        HashListener(SparseDBG &dbg, const hashing::RollingHash &hasher);
+        explicit HashListener(SparseDBG &dbg);
 
         void fireAddVertex(ag::Vertex &v) override;
+        bool checkConsistency(std::ostream &os) override;
     };
 
     class SparseDBG : public ag::AssemblyGraph {
@@ -48,12 +50,14 @@ namespace dbg {
         hashing::RollingHash hasher_;
         HashListener hashListener;
     public:
-        explicit SparseDBG(const hashing::RollingHash &_hasher) : hasher_(_hasher), hashListener(*this, _hasher) {}
+        explicit SparseDBG(const hashing::RollingHash &_hasher) : ag::AssemblyGraph(_hasher.getK()), hasher_(_hasher),
+                hashListener(*this) {}
         SparseDBG(SparseDBG &&other) = default;
         SparseDBG &operator=(SparseDBG &&other) = default;
         SparseDBG(const SparseDBG &other) noexcept = delete;
         template <class I>
-        SparseDBG(I begin, I end, const hashing::RollingHash &_hasher) : hasher_(_hasher), hashListener(*this, _hasher) {
+        SparseDBG(I begin, I end, const hashing::RollingHash &_hasher) : ag::AssemblyGraph(_hasher.getK()),
+                hasher_(_hasher), hashListener(*this) {
             std::vector<hashing::htype> all(begin, end);
             std::sort(all.begin(), all.end());
             all.erase(std::unique(all.begin(), all.end()), all.end());
@@ -65,7 +69,6 @@ namespace dbg {
         void disableHashing() {hashListener.detach();}
 
         const hashing::RollingHash &hasher() const {return hasher_;}
-        size_t getK() const {return hasher().getK();}
 
         Vertex &addKmerVertex(const hashing::KWH &kwh, Vertex::id_type id = 0) {
             Vertex &res = AssemblyGraph::addVertex(kwh.getSeq(getK()), VertexData::DBGData(kwh.hash()), id);

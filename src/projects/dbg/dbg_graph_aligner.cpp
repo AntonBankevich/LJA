@@ -93,7 +93,7 @@ GraphPath KmerIndex::align(const Sequence &seq, const std::string &name) const {
     }
     size_t cpos = kmers.front().getPos() + k;
     while(cpos < seq.size()) {
-        if(seq.Subseq(cpos -k, cpos) != prestart->getSeq() || !prestart->hasOutgoing(seq[cpos])) {
+        if((debug && seq.Subseq(cpos -k, cpos) != prestart->getSeq()) || !prestart->hasOutgoing(seq[cpos])) {
             std::cout << "No outgoing for middle\n" << seq << "\n" << cpos << " " << prestart->getInnerId() <<
                       " " << prestart->outDeg() << "\n" << seq.Subseq(cpos -k, cpos) << "\n" << prestart->getSeq() << "\n" <<
                       size_t(seq[cpos]) << std::endl;
@@ -217,7 +217,7 @@ std::vector<ag::AlignmentChain<Contig, Edge>> KmerIndex::carefulAlign(Contig &co
                     extend_right++;
                 }
                 while(pos.pos > extend_left && kwh.getPos() > extend_left &&
-                                edge.rc().truncSeq()[edge.rc().truncSize() - pos.pos + extend_left] == (seq[kwh.getPos() - extend_left] ^ 3)) {
+                                edge.rc().truncSeq()[edge.rc().truncSize() - pos.pos + extend_left] == (seq[kwh.getPos() - extend_left - 1] ^ 3)) {
                     extend_left++;
                 }
                 if (extend_left + extend_right > 0) {

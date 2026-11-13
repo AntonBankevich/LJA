@@ -31,7 +31,7 @@ namespace ag_test {
         size_t k;
         size_t counter = 0;
 
-        explicit GraphBuilder(size_t k) : k(k) {}
+        explicit GraphBuilder(size_t k) : graph(k), k(k) {}
 
         ag::Vertex &newVertex() {
             return graph.addVertex(MakeSeq(counter++, k));

@@ -11,7 +11,7 @@
 #include "dbg/multi_graph.hpp"
 
 namespace spg {
-    class OldVertexTracker : public ag::ResolutionListener {
+    class OldVertexTracker : public SPGListener {
     public:
         struct DirectEmbedding {
             VertexId inner_vertex;
@@ -52,16 +52,17 @@ namespace spg {
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {}
         void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {VERIFY(false);}
-        void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override {VERIFY(false);}
-        void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
-                                 const AlignmentForm &left_al, const AlignmentForm &right_al) override {
-            VERIFY(false);
-        }
-        void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {VERIFY(false);}
         void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;
 
         std::vector<DirectEmbedding> getAllEmbeddings(VertexId v) const;
         std::vector<DirectEmbedding> getAllSubvertices(VertexId v) const;
+
+//        1. Every vertex ever added has records; a live vertex's recorded sequence is its sequence.
+//        2. Every embedding (inner, outer, from, to) holds: seq(inner) == seq(outer)[from, to).
+//        3. Every embedding is recorded both as a supervertex of inner and a subvertex of outer.
+//        4. A vertex carries the dead marker (a self-embedding) iff it is not live.
+//        5. Every live prefix (suffix) edge's start (finish) is recorded inside its finish (start).
+        bool checkConsistency(std::ostream &os) override;
     };
 
 //    "Which currently-alive vertices is this read a substring of?" A read whose MES extension fit inside
@@ -72,59 +73,6 @@ namespace spg {
 //    one). Only meaningful for reads equivalent to a vertex (substring/legacy reads); a read spanning a
 //    real path corresponds to a compact path instead and is out of scope here.
     std::vector<ag::VertexId> readSubstringVertices(const ag::AlignedRead &read, const OldVertexTracker &tracker);
-
-    class OldPathTracker : public ag::ResolutionListener {
-        struct WatchPath {
-            std::string name;
-            std::vector<VertexId> vertices = {};
-            std::vector<Sequence> edge_codes = {};
-            std::experimental::filesystem::path out_dir;
-            size_t cnt = 0;
-            WatchPath(std::string name, const std::vector<ag::AlignmentChain<Contig, Edge>> &chain,
-                std::experimental::filesystem::path out_dir);
-        };
-        std::vector<WatchPath> paths;
-        std::unordered_map<VertexId, std::vector<size_t>> vertex_watch;
-        OldVertexTracker const *tracker;
-        ag::Printer const *printer;
-        std::experimental::filesystem::path dir;
-        size_t cnt = 0;
-        void printPath(size_t id, ag::Printer &printer, const std::string &message, const std::vector<ag::VertexId> &extra_vertices = {});
-
-    public:
-        void addPath(const std::string &name, const std::vector<ag::AlignmentChain<Contig, ag::Edge>> &als);
-
-        OldPathTracker(ag::ResolutionFire &fire, const OldVertexTracker &tracker,
-            const ag::Printer &printer, std::experimental::filesystem::path dir) :
-                ag::ResolutionListener(fire, "OldPathTracker"),
-                tracker(&tracker), printer(&printer), dir(dir) {
-            recreate_dir(dir);
-        }
-
-        void fireDeleteVertex(Vertex &v) override {
-            auto it = vertex_watch.find(v.getId());
-            if (it != vertex_watch.end()) {
-                std::vector<size_t> pathIds = it->second;
-                for (size_t pid : pathIds) {
-                    ag::Printer p = *printer + ag::VertexInfo::Colorer(ag::ConstMapping(v, "red"));
-                    printPath(pid, p, "ResolveVertex_" + itos(v.getInnerId()), {});
-                }
-                vertex_watch.erase(it);
-            }
-        }
-        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
-
-        void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
-        void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {
-            VERIFY(false);
-        }
-        void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &new_edge) override {VERIFY(false);}
-        void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
-                                         const AlignmentForm &left_al, const AlignmentForm &right_al) override {VERIFY(false);}
-        void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {VERIFY(false);}
-        void fireResetEdgeCodes(logging::Logger &logger, size_t threads, ag::AssemblyGraph &graph) override {}
-        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;;
-    };
 }
 
 

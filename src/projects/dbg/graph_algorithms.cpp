@@ -252,14 +252,19 @@ namespace dbg {
         fillCoverage(logger, threads, reader.begin(), reader.end(), index);
         std::ofstream os;
         os.open(dir / "coverages.save");
-        os << dbg.size() << std::endl;
+//        Read back by LoadCoverage (lja/dbg.cpp): one record per canonical vertex, each edge identified by its first
+//        nucleotide as a number (getOutgoing finds it by that whether or not its code is empty).
+        size_t records = 0;
+        for ([[maybe_unused]] Vertex &v: dbg.verticesUnique())
+            records++;
+        os << records << std::endl;
         for (Vertex &v: dbg.verticesUnique()) {
             os << v.getInnerId() << " " << v.outDeg() << " " << v.inDeg() << std::endl;
             for (const Edge &edge: v) {
-                os << edge.getCode() << " " << edge.intCov() << std::endl;
+                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
             }
             for (const Edge &edge: v.rc()) {
-                os << edge.getCode() << " " << edge.intCov() << std::endl;
+                os << size_t(edge.truncSeq()[0]) << " " << edge.intCov() << std::endl;
             }
         }
 //    dbg.printCoverageStats(logger);
@@ -317,18 +322,21 @@ namespace dbg {
             Sequence start = seq.Prefix(hasher.getK());
             Sequence end = (!seq).Prefix(hasher.getK());
             ag::EdgeSaveLabel eids = {{}, {}};
+            bool parsed = true;
             try {
                 eids = Parse<ag::EdgeSaveLabel>(contig.id, 0, contig.id.size());
             } catch (std::invalid_argument &e) {
                 eids = {{}, {}};
+                parsed = false;
                 ++bad_ids;
             }
             Edge::id_type eid = eids.fId;
             Edge::id_type rceid = eids.rcId;
             MovingKWH start_kwh(hasher, start, 0);
             MovingKWH end_kwh(hasher, end, 0);
-            VERIFY(start.isCanonical() == eid.vid > 0);
-            VERIFY(end.isCanonical() == rceid.vid > 0);
+//            Only parsed ids carry an orientation; unparsed ones are all discarded below.
+            VERIFY(!parsed || start.isCanonical() == eid.vid > 0);
+            VERIFY(!parsed || end.isCanonical() == rceid.vid > 0);
             if(eid.vid < 0)
                 vertices.emplace_back(-eid.vid, !start_kwh);
             else

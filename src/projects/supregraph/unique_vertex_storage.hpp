@@ -1,8 +1,9 @@
 #pragma once
 
 
-#include "assembly_graph/graph_listeners.hpp"
+#include "spg_listener.hpp"
 #include "assembly_graph/assembly_graph.hpp"
+#include "libcuckoo/cuckoohash_map.hh"
 #include <unordered_set>
 
 namespace spg {
@@ -10,10 +11,10 @@ namespace spg {
     using ag::Edge;
     using ag::VertexId;
 
-//    TODO: make this concurrent by moving uniqueness indicator into vertex itself and locking it every time we need access.
-    class UniqueVertexStorage : public ag::ResolutionListener {
+//    Merges may run in parallel, so the set is concurrent (a map whose values are unused).
+    class UniqueVertexStorage : public SPGListener {
     private:
-        std::unordered_set<ag::ConstVertexId> unique;
+        libcuckoo::cuckoohash_map<ag::ConstVertexId, bool> unique;
         size_t unique_threshold;
 
 //        TODO: redo this using corporeal indicator
@@ -42,11 +43,10 @@ namespace spg {
         }
 
         void fireAddVertex(Vertex &vertex) override {if (vertex.innerSize() >= unique_threshold) add(vertex);}
-        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override {};
-        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {};
+//        Once a vertex is unique, every future superstring of it must be unique too.
+        void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;
+        void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) override;
-        void fireMergePathToEdge(const ag::RAGraphPath &path, Edge &vertex) override {VERIFY(false);};
-        void fireSplitEdge(Edge &edge, const ag::RAGraphPath &split) override {VERIFY(false);};
         void fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) override;
         void fireDeleteVertex(spg::Vertex &v) override {unique.erase(v.getId());}
     };
@@ -54,7 +54,7 @@ namespace spg {
 
 template<class I>
 spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, I begin, I end, size_t unique_threshold) :
-            ag::ResolutionListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold) {
+            SPGListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold) {
     for (Vertex &vertex : spg.vertices()) {fireAddVertex(vertex);}
     for(;begin != end; ++begin) {
         add(*begin);

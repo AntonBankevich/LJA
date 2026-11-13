@@ -72,33 +72,25 @@ void SuffixRecord::lockFreeChangePathCnt(const Sequence &min_seq, const Sequence
         addPath(min_seq, diff);
         return;
     }
-    for (auto & path : paths) {
-        if((path.first == min_seq || path.first == max_seq) && path.second + diff >= 0) {
-            path.second += diff;
-            updateZero(path.second - diff, path.second);
+    for (auto it = paths.begin(); diff != 0 && it != paths.end(); ++it) {
+        if((it->first == min_seq || it->first == max_seq) && it->second + diff >= 0) {
+            it->second += diff;
+            updateZero(it->second - diff, it->second);
             diff = 0;
-            return;
         }
     }
-    std::vector<size_t> subseqs;
-    for (size_t i = 0; i < paths.size(); i++) {
-        std::pair<Sequence, int> &path = paths[i];
-        if(path.second != 0 && max_seq.startsWith(path.first) && path.first.startsWith(min_seq) ) {
-            VERIFY(path.second > 0);
-            if (path.second + diff >= 0) {
-                path.second += diff;
-                updateZero(path.second - diff, path.second);
-                diff = 0;
-                return;
-            } else {
-                diff += path.second;
-                path.second = 0;
-                updateZero(1, 0);
-            }
-            subseqs.push_back(i);
+    for (auto it = paths.begin(); diff != 0 && it != paths.end(); ++it) {
+        if(it->second != 0 && max_seq.startsWith(it->first) && it->first.startsWith(min_seq)) {
+            VERIFY(it->second > 0);
+            int taken = std::min(it->second, -diff);
+            it->second -= taken;
+            updateZero(it->second + taken, it->second);
+            diff += taken;
         }
     }
     VERIFY_MSG(diff == 0, "Attempting to remove path that is not present in the record.");
+//    Entries dropping to zero are kept for a while (addPath revives one if the same suffix comes back); clean up once
+//    they make up a third of the record.
     if (zero_cnt > paths.size() / 3) {
         removeZero();
     }
@@ -146,6 +138,8 @@ void SuffixRecord::resetCodes(Vertex &start) {
 
 std::function<std::string(const Edge & )> SuffixTracker::labeler() const {
     return [this](const Edge &edge) {
+        if (!hasSuffixRecord(edge))
+            return std::string();
         const SuffixRecord &rec = getSuffixRecord(edge);
         std::stringstream ss;
         size_t cnt = 0;
@@ -164,9 +158,13 @@ std::function<std::string(const Edge & )> SuffixTracker::labeler() const {
 }
 
 void SuffixTracker::processPath(PathPosition left, PathPosition right, int diff) {
-    while (right != left && right.prevEdge().isSuffix()) {
+    while (right != left && right.prevEdge().getCode().empty()) {
         --right;
     }
+    //A path with no edge with a code (e.g. a read that is just res->end after a merge) visits no edge
+    //that has an edge with a code after it, so it contributes to no suffix record.
+    if (right == left)
+        return;
     PathPosition from_pos = left;
     PathPosition to_pos = from_pos + 1;
     size_t clen = left.nextEdge().truncSize();
@@ -176,21 +174,25 @@ void SuffixTracker::processPath(PathPosition left, PathPosition right, int diff)
         Edge &edge = from_pos.nextEdge();
         clen -= edge.truncSize();
         ++from_pos;
-        SuffixRecord &erec = getSuffixRecord(edge);
-        while (to_pos < right && (clen < erec.getMaxSuffixLength())) {
+        SuffixRecord *erec = findRecord(edge);
+        const size_t need = erec == nullptr ? 0 : erec->getMaxSuffixLength();
+//        An edge without a record stores nothing, but to_pos must stay ahead of from_pos for the edges after it. A
+//        stored suffix never ends with an edge without a code.
+        while (to_pos < right && (clen < need || (erec == nullptr && to_pos == from_pos) ||
+                                  (to_pos != from_pos && to_pos.prevEdge().getCode().empty()))) {
             Edge &new_edge = to_pos.nextEdge();
             clen += new_edge.truncSize();
             to_pos += new_edge;
         }
         VERIFY(to_pos <= right);
-        VERIFY(!to_pos.prevEdge().isSuffix());
-        if (clen >= min_len) {
+        VERIFY(to_pos == from_pos || !to_pos.prevEdge().getCode().empty());
+        if (erec != nullptr && clen >= min_len) {
             if (from_pos == to_pos) {
-                erec.changePathCnt(Sequence(), Sequence(), diff);
+                erec->changePathCnt(Sequence(), Sequence(), diff);
             } else {
                 Sequence subseq_max_code = read_seq.Subseq(from_pos.getFPos() - left.getFPos(),
                         to_pos.getFPos() - left.getFPos());
-                erec.changePathCnt(subseq_max_code.Subseq(0, subseq_max_code.size() - to_pos.prevEdge().getCode().size() + 1),
+                erec->changePathCnt(subseq_max_code.Subseq(0, subseq_max_code.size() - to_pos.prevEdge().getCode().size() + 1),
                     subseq_max_code, diff);
             }
         }
@@ -208,26 +210,28 @@ void SuffixTracker::fillFromStorage(logging::Logger &logger, size_t threads) {
     logger.info() << "Finished collecting and storing read suffixes" << std::endl;
 }
 
+//    Legacy paths (subreads of deleted vertices) are empty, so they hold no suffixes; their vertex is gone, so they must
+//    not be walked.
 void SuffixTracker::fireAddRead(const AlignedRead &read) {
-    if(read.valid()) {
+    if(read.valid() && !read.getPath().isLegacy()) {
         addSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
         addSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
     }
 }
 
 void SuffixTracker::fireRerouteRead(AlignedRead &read) {
-    if(read.valid()) {
+    if(read.valid() && !read.getPath().isLegacy()) {
         removeSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
         removeSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
     }
-    if(read.getCorrected().valid()) {
+    if(read.getCorrected().valid() && !read.getCorrected().isLegacy()) {
         addSubpath(read.getCorrected().firstPosition(), read.getCorrected().lastPosition());
         addSubpath(read.getCorrected().lastPosition().RC(), read.getCorrected().firstPosition().RC());
     }
 }
 
 void SuffixTracker::fireInvalidateRead(AlignedRead &read) {
-    if(read.valid()) {
+    if(read.valid() && !read.getPath().isLegacy()) {
         removeSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
         removeSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
     }
@@ -237,74 +241,131 @@ SuffixTracker::SuffixTracker(AlignedReadStorage &storage, AssemblyGraph &graph,
                              size_t _min_len, size_t _max_len) :
         AlignedReadStorageListener(storage, "SuffixTracker"), ResolutionListener(graph, "SuffixTracker"), storage(&storage),
         min_len(_min_len), max_len(_max_len) {
+//    Records on every DBG edge (between k-mers) and on every incoming edge of a vertex with several incoming edges.
+//    Operations then give a new edge a record iff the edge it takes over from had one.
     for(Edge &e : graph.edges()) {
-        edge_data.insert(e.getId(), std::make_unique<SuffixRecord>(e, max_len));
+        if ((e.getStart().size() == graph.getK() && e.getFinish().size() == graph.getK()) || e.getFinish().inDeg() > 1)
+            edge_data.insert(e.getId(), std::make_unique<SuffixRecord>(e, max_len));
     }
 }
 
+void SuffixTracker::moveRecord(const Edge &from, Edge &to, const Edge *through) {
+    SuffixRecord *src = findRecord(from);
+    if (src == nullptr)
+        return;
+    size_t max_len = src->getMaxSuffixLength();
+    if (through != nullptr)
+        max_len -= std::min(max_len, through->truncSize());
+    std::unique_ptr<SuffixRecord> rec = std::make_unique<SuffixRecord>(to, max_len);
+    rec->paths = std::move(src->paths);
+    VERIFY(src->paths.empty());
+    rec->zero_cnt = src->zero_cnt;
+    src->zero_cnt = 0;
+    if (through != nullptr && !through->getCode().empty()) {
+        const Sequence &cut = through->getCode();
+        size_t kept = 0;
+        for (std::pair<Sequence, int> &p : rec->paths)
+            if (p.second > 0 && p.first.size() > cut.size() && p.first.startsWith(cut))
+                rec->paths[kept++] = {p.first.Subseq(cut.size()), p.second};
+        rec->paths.resize(kept);
+        rec->zero_cnt = 0;
+    }
+    edge_data.insert_or_assign(to.getId(), std::move(rec));
+}
+
+void SuffixTracker::copyRecord(const Edge &from, Edge &to, const Edge *through) {
+    const SuffixRecord *src = findRecord(from);
+    if (src == nullptr)
+        return;
+    size_t max_len = src->getMaxSuffixLength();
+    if (through != nullptr)
+        max_len -= std::min(max_len, through->truncSize());
+    std::unique_ptr<SuffixRecord> rec = std::make_unique<SuffixRecord>(to, max_len);
+    if (through == nullptr || through->getCode().empty()) {
+        rec->paths = src->paths;
+        rec->zero_cnt = src->zero_cnt;
+    } else {
+        const Sequence &cut = through->getCode();
+        for (const std::pair<Sequence, int> &p : *src) {
+            if (p.second > 0 && p.first.size() > cut.size() && p.first.startsWith(cut))
+                rec->directAddPath(p.first.Subseq(cut.size()), p.second);
+        }
+    }
+    edge_data.insert_or_assign(to.getId(), std::move(rec));
+}
+
+//    Every new edge takes over from one old edge, after which reads continue the same way, and gets its record. The
+//    source is deleted by the operation, so it is moved, unless the mirrored call needs it too: a path whose last edge
+//    is the rc of its first one (forward source path.backEdge(), mirrored source path.frontEdge().rc()).
 void SuffixTracker::fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {
-    SuffixRecord &erec = getSuffixRecord(new_edge);
-    SuffixRecord &lasterec = getSuffixRecord(path.backEdge());
-    erec.paths = std::move(lasterec.paths);
+    if (path.backEdge() == path.frontEdge().rc())
+        copyRecord(path.backEdge(), new_edge);
+    else
+        moveRecord(path.backEdge(), new_edge);
+}
+
+//    Vertex sizes strictly change along the run, so its last edge is never the rc of its first one.
+void SuffixTracker::fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) {
+    moveRecord(path.backEdge(), new_edge);
 }
 
 void SuffixTracker::fireMergePath(const RAGraphPath &path, Vertex &vertex) {
-    VERIFY(vertex != path.getFinish());
-    VERIFY(vertex != path.getStart());
-    //Unlike a resolved vertex, a merged vertex can have reads starting inside it (at one of the path's
-    //former inner vertices), so incoming can not be derived from outgoing. Instead each boundary edge of
-    //vertex inherits from the matching boundary edge of path: path.frontEdge() occupied the same entrance
-    //position before the collapse, path.backEdge() the same exit position.
-    for (Edge &edge: path.getFinish()) {
-        Edge &new_edge = vertex.getNonCorporealOutgoing(edge.firstNucl());
-        getSuffixRecord(new_edge).paths = std::move(getSuffixRecord(edge).paths);
-        getSuffixRecord(new_edge).zero_cnt = getSuffixRecord(edge).zero_cnt;
-    }
-    for (Edge &edge: path.getStart().incoming()) {
-        Edge & new_edge = vertex.rc().getNonCorporealOutgoing(edge.rc().firstNucl()).rc();
-        SuffixRecord &new_rec = getSuffixRecord(new_edge);
-        for (std::pair<Sequence, int> &rec: getSuffixRecord(edge).paths) {
-            if (rec.first.size() > new_edge.getCode().size() - edge.getCode().size()) {
-                new_rec.directAddPath(rec.first.Subseq(new_edge.getCode().size() - edge.getCode().size()), rec.second);
-            }
-        }
-    }
+    if (path.backEdge() == path.frontEdge().rc())
+        copyRecord(path.backEdge(), vertex.front());
+    else
+        moveRecord(path.backEdge(), vertex.front());
 }
 
+//    The mirrored call's source is left.rc(), which is right itself if the tips are each other's rc.
 void
 SuffixTracker::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right, const AlignmentForm &,
                                    const AlignmentForm &) {
-    SuffixRecord &erec = getSuffixRecord(new_edge);
-    SuffixRecord &rrec = getSuffixRecord(right);
-    SuffixRecord &lrec = getSuffixRecord(left);
-    erec.paths = std::move(rrec.paths);
+    if (right == left.rc())
+        copyRecord(right, new_edge);
+    else
+        moveRecord(right, new_edge);
 }
 
+//    No read crosses a split vertex (the split contract), so the pieces before the last have empty records. A self-rc
+//    edge fires only once.
 void SuffixTracker::fireSplitEdge(Edge &edge, const RAGraphPath &split) {
-    SuffixRecord &erec = getSuffixRecord(edge);
-    SuffixRecord &last_rec = getSuffixRecord(split.backEdge());
-    last_rec.paths = std::move(erec.paths);
+    for (Edge &piece : split.edges())
+        if (piece != split.backEdge())
+            edge_data.insert_or_assign(piece.getId(), std::make_unique<SuffixRecord>(piece, max_len));
+    moveRecord(edge, split.backEdge());
+}
+
+//    Forward call: u -> w_i replaces core -> w_i, which is moved unless it is its own rc (then the mirrored call uses it
+//    too). Mirrored call: core has the single outgoing edge out, and w_i.rc() -> u.rc() replaces the path e -> out for
+//    each incoming e, so it takes e's record continued through out (each e is used once).
+void SuffixTracker::fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+    if (core.outDeg() != 1) {
+        for (Edge &e : core) {
+            if (e == e.rc())
+                copyRecord(e, *extensions.at(e.getId()));
+            else
+                moveRecord(e, *extensions.at(e.getId()));
+        }
+    } else {
+        for (Edge &e : core.incoming())
+            moveRecord(e, *extensions.at(e.getId()), &core.front());
+    }
 }
 
 void SuffixTracker::fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) {
     std::function<void(size_t, Edge &)> task = [this](size_t, Edge &e) {
-        getSuffixRecord(e).resetCodes(e.getFinish());
+        SuffixRecord *rec = findRecord(e);
+        if (rec != nullptr)
+            rec->resetCodes(e.getFinish());
     };
     processObjects(graph.edges().begin(), graph.edges().end(), logger, threads, task);
 }
 
-bool SuffixTracker::fireCheckConsistency() {
-//        fireCheckConsistency is only ever called single-threaded, never concurrently with graph
-//        modifications; lock_table() here is just libcuckoo's only full-table iteration API, not
-//        synchronization against any other running thread.
-    {
-        auto lt = edge_data.lock_table();
-        for (auto &p : lt) {
-            SuffixRecord &rec = *p.second;
-        }
-    }
+bool SuffixTracker::fireCheckConsistency(std::ostream &os) {
+//        Single-threaded only; lock_table() is just libcuckoo's only full-table iteration API.
+    bool ok = true;
     for(AlignedRead &read : *storage) {
-        if(read.valid()) {
+        if(read.valid() && !read.getPath().isLegacy()) {
             removeSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
             removeSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
         }
@@ -314,68 +375,53 @@ bool SuffixTracker::fireCheckConsistency() {
         for (auto &p : lt) {
             SuffixRecord &rec = *p.second;
             rec.removeZero();
-            VERIFY(rec.begin() == rec.end());
-            if(rec.begin() != rec.end())
-                return false;
+            if(rec.begin() != rec.end()) {
+                os << "SuffixTracker: record of edge " << p.first << " keeps suffixes not given by the stored reads:\n"
+                   << rec.str();
+                ok = false;
+            }
         }
     }
     for(AlignedRead &read : *storage) {
-        if(read.valid()) {
+        if(read.valid() && !read.getPath().isLegacy()) {
             addSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
             addSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
         }
     }
-    return true;
+    return ok;
 }
 
-//e (X->Y) is replaced by X->v (prefix edge = v.incFront()) and v->Y (suffix edge = v.front()), which
-//together carry exactly e's code. Every read suffix stored on e continues identically after both of v's
-//boundary edges - a read entering v via the prefix edge, and (for reads continuing past Y) the suffix
-//edge, pick up the same continuation e had. Copy e's record onto both so a tracker carried through the
-//conversion matches a from-scratch fill on the supregraph. The rc-mirrored fire handles v.rc()'s pair.
+//e = u -> w becomes u -> v -> w; reads continue after v -> w as they did after e. A self-rc e fires only once.
 void SuffixTracker::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
-    SuffixRecord &erec = getSuffixRecord(e);
-    for (Edge *dst : {&v.front(), &v.incFront()}) {
-        SuffixRecord &drec = getSuffixRecord(*dst);
-        drec.paths = erec.paths;
-        drec.zero_cnt = erec.zero_cnt;
-    }
-}
-
-void SuffixTracker::fireAddEdge(Edge &edge) {
-    edge_data.insert(edge.getId(), std::make_unique<SuffixRecord>(edge, max_len));
+    moveRecord(e, v.front());
 }
 
 void SuffixTracker::fireDeleteEdge(Edge &edge) {
     edge_data.erase(edge.getId());
 }
 
+//The pair in -> out is replaced by an edge into out's finish w (new_vertex -> w or a direct edge), after which reads
+//continue as they did after the path in -> out: in's suffixes continuing through out, out's code cut off. in always has
+//a record (core has several incoming edges), and w may now have several incoming edges, so every such edge gets one.
 void SuffixTracker::fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {
-    for (Edge &inc: core.incoming()) {
-        const SuffixRecord &rec = getSuffixRecord(inc);
-        std::unordered_map<unsigned char, std::pair<size_t, SuffixRecord *>> rec_map;
-        for(Edge &out : core) {
-            if(!resolution.contains(inc, out))
-                continue;
-            rec_map[out.firstNucl()] = {out.getCode().size(), &getSuffixRecord(resolution.get(inc, out).front())};
-            size_t len = getSuffixRecord(inc).max_suffix_len;
-            len -= std::min(len, out.truncSize());
-            rec_map[out.firstNucl()].second->max_suffix_len = len;
-        }
-        for (const std::pair<Sequence, int> &info: rec) {
-            if (info.second == 0)
-                continue;
-            VERIFY(!info.first.empty());
-            Edge &out = core.getOutgoing(info.first[0]);
-            if(out.getCode().size() < info.first.size()) {
-                rec_map.at(info.first[0]).second->directAddPath(info.first.Subseq(rec_map.at(info.first[0]).first), info.second);
+    for (const auto &rec : resolution)
+        copyRecord(rec.second.incoming(), rec.first->front(), &rec.second.outgoing());
+    for (const auto &rec : resolution.newEdges())
+        copyRecord(rec.second.incoming(), *rec.first, &rec.second.outgoing());
+}
+
+bool SuffixTracker::checkConsistency(std::ostream &os) {
+    size_t errors = 0;
+    for (Vertex &v : getGraph().vertices()) {
+        if (v.inDeg() < 2)
+            continue;
+        for (Edge &e : v.incoming()) {
+            if (findRecord(e) == nullptr) {
+                os << "Suffix tracker inconsistency: edge " << e.getInnerId() << " into vertex " << v.getInnerId()
+                   << " with several incoming edges has no record\n";
+                errors++;
             }
         }
     }
-    //There can be no read that starts in any of the new vertices. Thus incoming record is the same as outgoing record
-    for (auto &rec : resolution) {
-        SuffixRecord &inc_rec = getSuffixRecord(rec.first->incFront());
-        SuffixRecord &out_rec = getSuffixRecord(rec.first->front());
-        inc_rec.paths = out_rec.paths;
-    }
+    return errors == 0;
 }

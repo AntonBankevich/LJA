@@ -20,6 +20,8 @@ namespace hashing {
 
 namespace std {
     inline std::ostream &operator<<(std::ostream &os, hashing::htype val) {
+        if (val == 0)
+            return os << '0';
         std::vector<size_t> res;
         while (val != 0) {
             res.push_back(val % 10);
