@@ -86,7 +86,7 @@ TEST(GraphModificationTest, FlipVertexEdgesAndCodes) {
     Sequence s1 = u.getSeq() + inc.truncSeq() + e1.truncSeq();
     Sequence s2 = u.getSeq() + inc.truncSeq() + e2.truncSeq();
 
-    ag::Vertex &res = graph.flipVertexLockFree(core);
+    ag::Vertex &res = graph.flipVertexLockFree(core.incFront());
     graph.removeMarked();
 
     ASSERT_EQ(res, u);

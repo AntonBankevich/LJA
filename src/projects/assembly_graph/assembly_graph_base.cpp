@@ -87,6 +87,20 @@ size_t Edge::overlapSize() const {
 
 bool Edge::isOuter() const { return getStart().outDeg() > 1 && getFinish().inDeg() > 1; }
 
+void Edge::setVirtualType(VirtualType type) {
+    VERIFY(type != VirtualType::unset);
+    VERIFY(virtual_type == VirtualType::unset);
+    VirtualType mirrored = type == VirtualType::suffix ? VirtualType::prefix :
+                           type == VirtualType::prefix ? VirtualType::suffix : type;
+    if (*this == rc()) {
+        virtual_type = VirtualType::merge;
+        return;
+    }
+    VERIFY(rc().virtual_type == VirtualType::unset);
+    virtual_type = type;
+    rc().virtual_type = mirrored;
+}
+
 bool Edge::isInner() const { return getStart().outDeg() == 1 && getFinish().inDeg() == 1; }
 
 void Edge::incCov(int64_t delta) {
@@ -162,7 +176,7 @@ bool Vertex::isPalindrome() const {return *this == rc();}
 //    (EdgeCodeListener::checkConsistency), so the first match is the one.
 Edge &Vertex::getOutgoing(unsigned char c) const {
     for (Edge &edge : outgoing_) {
-        if (edge.corporeal && (edge.getCode().empty() || edge.getCode()[0] == c)) {
+        if (edge.corporeal && (edge.isCodeEmpty() || edge.getCode()[0] == c)) {
             return edge;
         }
     }
@@ -178,7 +192,7 @@ Edge &Vertex::getOutgoing(unsigned char c) const {
 
 Edge &Vertex::getNonCorporealOutgoing(unsigned char c) const {
     for (Edge &edge : outgoing_) {
-        if (!edge.corporeal && (edge.getCode().empty() || edge.getCode()[0] == c)) {
+        if (!edge.corporeal && (edge.isCodeEmpty() || edge.getCode()[0] == c)) {
             return edge;
         }
     }

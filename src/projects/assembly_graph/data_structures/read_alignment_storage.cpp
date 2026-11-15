@@ -203,33 +203,21 @@ void AlignedReadStorageMaintenance::fileAsSubread(const AlignedReadDirection &di
 }
 
 //    Forward call: core is a suffix of its single in-neighbour u; reads starting at core start at u instead, by the new
-//    edge replacing their first one, or, if they contain no sample segment of core, start after the fork. Mirrored call:
-//    core is a prefix of its single out-neighbour; reads drop that edge.
-void AlignedReadStorageMaintenance::fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+//    edge replacing their first one. Mirrored call: core is a prefix of its single out-neighbour; reads drop that edge.
+//    Only k-mers have no sample segments, and no read starts at a k-mer in a supregraph, so every read starting at core
+//    contains one of its segments and is extended.
+void AlignedReadStorageMaintenance::fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {
     VERIFY_MSG(!storage->inReadCorrection(), "The graph can not change while read corrections are pending");
-    const bool forward = core.outDeg() != 1;
-    Vertex &target = forward ? core.incFront().getStart() : core.front().getFinish();
+    const bool forward = edge.isSuffix();
+    Vertex &core = forward ? edge.getFinish() : edge.getStart();
+    Vertex &target = forward ? edge.getStart() : edge.getFinish();
     migrateSubstringReads(core, target, forward ? target.size() - core.size() : 0);
     std::vector<AlignedReadDirection> starting = std::move(storage->getOutgoingReads(core));
     VERIFY(storage->getOutgoingReads(core).empty());
-//    A read starting at core and going into the fork is extended to u only if it then contains a sample segment of u (the
-//    invariant for a read starting in a vertex with segments); otherwise it is shortened to start after the fork.
-//    Extended, it starts in u and ends past u's end (it went into the fork), so it contains one iff it starts no later
-//    than u's last segment (SampleSegmentTracker has already moved core's segments to the end of u). The last record is
-//    that segment, or for a kpomer chunk its last (k+1)-mer.
-    const bool has_segments = forward && !target.coverage_info.empty();
-    size_t last_start = 0;
-    if (has_segments) {
-        CoverageSamples::SampleView last = target.coverage_info.back();
-        last_start = last.sample.type == CoverageSamples::SampleType::kpomer ? last.finish() - storage->getK() - 1
-                                                                             : last.start();
-    }
+    VERIFY(starting.empty() || core.size() != storage->getK());
     for (AlignedReadDirection &dir : starting) {
         dir.getRead().lock();
-        const size_t start_in_u = dir.leftCut() + target.size() - core.size();
-        if (forward && !(has_segments && start_in_u <= last_start)) {
-            dir.pop_front(dir.frontEdge());
-        } else if (forward) {
+        if (forward) {
             Edge &first = dir.frontEdge();
             const size_t cut_left = dir.leftCut() + target.size() - core.size();
             dir.setCutLeft(0);
@@ -237,7 +225,7 @@ void AlignedReadStorageMaintenance::fireFlipVertex(Vertex &core, const std::unor
             dir.push_front(*extensions.at(first.getId()));
             dir.setCutLeft(cut_left);
         } else {
-            dir.pop_front(core.front());
+            dir.pop_front(edge);
         }
         dir.getRead().unlock();
         if (dir.empty())
@@ -726,7 +714,7 @@ bool AlignedReadStorage::checkRecords(std::ostream &os) {
             Edge *next = nullptr;
             size_t matches = 0;
             for (Edge &e : *v) {
-                if (e.getCode().empty() || (fi < fs.size() && e.getCode()[0] == fs[fi])) {
+                if (e.isCodeEmpty() || (fi < fs.size() && e.getCode()[0] == fs[fi])) {
                     next = &e;
                     matches++;
                 }

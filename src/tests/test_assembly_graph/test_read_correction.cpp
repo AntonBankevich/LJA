@@ -144,12 +144,12 @@ TEST(ReadCorrection, PathToSubreadAndBackOnSupregraph) {
         RandomDBG rdbg(RandomGenome(300, seed), K);
         std::unique_ptr<spg::Supregraph> spg_holder;
         ag::AlignedReadStorage reads(rdbg.dbg, ExtractAndAlignReads(rdbg, 60, 40, 1, seed + 60));
-        ag::SuffixTracker suffixes(reads, rdbg.dbg, 0, 1000);
-        suffixes.fillFromStorage(QuietLogger(), 1);
         ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
         rdbg.dbg.disableHashing();
         spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
         spg::Supregraph &spg = *spg_holder;
+        ag::SuffixTracker suffixes(reads, spg, 0, 1000);
+        suffixes.fillFromStorage(QuietLogger(), 1);
         CheckAll(spg, reads, suffixes, "seed=" + std::to_string(seed) + " after conversion");
         std::vector<ag::GraphPath> original;
         for (ag::AlignedRead &read : reads)

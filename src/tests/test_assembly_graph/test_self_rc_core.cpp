@@ -11,12 +11,18 @@
 using namespace ag_test;
 
 namespace {
-    bool SomeVertexSpells(spg::Supregraph &spg, const std::string &genome) {
+//    A 1-to-1 resolution leaves a direct edge, so the genome may be spelled by an edge between two tips.
+    bool SomeVertexOrEdgeSpells(spg::Supregraph &spg, const std::string &genome) {
         std::string rc = (!Sequence(genome)).str();
+        auto spells = [&](const std::string &seq) {
+            return seq.find(genome) != std::string::npos || seq.find(rc) != std::string::npos;
+        };
         for (ag::Vertex &v : spg.vertices()) {
-            std::string seq = v.getSeq().str();
-            if (seq.find(genome) != std::string::npos || seq.find(rc) != std::string::npos)
+            if (spells(v.getSeq().str()))
                 return true;
+            for (ag::Edge &e : v)
+                if (spells(e.fullSeq().str()))
+                    return true;
         }
         return false;
     }
@@ -43,13 +49,13 @@ TEST(SelfRcCore, ResolveAndMergeKeepEverythingConsistent) {
             dll.addContig(contig, al);
         }
         ag::AlignedReadStorage storage(rdbg.dbg, ExtractAndAlignReads(rdbg, 2 * genome.size() / 10, 100, 1, seed + 200));
-        ag::SuffixTracker suffixes(storage, rdbg.dbg, 0, 1000);
-        suffixes.fillFromStorage(QuietLogger(), 1);
         std::map<std::string, std::string> before = ReadSeqSnapshot(storage);
         ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
         rdbg.dbg.disableHashing();
         spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
         spg::Supregraph &spg = *spg_holder;
+        ag::SuffixTracker suffixes(storage, spg, 0, 1000);
+        suffixes.fillFromStorage(QuietLogger(), 1);
         spg::CoverageTracker cov(spg, storage, QuietLogger(), 1);
         spg::MergeAllSPG(QuietLogger(), 1, spg);
         ASSERT_TRUE(spg.checkConsistency(std::cerr)) << "seed=" << seed << " before resolution";
@@ -79,7 +85,7 @@ TEST(SelfRcCore, ResolveAndMergeKeepEverythingConsistent) {
 
         for (ag::Vertex &v : spg.vertices())
             EXPECT_FALSE(v == v.rc() && v.inDeg() == 2 && v.outDeg() == 2) << "seed=" << seed << ": fork left";
-        EXPECT_TRUE(SomeVertexSpells(spg, genome)) << "seed=" << seed;
+        EXPECT_TRUE(SomeVertexOrEdgeSpells(spg, genome)) << "seed=" << seed;
         std::string err;
         EXPECT_TRUE(ReadSeqsUnchanged(before, storage, err)) << "seed=" << seed << "\n" << err;
         EXPECT_TRUE(storage.checkConsistency(std::cerr)) << "seed=" << seed;

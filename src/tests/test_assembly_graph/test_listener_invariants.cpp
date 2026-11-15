@@ -236,33 +236,16 @@ TEST(ListenerInvariants, SuffixTrackerFillsOnSupregraph) {
     }
 }
 
-// Carrying a live SuffixTracker THROUGH the DBG->SPG conversion must land on the same records as a
-// from-scratch fill on the converted supregraph. The tracker is filled on the condensed DBG, then
-// edgeToSupreVertex runs on every corporeal edge with the tracker attached - each conversion routes
-// through SuffixTracker::fireEdgeToSupreVertex, which copies the edge's suffixes onto both boundary
-// edges of the new supre-vertex. A second tracker filled from scratch on the final supregraph is the
-// reference; the two must store exactly the same suffixes on every edge, and the carried-through
-// tracker must be self-consistent against the reads.
-TEST(ListenerInvariants, SuffixTrackerThroughConversionMatchesFresh) {
-    for (uint32_t seed = 1; seed <= 3; seed++) {
-        RandomDBG rdbg(RandomGenome(400, seed), K);
-        std::vector<ag::AlignedRead> reads = ExtractAndAlignReads(rdbg, 40, 90, 2, seed + 200);
-        ag::AlignedReadStorage storage(rdbg.dbg, std::move(reads));
-
-        ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg); // condense to a realistic DBG
-        ag::SuffixTracker carried(storage, rdbg.dbg, 0, 1000);
-        carried.fillFromStorage(QuietLogger(), 1);       // fill BEFORE conversion
-
-        ConvertToSupregraph(rdbg.dbg);                   // carries `carried` through via fireEdgeToSupreVertex
-
-        // Reference tracker filled from scratch on the already-converted supregraph.
-        ag::SuffixTracker fresh(storage, rdbg.dbg, 0, 1000);
-        fresh.fillFromStorage(QuietLogger(), 1);
-
-        std::string err;
-        EXPECT_TRUE(SuffixContentEqual(carried, fresh, rdbg.dbg, err)) << "seed=" << seed << "\n" << err;
-        EXPECT_TRUE(carried.fireCheckConsistency(std::cerr)) << "carried self-consistent, seed=" << seed;
-    }
+// A SuffixTracker's stored suffixes depend on the edges' virtual types, which a DBG does not have, so converting a DBG
+// to a supregraph with a tracker attached is rejected; the tracker is to be attached after conversion.
+TEST(ListenerInvariantsDeathTest, SuffixTrackerRejectsConversion) {
+    RandomDBG rdbg(RandomGenome(400, 1), K);
+    std::vector<ag::AlignedRead> reads = ExtractAndAlignReads(rdbg, 40, 90, 2, 201);
+    ag::AlignedReadStorage storage(rdbg.dbg, std::move(reads));
+    ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
+    ag::SuffixTracker tracker(storage, rdbg.dbg, 0, 1000);
+    tracker.fillFromStorage(QuietLogger(), 1);
+    EXPECT_DEATH(ConvertToSupregraph(rdbg.dbg), "VirtualType::unset");
 }
 
 // DLLAlignmentStorage ("honest path tracking") is designed to keep a contig's alignment valid even as

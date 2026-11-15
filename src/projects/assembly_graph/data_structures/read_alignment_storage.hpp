@@ -240,7 +240,7 @@ namespace ag {
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
 //        Reads starting at, and subreads of, the removed vertices move to the vertex that contains them.
         void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
-        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
+        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
         void fireAddRead(const AlignedRead &read) override;
         void fireRerouteRead(AlignedRead &read) override;

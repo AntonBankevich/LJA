@@ -28,10 +28,14 @@ namespace spg {
                 if (!eid->isPrefix() && !eid->isSuffix())
                     spg.edgeToSupreVertex(*eid);
             }
+            for (ag::Edge &e : spg.edgesUnique())
+                if (e.getVirtualType() == ag::VirtualType::unset)
+                    e.setVirtualType(e.isPrefix() && e.isSuffix() ? ag::VirtualType::merge :
+                                     e.isSuffix() ? ag::VirtualType::suffix : ag::VirtualType::prefix);
             std::vector<ag::VertexId> vids = oneline::map(spg.vertices().begin(), spg.vertices().end(), IdTransformer<ag::Vertex>());
             for (ag::VertexId vid : vids) {
                 if (vid->inDeg() == 1 && vid->outDeg() != 1 && vid->incFront().isSuffix())
-                    spg.flipVertex(*vid);
+                    spg.flipVertex(vid->incFront());
             }
             spg.removeMarked();
             return spg;

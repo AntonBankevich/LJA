@@ -26,7 +26,7 @@ namespace ag {
 //        No vertex is removed and the new split vertices start without sample segments.
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override {}
         void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
-        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
+        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 //        Samples lie within their vertex (kpomer chunks at least k + 1 long), are strictly ordered (starts and finishes
 //        non-decreasing, never both equal), v.rc() holds exactly the mirror of v's samples, weight and raw_support are
 //        the sums over the samples, and k-mers have none.

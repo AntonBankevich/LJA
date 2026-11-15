@@ -91,10 +91,16 @@ namespace ag {
 //        merged by running on its RC; the returned edge always goes in the direction of the given path. Inner
 //        vertices are isolated and marked.
         Edge &mergePrefixPath(const GraphPath &path);
-        Vertex &edgeToSupreVertex(Edge &edge);
+        Vertex &edgeToSupreVertex(Edge &edge, Vertex::id_type id = 0);
+        Vertex &edgeToSupreVertexLockFree(Edge &edge, Vertex::id_type id = 0);
+//        Requires suffix edges into core, prefix edges out of it, and sample segments on every neighbour of core. A pair
+//        with a single partner on either side becomes a direct edge; only pairs with several partners on both sides get
+//        a new vertex (which then gets a resolution sample).
         ag::VertexResolutionResult resolveCoreVertex(Vertex &core, const VertexResolutionPlan &resolution); //TODO:: this should run in parallel
         Vertex &mergeLoop(const GraphPath &path); //TOOD: implement
-        Vertex &flipVertexLockFree(Vertex &core);
+//        Flips core = inc.getFinish() into u = inc.getStart() along the suffix edge inc, the only edge into core:
+//        every core -> w becomes u -> w and core is isolated and marked. core may have any out-degree. Returns u.
+        Vertex &flipVertexLockFree(Edge &inc);
 
 //-------------------Derived graph operations. These call core graph operations.-------------------------
         Vertex &addVertex(const Sequence &seq, typename Vertex::id_type id = Vertex::id_type()) {return addVertex(seq, {}, id);}
@@ -118,7 +124,10 @@ namespace ag {
         ag::VertexResolutionResult resolveVertex(Vertex &core, const VertexResolutionPlan &resolution);
         Edge &mergePathToEdge(const GraphPath &path);
         Vertex &mergePath(const GraphPath &path, Vertex::id_type id = 0);
-        Vertex &flipVertex(Vertex &core);
+        Vertex &flipVertex(Edge &inc);
+//        Turns every edge into core (on both strands) that is not a suffix edge into a supre-vertex S, then flips the old
+//        neighbour so that S takes over its segments and edges. Returns old edge id -> the edge now adjacent to core.
+//        Flipped and replaced vertices are only marked.
         std::unordered_map<EdgeId, EdgeId> ExtendAdjacent(Vertex &core);
 
         IterableStorage<SkippingIterator<AssemblyGraph::vertex_iterator_type>> vertices(bool unique = false) &;

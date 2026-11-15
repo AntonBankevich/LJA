@@ -223,7 +223,7 @@ TEST(SampleSegments, MinimalEquivalentAfterFlips) {
         for (ag::VertexId vid : cores) {
             if (vid->marked() || vid->inDeg() != 1 || !vid->incFront().isSuffix() || vid->outDeg() == 1)
                 continue;
-            rdbg.dbg.flipVertexLockFree(*vid);
+            rdbg.dbg.flipVertexLockFree(vid->incFront());
             flipped++;
         }
         rdbg.dbg.removeMarked();
@@ -270,7 +270,7 @@ TEST(SampleSegments, FlipMovesSamples) {
     }
     ASSERT_TRUE(graph.checkConsistency());
 
-    graph.flipVertexLockFree(core);
+    graph.flipVertexLockFree(core.incFront());
     graph.removeMarked();
 
     std::vector<std::pair<size_t, size_t>> samples;
@@ -302,23 +302,62 @@ TEST(SpgReadStorage, ConsistentThroughResolutionAndMerging) {
 //        Declared before the listeners, so they are destroyed first.
         std::unique_ptr<spg::Supregraph> spg_holder;
         ag::AlignedReadStorage storage(rdbg.dbg, ExtractAndAlignReads(rdbg, 40, 60, 1, seed + 100));
-        ag::SuffixTracker tracker(storage, rdbg.dbg, 0, 1000);
-        tracker.fillFromStorage(QuietLogger(), 1);
         std::map<std::string, std::string> before = ReadSeqSnapshot(storage);
-        auto check = [&](ag::AssemblyGraph &graph, const std::string &step) {
-            CheckReadsAndTracker(graph, storage, tracker, before, "seed=" + std::to_string(seed) + " " + step);
-        };
-        ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
-        check(rdbg.dbg, "after DBG merging");
+//        A tracker can not be carried through the conversion, so the DBG phase has its own.
+        {
+            ag::SuffixTracker dbg_tracker(storage, rdbg.dbg, 0, 1000);
+            dbg_tracker.fillFromStorage(QuietLogger(), 1);
+            ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
+            CheckReadsAndTracker(rdbg.dbg, storage, dbg_tracker, before,
+                                 "seed=" + std::to_string(seed) + " after DBG merging");
+        }
         rdbg.dbg.disableHashing();
         spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
         spg::Supregraph &spg = *spg_holder;
+        ag::SuffixTracker tracker(storage, spg, 0, 1000);
+        tracker.fillFromStorage(QuietLogger(), 1);
+        auto check = [&](ag::AssemblyGraph &graph, const std::string &step) {
+            CheckReadsAndTracker(graph, storage, tracker, before, "seed=" + std::to_string(seed) + " " + step);
+        };
         check(spg, "after conversion");
         if (!ResolveByReads(spg, storage, 5))
             continue;
         check(spg, "after resolution");
         spg::MergeAllSPG(QuietLogger(), 1, spg);
         check(spg, "after merging");
+    }
+}
+
+// Invariant: once the suffix tracker is attached (after conversion), graph operations never shrink read codes at the end
+// of either strand; only whole leading edges may disappear. Checked after every resolution, merging and flipping step of
+// the supregraph pipeline.
+TEST(SpgReadStorage, ReadCodesOnlyExtendedAfterConversion) {
+    for (uint32_t seed = 1; seed <= 5; seed++) {
+        RandomDBG rdbg(RandomGenome(300, seed), 5);
+        std::unique_ptr<spg::Supregraph> spg_holder;
+        ag::AlignedReadStorage storage(rdbg.dbg, ExtractAndAlignReads(rdbg, 40, 60, 1, seed + 100));
+        ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
+        rdbg.dbg.disableHashing();
+        spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
+        spg::Supregraph &spg = *spg_holder;
+        ag::SuffixTracker tracker(storage, spg, 0, 1000);
+        tracker.fillFromStorage(QuietLogger(), 1);
+        auto codes = ReadCodesSnapshot(storage);
+        auto check = [&](const std::string &step) {
+            std::string err;
+            EXPECT_TRUE(ReadCodesOnlyExtended(codes, storage, err)) << "seed=" << seed << " " << step << "\n" << err;
+            codes = ReadCodesSnapshot(storage);
+        };
+        for (size_t i = 0; i < 10 && ResolveByReads(spg, storage, 5); i++)
+            check("after resolution " + std::to_string(i));
+//        MergeAllSPG in its two parts: merging the unbranching paths, then flipping.
+        for (ag::GraphPath &path : ag::AllUnbranchingPaths(QuietLogger(), 1, spg))
+            spg::MergePathOrLoop(path, spg);
+        spg.removeMarked();
+        check("after merging paths");
+        FlipAll(spg);
+        spg.removeMarked();
+        check("after flips");
     }
 }
 
@@ -329,13 +368,13 @@ TEST(SpgReadStorage, ConsistentThroughFlips) {
         RandomDBG rdbg(RandomGenome(300, seed), 5);
         std::unique_ptr<spg::Supregraph> spg_holder;
         ag::AlignedReadStorage storage(rdbg.dbg, ExtractAndAlignReads(rdbg, 40, 60, 1, seed + 100));
-        ag::SuffixTracker tracker(storage, rdbg.dbg, 0, 1000);
-        tracker.fillFromStorage(QuietLogger(), 1);
         std::map<std::string, std::string> before = ReadSeqSnapshot(storage);
         ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
         rdbg.dbg.disableHashing();
         spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
         spg::Supregraph &spg = *spg_holder;
+        ag::SuffixTracker tracker(storage, spg, 0, 1000);
+        tracker.fillFromStorage(QuietLogger(), 1);
         ResolveByReads(spg, storage, 5);
         std::vector<ag::VertexId> cores;
         for (ag::Vertex &v : spg.vertices())
@@ -345,7 +384,7 @@ TEST(SpgReadStorage, ConsistentThroughFlips) {
         for (ag::VertexId vid : cores) {
             if (vid->marked() || vid->inDeg() != 1 || !vid->incFront().isSuffix() || vid->outDeg() == 1)
                 continue;
-            spg.flipVertexLockFree(*vid);
+            spg.flipVertexLockFree(vid->incFront());
             flipped++;
         }
         spg.removeMarked();

@@ -268,15 +268,15 @@ TEST(GraphPathTest, TruncSeqWithCutsBeyondEndEdges) {
 TEST(GraphInvariants, SupregraphSelfLoopOnlyAsWholeComponent) {
     ag::AssemblyGraph alone_base(2);
     ag::Vertex &v = alone_base.addVertex(Sequence("ACG"));
-    alone_base.addEdge(v, v, Sequence("ACGTTACG"));
+    alone_base.addEdge(v, v, Sequence("ACGTTACG")).setVirtualType(ag::VirtualType::merge);
     spg::Supregraph alone(std::move(alone_base));
     EXPECT_TRUE(Consistent(alone));
 
     ag::AssemblyGraph with_exit_base(2);
     ag::Vertex &a = with_exit_base.addVertex(Sequence("ACG"));
     ag::Vertex &b = with_exit_base.addVertex(Sequence("CGA"));
-    with_exit_base.addEdge(a, a, Sequence("ACGTTACG"));
-    with_exit_base.addEdge(a, b, Sequence("ACGA"));
+    with_exit_base.addEdge(a, a, Sequence("ACGTTACG")).setVirtualType(ag::VirtualType::prefix);
+    with_exit_base.addEdge(a, b, Sequence("ACGA")).setVirtualType(ag::VirtualType::prefix);
     spg::Supregraph with_exit(std::move(with_exit_base));
     EXPECT_TRUE(ReportsViolation(with_exit, "to itself, but the vertex has other edges"));
 }

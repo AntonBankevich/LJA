@@ -46,8 +46,9 @@ namespace ag {
         AssemblyGraph &getGraph();
 
         virtual void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {};
-//        extensions maps every edge leaving core (and its rc) to the new edge that replaces it.
-        virtual void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {};
+//        Forward call: edge is the suffix edge u -> core along which core is flipped into u. Mirrored call: edge is its
+//        rc core.rc() -> u.rc(), a prefix edge. extensions maps every edge leaving core (and its rc) to its replacement.
+        virtual void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {};
     };
 
     class ResolutionFire : public AbstractFire {
@@ -70,11 +71,11 @@ namespace ag {
             }
         }
 
-        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {
             for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
-                listener->fireFlipVertex(core, extensions);
-                if(core != core.rc())
-                    listener->fireFlipVertex(core.rc(), extensions);
+                listener->fireFlipVertex(edge, extensions);
+                if(edge.getFinish() != edge.getFinish().rc())
+                    listener->fireFlipVertex(edge.rc(), extensions);
             }
         }
 

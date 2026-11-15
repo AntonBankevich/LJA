@@ -47,18 +47,18 @@ TEST(LoopResolution, UnrollsTandemRepeatByCoverage) {
         RandomDBG rdbg(genome, 21);
         std::unique_ptr<spg::Supregraph> spg_holder;
         ag::AlignedReadStorage storage(rdbg.dbg, ExtractAndAlignReads(rdbg, genome.size(), 40, 1, seed + 400));
-        ag::SuffixTracker suffixes(storage, rdbg.dbg, 0, 1000);
-        suffixes.fillFromStorage(QuietLogger(), 1);
         std::map<std::string, std::string> before = ReadSeqSnapshot(storage);
         ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
         rdbg.dbg.disableHashing();
         spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
         spg::Supregraph &spg = *spg_holder;
+        ag::SuffixTracker suffixes(storage, spg, 0, 1000);
+        suffixes.fillFromStorage(QuietLogger(), 1);
         spg::CoverageTracker cov(spg, storage, QuietLogger(), 1);
         spg::MergeAllSPG(QuietLogger(), 1, spg);
         std::vector<spg::SimpleLoop> loops = AllSimpleLoops(spg);
         ASSERT_EQ(loops.size(), 1u) << "copies=" << copies;
-        EXPECT_NEAR(spg::EstimateLoopCopies(loops[0]), double(copies), 0.4) << "copies=" << copies;
+        EXPECT_EQ(std::lround(spg::EstimateLoopCopies(loops[0])), long(copies)) << "copies=" << copies;
 
         EXPECT_EQ(spg::ResolveLoops(QuietLogger(), spg, suffixes, 10), 1u) << "copies=" << copies;
         spg::MergeAllSPG(QuietLogger(), 1, spg);

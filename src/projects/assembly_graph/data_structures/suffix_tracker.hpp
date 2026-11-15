@@ -114,7 +114,7 @@ namespace ag {
         SuffixTracker &operator=(const SuffixTracker &other) = delete;
         SuffixTracker(const SuffixTracker &other) = delete;
 
-//        Records exist on every DBG edge and on every incoming edge of a vertex with several incoming edges.
+//        Records exist on every edge that is not virtually prefix.
         bool hasSuffixRecord(const Edge &edge) const {return edge_data.contains(edge.getId());}
         SuffixRecord &getSuffixRecord(const Edge &edge) {
             SuffixRecord *res = findRecord(edge);
@@ -140,9 +140,11 @@ namespace ag {
 
         void fireDeleteEdge(Edge &edge) override;
         void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
-        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
+        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 //        Every incoming edge of a vertex with several incoming edges has a record.
         bool checkConsistency(std::ostream &os) override;
+//        Only for supregraph edges (e.g. from ExtendAdjacent): converting a DBG (untyped edges) with a tracker attached is
+//        not allowed, since its stored suffixes depend on the edges' virtual types.
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireMergePath(const RAGraphPath &path, Vertex &vertex) override;
         void fireMergeLoop(const ag::GraphPath  &path, Vertex &vertex) override {}

@@ -43,6 +43,8 @@ namespace ag {
         std::experimental::filesystem::path dir;
         size_t radius;
         size_t max_size;
+//        Longer contigs (a reference chromosome) are touched by almost every operation and are not drawn.
+        size_t max_contig_length;
         std::unordered_map<std::string, PathFigures> paths;
 
         PathFigures &figuresFor(const std::string &contig_name) {
@@ -54,15 +56,16 @@ namespace ag {
 
     public:
         PathDrawer(AssemblyGraph &graph, Printer printer, std::experimental::filesystem::path dir,
-                   size_t radius = 10000, size_t max_size = 100) :
-                graph(&graph), printer(std::move(printer)), dir(std::move(dir)), radius(radius), max_size(max_size) {
+                   size_t radius = 10000, size_t max_size = 100, size_t max_contig_length = 1000000) :
+                graph(&graph), printer(std::move(printer)), dir(std::move(dir)), radius(radius), max_size(max_size),
+                max_contig_length(max_contig_length) {
             recreate_dir(this->dir);
         }
 
 //        Draws one neighbourhood of the graph, rooted simultaneously at every vertex in vertices
 //        (multi-source component, all of them highlighted), into contig's own output directory, tagged
 //        with event_tag. No-op if vertices is empty or contig is an RC-oriented duplicate (name
-//        starting with "-") -- only the forward copy gets drawn.
+//        starting with "-") -- only the forward copy gets drawn -- or longer than max_contig_length.
         void draw(Contig &contig, const std::vector<VertexId> &vertices, const std::string &event_tag);
     };
 
@@ -112,6 +115,10 @@ namespace ag {
 //        Prints contig's current full path to the log stream tagged with source (which fire* call
 //        triggered it), if logging is on.
         void logPath(Contig &contig, const std::string &source);
+//        Prints, if logging is on, only the part of contig's path around a change: its fragments on the touched vertices
+//        and on their incident edges, each with its neighbours in the path, in contig order. Whole paths are too long
+//        to print on every change for long contigs (a reference chromosome).
+        void logChange(Contig &contig, const std::unordered_set<VertexId> &touched, const std::string &source);
 
     public:
         DLLAlignmentStorage(ResolutionFire &fire) : ResolutionListener(fire, "DLLAlignmentStorage"){}
@@ -129,8 +136,9 @@ namespace ag {
 
 //        Debug aid: creates the PathDrawer that backs draw() calls from the fire* handlers below.
         void startDrawing(std::experimental::filesystem::path dir, Printer printer = Printer(),
-                           size_t radius = 10000, size_t max_size = 100) {
-            drawer = std::make_unique<PathDrawer>(getFire<AssemblyGraph>(), std::move(printer), std::move(dir), radius, max_size);
+                           size_t radius = 10000, size_t max_size = 100, size_t max_contig_length = 1000000) {
+            drawer = std::make_unique<PathDrawer>(getFire<AssemblyGraph>(), std::move(printer), std::move(dir), radius,
+                                                  max_size, max_contig_length);
         }
         void stopDrawing() {drawer.reset();}
 
@@ -150,7 +158,7 @@ namespace ag {
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override {}
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
-        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
+        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
 //        Names (contig ids, still RC-oriented e.g. "-name") of all contigs with a fragment
 //        anchored at vertex as an inner fragment, deduplicated. Empty if vertex is untracked.

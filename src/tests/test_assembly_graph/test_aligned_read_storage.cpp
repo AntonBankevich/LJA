@@ -1,5 +1,7 @@
 #include "gtest/gtest.h"
 #include "graph_test_utils.hpp"
+#include "random_graph_utils.hpp"
+#include "assembly_graph/data_structures/suffix_tracker.hpp"
 
 using namespace ag_test;
 
@@ -409,7 +411,7 @@ TEST(AlignedReadStorageTest, FlipMovesReadsFromCore) {
     ASSERT_EQ(storage[0].getPath().getStart(), core);
     ASSERT_TRUE(storage.checkConsistency());
 
-    graph.flipVertexLockFree(core);
+    graph.flipVertexLockFree(core.incFront());
     graph.removeMarked();
 
     ASSERT_TRUE(storage.checkConsistency());
@@ -420,38 +422,110 @@ TEST(AlignedReadStorageTest, FlipMovesReadsFromCore) {
     EXPECT_TRUE(graph.checkConsistency());
 }
 
-// As above, but the core has no sample segments: a read starting at it and going into the fork starts after the fork
-// instead of at u (here it collapses into a subread of w1, keeping its sequence). Such reads come from graph operations;
-// the storage constructor would normalize them, so the core loses its segment only after the storage is built.
-TEST(AlignedReadStorageTest, FlipOfSegmentlessCoreStartsReadsAfterFork) {
+namespace {
+//    u -suffix-> core -prefix-> w1, w2 and w1 -> y1, y2, so that on the rc strand both core.rc and w1.rc have two
+//    incoming edges and carry suffix records. The read r = core -> w1 -> y1 (ACGACT) ends, on the rc strand, with the
+//    code-less suffix edge w1.rc -> core.rc.
+    struct FlipWithTrackerFixture {
+        ag::AssemblyGraph graph{3};
+        ag::Vertex &u = graph.addVertex(Sequence("TTAACG"));
+        ag::Vertex &core = graph.addVertex(Sequence("AACG"));
+        ag::Vertex &w1 = graph.addVertex(Sequence("AACGA"));
+        ag::Vertex &w2 = graph.addVertex(Sequence("AACGT"));
+        ag::Vertex &y1 = graph.addVertex(Sequence("CGACT"));
+        ag::Vertex &y2 = graph.addVertex(Sequence("CGAGT"));
+        std::unique_ptr<ag::AlignedReadStorage> storage;
+        std::unique_ptr<ag::SuffixTracker> tracker;
+
+        FlipWithTrackerFixture() {
+            graph.addSPEdge(u, core);
+            ag::Edge &cw1 = graph.addSPEdge(core, w1);
+            graph.addSPEdge(core, w2);
+            ag::Edge &w1y1 = graph.addEdge(w1, y1, Sequence("AACGACT"));
+            graph.addEdge(w1, y2, Sequence("AACGAGT"));
+            AddSample(u, 0, 2);   // TT
+            AddSample(core, 1, 3); // AC
+            AddSample(w1, 2, 5);  // CGA
+            AddSample(w2, 2, 5);  // CGT
+            AddSample(y1, 2, 5);  // ACT
+            AddSample(y2, 2, 5);  // AGT
+            std::vector<ag::AlignedRead> reads;
+            ag::GraphPath read(cw1);
+            read += w1y1;
+            read.setCutLeft(1); // ACGACT
+            reads.emplace_back("r", read);
+            storage.reset(new ag::AlignedReadStorage(graph, std::move(reads)));
+            tracker.reset(new ag::SuffixTracker(*storage, graph, 0, 1000));
+            tracker->fillFromStorage(QuietLogger(), 1);
+        }
+    };
+}
+
+// The read is extended to u. On the rc strand it then ends with the coded edge
+// w1.rc -> u.rc instead of the code-less w1.rc -> core.rc, so its suffix after y1.rc -> w1.rc grows and the suffix
+// tracker, which only follows graph events, must still match it: a trailing virtually suffix edge does not count for the
+// canonical form of a stored suffix.
+TEST(AlignedReadStorageTest, FlipExtendingReadKeepsSuffixTracker) {
+    FlipWithTrackerFixture f;
+    ASSERT_EQ(f.storage->operator[](0).getPath().getStart(), f.core);
+    ASSERT_TRUE(f.storage->checkConsistency(std::cerr));
+    std::string seq = f.storage->operator[](0).getPath().Seq().str();
+    f.graph.flipVertexLockFree(f.core.incFront());
+    f.graph.removeMarked();
+    EXPECT_EQ(f.storage->operator[](0).getPath().getStart(), f.u);
+    EXPECT_EQ(f.storage->operator[](0).getPath().Seq().str(), seq);
+    EXPECT_TRUE(f.storage->checkConsistency(std::cerr));
+    EXPECT_TRUE(f.graph.checkConsistency());
+}
+
+// As above, but on the rc strand the read's suffix after the record edge y1.rc -> a.rc is a coded virtually suffix edge
+// a.rc -> w1.rc followed by the code-less suffix edge w1.rc -> core.rc. After the flip the latter becomes the coded
+// virtually suffix edge w1.rc -> u.rc. Dropping only the last edge's code from the canonical form would leave a.rc ->
+// w1.rc's first letter in it after the flip but not before; all trailing virtually suffix edges must be dropped.
+TEST(AlignedReadStorageTest, FlipExtendingReadPastVirtualSuffixEdgeKeepsSuffixTracker) {
     ag::AssemblyGraph graph(3);
     ag::Vertex &u = graph.addVertex(Sequence("TTAACG"));
     ag::Vertex &core = graph.addVertex(Sequence("AACG"));
     ag::Vertex &w1 = graph.addVertex(Sequence("AACGA"));
     ag::Vertex &w2 = graph.addVertex(Sequence("AACGT"));
+    ag::Vertex &a = graph.addVertex(Sequence("CGAC"));
+    ag::Vertex &y1 = graph.addVertex(Sequence("GACT"));
+    ag::Vertex &y2 = graph.addVertex(Sequence("GACG"));
     graph.addSPEdge(u, core);
     ag::Edge &cw1 = graph.addSPEdge(core, w1);
     graph.addSPEdge(core, w2);
-    AddSample(u, 0, 2);  // TT
+//    w1 -> a is w1's only outgoing and a's only incoming edge; a forks into y1, y2.
+    ag::Edge &w1a = graph.addEdge(w1, a, Sequence("AACGAC"));
+    w1a.setVirtualType(ag::VirtualType::merge);
+    ag::Edge &ay1 = graph.addEdge(a, y1, Sequence("CGACT"));
+    ay1.setVirtualType(ag::VirtualType::prefix);
+    graph.addEdge(a, y2, Sequence("CGACG")).setVirtualType(ag::VirtualType::prefix);
+    AddSample(u, 0, 2);   // TT
     AddSample(core, 1, 3); // AC
-    AddSample(w1, 2, 5); // CGA
-    AddSample(w2, 2, 5); // CGT
+    AddSample(w1, 2, 5);  // CGA
+    AddSample(w2, 2, 5);  // CGT
+    AddSample(a, 1, 4);   // GAC
+    AddSample(y1, 1, 4);  // ACT
+    AddSample(y2, 1, 4);  // ACG
     std::vector<ag::AlignedRead> reads;
     ag::GraphPath read(cw1);
-    read.setCutLeft(1); // ACGA
+    read += w1a;
+    read += ay1;
+    read.setCutLeft(1); // ACGACT
     reads.emplace_back("r", read);
     ag::AlignedReadStorage storage(graph, std::move(reads));
+    ag::SuffixTracker tracker(storage, graph, 0, 1000);
+    tracker.fillFromStorage(QuietLogger(), 1);
     ASSERT_EQ(storage[0].getPath().getStart(), core);
-    core.coverage_info = ag::CoverageSamples();
-    core.rc().coverage_info = ag::CoverageSamples();
-    ASSERT_TRUE(storage.checkConsistency());
+    ASSERT_TRUE(storage.checkConsistency(std::cerr));
+    std::string seq = storage[0].getPath().Seq().str();
 
-    graph.flipVertexLockFree(core);
+    graph.flipVertexLockFree(core.incFront());
     graph.removeMarked();
 
-    EXPECT_TRUE(storage.checkConsistency());
-    EXPECT_EQ(storage[0].getPath().getStart(), w1);
-    EXPECT_EQ(storage[0].getPath().Seq().str(), "ACGA");
+    EXPECT_EQ(storage[0].getPath().getStart(), u);
+    EXPECT_EQ(storage[0].getPath().Seq().str(), seq);
+    EXPECT_TRUE(storage.checkConsistency(std::cerr));
     EXPECT_TRUE(graph.checkConsistency());
 }
 

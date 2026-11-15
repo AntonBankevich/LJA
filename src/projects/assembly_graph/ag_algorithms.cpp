@@ -62,8 +62,6 @@ namespace ag {
                     if (!start.getStart().isJunction())
                         return;
                     GraphPath to_merge = PathHelper::WalkForward(start);
-                    if (to_merge.isSingleton())
-                        return;
                     for (auto &v: to_merge.innerVertices()) {
                         v.mark();
                     }
@@ -92,7 +90,9 @@ namespace ag {
         logger.trace() << "Merging unbranching paths" << std::endl;
         std::function<void(size_t, const GraphPath &)> task =
                 [&graph](size_t pos, const GraphPath &path) {
-                    graph.mergePathToEdge(path);
+//                    A single edge is already merged.
+                    if (!path.isSingleton())
+                        graph.mergePathToEdge(path);
                 };
         ParallelProcessor<const GraphPath>(task, logger, threads).processObjects(paths.begin(), paths.end());
     }

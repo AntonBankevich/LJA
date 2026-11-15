@@ -13,7 +13,7 @@ void ag::PathDrawer::draw(Contig &contig, const std::vector<VertexId> &vertices,
     if (vertices.empty())
         return;
     const std::string &contig_name = contig.getInnerId();
-    if (startsWith(contig_name, "-"))
+    if (startsWith(contig_name, "-") || contig.truncSize() > max_contig_length)
         return;
     std::unordered_set<ConstVertexId> vertex_set(vertices.begin(), vertices.end());
     std::function<std::string(const Vertex &)> colorer = [vertex_set](const Vertex &v) -> std::string {
@@ -45,6 +45,46 @@ void ag::DLLAlignmentStorage::logPath(Contig &contig, const std::string &source)
     *log_stream << "Change in observed path during " << source << ": " << contig.getInnerId() << ":";
     for (AlignmentFragment &f : alignments.at(contig.getInnerId()))
         *log_stream << " " << f;
+    *log_stream << std::endl;
+}
+
+void ag::DLLAlignmentStorage::logChange(Contig &contig, const std::unordered_set<VertexId> &touched,
+                                        const std::string &source) {
+    if (!log_stream)
+        return;
+    std::lock_guard<std::mutex> guard(pathLock(contig));
+    DLLAlignmentPath &path = alignments.at(contig.getInnerId());
+    std::vector<DLLPathPosition> positions;
+    auto collect = [&](const PositionRecord &record) {
+        for (const DLLPathPosition &pos : record) {
+            if (!pos.valid() || pos.extracted() || &pos->seg.contig() != &contig)
+                continue;
+            positions.push_back(pos);
+            if (pos != path.begin())
+                positions.push_back(pos.prev());
+            if (pos.next() != path.end())
+                positions.push_back(pos.next());
+        }
+    };
+    for (VertexId v : touched) {
+        if (hasRecords(*v))
+            collect(getRecords(v));
+        for (Edge &e : *v)
+            if (hasRecords(e))
+                collect(getRecords(e.getId()));
+        for (Edge &e : v->incoming())
+            if (hasRecords(e))
+                collect(getRecords(e.getId()));
+    }
+    std::sort(positions.begin(), positions.end(), [](const DLLPathPosition &a, const DLLPathPosition &b) {
+        return std::make_tuple(a->seg.left, a->seg.right, &*a) < std::make_tuple(b->seg.left, b->seg.right, &*b);
+    });
+    positions.erase(std::unique(positions.begin(), positions.end(),
+                                [](const DLLPathPosition &a, const DLLPathPosition &b) {return &*a == &*b;}),
+                    positions.end());
+    *log_stream << "Change in observed path during " << source << ": " << contig.getInnerId() << ":";
+    for (const DLLPathPosition &pos : positions)
+        *log_stream << " " << *pos;
     *log_stream << std::endl;
 }
 
@@ -147,7 +187,7 @@ void ag::DLLAlignmentStorage::fireDeleteVertex(Vertex &v) {
     }
     vertex_map.erase(v.getId());
     for (auto &p : touched)
-        logPath(*p.first, "fireDeleteVertex");
+        logChange(*p.first, p.second, "fireDeleteVertex");
 }
 
 void ag::DLLAlignmentStorage::keepStart(DLLPathPosition pos) {
@@ -200,7 +240,7 @@ void ag::DLLAlignmentStorage::fireDeleteEdge(Edge &e) {
     }
     edge_map.erase(e.getId());
     for (auto &p : touched)
-        logPath(*p.first, "fireDeleteEdge");
+        logChange(*p.first, p.second, "fireDeleteEdge");
 }
 
 void ag::DLLAlignmentStorage::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
@@ -223,7 +263,7 @@ void ag::DLLAlignmentStorage::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
         pos.extract();
     }
     for (auto &p : touched) {
-        logPath(*p.first, "fireEdgeToSupreVertex");
+        logChange(*p.first, p.second, "fireEdgeToSupreVertex");
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireEdgeToSupreVertex");
     }
@@ -286,7 +326,7 @@ void ag::DLLAlignmentStorage::fireMergePath(const RAGraphPath &path, Vertex &new
             }
     }
     for (auto &p : touched) {
-        logPath(*p.first, "fireMergePath");
+        logChange(*p.first, p.second, "fireMergePath");
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireMergePath");
     }
@@ -335,7 +375,7 @@ void ag::DLLAlignmentStorage::fireMergePathToEdge(const RAGraphPath &path, Edge 
                 }
     }
     for (auto &p : touched) {
-        logPath(*p.first, "fireMergePathToEdge");
+        logChange(*p.first, p.second, "fireMergePathToEdge");
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireMergePathToEdge");
     }
@@ -379,7 +419,7 @@ void ag::DLLAlignmentStorage::fireMergeTipsToEdge(Edge &new_edge, Edge &left, Ed
         }
     }
     for (auto &p : touched) {
-        logPath(*p.first, "fireMergeTipsToEdge");
+        logChange(*p.first, p.second, "fireMergeTipsToEdge");
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireMergeTipsToEdge");
     }
@@ -410,7 +450,7 @@ void ag::DLLAlignmentStorage::fireSplitEdge(Edge &edge, const RAGraphPath &split
         edge_map.erase(edge.getId());
     }
     for (auto &p : touched) {
-        logPath(*p.first, "fireSplitEdge");
+        logChange(*p.first, p.second, "fireSplitEdge");
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireSplitEdge");
     }
@@ -470,18 +510,18 @@ void ag::DLLAlignmentStorage::fireResolveVertex(Vertex &core, const VertexResolu
                 }
             }
     for (auto &p : touched) {
-        logPath(*p.first, "fireResolveVertex");
+        logChange(*p.first, p.second, "fireResolveVertex");
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireResolveVertex");
     }
 }
 
-void ag::DLLAlignmentStorage::fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+void ag::DLLAlignmentStorage::fireFlipVertex(Edge &inc, const std::unordered_map<EdgeId, EdgeId> &extensions) {
     std::unordered_map<Contig *, std::unordered_set<VertexId>> touched;
 //    Forward: u -inc-> core -e-> w becomes u -> w, spelling u + e.truncSeq(); core is a suffix of u.
 //    Mirrored: w' -e-> core -inc-> u' becomes w' -> u'; core is a prefix of u'.
-    const bool forward = core.outDeg() != 1;
-    Edge &inc = forward ? core.incFront() : core.front();
+    const bool forward = inc.isSuffix();
+    Vertex &core = forward ? inc.getFinish() : inc.getStart();
     Vertex &u = forward ? inc.getStart() : inc.getFinish();
     const size_t shift = forward ? u.size() - core.size() : 0;
     std::vector<EdgeId> replaced;
@@ -517,7 +557,7 @@ void ag::DLLAlignmentStorage::fireFlipVertex(Vertex &core, const std::unordered_
                 pos.extract();
             }
     for (auto &p : touched) {
-        logPath(*p.first, "fireFlipVertex");
+        logChange(*p.first, p.second, "fireFlipVertex");
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireFlipVertex");
     }
@@ -586,9 +626,21 @@ std::function<std::string(const ag::Edge &)> ag::DLLAlignmentStorage::getEdgeCol
 }
 
 std::function<std::string(const ag::Vertex &)> ag::DLLAlignmentStorage::getVertexColorer() const {
-    std::function<std::string(const Vertex &)> res = [this](const Vertex &e)->std::string {
-        if (!hasRecords(e)) return "";
-        return "blue";
+//    Besides vertices with inner fragments, vertices the path passes through between edge fragments: an edge fragment
+//    without a cut on a side spells the whole vertex on that side.
+    std::function<std::string(const Vertex &)> res = [this](const Vertex &v)->std::string {
+        if (hasRecords(v)) return "blue";
+        for (const Edge &e : v.incoming())
+            if (hasRecords(e))
+                for (const DLLPathPosition &pos : getRecords(e.getId()))
+                    if (pos.valid() && !pos.extracted() && pos->cut_right == 0)
+                        return "blue";
+        for (const Edge &e : v)
+            if (hasRecords(e))
+                for (const DLLPathPosition &pos : getRecords(e.getId()))
+                    if (pos.valid() && !pos.extracted() && pos->cut_left == 0)
+                        return "blue";
+        return "";
     };
     return res;
 }

@@ -65,13 +65,14 @@ void SampleSegmentTracker::fireMergePrefixPath(const RAGraphPath &path, Edge &ne
 
 // Forward call: core is a suffix of its single in-neighbour u, so its segments go after u's. Mirrored call: core is a
 // prefix of its single out-neighbour, so its segments go before that one's.
-void SampleSegmentTracker::fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
-    if (core.outDeg() != 1) {
-        Vertex &u = core.incFront().getStart();
+void SampleSegmentTracker::fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+    if (edge.isSuffix()) {
+        Vertex &core = edge.getFinish();
+        Vertex &u = edge.getStart();
         core.coverage_info.shift(__int64_t(u.size()) - __int64_t(core.size()));
         u.coverage_info += std::move(core.coverage_info);
     } else {
-        core.front().getFinish().coverage_info.insertFront(std::move(core.coverage_info));
+        edge.getFinish().coverage_info.insertFront(std::move(edge.getStart().coverage_info));
     }
 }
 

@@ -23,6 +23,7 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     spg::CoverageTracker spgVertexCoverage(spg, dbg_storage, logger, threads);
     ag::Printer printer(ag::VertexPrintStyles::spgLabeler() +
                          ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), ag::EdgePrintStyles::defaultDotInfo());
+    printer += path_storage.getPrinter();
     if (debug)
         path_storage.startDrawing(dir / "path_tracking", printer);
     std::experimental::filesystem::path figs = dir / "figs";
@@ -53,6 +54,7 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
                                ag::VertexPrintStyles::defaultDotColorer() + ag::VertexPrintStyles::defaultTooltiper() +
                                ag::VertexInfo::Colorer(unique_storage.getColorer("white", "green")));
         printer.printDot(dir / "initial.dot", spg);
+        printer += path_storage.getPrinter();
     }
     size_t cnt = 1;
     if (debug)
@@ -97,7 +99,7 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     printer.printDot(dir / "supregraph_final.dot", spg);
     dbg_storage.getReads().Save(dir/"reads.aln");
     ag::Printer(ag::VertexPrintStyles::defaultLabeler()).printDirectGFA(dir / "supregraph_final.gfa", spg);
-    printer.DrawSplit(ag::Component(spg), dir/"split", 30000);
+    printer.DrawSplit(ag::Component(spg), dir/"split", 10000);
 //    path_storage detaches itself automatically before spg is destroyed (see SupregraphFromRawInput's
 //    doc comment on struct member ordering).
     return {{"supregraph_final", dir / "supregraph_final.gfa"}};

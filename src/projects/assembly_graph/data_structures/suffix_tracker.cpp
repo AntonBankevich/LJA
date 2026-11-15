@@ -187,13 +187,19 @@ void SuffixTracker::processPath(PathPosition left, PathPosition right, int diff)
         VERIFY(to_pos <= right);
         VERIFY(to_pos == from_pos || !to_pos.prevEdge().getCode().empty());
         if (erec != nullptr && clen >= min_len) {
-            if (from_pos == to_pos) {
+//            Trailing virtually suffix edges (and edges without a code) do not count for the canonical form: an operation
+//            may give a read a coded virtually suffix edge in place of a code-less one at its end (flip), so the form
+//            must not depend on them. The canonical form then ends with the first letter of the last remaining edge.
+            PathPosition min_pos = to_pos;
+            while (min_pos != from_pos && (min_pos.prevEdge().isVirtualSuffix() || min_pos.prevEdge().getCode().empty()))
+                --min_pos;
+            if (min_pos == from_pos) {
                 erec->changePathCnt(Sequence(), Sequence(), diff);
             } else {
                 Sequence subseq_max_code = read_seq.Subseq(from_pos.getFPos() - left.getFPos(),
                         to_pos.getFPos() - left.getFPos());
-                erec->changePathCnt(subseq_max_code.Subseq(0, subseq_max_code.size() - to_pos.prevEdge().getCode().size() + 1),
-                    subseq_max_code, diff);
+                size_t min_size = min_pos.getFPos() - from_pos.getFPos() - min_pos.prevEdge().getCode().size() + 1;
+                erec->changePathCnt(subseq_max_code.Subseq(0, min_size), subseq_max_code, diff);
             }
         }
     }
@@ -241,10 +247,10 @@ SuffixTracker::SuffixTracker(AlignedReadStorage &storage, AssemblyGraph &graph,
                              size_t _min_len, size_t _max_len) :
         AlignedReadStorageListener(storage, "SuffixTracker"), ResolutionListener(graph, "SuffixTracker"), storage(&storage),
         min_len(_min_len), max_len(_max_len) {
-//    Records on every DBG edge (between k-mers) and on every incoming edge of a vertex with several incoming edges.
+//    Records on every edge that is not virtually prefix (on a DBG, where no edge has a virtual type, on every edge).
 //    Operations then give a new edge a record iff the edge it takes over from had one.
     for(Edge &e : graph.edges()) {
-        if ((e.getStart().size() == graph.getK() && e.getFinish().size() == graph.getK()) || e.getFinish().inDeg() > 1)
+        if (!e.isVirtualPrefix())
             edge_data.insert(e.getId(), std::make_unique<SuffixRecord>(e, max_len));
     }
 }
@@ -336,19 +342,19 @@ void SuffixTracker::fireSplitEdge(Edge &edge, const RAGraphPath &split) {
 }
 
 //    Forward call: u -> w_i replaces core -> w_i, which is moved unless it is its own rc (then the mirrored call uses it
-//    too). Mirrored call: core has the single outgoing edge out, and w_i.rc() -> u.rc() replaces the path e -> out for
-//    each incoming e, so it takes e's record continued through out (each e is used once).
-void SuffixTracker::fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
-    if (core.outDeg() != 1) {
-        for (Edge &e : core) {
+//    too). Mirrored call: edge = out is the single outgoing edge of the rc side, and w_i.rc() -> u.rc() replaces the
+//    path e -> out for each incoming e, so it takes e's record continued through out (each e is used once).
+void SuffixTracker::fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+    if (edge.isSuffix()) {
+        for (Edge &e : edge.getFinish()) {
             if (e == e.rc())
                 copyRecord(e, *extensions.at(e.getId()));
             else
                 moveRecord(e, *extensions.at(e.getId()));
         }
     } else {
-        for (Edge &e : core.incoming())
-            moveRecord(e, *extensions.at(e.getId()), &core.front());
+        for (Edge &e : edge.getStart().incoming())
+            moveRecord(e, *extensions.at(e.getId()), &edge);
     }
 }
 
@@ -393,6 +399,8 @@ bool SuffixTracker::fireCheckConsistency(std::ostream &os) {
 
 //e = u -> w becomes u -> v -> w; reads continue after v -> w as they did after e. A self-rc e fires only once.
 void SuffixTracker::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
+    VERIFY_MSG(e.getVirtualType() != VirtualType::unset,
+               "A DBG can not be converted to a supregraph with a SuffixTracker attached: attach it after conversion");
     moveRecord(e, v.front());
 }
 
@@ -412,15 +420,11 @@ void SuffixTracker::fireResolveVertex(Vertex &core, const VertexResolutionResult
 
 bool SuffixTracker::checkConsistency(std::ostream &os) {
     size_t errors = 0;
-    for (Vertex &v : getGraph().vertices()) {
-        if (v.inDeg() < 2)
-            continue;
-        for (Edge &e : v.incoming()) {
-            if (findRecord(e) == nullptr) {
-                os << "Suffix tracker inconsistency: edge " << e.getInnerId() << " into vertex " << v.getInnerId()
-                   << " with several incoming edges has no record\n";
-                errors++;
-            }
+    for (Edge &e : getGraph().edges()) {
+        if (!e.isVirtualPrefix() && findRecord(e) == nullptr) {
+            os << "Suffix tracker inconsistency: edge " << e.getInnerId() << " " << e.getStart().getInnerId() << " -> "
+               << e.getFinish().getInnerId() << " is not virtually prefix but has no record\n";
+            errors++;
         }
     }
     return errors == 0;

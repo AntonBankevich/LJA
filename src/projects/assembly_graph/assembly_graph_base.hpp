@@ -156,11 +156,18 @@ namespace ag {
     typedef ObjectId<Edge, EdgeIdType> EdgeId;
     typedef ConstObjectId<Edge, EdgeIdType> ConstEdgeId;
 
+//    Supregraph edge u -> v as two bits: virtually suffix (MES(v) is a suffix of MES(u): u's only outgoing edge, or a real
+//    suffix edge) and virtually prefix (MES(u) is a prefix of MES(v): v's only incoming edge, or a real prefix edge). Both
+//    bits (merge) mark an edge to be merged as soon as possible. Set once, by the operation creating the edge; DBG edges
+//    stay unset. The rc edge has the bits swapped.
+    enum class VirtualType : unsigned char { unset = 0, suffix = 1, prefix = 2, merge = 3 };
+
     struct EdgeData {
     protected:
         Sequence edge_code = {};
         ag::EdgeMarker marker = ag::EdgeMarker::common;
         bool corporeal = true;
+        VirtualType virtual_type = VirtualType::unset;
     public:
 //        TODO: get rid of this or at least control access
         mutable bool is_reliable = false;
@@ -242,8 +249,18 @@ namespace ag {
         const Edge &getCanonical() const {return isCanonical() ? *this : rc();}
         Edge &getCanonical() {return isCanonical() ? *this : rc();}
 
+        VirtualType getVirtualType() const {return virtual_type;}
+        bool isVirtualSuffix() const {return virtual_type == VirtualType::suffix || virtual_type == VirtualType::merge;}
+        bool isVirtualPrefix() const {return virtual_type == VirtualType::prefix || virtual_type == VirtualType::merge;}
+//        Sets the type of this edge and the mirrored type of its rc; both must be unset. A self-rc edge is always merge.
+        void setVirtualType(VirtualType type);
+
         const Sequence &truncSeq() const { return seq; }
         const Sequence &getCode() const {return edge_code;}
+//        A code ends with the (untracked) code of the end vertex, which flips, merges and splits move around. A virtual
+//        suffix edge (also merge), its start's only outgoing edge, has no code of its own: all of it is the end vertex's.
+//        So it is chosen without looking at the next nucleotide, as is an edge with an empty code.
+        bool isCodeEmpty() const {return isVirtualSuffix() || edge_code.empty();}
         Sequence kmerSeq(size_t pos) const {return fullSubseq(pos, pos + getStartSize());}
         Sequence getSeq() const;// = fullSeq
         Sequence fullSeq() const;
@@ -460,7 +477,7 @@ namespace ag {
 //        One pass, see getOutgoing. *iterator is read only for a non-empty code: before an edge with an empty code it
 //        may be the end of the codes.
         for (Edge &edge : outgoing_) {
-            if (edge.corporeal && (edge.getCode().empty() || edge.getCode()[0] == *iterator)) {
+            if (edge.corporeal && (edge.isCodeEmpty() || edge.getCode()[0] == *iterator)) {
                 return edge;
             }
         }

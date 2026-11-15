@@ -193,17 +193,100 @@ namespace ag_test {
         return true;
     }
 
+    // A read's path codes on both strands, the code length of each edge in path order on that strand, and its path (for
+    // reports).
+    struct ReadCodes {
+        std::string forward;
+        std::string backward;
+        std::vector<size_t> forward_edges;
+        std::vector<size_t> backward_edges;
+        std::string path;
+    };
+
+    // read id -> its path's codes. Legacy and invalid reads are left out.
+    inline std::map<std::string, ReadCodes> ReadCodesSnapshot(ag::AlignedReadStorage &storage) {
+        std::map<std::string, ReadCodes> res;
+        for (ag::AlignedRead &r : storage)
+            if (r.valid() && !r.getPath().isLegacy()) {
+                ag::GraphPath backward = r.getPath().RC();
+                ReadCodes rc{Sequence(r.getPath().getFSplits()).str(), Sequence(backward.getFSplits()).str(),
+                             {}, {}, r.getPath().str()};
+                for (ag::Edge &e : r.getPath().edges())
+                    rc.forward_edges.push_back(e.getCode().size());
+                for (ag::Edge &e : backward.edges())
+                    rc.backward_edges.push_back(e.getCode().size());
+                res[r.getId()] = rc;
+            }
+        return res;
+    }
+
+    // The old codes of one strand, minus the codes of some number of leading edges (not all of them), still appear in the
+    // new codes.
+    inline bool CodesKeptUpToLeadingEdges(const std::string &old_codes, const std::vector<size_t> &old_edges,
+                                          const std::string &new_codes) {
+        if (old_edges.empty())
+            return true;
+        size_t cut = 0;
+        for (size_t i = 0; i < old_edges.size(); i++) {
+            if (new_codes.find(old_codes.substr(cut)) != std::string::npos)
+                return true;
+            cut += old_edges[i];
+        }
+        return false;
+    }
+
+    // Once a SuffixTracker is attached, graph operations never shrink a read's codes at the end of either strand: new
+    // codes may be added at both ends, and only whole leading edges may disappear (when the read's start vertex is
+    // absorbed into a larger vertex).
+    inline bool ReadCodesOnlyExtended(const std::map<std::string, ReadCodes> &before, ag::AlignedReadStorage &storage,
+                                      std::string &err) {
+        std::map<std::string, ReadCodes> after = ReadCodesSnapshot(storage);
+        size_t violations = 0;
+        std::stringstream ss;
+        for (const auto &kv : before) {
+            auto it = after.find(kv.first);
+            ReadCodes now = it == after.end() ? ReadCodes{"<legacy or invalid>", "<legacy or invalid>", {}, {}, ""}
+                                              : it->second;
+            if (it == after.end() || !CodesKeptUpToLeadingEdges(kv.second.forward, kv.second.forward_edges, now.forward) ||
+                    !CodesKeptUpToLeadingEdges(kv.second.backward, kv.second.backward_edges, now.backward)) {
+                if (violations < 5)
+                    ss << "read " << kv.first << " codes contracted:\n  before f=" << kv.second.forward << " r="
+                       << kv.second.backward << "\n    path " << kv.second.path << "\n  after  f=" << now.forward
+                       << " r=" << now.backward << "\n    path " << now.path << "\n";
+                violations++;
+            }
+        }
+        if (violations > 0)
+            err = std::to_string(violations) + " read(s) lost codes\n" + ss.str();
+        return violations == 0;
+    }
+
     // Normalized content of one SuffixRecord: suffix sequence -> total positive count.
 //    A stored suffix may end anywhere within its last edge's code (it was stored when that edge was shorter), so each is
-//    brought to its canonical form first: the codes up to the first character of the last edge it reaches.
+//    brought to the canonical form SuffixTracker stores: trailing virtually suffix edges and edges without a code are
+//    dropped, then the codes up to the first character of the last remaining edge. A suffix with nothing left is not
+//    stored by a fresh tracker.
     inline std::map<std::string, int> NormalizeSuffixRecord(const ag::SuffixRecord &rec) {
         std::map<std::string, int> m;
         for (const std::pair<Sequence, int> &p : rec.getSuffixes()) {
             if (p.second <= 0)
                 continue;
             ag::GraphPath path(rec.getEdge().getFinish(), p.first);
+            std::vector<ag::Edge *> edges;
+            for (ag::Edge &e : path.edges())
+                edges.push_back(&e);
+            size_t end = 0;
+            for (ag::Edge *e : edges)
+                end += e->getCode().size();
+            size_t last = edges.size();
+            while (last > 0 && (edges[last - 1]->isVirtualSuffix() || edges[last - 1]->getCode().empty())) {
+                end -= edges[last - 1]->getCode().size();
+                last--;
+            }
+            if (last == 0)
+                continue;
             Sequence codes(path.getFSplits());
-            m[codes.Subseq(0, codes.size() - path.backEdge().getCode().size() + 1).str()] += p.second;
+            m[codes.Subseq(0, end - edges[last - 1]->getCode().size() + 1).str()] += p.second;
         }
         return m;
     }

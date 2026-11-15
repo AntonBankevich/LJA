@@ -66,7 +66,7 @@ namespace ag_test {
         size_t flipped = 0;
         for (ag::VertexId vid : cores)
             if (!vid->marked() && vid->inDeg() == 1 && vid->incFront().isSuffix() && vid->outDeg() != 1) {
-                graph.flipVertexLockFree(*vid);
+                graph.flipVertexLockFree(vid->incFront());
                 flipped++;
             }
         graph.removeMarked();

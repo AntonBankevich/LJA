@@ -26,7 +26,7 @@ namespace ag {
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
-        void fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
+        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
     };
 }

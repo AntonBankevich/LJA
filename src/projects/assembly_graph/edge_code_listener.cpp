@@ -15,9 +15,9 @@ bool EdgeCodeListener::checkConsistency(std::ostream &os) {
         std::array<bool, 4> seen = {false, false, false, false};
         for (const Edge &e : v) {
             const std::string name = "edge " + e.getInnerId().str();
-            if (e.edge_code.empty()) {
+            if (e.isCodeEmpty()) {
                 if (v.outDeg() != 1)
-                    report() << name << ": edge with empty code is not the only outgoing edge of its start\n";
+                    report() << name << ": edge with empty code (or virtual suffix) is not the only outgoing edge of its start\n";
                 continue;
             }
             if (e.isSuffix()) {
@@ -92,19 +92,15 @@ void EdgeCodeListener::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
 
 // Every new edge replaces a two-edge path through core, so its code is the concatenation of that
 // path's codes. Fired once per orientation:
-// - forward (core has the unique incoming edge inc): new edge for out-edge e spells inc->e;
-// - mirrored (core is the rc side and has the unique outgoing edge out): new edge for in-edge e
-//   spells e->out.
-void EdgeCodeListener::fireFlipVertex(Vertex &core, const std::unordered_map<EdgeId, EdgeId> &extensions) {
-    if (core.inDeg() == 1 && core.outDeg() != 1) {
-        Edge &inc = core.incFront();
-        for (Edge &e : core)
-            extensions.at(e.getId())->edge_code = inc.edge_code + e.edge_code;
+// - forward (edge = inc, the unique incoming edge of core): new edge for out-edge e spells inc->e;
+// - mirrored (edge = out, the unique outgoing edge of the rc side): new edge for in-edge e spells e->out.
+void EdgeCodeListener::fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+    if (edge.isSuffix()) {
+        for (Edge &e : edge.getFinish())
+            extensions.at(e.getId())->edge_code = edge.edge_code + e.edge_code;
     } else {
-        VERIFY(core.outDeg() == 1);
-        Edge &out = core.front();
-        for (Edge &e : core.incoming())
-            extensions.at(e.getId())->edge_code = e.edge_code + out.edge_code;
+        for (Edge &e : edge.getStart().incoming())
+            extensions.at(e.getId())->edge_code = e.edge_code + edge.edge_code;
     }
 }
 
