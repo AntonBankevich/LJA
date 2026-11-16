@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <iosfwd>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -85,6 +86,18 @@ namespace dot_viewer {
         /// the browser can map SVG elements back to vertices.
         std::string inducedDot(const std::vector<size_t> &nodes_set, const std::vector<size_t> &highlighted) const;
 
+        bool isDirected() const { return directed; }
+
+        /// "digraph name {" followed by the original top-level graph/node/edge attribute statements.
+        std::string dotHeader() const;
+
+        /// Writes the node statement of original vertex v with `overrides` replacing/adding attributes.
+        void writeNode(std::ostream &os, size_t v, const std::vector<DotAttr> &overrides) const;
+
+        /// Writes original edge e with its attributes, but between the given (already quoted) endpoint names.
+        void writeEdge(std::ostream &os, size_t e, const std::string &from, const std::string &to,
+                       const std::vector<DotAttr> &overrides) const;
+
     private:
         bool directed = true;
         std::string graph_name;
@@ -105,4 +118,16 @@ namespace dot_viewer {
     };
 
     std::string quoteDotId(const std::string &id);
+
+    /// Attribute with the given key, or nullptr.
+    const DotAttr *findAttr(const std::vector<DotAttr> &attrs, const std::string &key);
+
+    /// Replaces the attribute with the same key or appends a new one.
+    void setAttr(std::vector<DotAttr> &attrs, const DotAttr &attr);
+
+    /// Attribute with a plain string value, quoted for dot output.
+    DotAttr makeAttr(const std::string &key, const std::string &value);
+
+    /// "[k1=v1 k2=v2]" using raw values.
+    std::string attrListString(const std::vector<DotAttr> &attrs);
 }

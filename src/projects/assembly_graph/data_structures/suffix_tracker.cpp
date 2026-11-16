@@ -63,32 +63,19 @@ void SuffixRecord::removeZero() {
     this->zero_cnt = 0;
 }
 
-void SuffixRecord::lockFreeChangePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff) {
-    if(min_seq.empty()) {
+void SuffixRecord::lockFreeChangePathCnt(const Sequence &seq, int diff) {
+    if (seq.empty() || diff == 0)
+        return;
+    if (diff > 0) {
+        addPath(seq, diff);
         return;
     }
-    if (diff == 0) return;
-    if(diff > 0) {
-        addPath(min_seq, diff);
-        return;
-    }
-    for (auto it = paths.begin(); diff != 0 && it != paths.end(); ++it) {
-        if((it->first == min_seq || it->first == max_seq) && it->second + diff >= 0) {
-            it->second += diff;
-            updateZero(it->second - diff, it->second);
-            diff = 0;
-        }
-    }
-    for (auto it = paths.begin(); diff != 0 && it != paths.end(); ++it) {
-        if(it->second != 0 && max_seq.startsWith(it->first) && it->first.startsWith(min_seq)) {
-            VERIFY(it->second > 0);
-            int taken = std::min(it->second, -diff);
-            it->second -= taken;
-            updateZero(it->second + taken, it->second);
-            diff += taken;
-        }
-    }
-    VERIFY_MSG(diff == 0, "Attempting to remove path that is not present in the record.");
+    auto it = std::find_if(paths.begin(), paths.end(),
+                           [&seq](const std::pair<Sequence, int> &rec) { return rec.first == seq; });
+    VERIFY_MSG(it != paths.end() && it->second + diff >= 0,
+               "Attempting to remove path that is not present in the record.");
+    it->second += diff;
+    updateZero(it->second - diff, it->second);
 //    Entries dropping to zero are kept for a while (addPath revives one if the same suffix comes back); clean up once
 //    they make up a third of the record.
     if (zero_cnt > paths.size() / 3) {
@@ -96,9 +83,9 @@ void SuffixRecord::lockFreeChangePathCnt(const Sequence &min_seq, const Sequence
     }
 }
 
-void SuffixRecord::changePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff) {
+void SuffixRecord::changePathCnt(const Sequence &seq, int diff) {
     lock();
-    lockFreeChangePathCnt(min_seq, max_seq, diff);
+    lockFreeChangePathCnt(seq, diff);
     unlock();
 }
 
@@ -127,12 +114,14 @@ void SuffixRecord::clear() {
 
 void SuffixRecord::resetCodes(Vertex &start) {
     std::vector<std::pair<Sequence, int>> old = std::move(paths);
+    paths.clear();
+    zero_cnt = 0;
     for(const std::pair<Sequence, int> &rec : old) {
         if(rec.second == 0)
             continue;
         GraphPath path(start, rec.first);
         path.resetEdgeCodes();
-        changePathCnt(Sequence(path.getFSplits()), Sequence(path.getFSplits()), rec.second);
+        changePathCnt(Sequence(path.getFSplits()), rec.second);
     }
 }
 
@@ -157,7 +146,8 @@ std::function<std::string(const Edge & )> SuffixTracker::labeler() const {
     };
 }
 
-void SuffixTracker::processPath(PathPosition left, PathPosition right, int diff) {
+void SuffixTracker::processPath(PathPosition left, PathPosition right, NuclDeck::IteratorInfo cut, int diff) {
+    VERIFY_MSG(cut.getCur() <= right.getFPos().getDeck().end().getCur(), "Codes were removed past a read's suffix cut");
     while (right != left && right.prevEdge().getCode().empty()) {
         --right;
     }
@@ -186,21 +176,11 @@ void SuffixTracker::processPath(PathPosition left, PathPosition right, int diff)
         }
         VERIFY(to_pos <= right);
         VERIFY(to_pos == from_pos || !to_pos.prevEdge().getCode().empty());
-        if (erec != nullptr && clen >= min_len) {
-//            Trailing virtually suffix edges (and edges without a code) do not count for the canonical form: an operation
-//            may give a read a coded virtually suffix edge in place of a code-less one at its end (flip), so the form
-//            must not depend on them. The canonical form then ends with the first letter of the last remaining edge.
-            PathPosition min_pos = to_pos;
-            while (min_pos != from_pos && (min_pos.prevEdge().isVirtualSuffix() || min_pos.prevEdge().getCode().empty()))
-                --min_pos;
-            if (min_pos == from_pos) {
-                erec->changePathCnt(Sequence(), Sequence(), diff);
-            } else {
-                Sequence subseq_max_code = read_seq.Subseq(from_pos.getFPos() - left.getFPos(),
-                        to_pos.getFPos() - left.getFPos());
-                size_t min_size = min_pos.getFPos() - from_pos.getFPos() - min_pos.prevEdge().getCode().size() + 1;
-                erec->changePathCnt(subseq_max_code.Subseq(0, min_size), subseq_max_code, diff);
-            }
+        const int begin = from_pos.getFPos().getCur();
+        const int end = std::min(to_pos.getFPos().getCur(), cut.getCur());
+        if (erec != nullptr && clen >= min_len && end > begin) {
+            const int offset = left.getFPos().getCur();
+            erec->changePathCnt(read_seq.Subseq(begin - offset, end - offset), diff);
         }
     }
 }
@@ -218,29 +198,28 @@ void SuffixTracker::fillFromStorage(logging::Logger &logger, size_t threads) {
 
 //    Legacy paths (subreads of deleted vertices) are empty, so they hold no suffixes; their vertex is gone, so they must
 //    not be walked.
-void SuffixTracker::fireAddRead(const AlignedRead &read) {
-    if(read.valid() && !read.getPath().isLegacy()) {
-        addSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
-        addSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
+void SuffixTracker::processPath(const GraphPath &path, NuclDeck::IteratorInfo fend, NuclDeck::IteratorInfo rend,
+                                int diff) {
+    if (path.valid() && !path.isLegacy()) {
+        processPath(path.firstPosition(), path.lastPosition(), fend, diff);
+        processPath(path.lastPosition().RC(), path.firstPosition().RC(), rend, diff);
     }
 }
 
+void SuffixTracker::fireAddRead(const AlignedRead &read) {
+    processRead(read, 1);
+}
+
+//    The corrected path becomes the read's path as it is now (no graph operation can come in between), and its suffix
+//    ends then are its current ends (AlignedRead::setPath).
 void SuffixTracker::fireRerouteRead(AlignedRead &read) {
-    if(read.valid() && !read.getPath().isLegacy()) {
-        removeSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
-        removeSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
-    }
-    if(read.getCorrected().valid() && !read.getCorrected().isLegacy()) {
-        addSubpath(read.getCorrected().firstPosition(), read.getCorrected().lastPosition());
-        addSubpath(read.getCorrected().lastPosition().RC(), read.getCorrected().firstPosition().RC());
-    }
+    processRead(read, -1);
+    const GraphPath &corrected = read.getCorrected();
+    processPath(corrected, corrected.getFSplits().end(), corrected.getRSplits().end(), 1);
 }
 
 void SuffixTracker::fireInvalidateRead(AlignedRead &read) {
-    if(read.valid() && !read.getPath().isLegacy()) {
-        removeSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
-        removeSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
-    }
+    processRead(read, -1);
 }
 
 SuffixTracker::SuffixTracker(AlignedReadStorage &storage, AssemblyGraph &graph,
@@ -370,12 +349,8 @@ void SuffixTracker::fireResetEdgeCodes(logging::Logger &logger, size_t threads, 
 bool SuffixTracker::fireCheckConsistency(std::ostream &os) {
 //        Single-threaded only; lock_table() is just libcuckoo's only full-table iteration API.
     bool ok = true;
-    for(AlignedRead &read : *storage) {
-        if(read.valid() && !read.getPath().isLegacy()) {
-            removeSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
-            removeSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
-        }
-    }
+    for(AlignedRead &read : *storage)
+        processRead(read, -1);
     {
         auto lt = edge_data.lock_table();
         for (auto &p : lt) {
@@ -388,12 +363,8 @@ bool SuffixTracker::fireCheckConsistency(std::ostream &os) {
             }
         }
     }
-    for(AlignedRead &read : *storage) {
-        if(read.valid() && !read.getPath().isLegacy()) {
-            addSubpath(read.getPath().firstPosition(), read.getPath().lastPosition());
-            addSubpath(read.getPath().lastPosition().RC(), read.getPath().firstPosition().RC());
-        }
-    }
+    for(AlignedRead &read : *storage)
+        processRead(read, 1);
     return ok;
 }
 

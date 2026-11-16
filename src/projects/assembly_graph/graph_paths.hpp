@@ -62,6 +62,9 @@ namespace ag {
         static GraphPath LegacyPath(VertexId start, VertexId rc_start, size_t cut_left = 0, size_t cut_right = 0) {
             return {start.legacyId(), rc_start.legacyId(), NuclDeck(), NuclDeck(), cut_left, cut_right};
         }
+//        Turns a path of a single vertex that is being deleted into a legacy path in place, keeping its cuts and its
+//        (empty) decks with their positions. A legacy path stays as it is.
+        void makeLegacy();
 
         GraphPath(Vertex &start, size_t cut_left = 0, size_t cut_right = 0) : start(start.getId()), rc_start(start.rc().getId()), // NOLINT(google-explicit-constructor)
                                             cut_left(cut_left), cut_right(cut_right) {

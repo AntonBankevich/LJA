@@ -180,23 +180,6 @@ namespace dot_viewer {
             return t.type == TokType::Id || t.type == TokType::Quoted || t.type == TokType::Html;
         }
 
-        void setAttr(std::vector<DotAttr> &attrs, const DotAttr &attr) {
-            for (DotAttr &a: attrs) {
-                if (a.key == attr.key) {
-                    a = attr;
-                    return;
-                }
-            }
-            attrs.push_back(attr);
-        }
-
-        const DotAttr *findAttr(const std::vector<DotAttr> &attrs, const std::string &key) {
-            for (const DotAttr &a: attrs)
-                if (a.key == key)
-                    return &a;
-            return nullptr;
-        }
-
         /// Splits a dot escString label into lines (separators: \n, \l, \r escapes and real newlines).
         std::vector<std::string> labelLines(const std::string &label) {
             std::vector<std::string> lines(1);
@@ -277,6 +260,34 @@ namespace dot_viewer {
             }
         }
         return res + "\"";
+    }
+
+    void setAttr(std::vector<DotAttr> &attrs, const DotAttr &attr) {
+        for (DotAttr &a: attrs) {
+            if (a.key == attr.key) {
+                a = attr;
+                return;
+            }
+        }
+        attrs.push_back(attr);
+    }
+
+    const DotAttr *findAttr(const std::vector<DotAttr> &attrs, const std::string &key) {
+        for (const DotAttr &a: attrs)
+            if (a.key == key)
+                return &a;
+        return nullptr;
+    }
+
+    DotAttr makeAttr(const std::string &key, const std::string &value) {
+        return {key, quoteDotId(value), value};
+    }
+
+    std::string attrListString(const std::vector<DotAttr> &attrs) {
+        std::string res = "[";
+        for (const DotAttr &a: attrs)
+            res += (res.size() > 1 ? " " : "") + quoteDotId(a.key) + "=" + a.raw;
+        return res + "]";
     }
 
     class DotParser {
@@ -360,13 +371,6 @@ namespace dot_viewer {
             return attrs;
         }
 
-        static std::string attrsToString(const std::vector<DotAttr> &attrs) {
-            std::string res = "[";
-            for (const DotAttr &a: attrs)
-                res += (res.size() > 1 ? " " : "") + quoteDotId(a.key) + "=" + a.raw;
-            return res + "]";
-        }
-
         void subgraphBody(size_t depth) {
             if (cur.type == TokType::Id && lower(cur.value) == "subgraph") {
                 advance();
@@ -406,7 +410,7 @@ namespace dot_viewer {
                     advance();
                     std::vector<DotAttr> attrs = attrLists();
                     if (depth == 0)
-                        g.graph_statements.push_back(kw + " " + attrsToString(attrs));
+                        g.graph_statements.push_back(kw + " " + attrListString(attrs));
                     return;
                 }
             }
@@ -703,53 +707,57 @@ namespace dot_viewer {
         std::unordered_set<size_t> open_set(open.begin(), open.end());
         std::unordered_set<size_t> highlight_set(highlighted.begin(), highlighted.end());
         std::ostringstream os;
-        os << (directed ? "digraph " : "graph ");
-        if (!graph_name.empty())
-            os << quoteDotId(graph_name) << " ";
-        os << "{\n";
-        for (const std::string &st: graph_statements)
-            os << st << ";\n";
-        auto writeAttrs = [&os](const std::vector<DotAttr> &attrs) {
-            os << "[";
-            bool first = true;
-            for (const DotAttr &a: attrs) {
-                os << (first ? "" : " ") << quoteDotId(a.key) << "=" << a.raw;
-                first = false;
-            }
-            os << "]";
-        };
+        os << dotHeader();
         for (size_t v: nodes_set) {
-            std::vector<DotAttr> attrs = nodes[v].attrs;
+            std::vector<DotAttr> overrides;
             if (open_set.count(v)) {
-                const DotAttr *style = findAttr(attrs, "style");
+                const DotAttr *style = findAttr(nodes[v].attrs, "style");
                 std::string style_value = style ? style->value : "";
                 if (style_value.find("filled") == std::string::npos)
                     style_value += std::string(style_value.empty() ? "" : ",") + "filled";
-                setAttr(attrs, {"style", quoteDotId(style_value), style_value});
-                setAttr(attrs, {"fillcolor", "\"yellow\"", "yellow"});
+                overrides.push_back(makeAttr("style", style_value));
+                overrides.push_back(makeAttr("fillcolor", "yellow"));
             }
-            std::string id = "v" + std::to_string(v);
-            setAttr(attrs, {"id", quoteDotId(id), id});
-            os << quoteDotId(nodes[v].name) << " ";
-            writeAttrs(attrs);
-            os << "\n";
+            writeNode(os, v, overrides);
         }
-        const char *op = directed ? " -> " : " -- ";
         for (size_t v: nodes_set) {
             for (size_t e: nodes[v].out_edges) {
                 if (!in_set.count(edges[e].to))
                     continue;
-                std::vector<DotAttr> attrs = edges[e].attrs;
+                std::vector<DotAttr> overrides;
                 if (highlight_set.count(e))
-                    setAttr(attrs, {"penwidth", "4", "4"});
-                std::string id = "e" + std::to_string(e);
-                setAttr(attrs, {"id", quoteDotId(id), id});
-                os << quoteDotId(nodes[v].name) << op << quoteDotId(nodes[edges[e].to].name) << " ";
-                writeAttrs(attrs);
-                os << "\n";
+                    overrides.push_back({"penwidth", "4", "4"});
+                writeEdge(os, e, quoteDotId(nodes[v].name), quoteDotId(nodes[edges[e].to].name), overrides);
             }
         }
         os << "}\n";
         return os.str();
+    }
+
+    std::string DotGraph::dotHeader() const {
+        std::string res = directed ? "digraph " : "graph ";
+        if (!graph_name.empty())
+            res += quoteDotId(graph_name) + " ";
+        res += "{\n";
+        for (const std::string &st: graph_statements)
+            res += st + ";\n";
+        return res;
+    }
+
+    void DotGraph::writeNode(std::ostream &os, size_t v, const std::vector<DotAttr> &overrides) const {
+        std::vector<DotAttr> attrs = nodes[v].attrs;
+        for (const DotAttr &a: overrides)
+            setAttr(attrs, a);
+        setAttr(attrs, makeAttr("id", "v" + std::to_string(v)));
+        os << quoteDotId(nodes[v].name) << " " << attrListString(attrs) << "\n";
+    }
+
+    void DotGraph::writeEdge(std::ostream &os, size_t e, const std::string &from, const std::string &to,
+                             const std::vector<DotAttr> &overrides) const {
+        std::vector<DotAttr> attrs = edges[e].attrs;
+        for (const DotAttr &a: overrides)
+            setAttr(attrs, a);
+        setAttr(attrs, makeAttr("id", "e" + std::to_string(e)));
+        os << from << (directed ? " -> " : " -- ") << to << " " << attrListString(attrs) << "\n";
     }
 }

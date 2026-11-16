@@ -36,10 +36,10 @@ namespace ag {
         void lock() const { eid->getStart().lock(); }
         void unlock() const { eid->getStart().unlock(); }
         void updateZero(size_t old_val, size_t new_val);
-        void lockFreeChangePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff);
-        void changePathCnt(const Sequence &min_seq, const Sequence &max_seq, int diff);
+//        Adds diff to the count of seq; a removal (diff < 0) must find seq stored exactly, with enough count.
+        void lockFreeChangePathCnt(const Sequence &seq, int diff);
+        void changePathCnt(const Sequence &seq, int diff);
         void addPath(const Sequence &seq, int diff = 1);
-        void removePath(const Sequence &min_seq, const Sequence &max_seq) {changePathCnt(min_seq, max_seq, -1);}
         void directAddPath(const Sequence &seq, size_t cnt);
         void clear();
 
@@ -88,11 +88,18 @@ namespace ag {
         size_t max_len;
 
     private:
-//        processPath can only be called when vertex set can not be changed, so no graph modification
-        void
-        processPath(PathPosition left, PathPosition right, int diff);
-        void addSubpath(PathPosition left, PathPosition right) {processPath(left, right, 1);}
-        void removeSubpath(PathPosition left, PathPosition right) {processPath(left, right, -1);}
+//        processPath can only be called when vertex set can not be changed, so no graph modification.
+//        The suffix stored for an edge of the path is the codes after it, up to the max-length limit and never past cut,
+//        the logical position in the codes' deck where they ended when the read got its path (AlignedRead's suffix
+//        ends). Codes appended past cut by later operations do not count, so adding and removing a read always compute
+//        the same suffixes, and removal is an exact match.
+        void processPath(PathPosition left, PathPosition right, NuclDeck::IteratorInfo cut, int diff);
+//        Both directions of path, cut at fend in its fsplits and rend in its rsplits.
+        void processPath(const GraphPath &path, NuclDeck::IteratorInfo fend, NuclDeck::IteratorInfo rend, int diff);
+//        The read's path, cut at the read's suffix ends.
+        void processRead(const AlignedRead &read, int diff) {
+            processPath(read.getPath(), read.getSuffixFEnd(), read.getSuffixREnd(), diff);
+        }
 //        The edge's record, nullptr if it has none (one lookup).
         SuffixRecord *findRecord(const Edge &edge) const {
             SuffixRecord *res = nullptr;

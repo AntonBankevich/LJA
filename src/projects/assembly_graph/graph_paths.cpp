@@ -550,6 +550,15 @@ void GraphPath::pop_front(const GraphPath &path) {
 }
 
 
+void GraphPath::makeLegacy() {
+    VERIFY(valid());
+    if (isLegacy())
+        return;
+    VERIFY(empty() && fsplits.empty() && rsplits.empty());
+    start = start.legacyId();
+    rc_start = rc_start.legacyId();
+}
+
 void GraphPath::setCutLeft(size_t value) {
     cut_left = value;
 }
@@ -701,10 +710,11 @@ void GraphPath::resetEdgeCodes() {
         return;
     NuclDeck newf;
     NuclDeck newr;
+//    Codes as AssemblyGraph::resetEdgeCodes gives them: the first nucleotide, empty for (virtually) suffix edges.
     for(Edge &edge : edges()) {
-        if(!edge.isSuffix())
+        if(!edge.isSuffix() && !edge.isVirtualSuffix())
             newf.push_back(edge.firstNucl());
-        if(!edge.isPrefix())
+        if(!edge.rc().isSuffix() && !edge.rc().isVirtualSuffix())
             newr.push_front(edge.rc().firstNucl());
     }
     fsplits = newf;

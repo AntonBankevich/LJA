@@ -192,20 +192,19 @@ namespace ag {
         friend class AlignedReadStorage;
     private:
         AlignedReadStorage *storage;
-//        Moves every read recorded as a pure substring of `from` (reads_inside_vertices[from], i.e. reads
-//        that never reach an edge) onto `to`, re-expressing cut_left/cut_right for from's position-0
-//        mapping onto to's position `shift` -- the exact read-side counterpart of how
-//        SampleSegmentTracker moves a vertex's coverage_info (shift()/insertFront()/+=) in
-//        fireResolveVertex's three unambiguous cases, where core is destroyed but has exactly one real
-//        neighbor to transfer onto. Must be called with the same destination and shift
-//        SampleSegmentTracker uses for `from`, so a read's recorded position never drifts from where its
-//        sample segment actually lives.
-        void migrateSubstringReads(Vertex &from, Vertex &to, size_t shift);
+//        Moves the subreads of the vertex flipped along edge (its finish if edge is a suffix edge, its start if it is
+//        a prefix edge) to the other end of edge, which contains it: the path is extended by edge and then loses it on
+//        the other side, so its codes are only pushed and popped (their deck positions, and so the reads' suffix ends,
+//        stay valid).
+        void migrateSubstringReads(Edge &edge);
 //        Moves the reads of path's inner vertices to target, which spells the whole path (path position 0 is target's
-//        position 0) and is connected to the path's finish by to_finish (an edge, or the empty path if target is the
-//        finish). Reads starting at an inner vertex start at target, through to_finish if they reach the finish;
-//        otherwise they, like the inner vertices' subreads, become subreads of target.
-        void absorbInnerVertices(const RAGraphPath &path, Vertex &target, const GraphPath &to_finish);
+//        position 0). The new edge from_start leads from the path's start to target and to_finish from target to the
+//        path's finish (nullptr where target is that end); together they have exactly the path's codes. A read is
+//        extended edge by edge along the path to its start (and to its finish if it ends inside the path), and the new
+//        edges are popped: reads reaching the finish start at target, the others, like the inner vertices' subreads,
+//        become subreads of target. Codes are only pushed and popped, so their deck positions (and the reads' suffix
+//        ends) stay valid.
+        void absorbInnerVertices(const RAGraphPath &path, Vertex &target, Edge *from_start, Edge *to_finish);
 //        Files dir, whose path has just become empty, as a subread, together with its other direction (moved out of
 //        the starts of dir's start.rc()).
         void fileAsSubread(const AlignedReadDirection &dir);

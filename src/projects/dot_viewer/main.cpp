@@ -4,6 +4,7 @@
 // Then open http://<host>:<port>/ in a browser. Subgraphs are rendered server-side with graphviz.
 
 #include "dot_graph.hpp"
+#include "fold.hpp"
 #include "http_server.hpp"
 #include "viewer_page.hpp"
 
@@ -14,10 +15,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <future>
 #include <iostream>
+#include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 
 using namespace dot_viewer;
 
@@ -117,7 +122,7 @@ namespace {
         std::string svg = renderSvg(dot_text, engine);
         std::vector<size_t> open = graph.frontier(sel.nodes);
         std::ostringstream os;
-        os << "{\"ok\":true,\"svg\":\"" << jsonEscape(svg) << "\",\"dot\":\"" << jsonEscape(dot_text)
+        os << "{\"ok\":true,\"kind\":\"orig\",\"svg\":\"" << jsonEscape(svg) << "\",\"dot\":\"" << jsonEscape(dot_text)
            << "\",\"nodes\":";
         writeIndexArray(os, sel.nodes);
         os << ",\"frontier\":";
@@ -129,7 +134,72 @@ namespace {
         return jsonResponse(os.str());
     }
 
-    HttpResponse handle(const DotGraph &graph, const HttpRequest &req) {
+    /// Folded views are immutable, so their renders are cached. Concurrent requests for the same view share one
+    /// graphviz run through the shared_future.
+    std::string cachedRender(const std::string &dot_text, const std::string &engine) {
+        static std::mutex mutex;
+        static std::map<std::string, std::shared_future<std::string>> cache;
+        std::string key = engine + "\n" + dot_text;
+        std::promise<std::string> promise;
+        std::shared_future<std::string> future;
+        bool owner = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            auto it = cache.find(key);
+            if (it == cache.end()) {
+                future = promise.get_future().share();
+                cache.emplace(key, future);
+                owner = true;
+            } else {
+                future = it->second;
+            }
+        }
+        if (owner) {
+            try {
+                promise.set_value(renderSvg(dot_text, engine));
+            } catch (...) {
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    cache.erase(key); // do not cache failures
+                }
+                promise.set_exception(std::current_exception());
+            }
+        }
+        return future.get();
+    }
+
+    HttpResponse renderFoldView(const FoldedGraph &folded, const std::string &view, const std::string &engine,
+                                bool hide_isolated) {
+        std::string dot_text, title;
+        size_t idx = view.size() > 1 ? std::strtoull(view.c_str() + 1, nullptr, 10) : 0;
+        if (view == "top") {
+            size_t hidden = 0;
+            dot_text = folded.topDot(hide_isolated, hidden);
+            title = "Folded graph: " + std::to_string(folded.topSize()) + " vertices (" +
+                    std::to_string(folded.longCount()) + " long, " + std::to_string(folded.componentCount()) +
+                    " folded components, " + std::to_string(folded.pathCount()) + " folded paths).";
+            if (hidden > 0)
+                title += " " + std::to_string(hidden) + " isolated vertices hidden.";
+        } else if (view[0] == 'P' && idx < folded.pathCount()) {
+            dot_text = folded.pathDot(idx);
+            title = folded.pathTitle(idx) + ". Dashed: neighbouring forks.";
+        } else {
+            return errorResponse("Unknown folded view " + view);
+        }
+        std::string svg = cachedRender(dot_text, engine);
+        std::ostringstream os;
+        os << "{\"ok\":true,\"kind\":\"fold\",\"view\":\"" << jsonEscape(view) << "\",\"svg\":\"" << jsonEscape(svg)
+           << "\",\"dot\":\"" << jsonEscape(dot_text) << "\",\"nodes\":[],\"frontier\":[],\"highlight\":[]"
+           << ",\"truncated\":false,\"message\":\"" << jsonEscape(title) << "\"}";
+        return jsonResponse(os.str());
+    }
+
+    HttpResponse handle(const DotGraph &graph, const FoldedGraph &folded, const HttpRequest &req) {
+        if (req.path == "/api/fold") {
+            std::string view = getString(req, "view", "top");
+            return renderFoldView(folded, view.empty() ? "top" : view, getString(req, "engine", "dot"),
+                                  getString(req, "hide_isolated", "1") != "0");
+        }
         if (req.path == "/" || req.path == "/index.html") {
             HttpResponse resp;
             resp.content_type = "text/html; charset=utf-8";
@@ -147,8 +217,21 @@ namespace {
             std::string mode = getString(req, "mode", "vertex");
             std::string query = getString(req, "query");
             size_t radius = getNumber(req, "radius", 1);
-            Selection sel = mode == "path" ? graph.selectPath(query, radius, limit)
-                                           : graph.selectAround(query, radius, limit);
+            Selection sel;
+            if (mode == "index") { // a vertex clicked in a folded view: itself plus its neighbours
+                size_t v = std::strtoull(query.c_str(), nullptr, 10);
+                sel = graph.expand({v}, v, limit);
+            } else if (mode == "component") { // a folded component clicked: its vertices in the original graph
+                size_t c = std::strtoull(query.c_str(), nullptr, 10);
+                if (c >= folded.componentCount())
+                    return errorResponse("Unknown component " + query);
+                sel.nodes = folded.componentVertices(c);
+                sel.message = folded.componentTitle(c) + ".";
+            } else if (mode == "path") {
+                sel = graph.selectPath(query, radius, limit);
+            } else {
+                sel = graph.selectAround(query, radius, limit);
+            }
             if (getString(req, "highlight", "1") == "0")
                 sel.highlighted_edges.clear();
             return renderSelection(graph, sel, engine);
@@ -171,12 +254,25 @@ int main(int argc, char **argv) {
     std::string path;
     std::string host = "127.0.0.1";
     int port = 8080;
+    FoldParams fold_params;
+    std::string dump_top;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if ((arg == "--port" || arg == "-p") && i + 1 < argc) {
+        bool has_value = i + 1 < argc;
+        if ((arg == "--port" || arg == "-p") && has_value) {
             port = std::atoi(argv[++i]);
-        } else if (arg == "--host" && i + 1 < argc) {
+        } else if (arg == "--host" && has_value) {
             host = argv[++i];
+        } else if (arg == "--long" && has_value) {
+            fold_params.long_threshold = std::atof(argv[++i]);
+        } else if (arg == "--length-regex" && has_value) {
+            fold_params.length_regex = argv[++i];
+        } else if (arg == "--coverage-regex" && has_value) {
+            fold_params.coverage_regex = argv[++i];
+        } else if (arg == "--trunc-regex" && has_value) {
+            fold_params.trunc_regex = argv[++i];
+        } else if (arg == "--dump-top" && has_value) {
+            dump_top = argv[++i];
         } else if (arg == "-h" || arg == "--help") {
             path.clear();
             break;
@@ -185,7 +281,14 @@ int main(int argc, char **argv) {
         }
     }
     if (path.empty()) {
-        std::cerr << "Usage: " << argv[0] << " <graph.dot> [--port 8080] [--host 127.0.0.1]\n";
+        std::cerr << "Usage: " << argv[0] << " <graph.dot> [options]\n"
+                  << "  --port N              (default 8080)\n"
+                  << "  --host ADDR           (default 127.0.0.1)\n"
+                  << "  --long LEN            vertices at least this long are cut when folding (default 50000)\n"
+                  << "  --length-regex RE     vertex length from its label, group 1 (default " << fold_params.length_regex << ")\n"
+                  << "  --coverage-regex RE   vertex coverage from its label (default " << fold_params.coverage_regex << ")\n"
+                  << "  --trunc-regex RE      sequence an edge adds beyond its start vertex, from its label (default "
+                  << fold_params.trunc_regex << ")\n";
         return 1;
     }
     try {
@@ -195,7 +298,28 @@ int main(int argc, char **argv) {
         double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
         std::cerr << "Loaded " << graph.nodeCount() << " vertices and " << graph.edgeCount() << " edges in "
                   << secs << "s" << std::endl;
-        HttpServer server(host, port, [&graph](const HttpRequest &req) { return handle(graph, req); });
+        FoldedGraph folded(graph, fold_params);
+        std::cerr << "Folded into " << folded.topSize() << " vertices: " << folded.longCount() << " long, "
+                  << folded.componentCount() << " folded components, " << folded.pathCount() << " folded paths"
+                  << std::endl;
+        if (!dump_top.empty()) {
+            size_t hidden = 0;
+            std::ofstream(dump_top) << folded.topDot(false, hidden);
+            std::cerr << "Wrote folded graph to " << dump_top << std::endl;
+            return 0;
+        }
+        // Start rendering the default top view now: for big graphs graphviz takes a while.
+        std::thread([&folded]() {
+            try {
+                renderFoldView(folded, "top", "dot", true);
+                std::cerr << "Folded graph rendered" << std::endl;
+            } catch (const std::exception &e) {
+                std::cerr << "Rendering folded graph failed: " << e.what() << std::endl;
+            }
+        }).detach();
+        HttpServer server(host, port, [&graph, &folded](const HttpRequest &req) {
+            return handle(graph, folded, req);
+        });
         std::cerr << "Serving on http://" << host << ":" << port << "/" << std::endl;
         server.run();
     } catch (const std::exception &e) {

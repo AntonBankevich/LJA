@@ -4,14 +4,33 @@
 #include <tuple>
 using namespace ag;
 
-void AlignedReadStorageMaintenance::migrateSubstringReads(Vertex &from, Vertex &to, size_t shift) {
+void AlignedReadStorageMaintenance::migrateSubstringReads(Edge &edge) {
+    const bool forward = edge.isSuffix();
+    Vertex &from = forward ? edge.getFinish() : edge.getStart();
+    Vertex &to = forward ? edge.getStart() : edge.getFinish();
     std::vector<AlignedReadDirection> &src = storage->getSubstringReadsLockFree(from.getId());
     std::vector<AlignedReadDirection> &dst = storage->getSubstringReadsLockFree(to.getId());
     for (AlignedReadDirection &dir : src) {
         dir.getRead().lock();
-        size_t len = dir.getPath().len();
-        size_t new_left = shift + dir.leftCut();
-        dir.setPath(GraphPath(to, new_left, to.size() - new_left - len));
+//        Both directions share the path: the call for the other strand may have moved it already.
+        if (dir.getStart() != to) {
+            VERIFY(dir.empty() && dir.getStart() == from);
+            if (forward) {
+//                to -> from is a suffix edge: from is to's suffix, edge.rc() spells what to has before it.
+                const size_t left = dir.leftCut();
+                dir.setCutLeft(0);
+                dir.push_front(edge);
+                dir.setCutLeft(left + edge.rc().truncSize());
+                dir.pop_back(edge);
+            } else {
+//                from -> to is a prefix edge: from is to's prefix, edge spells what to has after it.
+                const size_t right = dir.rightCut();
+                dir.setCutRight(0);
+                dir.push_back(edge);
+                dir.setCutRight(right + edge.truncSize());
+                dir.pop_front(edge);
+            }
+        }
         dir.getRead().unlock();
         dst.emplace_back(dir);
     }
@@ -132,12 +151,49 @@ void AlignedReadStorageMaintenance::fireMergePathToEdge(const RAGraphPath &path,
 }
 
 void AlignedReadStorageMaintenance::absorbInnerVertices(const RAGraphPath &path, Vertex &target,
-                                                        const GraphPath &to_finish) {
+                                                        Edge *from_start, Edge *to_finish) {
     std::vector<AlignedReadDirection> &recs = storage->getOutgoingReads(target);
     std::vector<AlignedReadDirection> &vrecs = storage->getSubstringReads(target.getId());
+//    Positions, lengths and codes come from path by index, never by following codes: until removeMarked() the path's
+//    start has the new edge next to the old one, with the same first code letter.
     size_t left_skip = 0;
-    GraphPath suffix(path);
-    size_t edges_left = path.size();
+    size_t fcodes_rest = 0;
+    size_t rcodes_rest = 0;
+    for (Edge &e : path.edges()) {
+        fcodes_rest += e.getCode().size();
+        rcodes_rest += e.rc().getCode().size();
+    }
+    size_t pos = 0;
+//    dir starts at path vertex pos (left_skip into the path). Extends it over the whole path where it lies on it and
+//    moves it onto target by popping the new edges.
+    auto put_on_target = [&](const AlignedReadDirection &dir, bool reaches_finish) {
+//        A read ending inside the path lies on its inner vertices only, where nothing new has been added.
+        size_t dir_edges = 0;
+        if (!reaches_finish)
+            for ([[maybe_unused]] auto &e : dir)
+                dir_edges++;
+        const size_t left = dir.leftCut();
+        dir.setCutLeft(0);
+        for (size_t i = pos; i > 0; i--)
+            dir.push_front(path.getEdge(i - 1));
+        dir.setCutLeft(left + left_skip);
+        if (!reaches_finish) {
+            const size_t end = pos + dir_edges;
+            VERIFY(end < path.size() && path.getVertex(end) == dir.getFinish());
+            size_t right = dir.rightCut();
+            dir.setCutRight(0);
+            for (size_t i = end; i < path.size(); i++) {
+                dir.push_back(path.getEdge(i));
+                right += path.getEdge(i).truncSize();
+            }
+            dir.setCutRight(right);
+        }
+        if (from_start != nullptr)
+            dir.pop_front(*from_start);
+        if (!reaches_finish && to_finish != nullptr)
+            dir.pop_back(*to_finish);
+        VERIFY(dir.getStart() == target);
+    };
     for(Vertex &path_vertex : path.vertices()) {
         if (path_vertex != path.getStart() && path_vertex != path.getFinish()
                 && path_vertex != target && path_vertex != target.rc()) {
@@ -145,25 +201,19 @@ void AlignedReadStorageMaintenance::absorbInnerVertices(const RAGraphPath &path,
             VERIFY(storage->getOutgoingReads(path_vertex).empty());
             for(AlignedReadDirection dir : outgoing) {
                 dir.getRead().lock();
-                size_t cut_left = left_skip + dir.leftCut();
                 if(dir.getStart() == target) {
                     // Here we check the case that this read has already been handled by rc call
                     VERIFY(dir.getFinish() == target);
                     vrecs.emplace_back(dir);
-                } else if (dir.getFSplits().size() >= suffix.getFSplits().size() &&
-                           dir.getRSplits().size() >= suffix.getRSplits().size()) {
+                } else if (dir.getFSplits().size() >= fcodes_rest && dir.getRSplits().size() >= rcodes_rest) {
                     //The read reaches the finish: it goes there from target by to_finish.
-                    dir.setCutLeft(0);
-                    dir.replace_front(suffix, to_finish);
-                    dir.setCutLeft(cut_left);
-                    VERIFY(dir.getStart() == target);
+                    put_on_target(dir, true);
                     if (dir.empty())
                         fileAsSubread(dir);
                     else
                         recs.emplace_back(dir);
                 } else {
-                    size_t len = dir.getPath().len();
-                    dir.setPath(GraphPath(target, cut_left, target.size() - cut_left - len));
+                    put_on_target(dir, false);
                     vrecs.emplace_back(dir);
                 }
                 dir.getRead().unlock();
@@ -175,22 +225,21 @@ void AlignedReadStorageMaintenance::absorbInnerVertices(const RAGraphPath &path,
                 if(dir.getStart() == target) {
                     // Here we check the case that this read has already been handled by rc call
                     VERIFY(dir.getFinish() == target);
-                    vrecs.emplace_back(dir);
                 } else {
-                    size_t cut_left = left_skip + dir.leftCut();
-                    size_t len = dir.getPath().len();
-                    dir.setPath(GraphPath(target, cut_left, target.size() - cut_left - len));
-                    vrecs.emplace_back(dir);
+                    put_on_target(dir, false);
                 }
+                vrecs.emplace_back(dir);
                 dir.getRead().unlock();
             }
         }
         //Advance the position only while there is a next edge. Counted, not compared with getFinish(): a loop path
         //starts at its finish.
-        if (edges_left > 0) {
-            left_skip += suffix.frontEdge().rc().truncSize();
-            suffix.pop_front();
-            edges_left--;
+        if (pos < path.size()) {
+            Edge &next = path.getEdge(pos);
+            left_skip += next.rc().truncSize();
+            fcodes_rest -= next.getCode().size();
+            rcodes_rest -= next.rc().getCode().size();
+            pos++;
         }
     }
 }
@@ -211,7 +260,7 @@ void AlignedReadStorageMaintenance::fireFlipVertex(Edge &edge, const std::unorde
     const bool forward = edge.isSuffix();
     Vertex &core = forward ? edge.getFinish() : edge.getStart();
     Vertex &target = forward ? edge.getStart() : edge.getFinish();
-    migrateSubstringReads(core, target, forward ? target.size() - core.size() : 0);
+    migrateSubstringReads(edge);
     std::vector<AlignedReadDirection> starting = std::move(storage->getOutgoingReads(core));
     VERIFY(storage->getOutgoingReads(core).empty());
     VERIFY(starting.empty() || core.size() != storage->getK());
@@ -239,16 +288,16 @@ void AlignedReadStorageMaintenance::fireMergePath(const RAGraphPath &path, Verte
     VERIFY_MSG(!storage->inReadCorrection(), "The graph can not change while read corrections are pending");
     VERIFY(new_vertex != path.getStart());//Paths whose merged vertex already exists are handled by mergePrefixPath
     VERIFY(new_vertex != path.getFinish());
-    absorbInnerVertices(path, new_vertex, GraphPath(new_vertex.front()));
+    absorbInnerVertices(path, new_vertex, &new_vertex.incFront(), &new_vertex.front());
 }
 
 //    The merged run spells its finish (prefix run) or, in the mirrored call, its start (suffix run).
 void AlignedReadStorageMaintenance::fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) {
     VERIFY_MSG(!storage->inReadCorrection(), "The graph can not change while read corrections are pending");
     if (path.frontEdge().isPrefix())
-        absorbInnerVertices(path, path.getFinish(), GraphPath(path.getFinish()));
+        absorbInnerVertices(path, path.getFinish(), &new_edge, nullptr);
     else
-        absorbInnerVertices(path, path.getStart(), GraphPath(new_edge));
+        absorbInnerVertices(path, path.getStart(), nullptr, &new_edge);
 }
 
 void AlignedReadStorageMaintenance::fireAddRead(const AlignedRead &read) {
@@ -306,10 +355,9 @@ void AlignedReadStorageMaintenance::fireDeleteVertex(Vertex &vertex) {
     VERIFY_MSG(!storage->inReadCorrection(), "The graph can not change while read corrections are pending");
     std::vector<AlignedReadDirection> subreads = std::move(storage->getSubstringReadsLockFree(vertex.getId()));
     storage->reads_inside_vertices.erase(vertex.getId());
-    for (AlignedReadDirection &dir: subreads) {
-//        Cuts are taken from the direction (rc-aware), not from dir.getPath(), which is the shared forward path.
-        dir.setPath(GraphPath::LegacyPath(vertex.getId(), vertex.rc().getId(), dir.leftCut(), dir.rightCut()));
-    }
+//    In place: both directions share the path, and the call for vertex.rc() finds it legacy already.
+    for (AlignedReadDirection &dir: subreads)
+        dir.getPath().makeLegacy();
     if (!subreads.empty())
         storage->legacy_reads.insert(vertex.getId().legacyId(),
                                      std::make_unique<std::vector<AlignedReadDirection>>(std::move(subreads)));
@@ -801,7 +849,7 @@ AlignedReadStorage::AlignedReadStorage(logging::Logger &logger, size_t threads,
 //    this-> matters: the parameter `reads` was moved from and is empty.
 #pragma omp parallel for default(none) schedule(dynamic, 100)
     for(size_t i = 0; i < this->reads.size(); i++) {
-        this->reads[i].getPath() = Normalize(this->reads[i].getPath());
+        this->reads[i].setPath(Normalize(this->reads[i].getPath()));
         this->fireAddRead(this->reads[i]);
     }
     maintenance = new ag::AlignedReadStorageMaintenance(graph, *this);
@@ -831,7 +879,7 @@ AlignedReadStorage::AlignedReadStorage(AssemblyGraph &graph, std::vector<Aligned
         : reads(std::move(reads)), k(graph.getK()) {
 //    this-> matters: the parameter `reads` was moved from and is empty.
     for(size_t i = 0; i < this->reads.size(); i++) {
-        this->reads[i].getPath() = Normalize(this->reads[i].getPath());
+        this->reads[i].setPath(Normalize(this->reads[i].getPath()));
         this->fireAddRead(this->reads[i]);
     }
     maintenance = new ag::AlignedReadStorageMaintenance(graph, *this);

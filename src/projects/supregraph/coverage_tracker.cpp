@@ -154,8 +154,9 @@ bool CoverageTracker::checkConsistency(std::ostream &os) {
             processPath(read.getPath(), -1);
         }
     bool ok = true;
+//    Vertices marked for deletion keep their stale counters until removeMarked().
     for (Vertex &v : graph.vertices())
-        if (v.hasCoverageInfo()) {
+        if (!v.marked() && v.hasCoverageInfo()) {
             bool windows_zero = true;
             for (ag::CoverageSamples::SampleView view : v.coverage_info.getSamples())
                 windows_zero = windows_zero && view.sample.raw_support == 0;

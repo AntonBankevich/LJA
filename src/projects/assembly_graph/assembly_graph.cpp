@@ -959,9 +959,13 @@ void AssemblyGraph::resetEdgeCodes(logging::Logger &logger, size_t threads) {
     logger.info() << "Resetting edge codes" << std::endl;
     this->fireResetEdgeCodes(logger, threads, *this);
     size_t code_size = 0;
+//    Virtually suffix edges get empty codes too (their start has no other outgoing edge to tell them from), as
+//    GraphPath::resetEdgeCodes assumes.
     for(Edge &edge : edges()) {
         code_size += edge.edge_code.size();
-        if(!edge.isSuffix())
+        if(edge.isSuffix() || edge.isVirtualSuffix())
+            edge.edge_code = Sequence();
+        else
             edge.edge_code = edge.truncSeq().Subseq(0, 1);
     }
     logger.info() << "Finished resetting edge codes. Reduced total code size from " << code_size << " to " << edgeCount() << std::endl;

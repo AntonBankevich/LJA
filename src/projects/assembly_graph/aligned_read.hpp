@@ -27,13 +27,19 @@ namespace ag {
         GraphPath  corrected_path = {};
         omp_lock_t writelock = {};
         bool corrected = false;
+//        Logical NuclDeck positions of the ends of path's fsplits and rsplits when the read got its path (set anew,
+//        corrected or recoded). Deck positions survive pushes and pops at either end, and graph operations only ever add
+//        codes past the ends (or remove empty codes there), so a SuffixTracker cutting the read's codes at these
+//        positions computes the same suffixes whenever it adds or removes the read.
+        NuclDeck::IteratorInfo suffix_fend = 0;
+        NuclDeck::IteratorInfo suffix_rend = 0;
     public:
         AlignedRead() = default;
         AlignedRead(AlignedRead &&other) noexcept = default;
         AlignedRead &operator=(AlignedRead &&other) noexcept = default;
         explicit AlignedRead(std::string readId) : id(std::move(readId)), path(), corrected(false) {}
         AlignedRead(std::string readId, const ag::GraphPath &_path) : id(std::move(readId)), path(_path),
-                                                                              corrected(false) {}
+                                                                              corrected(false) {resetSuffixEnds(path);}
 
         void lock() { omp_set_lock(&writelock); }
 
@@ -58,6 +64,13 @@ namespace ag {
 
         bool checkCorrected() const { return corrected; }
 
+        NuclDeck::IteratorInfo getSuffixFEnd() const { return suffix_fend; }
+
+        NuclDeck::IteratorInfo getSuffixREnd() const { return suffix_rend; }
+
+//        Sets the suffix cuts to the current ends of path's codes.
+        void resetSuffixEnds(const GraphPath &path);
+
         bool valid() const { return path.valid(); }
 
         void delayedInvalidate();
@@ -66,6 +79,7 @@ namespace ag {
 
         void resetEdgeCodes();
 
+//        Also resets the suffix ends to the new path's.
         void setPath(GraphPath  new_path);
 
         void applyCorrection();
