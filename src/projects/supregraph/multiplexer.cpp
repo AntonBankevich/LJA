@@ -51,7 +51,8 @@ std::vector<VertexId> Multiplexer::multiplex(logging::Logger &logger, size_t thr
             }
         }
     }
-    if (!vertex.isCore())
+//    Any many-in-many-out vertex is judged, whatever its edges' prefix/suffix structure (resolveVertex extends them).
+    if (vertex.inDeg() < 2 || vertex.outDeg() < 2)
         return {};
     logger.trace() << "Multiplexing vertex " << vertex.getId() << std::endl;
     VertexResolutionPlan rr = rule.judge(vertex);
@@ -69,6 +70,16 @@ std::vector<VertexId> Multiplexer::multiplex(logging::Logger &logger, size_t thr
             logger.trace() << "Push merge " << new_vertex.getId() << std::endl;
             pushToMerge(new_vertex);
         }
+//        The core's neighbours got new edges (direct edges, edges to the new vertices); merging them pushes the result
+//        for multiplexing, since a neighbour may have become a fork.
+        for (const auto &it : vrres.newEdges()) {
+            pushToMerge(it.first->getStart());
+            pushToMerge(it.first->getFinish());
+        }
+        for (Vertex &new_vertex: vrres.newVertices()) {
+            pushToMerge(new_vertex.incFrontVertex());
+            pushToMerge(new_vertex.frontVertex());
+        }
         logger.trace() << "Result: " << res << std::endl;
         return std::move(res);
     } else {
@@ -81,7 +92,6 @@ std::vector<VertexId> Multiplexer::merge(logging::Logger &logger, size_t threads
 //            VERIFY(vertex.inDeg() > 1 && vertex.outDeg() > 1);
     if(vertex.marked())
         return {};
-    VERIFY(!vertex.isJunction());
     logger.trace() << "Processing vertex " << vertex.getId() << std::endl;
     Vertex &res = MergeUnbranching(logger, graph, vertex);
     logger.trace() << "Push core" << res << std::endl;

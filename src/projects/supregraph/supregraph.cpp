@@ -123,7 +123,9 @@ namespace spg {
     }
 
     Vertex &MergeUnbranching(logging::Logger &logger, Supregraph &graph, Vertex &vertex) {
-        VERIFY(!vertex.isJunction());
+//        A junction lies on no unbranching path through it: nothing to merge.
+        if (vertex.isJunction())
+            return vertex;
         ag::GraphPath path = ag::PathHelper::WalkForward(vertex.front());
         ag::GraphPath rpath = ag::PathHelper::WalkForward(vertex.rc().front()).RC();
         if (path.getFinish().isJunction()) {
