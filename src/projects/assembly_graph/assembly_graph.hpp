@@ -115,8 +115,11 @@ namespace ag {
 //        suffix_edge = x -> w is virtually suffix (x's only outgoing edge) and neither a prefix nor a suffix edge. x is
 //        replaced by a new vertex v spelling suffix_edge (x extended to the end of w): every y -> x becomes y -> v and
 //        x -> w the suffix edge v -> w; x is isolated and marked. Same result as edgeToSupreVertex followed by a flip of
-//        x.rc() into the supre-vertex, without the intermediate edges. Requires x != x.rc() and no edge between x and
-//        x.rc() or w. Returns v.
+//        x.rc() into the supre-vertex, without the intermediate edges. Requires no edge between x and x.rc() or w.
+//        A self-rc x is extended both ways, so that v is self-rc too: its only incoming edge is w.rc() -> x, the rc of
+//        suffix_edge, and v spells w.rc() -> x -> w (x extended to the start of w.rc() and to the end of w); the path
+//        becomes the prefix edge w.rc() -> v followed by the suffix edge v -> w, its rc. Requires w != w.rc().
+//        Returns v.
         Vertex &extendVertexLockFree(Edge &suffix_edge, Vertex::id_type id = 0);
 
 //-------------------Derived graph operations. These call core graph operations.-------------------------
@@ -145,7 +148,7 @@ namespace ag {
         Vertex &mergePath(const GraphPath &path, Vertex::id_type id = 0);
         Vertex &flipVertex(Edge &inc);
 //        Makes every edge into core (on both strands) a suffix edge: its start is replaced by itself extended to the end
-//        of core (extendVertex; a self-rc start gets a supre-vertex instead). Returns old edge id -> the edge now
+//        of core (extendVertex; a self-rc start is extended both ways). Returns old edge id -> the edge now
 //        adjacent to core. Replaced vertices are only marked.
         std::unordered_map<EdgeId, EdgeId> ExtendAdjacent(Vertex &core);
 

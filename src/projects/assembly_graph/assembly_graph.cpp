@@ -176,7 +176,24 @@ Vertex &AssemblyGraph::extendVertexLockFree(Edge &suffix_edge, Vertex::id_type i
     VERIFY(suffix_edge.isVirtualSuffix() || suffix_edge.isMerge() || suffix_edge.getVirtualType() == VirtualType::unset);
     VERIFY(x.outDeg() == 1);
     VERIFY(!suffix_edge.isPrefix() && !suffix_edge.isSuffix());
-    VERIFY(x != x.rc() && x != w && x != w.rc());
+    VERIFY(x != w && x != w.rc());
+    if (x == x.rc()) {
+        VERIFY(w != w.rc());
+//        x's only incoming edge is suffix_edge.rc() = w.rc() -> x, which spells rc(t) + x for suffix_edge's tail t, so
+//        v = rc(t) + x + t.
+        const Sequence seq = suffix_edge.rc().fullSeq() + suffix_edge.truncSeq();
+        VERIFY(seq == !seq);
+        Vertex &v = addVertex(seq, seq.isCanonical() ? id : -id);
+//        w is a suffix of v; the rc w.rc() -> v spells w.rc() -> x -> w, with w.rc() a prefix of v.
+        Edge &new_suffix = addEdgeLockFree(v, w, Sequence(), suffix_edge.rc().truncSeq() + suffix_edge.truncSeq());
+        if (suffix_edge.getVirtualType() != VirtualType::unset)
+            new_suffix.setVirtualType(suffix_edge.getVirtualType());
+//        P = w.rc() -> x -> w becomes Q = w.rc() -> v -> w with D = v. Both are their own rc and P's ends survive.
+        Vertex &u = w.rc();
+        replacePathLockFree(RAGraphPath(u, {suffix_edge.rc().getId(), suffix_edge.getId()}, 0, 0),
+                            RAGraphPath(u, {new_suffix.rc().getId(), new_suffix.getId()}, 0, 0), 1, {});
+        return v;
+    }
     std::vector<EdgeId> incoming;
     for (Edge &in : x.incoming()) {
         VERIFY(in.getStart() != x && in.getStart() != x.rc());
@@ -309,7 +326,7 @@ std::unordered_map<EdgeId, EdgeId> AssemblyGraph::ExtendAdjacent(Vertex &core) {
     }
 //    core has several incoming edges, so each x -> core is x's only outgoing edge (virtually suffix): extendVertex
 //    replaces x by v, x extended to the end of core, which keeps x's segments and edges and enters core by a suffix
-//    edge. A self-rc x can not be extended on one side only; x -> core becomes a supre-vertex instead. A loop body x
+//    edge. A self-rc x (a hairpin core.rc() -> x -> core) is extended both ways at once. Any other loop body x
 //    (core -> x -> core, or a hairpin through core.rc()) is extended twice: forward along x -> core, then backward
 //    along the rc of the edge from core, which the first extension replaced by core -> v. So the edges of the map that
 //    end at x (start at x.rc()) follow the extension to v (v.rc()).
@@ -326,7 +343,7 @@ std::unordered_map<EdgeId, EdgeId> AssemblyGraph::ExtendAdjacent(Vertex &core) {
             if (p.second != edge.rc().getId() && p.second->getStart() == x.rc())
                 from_x_rc.emplace_back(p.first, p.second->getFinish().getId());
         }
-        Edge &suffix_edge = x != x.rc() ? extendVertexLockFree(edge).front() : edgeToSupreVertex(edge).front();
+        Edge &suffix_edge = extendVertexLockFree(edge).front();
         extensions.at(key.first) = suffix_edge.getId();
         extensions.at(key.second) = suffix_edge.rc().getId();
         if (!x.marked())

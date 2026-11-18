@@ -19,7 +19,7 @@ namespace ag {
         Edge & outgoing() const {return *second;};
 //        Stable ids of the paired edges. Unlike incoming()/outgoing() these never dereference the
 //        edges, so they stay valid map keys even after the edges have been freed (e.g. by
-//        edgeToSupreVertex inside ExtendAdjacent, before FixPlan re-maps the resolution plan).
+//        extendVertex inside ExtendAdjacent, before FixPlan re-maps the resolution plan).
         EdgeId incomingId() const {return first;};
         EdgeId outgoingId() const {return second;};
         InOutEdgePair RC() const {return {second->rc(), first->rc(), support};}

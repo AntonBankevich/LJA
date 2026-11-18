@@ -702,6 +702,51 @@ TEST(AlignedReadStorageTest, ExtendVertexMovesReadsAndRecords) {
     EXPECT_TRUE(graph.checkConsistency(std::cerr));
 }
 
+// A self-rc x (its only incoming edge is the rc of x -> w) is extended both ways: v = rc(t) + x + t is self-rc, the path
+// w.rc() -> x -> w becomes the prefix edge w.rc() -> v and the suffix edge v -> w. Reads, samples, codes and suffix
+// records follow.
+TEST(AlignedReadStorageTest, ExtendSelfRCVertexBothWays) {
+    ag::AssemblyGraph graph(3);
+    ag::Vertex &x = graph.addVertex(Sequence("ACGT"));
+    ag::Vertex &w = graph.addVertex(Sequence("GTTA"));
+    ASSERT_EQ(x, x.rc());
+    ag::Edge &xw = graph.addEdge(x, w, Sequence("ACGTTA"));
+    xw.setVirtualType(ag::VirtualType::suffix);
+    ag::Edge &wx = xw.rc();
+    ASSERT_EQ(wx.getStart(), w.rc());
+    ASSERT_EQ(wx.getFinish(), x);
+    x.coverage_info.addResolutionSample(1, 3, 1, 1); // CG, its own mirror
+    AddSample(w, 2, 4); // TA
+    std::vector<ag::AlignedRead> reads;
+    reads.emplace_back("through", MakePath({&wx, &xw}));
+    reads.emplace_back("starts", MakePath({&xw}, 1, 0));
+    reads.emplace_back("sub", ag::GraphPath(x, 1, 1));
+    ag::AlignedReadStorage storage(graph, std::move(reads));
+    ag::SuffixTracker tracker(storage, graph, 0, 1000);
+    tracker.fillFromStorage(QuietLogger(), 1);
+    ASSERT_TRUE(storage.checkConsistency(std::cerr));
+    ASSERT_TRUE(graph.checkConsistency(std::cerr));
+    std::map<std::string, std::string> before = SeqsById(storage);
+
+    ag::Vertex &v = graph.extendVertexLockFree(xw);
+    graph.removeMarked();
+
+    EXPECT_EQ(v.getSeq().str(), "TAACGTTA");
+    EXPECT_EQ(v, v.rc());
+    EXPECT_EQ(v.outDeg(), 1u);
+    EXPECT_EQ(v.front().getFinish(), w);
+    EXPECT_TRUE(v.front().isSuffix());
+    EXPECT_TRUE(v.incFront().isPrefix());
+    EXPECT_FALSE(v.coverage_info.empty());
+    EXPECT_EQ(SeqsById(storage), before);
+    EXPECT_EQ(ReadById(storage, "starts").getPath().getStart(), v);
+    EXPECT_EQ(ReadById(storage, "starts").getPath().leftCut(), 3u);
+    EXPECT_TRUE(ReadById(storage, "sub").getPath().empty());
+    EXPECT_EQ(ReadById(storage, "sub").getPath().getStart(), v);
+    EXPECT_TRUE(storage.checkConsistency(std::cerr));
+    EXPECT_TRUE(graph.checkConsistency(std::cerr));
+}
+
 // A flip also handles core's subreads and a read ending at core: in the mirrored call the path's start core.rc() is
 // replaced, and the read's rc, which ends at the surviving u.rc() = D, becomes a subread of it together with the read.
 TEST(AlignedReadStorageTest, FlipMovesSubreadsAndReadsEndingAtCore) {
