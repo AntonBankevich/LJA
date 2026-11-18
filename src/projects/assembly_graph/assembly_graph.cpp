@@ -832,6 +832,8 @@ void AssemblyGraph::isolateAndMark(Vertex &vertex) {
 
 Edge &AssemblyGraph::mergePathToEdge(const GraphPath &path) {
     Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getStart().rc().getId(), path.getRCStart().getId(), path.getFinish().rc().getId()});
+    if (path.isSingleton())
+        return path.frontEdge();
     return mergePathToEdgeLockFree(path);
 }
 //    TODO: when TAGraphPath is thoroughly damned, put it back here as a parameter.

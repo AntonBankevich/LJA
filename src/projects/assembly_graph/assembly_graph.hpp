@@ -144,6 +144,9 @@ namespace ag {
 //        edge list changes, so independent vertices can be isolated in parallel.
         void isolateAndMark(Vertex &vertex);
         ag::VertexResolutionResult resolveVertex(Vertex &core, const VertexResolutionPlan &resolution);
+//        Locks the path's ends and merges it into a single edge. A path of a single edge (isSingleton) is already merged:
+//        that edge is returned unchanged. The check is done under the lock, since other threads merging paths from the
+//        same ends change their edge lists.
         Edge &mergePathToEdge(const GraphPath &path);
         Vertex &mergePath(const GraphPath &path, Vertex::id_type id = 0);
         Vertex &flipVertex(Edge &inc);

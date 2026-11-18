@@ -65,7 +65,8 @@ namespace ag {
 //        Draws one neighbourhood of the graph, rooted simultaneously at every vertex in vertices
 //        (multi-source component, all of them highlighted), into contig's own output directory, tagged
 //        with event_tag. No-op if vertices is empty or contig is an RC-oriented duplicate (name
-//        starting with "-") -- only the forward copy gets drawn -- or longer than max_contig_length.
+//        starting with "-") -- only the forward copy gets drawn -- or longer than max_contig_length. Also a
+//        no-op inside a parallel region (e.g. MergeAllSPG's buckets): other threads edit the neighbourhood.
         void draw(Contig &contig, const std::vector<VertexId> &vertices, const std::string &event_tag);
     };
 
@@ -107,6 +108,8 @@ namespace ag {
         bool hasRecords(const Edge &edge) const {return edge_map.contains(edge.getId());}
 
         std::ostream *log_stream = nullptr;
+//        Serializes writes to log_stream from threads changing different contigs' paths.
+        std::unique_ptr<std::mutex> log_lock = std::make_unique<std::mutex>();
         std::unique_ptr<PathDrawer> drawer;
 //        Records that fragment's contig was touched at fragment's vertex/edge endpoints. touched is a
 //        local variable owned by whichever fire* call is running -- never a member -- since fire*

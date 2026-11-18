@@ -2,6 +2,8 @@
 
 #include "dll_path.hpp"
 #include "sequences/contigs.hpp"
+#include <omp.h>
+#include <sstream>
 #include <unordered_set>
 #include <set>
 
@@ -10,7 +12,7 @@ namespace ag {
 }
 
 void ag::PathDrawer::draw(Contig &contig, const std::vector<VertexId> &vertices, const std::string &event_tag) {
-    if (vertices.empty())
+    if (vertices.empty() || omp_in_parallel())
         return;
     const std::string &contig_name = contig.getInnerId();
     if (startsWith(contig_name, "-") || contig.truncSize() > max_contig_length)
@@ -82,10 +84,13 @@ void ag::DLLAlignmentStorage::logChange(Contig &contig, const std::unordered_set
     positions.erase(std::unique(positions.begin(), positions.end(),
                                 [](const DLLPathPosition &a, const DLLPathPosition &b) {return &*a == &*b;}),
                     positions.end());
-    *log_stream << "Change in observed path during " << source << ": " << contig.getInnerId() << ":";
+    std::ostringstream message;
+    message << "Change in observed path during " << source << ": " << contig.getInnerId() << ":";
     for (const DLLPathPosition &pos : positions)
-        *log_stream << " " << *pos;
-    *log_stream << std::endl;
+        message << " " << *pos;
+    message << "\n";
+    std::lock_guard<std::mutex> log_guard(*log_lock);
+    *log_stream << message.str() << std::flush;
 }
 
 void ag::DLLAlignmentStorage::recordTouch(std::unordered_map<Contig *, std::unordered_set<VertexId>> &touched,
@@ -190,21 +195,27 @@ void ag::DLLAlignmentStorage::fireDeleteVertex(Vertex &v) {
         logChange(*p.first, p.second, "fireDeleteVertex");
 }
 
+//    A fragment that starts inside the edge's start (cut_left > 0) does not contain it, and its start segment may not even
+//    fit in the contig.
 void ag::DLLAlignmentStorage::keepStart(DLLPathPosition pos) {
+    if (pos->cut_left != 0)
+        return;
     Vertex &start = pos->edge->getStart();
     Segment<Contig> start_seg(pos->seg.contig(), pos->seg.left, pos->seg.left + start.size());
     DLLPathPosition prev = pos.prev();
     bool covered = prev->isLinked(*pos) || (prev->isInnerFragment() && prev->vertex == start.getId() && prev->seg == start_seg);
-    if (pos->cut_left == 0 && !covered)
+    if (!covered)
         insertBefore(start, pos, AlignmentFragment::InnerFragment(start_seg, start, 0));
 }
 
 void ag::DLLAlignmentStorage::keepFinish(DLLPathPosition pos) {
+    if (pos->cut_right != 0)
+        return;
     Vertex &finish = pos->edge->getFinish();
     Segment<Contig> finish_seg(pos->seg.contig(), pos->seg.right - finish.size(), pos->seg.right);
     DLLPathPosition next = pos.next();
     bool covered = pos->isLinked(*next) || (next->isInnerFragment() && next->vertex == finish.getId() && next->seg == finish_seg);
-    if (pos->cut_right == 0 && !covered)
+    if (!covered)
         insertAfter(finish, pos, AlignmentFragment::InnerFragment(finish_seg, finish, 0));
 }
 
