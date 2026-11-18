@@ -124,7 +124,13 @@ namespace ag {
 //        Prints, if logging is on, only the part of contig's path around a change: its fragments on the touched vertices
 //        and on their incident edges, each with its neighbours in the path, in contig order. Whole paths are too long
 //        to print on every change for long contigs (a reference chromosome).
-        void logChange(Contig &contig, const std::unordered_set<VertexId> &touched, const std::string &source);
+//        owned, if given, are the vertices the calling operation owns (with their rcs): only touched vertices among
+//        them are looked at. An operation running in parallel (a merge of one bucket) passes its paths' vertices, since
+//        other threads edit the edge lists and records of the rest, e.g. of the far ends of edges around its ends.
+        void logChange(Contig &contig, const std::unordered_set<VertexId> &touched, const std::string &source,
+                       const std::unordered_set<VertexId> *owned = nullptr);
+//        The vertices of the paths and their rcs, for logChange's owned.
+        static std::unordered_set<VertexId> OwnedVertices(std::initializer_list<const RAGraphPath *> paths);
 
     public:
         DLLAlignmentStorage(ResolutionFire &fire) : ResolutionListener(fire, "DLLAlignmentStorage"){}

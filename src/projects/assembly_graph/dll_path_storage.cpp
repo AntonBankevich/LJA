@@ -50,8 +50,19 @@ void ag::DLLAlignmentStorage::logPath(Contig &contig, const std::string &source)
     *log_stream << std::endl;
 }
 
+std::unordered_set<ag::VertexId>
+ag::DLLAlignmentStorage::OwnedVertices(std::initializer_list<const RAGraphPath *> paths) {
+    std::unordered_set<VertexId> res;
+    for (const RAGraphPath *path : paths)
+        for (Vertex &v : path->vertices()) {
+            res.insert(v.getId());
+            res.insert(v.rc().getId());
+        }
+    return res;
+}
+
 void ag::DLLAlignmentStorage::logChange(Contig &contig, const std::unordered_set<VertexId> &touched,
-                                        const std::string &source) {
+                                        const std::string &source, const std::unordered_set<VertexId> *owned) {
     if (!log_stream)
         return;
     std::lock_guard<std::mutex> guard(pathLock(contig));
@@ -69,6 +80,8 @@ void ag::DLLAlignmentStorage::logChange(Contig &contig, const std::unordered_set
         }
     };
     for (VertexId v : touched) {
+        if (owned != nullptr && owned->count(v) == 0)
+            continue;
         if (hasRecords(*v))
             collect(getRecords(v));
         for (Edge &e : *v)
@@ -390,8 +403,9 @@ void ag::DLLAlignmentStorage::mergeIntoDominant(const PathReplacement &rep) {
                     pos.extract();
                 }
     }
+    const std::unordered_set<VertexId> owned = OwnedVertices({&old_path, &rep.newPath()});
     for (auto &p : touched) {
-        logChange(*p.first, p.second, "fireReplacePath");
+        logChange(*p.first, p.second, "fireReplacePath", &owned);
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireReplacePath");
     }
@@ -439,8 +453,9 @@ void ag::DLLAlignmentStorage::fireMergePathToEdge(const RAGraphPath &path, Edge 
                     pos.extract();
                 }
     }
+    const std::unordered_set<VertexId> owned = OwnedVertices({&path});
     for (auto &p : touched) {
-        logChange(*p.first, p.second, "fireMergePathToEdge");
+        logChange(*p.first, p.second, "fireMergePathToEdge", &owned);
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireMergePathToEdge");
     }
@@ -634,8 +649,9 @@ void ag::DLLAlignmentStorage::relocate(const PathReplacement &rep) {
         for (Edge &out : old_path.getFinish())
             move_edge(out, rep.replacement(out),
                       rep.oldPosition(old_path.size()) - new_position(new_path.getFinish()));
+    const std::unordered_set<VertexId> owned = OwnedVertices({&old_path, &new_path});
     for (auto &p : touched) {
-        logChange(*p.first, p.second, "fireReplacePath");
+        logChange(*p.first, p.second, "fireReplacePath", &owned);
         if (drawer)
             drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireReplacePath");
     }
