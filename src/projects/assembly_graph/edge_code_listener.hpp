@@ -16,9 +16,8 @@ namespace ag {
 //        be a suffix edge). A non-empty code starts with the edge's first nucleotide, so outgoing edges of a vertex have
 //        distinct first code nucleotides.
         bool checkConsistency(std::ostream &os) override;
-        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
+        void fireReplacePath(const PathReplacement &replacement) override;
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
-        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &, const AlignmentForm &) override;
         //        TODO: implement properly
@@ -26,7 +25,6 @@ namespace ag {
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
-        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
     };
 }

@@ -350,10 +350,7 @@ TEST(SpgReadStorage, ReadCodesOnlyExtendedAfterConversion) {
         };
         for (size_t i = 0; i < 10 && ResolveByReads(spg, storage, 5); i++)
             check("after resolution " + std::to_string(i));
-//        MergeAllSPG in its two parts: merging the unbranching paths, then flipping.
-        for (ag::GraphPath &path : ag::AllUnbranchingPaths(QuietLogger(), 1, spg))
-            spg::MergePathOrLoop(path, spg);
-        spg.removeMarked();
+        spg::MergeAllSPG(QuietLogger(), 1, spg);
         check("after merging paths");
         FlipAll(spg);
         spg.removeMarked();

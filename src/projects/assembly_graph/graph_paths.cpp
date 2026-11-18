@@ -710,11 +710,12 @@ void GraphPath::resetEdgeCodes() {
         return;
     NuclDeck newf;
     NuclDeck newr;
-//    Codes as AssemblyGraph::resetEdgeCodes gives them: the first nucleotide, empty for (virtually) suffix edges.
+//    Codes as AssemblyGraph::resetEdgeCodes gives them: the first nucleotide, empty for suffix, virtually suffix and
+//    merge edges.
     for(Edge &edge : edges()) {
-        if(!edge.isSuffix() && !edge.isVirtualSuffix())
+        if(!edge.isSuffix() && !edge.isVirtualSuffix() && !edge.isMerge())
             newf.push_back(edge.firstNucl());
-        if(!edge.rc().isSuffix() && !edge.rc().isVirtualSuffix())
+        if(!edge.rc().isSuffix() && !edge.rc().isVirtualSuffix() && !edge.rc().isMerge())
             newr.push_front(edge.rc().firstNucl());
     }
     fsplits = newf;
@@ -770,6 +771,26 @@ void GraphPath::replace_front(const GraphPath &old_prefix, const GraphPath &new_
     fsplits.replaceFront(old_prefix.getFSplits().size(), new_prefix.getFSplits());
     rsplits.replaceBack(old_prefix.getRSplits().size(), new_prefix.getRSplits());
     start = new_prefix.start;
+}
+
+void GraphPath::absorb_front(const GraphPath &old_prefix, Vertex &new_start, bool keep_rc_codes) {
+    VERIFY(old_prefix.getStart() == getStart());
+    VERIFY(fsplits.startsWith(old_prefix.fsplits));
+    VERIFY(rsplits.endsWith(old_prefix.rsplits));
+    fsplits.pop_front(old_prefix.fsplits.size());
+    if (!keep_rc_codes)
+        rsplits.pop_back(old_prefix.rsplits.size());
+    start = new_start.getId();
+}
+
+void GraphPath::absorb_back(const GraphPath &old_suffix, Vertex &new_finish, bool keep_rc_codes) {
+    VERIFY(old_suffix.getFinish() == getFinish());
+    VERIFY(fsplits.endsWith(old_suffix.fsplits));
+    VERIFY(rsplits.startsWith(old_suffix.rsplits));
+    rsplits.pop_front(old_suffix.rsplits.size());
+    if (!keep_rc_codes)
+        fsplits.pop_back(old_suffix.fsplits.size());
+    rc_start = new_finish.rc().getId();
 }
 
 bool GraphPath::isSingleton() const {

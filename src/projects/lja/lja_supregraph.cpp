@@ -25,9 +25,9 @@ ComplexStage ConstructLJASupregraphPipeline(const std::vector<std::string> &comm
     correctionStage.bindInput("extra_reads", "Construction", "extra_reads");
     correctionStage.bindInput("paths", "", "paths");
 
-    SubstageRun &polishing = lja.addStage(PolishingPhase(), "Polishing");
+    SubstageRun &polishing = lja.addStage(PolishingPhase(false), "Polishing");
     polishing.bindInput("graph", "Correction", "supregraph_final");
-    polishing.bindInput("corrected_reads", "", "reads");
+    polishing.bindInput("read_alignments", "Correction", "read_alignments");
     polishing.bindInput("reads", "", "reads");
 
     return std::move(lja);

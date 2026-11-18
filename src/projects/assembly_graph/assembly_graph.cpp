@@ -32,38 +32,13 @@ Edge &AssemblyGraph::addEdge(Vertex &start, Vertex &end, const Sequence &full_se
     return addEdge(start, end, full_seq, EdgeData(), eid, rcid);
 }
 
-//This method should be able to work with any path, including empty path, one edge path, etc. Path should still be valid
-//though
+//    Only the ends of the path are locked, although the edge lists of their outside neighbours change too: merging is
+//    not run in parallel for now.
 Vertex &ag::AssemblyGraph::mergePath(const GraphPath &path, Vertex::id_type id) {
-    // Only the start and end of the path are affected externally, so only they are locked.
     Locker<VertexId> locker = Locker<VertexId>::FromVector({path.getStart().getId(), path.getStart().rc().getId(), path.getRCStart().getId(), path.getFinish().rc().getId()});
-//    mergePathLockFree removes only inner vertices, so a single edge would survive next to start -> res -> finish.
-//    Turning the edge into a supre-vertex gives the same shape and removes it.
-    if (path.calculateSize() == 1 && !path.frontEdge().isPrefix() && !path.frontEdge().isSuffix())
-        return edgeToSupreVertexLockFree(path.frontEdge(), id);
-    if (!IsPrefixSuffixPath(path))
-        return mergePathLockFree(path, id);
-//    The peak between the prefix run and the suffix run already spells the whole path, so instead of creating a
-//    new vertex each run is merged into a single edge. For a self-rc path the suffix run is the rc of the prefix
-//    run and is merged together with it.
-    PathPosition peak = path.firstPosition();
-    size_t prefix_edges = 0;
-    while (peak != path.lastPosition() && peak.nextEdge().isPrefix()) {
-        ++peak;
-        ++prefix_edges;
-    }
-    size_t suffix_edges = 0;
-    for (PathPosition pos = peak; pos != path.lastPosition(); ++pos)
-        ++suffix_edges;
-    Vertex &res = peak.getVertex();
-    GraphPath prefix_run = path.subPath(path.firstPosition(), peak);
-    GraphPath suffix_run = path.subPath(peak, path.lastPosition());
-    bool self_rc = path == path.RC();
-    if (prefix_edges >= 2)
-        mergePrefixPath(prefix_run);
-    if (suffix_edges >= 2 && !self_rc)
-        mergePrefixPath(suffix_run);
-    return res;
+    if (path.calculateSize() == 0)
+        return path.getStart();
+    return mergePathLockFree(path, id);
 }
 
 Vertex &ag::AssemblyGraph::flipVertex(Edge &inc) {
@@ -76,40 +51,92 @@ Vertex &ag::AssemblyGraph::flipVertex(Edge &inc) {
     return flipVertexLockFree(inc);
 }
 
-bool ag::IsPrefixSuffixPath(const GraphPath &path) {
-    bool descending = false;
-    for (const Edge &e : path.edges()) {
-        if (!descending && e.isPrefix())
-            continue;
-        if (!e.isSuffix())
-            return false;
-        descending = true;
+void ag::AssemblyGraph::replacePathLockFree(const RAGraphPath &old_path, const RAGraphPath &new_path,
+                                            size_t dominant_index, const std::unordered_map<EdgeId, EdgeId> &outer) {
+    auto set_corporeal = [&](bool value) {
+        for (Edge &e : new_path.edges()) {
+            e.setCorporeal(value);
+            e.rc().setCorporeal(value);
+        }
+        for (const auto &p : outer) {
+            p.second->setCorporeal(value);
+            p.second->rc().setCorporeal(value);
+        }
+    };
+    set_corporeal(false);
+    fireReplacePath(old_path, new_path, dominant_index, outer);
+//    Collected first: the paths reach their vertices through their edges, which isolation deletes.
+    std::vector<VertexId> removed;
+    for (Vertex &v : old_path.vertices()) {
+        bool survives = false;
+        for (Vertex &w : new_path.vertices())
+            survives = survives || v == w;
+        if (!survives)
+            removed.push_back(v.getId());
     }
-    return true;
+    for (VertexId vid : removed)
+        if (!vid->marked())
+            isolateAndMarkLockFree(*vid);
+    set_corporeal(true);
 }
 
 Vertex &ag::AssemblyGraph::mergePathLockFree(const GraphPath &path, Vertex::id_type id) {
     VERIFY(path.startClosed() && path.endClosed());
-//    Otherwise the merged vertex already exists in the path (see mergePrefixPath).
-    VERIFY(!IsPrefixSuffixPath(path));
-//    The merged vertex spells the whole path. It gets exactly one incoming edge (from the path start)
-//    and one outgoing edge (to the path end); start and end keep their external connections. Only the
-//    interior vertices are absorbed and removed, so sample/read data migrates only from them.
-    Sequence seq = path.Seq();
-    Vertex & res = addVertex(seq, seq.isCanonical() ? id : -id);
-    Edge &inc_edge = addSPEdgeLockFree(path.getStart(), res);
-    inc_edge.setCorporeal(false);
-    inc_edge.rc().setCorporeal(false);
-    Edge &out_edge = res == res.rc() ? inc_edge.rc() : addSPEdgeLockFree(res, path.getFinish());
-    out_edge.setCorporeal(false);
-    out_edge.rc().setCorporeal(false);
-    fireMergePath(path.asRAPath(), res);
-    isolateAndMarkLockFree(path.innerVertices().begin(), path.innerVertices().end());
-    inc_edge.setCorporeal(true);
-    inc_edge.rc().setCorporeal(true);
-    out_edge.setCorporeal(true);
-    out_edge.rc().setCorporeal(true);
-    return res;
+//    The path is read before new edges make following its codes ambiguous. A cycle is merged without its last edge,
+//    which then closes the loop D -> D.
+    RAGraphPath old_path = path.asRAPath();
+    VERIFY(old_path.size() > 0);
+    if (old_path.getStart() == old_path.getFinish())
+        old_path = old_path.subPath(0, old_path.size() - 1);
+    const size_t n = old_path.size();
+    if (n == 0)
+        return old_path.getStart();
+    for (Vertex &v : old_path.innerVertices()) {
+        VERIFY(v.inDeg() == 1 && v.outDeg() == 1);
+    }
+    Vertex &start = old_path.getStart();
+    Vertex &finish = old_path.getFinish();
+    const Sequence seq = old_path.Seq();
+//    D is the vertex of the path spelling all of it, if there is one (non-redundancy: at most one), else a new vertex.
+    VertexId dominant_id;
+    for (Vertex &v : old_path.vertices())
+        if (!dominant_id.valid() && v.size() == seq.size() && v.getSeq() == seq)
+            dominant_id = v.getId();
+    Vertex &dominant = dominant_id.valid() ? *dominant_id : addVertex(seq, seq.isCanonical() ? id : -id);
+    const bool start_replaced = start != dominant;
+    const bool end_replaced = finish != dominant;
+    std::vector<EdgeId> incoming;
+    std::vector<EdgeId> outgoing;
+    if (start_replaced)
+        for (Edge &in : start.incoming())
+            incoming.push_back(in.getId());
+    if (end_replaced)
+        for (Edge &out : finish)
+            outgoing.push_back(out.getId());
+//    y -> start becomes y -> D (D -> D if y is the replaced finish): it spells y -> start continued to the end of D, and
+//    its rc overlaps y.rc() as start.rc() did. finish -> z becomes D -> z: D ends with finish, and the rc spells
+//    z.rc() -> finish.rc() continued to the end of D.rc(). Types are inherited. An edge already replaced (the loop
+//    finish -> start, or the rc of an edge into start for a self-rc path) is not replaced again.
+    std::unordered_map<EdgeId, EdgeId> outer;
+    auto add_replacement = [&](Edge &old_edge, Vertex &from, Vertex &to, const Sequence &tseq, const Sequence &rctseq) {
+        Edge &new_edge = addEdgeLockFree(from, to, tseq, rctseq);
+        if (old_edge.getVirtualType() != VirtualType::unset)
+            new_edge.setVirtualType(old_edge.getVirtualType());
+        outer[old_edge.getId()] = new_edge.getId();
+        outer[old_edge.rc().getId()] = new_edge.rc().getId();
+    };
+    for (EdgeId eid : incoming) {
+        const bool from_finish = end_replaced && eid->getStart() == finish;
+        add_replacement(*eid, from_finish ? dominant : eid->getStart(), dominant,
+                        eid->truncSeq() + seq.Subseq(start.size()),
+                        eid->rc().truncSeq() + (from_finish ? dominant.rc().getSeq().Subseq(finish.size()) : Sequence()));
+    }
+    for (EdgeId eid : outgoing)
+        if (outer.find(eid) == outer.end())
+            add_replacement(*eid, dominant, eid->getFinish(), eid->truncSeq(),
+                            eid->rc().truncSeq() + dominant.rc().getSeq().Subseq(finish.size()));
+    replacePathLockFree(old_path, RAGraphPath(dominant), 0, outer);
+    return dominant;
 }
 
 size_t SmallestShift(const Sequence &seq) {
@@ -134,40 +161,46 @@ Vertex &ag::AssemblyGraph::mergeLoop(const GraphPath &path) {
 }
 
 Vertex & AssemblyGraph::flipVertexLockFree(Edge &inc) {
-    Vertex &core = inc.getFinish();
-    VERIFY(core.inDeg() == 1);
+    VERIFY(inc.getFinish().inDeg() == 1);
     VERIFY(inc.isSuffix());//Necessary to preserve the splitting property of the graph.
-//    Listeners tell the mirrored call by its edge, inc.rc(), being a prefix edge and not a suffix one.
     VERIFY(!inc.isPrefix());
-    Vertex & res = inc.getStart();
-    VERIFY(res != core);
-//    Each new edge inherits the virtual type of the edge it replaces. With several outgoing edges each is virtually
-//    prefix.
-    const bool single_out = core.outDeg() == 1;
+    VERIFY(inc.getStart() != inc.getFinish());
+//    The merge of the single edge: inc's start spells it, so it is the merged vertex and core's outgoing edges move to it.
+    return mergePathLockFree(GraphPath(inc));
+}
+
+Vertex &AssemblyGraph::extendVertexLockFree(Edge &suffix_edge, Vertex::id_type id) {
+    Vertex &x = suffix_edge.getStart();
+    Vertex &w = suffix_edge.getFinish();
+//    Untyped on a plain DBG; the new edges then stay untyped too.
+    VERIFY(suffix_edge.isVirtualSuffix() || suffix_edge.isMerge() || suffix_edge.getVirtualType() == VirtualType::unset);
+    VERIFY(x.outDeg() == 1);
+    VERIFY(!suffix_edge.isPrefix() && !suffix_edge.isSuffix());
+    VERIFY(x != x.rc() && x != w && x != w.rc());
+    std::vector<EdgeId> incoming;
+    for (Edge &in : x.incoming()) {
+        VERIFY(in.getStart() != x && in.getStart() != x.rc());
+        incoming.push_back(in.getId());
+    }
+    Sequence seq = suffix_edge.fullSeq();
+    Vertex &v = addVertex(seq, seq.isCanonical() ? id : -id);
     std::unordered_map<EdgeId, EdgeId> extensions;
-    std::vector<EdgeId> new_edges;
-    for (Edge &edge : core) {
-        //Every incoming vertex overlaps every outgoing vertex
-        VERIFY(inc.truncSize() + edge.rc().truncSize() < core.size());
-        if (!single_out) {
-            VERIFY(edge.getVirtualType() == VirtualType::prefix);
-        }
-//        new_edge spells the path inc->edge, so its rc spells edge.rc()->inc.rc().
-        Edge &new_edge = addEdgeLockFree(inc.getStart(), edge.getFinish(), inc.truncSeq() + edge.truncSeq(), edge.rc().truncSeq() + inc.rc().truncSeq());
-        new_edge.setVirtualType(edge.getVirtualType());
-        extensions[edge.getId()] = new_edge.getId();
-        extensions[edge.rc().getId()] = new_edge.rc().getId();
-        new_edge.setCorporeal(false);
-        new_edge.rc().setCorporeal(false);
-        new_edges.push_back(new_edge.getId());
+//    y -> v spells y -> x -> w; v.rc() -> y.rc() overlaps y.rc() exactly as x.rc() did.
+    for (EdgeId eid : incoming) {
+        Edge &new_edge = addEdgeLockFree(eid->getStart(), v, eid->truncSeq() + suffix_edge.truncSeq(),
+                                         eid->rc().truncSeq());
+        if (eid->getVirtualType() != VirtualType::unset)
+            new_edge.setVirtualType(eid->getVirtualType());
+        extensions[eid] = new_edge.getId();
+        extensions[eid->rc().getId()] = new_edge.rc().getId();
     }
-    fireFlipVertex(inc, extensions);
-    isolateAndMarkLockFree(core);
-    for (EdgeId eid : new_edges) {
-        eid->setCorporeal(true);
-        eid->rc().setCorporeal(true);
-    }
-    return res;
+//    w is a suffix of v; w.rc() -> v.rc() spells w.rc() -> x.rc().
+    Edge &new_suffix = addEdgeLockFree(v, w, Sequence(), suffix_edge.rc().truncSeq());
+    if (suffix_edge.getVirtualType() != VirtualType::unset)
+        new_suffix.setVirtualType(suffix_edge.getVirtualType());
+//    P = x -> w becomes Q = v -> w; x's incoming edges are replaced.
+    replacePathLockFree(RAGraphPath(suffix_edge), RAGraphPath(new_suffix), 0, extensions);
+    return v;
 }
 
 //    A real prefix or suffix edge is virtually so.
@@ -183,6 +216,14 @@ Edge &ag::AssemblyGraph::addSPEdgeLockFree(Vertex &start, Vertex &end,
     Sequence rctseq = start.rc().getSeq().Subseq(std::min(start.size(), end.size()));
     Edge &res = addEdgeLockFree(start, end, tseq, rctseq, EdgeData(), eid, rcid);
     SetSPVirtualType(res);
+    return res;
+}
+
+Edge &ag::AssemblyGraph::addSPEdgeLockFree(Vertex &start, Vertex &end, VirtualType type) {
+    Sequence tseq = end.getSeq().Subseq(std::min(start.size(), end.size()));
+    Sequence rctseq = start.rc().getSeq().Subseq(std::min(start.size(), end.size()));
+    Edge &res = addEdgeLockFree(start, end, tseq, rctseq);
+    res.setVirtualType(type);
     return res;
 }
 
@@ -214,10 +255,14 @@ Vertex &AssemblyGraph::edgeToSupreVertexLockFree(Edge &edge, Vertex::id_type id)
     addEdgeLockFree(res, edge.getFinish(), Sequence(), edge.rc().truncSeq());
     if(edge != edge.rc())
         addEdgeLockFree(res.rc(), edge.getStart().rc(), Sequence(), edge.truncSeq());
-//    res -> finish and res.rc() -> start.rc() are suffix edges; their rcs, start -> res and finish.rc() -> res.rc(), prefix.
-    res.front().setVirtualType(VirtualType::suffix);
+//    res -> finish and res.rc() -> start.rc() are suffix edges: virtually suffix if the edge they take over from was
+//    (edge, and edge.rc() for the second; untyped edges, during the conversion of a DBG, count as such), merge otherwise.
+    const bool untyped = edge.getVirtualType() == VirtualType::unset;
+    const VirtualType out_type = untyped || edge.isVirtualSuffix() ? VirtualType::suffix : VirtualType::merge;
+    const VirtualType rc_out_type = untyped || edge.rc().isVirtualSuffix() ? VirtualType::suffix : VirtualType::merge;
+    res.front().setVirtualType(out_type);
     if (res.rc().front().getVirtualType() == VirtualType::unset)
-        res.rc().front().setVirtualType(VirtualType::suffix);
+        res.rc().front().setVirtualType(rc_out_type);
     res.front().setCorporeal(false);
     res.front().rc().setCorporeal(false);
     res.rc().front().setCorporeal(false);
@@ -249,73 +294,52 @@ std::unordered_map<EdgeId, EdgeId> AssemblyGraph::ExtendAdjacent(Vertex &core) {
             extensions[edge.rc().getId()] = edge.rc().getId();
         }
     }
-//    A loop body x (core -> x -> core, no other edges) is core's neighbour on both sides: extending both of its edges
-//    would flip x away for the first supre-vertex and leave the second one without segments. The loop is merged
-//    instead: core -> res is a prefix and res -> core a suffix edge, so neither needs extending. The same holds for a
-//    hairpin (core.rc() -> x -> core or core -> x -> core.rc()), which is why both strands are searched; each path is
-//    then found once from each strand and merged once.
-    std::vector<std::pair<EdgeId, EdgeId>> loops;
-    for (Vertex &v : ThisAndRC(core)) {
-        for (Edge &e : v) {
-            Vertex &x = e.getFinish();
-//            An edge between core and itself (or its rc) would have alternatives on both sides.
-            VERIFY(x != core && x != core.rc());
-            if (x.inDeg() != 1 || x.outDeg() != 1)
-                continue;
-            Edge &l = x.front();
-            if (l.getFinish() != core && l.getFinish() != core.rc())
-                continue;
-            if ((e.isPrefix() && l.isSuffix()) || e > l.rc())
-                continue;
-            loops.emplace_back(e.getId(), l.getId());
-        }
-    }
-    for (const std::pair<EdgeId, EdgeId> &loop : loops) {
-        EdgeId e = loop.first;
-        EdgeId l = loop.second;
-        EdgeId e_rc = e->rc().getId();
-        EdgeId l_rc = l->rc().getId();
-        GraphPath path(*e);
-        path += *l;
-        Vertex &res = mergePath(path);
-        extensions[e] = res.incFront().getId();
-        extensions[e_rc] = res.incFront().rc().getId();
-        extensions[l] = res.front().getId();
-        extensions[l_rc] = res.front().rc().getId();
-    }
     // Every corporeal edge entering `core` must become a suffix edge into core, so that after the
-    // resolution core's whole neighbourhood is suffix/prefix structured. edgeToSupreVertex turns such
-    // an edge X->core into X->supreV (prefix) + supreV->core (suffix), removing the original edge (and
-    // its rc). We must therefore (a) snapshot the edges to extend before mutating the graph - the
-    // incoming set itself changes as new suffix edges appear - and (b) capture each edge's rc id before
-    // edgeToSupreVertex frees it, since the old handles are dangling afterwards. The extensions map is
-    // keyed by edge id (comparison does not dereference), so stale keys stay valid as keys; only the
-    // mapped value is updated, to the new suffix edge (and its rc for the rc key).
-    std::vector<EdgeId> to_extend;
+    // resolution core's whole neighbourhood is suffix/prefix structured. We must (a) snapshot the edges to
+    // extend before mutating the graph - the incoming set itself changes as new suffix edges appear - and
+    // (b) capture each edge's rc id before the operation frees it, since the old handles are dangling
+    // afterwards. The extensions map is keyed by edge id (comparison does not dereference), so stale keys
+    // stay valid as keys; only the mapped value is updated, always to the live edge.
+    std::vector<std::pair<EdgeId, EdgeId>> to_extend;
     for (Vertex &v : ThisAndRC(core)) {
         for (Edge &edge : v.incoming()) {
             if (!edge.isSuffix())
-                to_extend.push_back(edge.getId());
+                to_extend.emplace_back(edge.getId(), edge.rc().getId());
         }
     }
-    std::vector<VertexId> old_neighbours;
-    for (EdgeId eid : to_extend) {
-        EdgeId rc_eid = eid->rc().getId();
-        Vertex &new_vertex = edgeToSupreVertex(*eid);
-        Edge &suffix_edge = new_vertex.front();
-        extensions.at(eid) = suffix_edge.getId();
-        extensions.at(rc_eid) = suffix_edge.rc().getId();
-        old_neighbours.push_back(new_vertex.incFrontVertex().getId());
-    }
-//    The new supre-vertex S of x -> core has no sample segments. x has out-degree 1 (x -> core was virtually a suffix
-//    edge into a vertex with several incoming edges), so flipping x.rc() removes x and moves its segments and incoming
-//    edges onto S, which becomes core's neighbour in place of x. Only the edges between S and core stay as they were, so
-//    the extensions remain valid. x may have a single incoming edge too (then x.rc() has out-degree 1).
-    for (VertexId x : old_neighbours) {
-        Vertex &xrc = x->rc();
-        if (!x->marked() && *x != core && *x != core.rc() && xrc != xrc.rc() && xrc.inDeg() == 1 &&
-                xrc.incFront().isSuffix())
-            flipVertexLockFree(xrc.incFront());
+//    core has several incoming edges, so each x -> core is x's only outgoing edge (virtually suffix): extendVertex
+//    replaces x by v, x extended to the end of core, which keeps x's segments and edges and enters core by a suffix
+//    edge. A self-rc x can not be extended on one side only; x -> core becomes a supre-vertex instead. A loop body x
+//    (core -> x -> core, or a hairpin through core.rc()) is extended twice: forward along x -> core, then backward
+//    along the rc of the edge from core, which the first extension replaced by core -> v. So the edges of the map that
+//    end at x (start at x.rc()) follow the extension to v (v.rc()).
+    for (const std::pair<EdgeId, EdgeId> &key : to_extend) {
+        Edge &edge = *extensions.at(key.first);
+        if (edge.isSuffix())
+            continue;
+        Vertex &x = edge.getStart();
+        std::vector<std::pair<EdgeId, VertexId>> into_x;
+        std::vector<std::pair<EdgeId, VertexId>> from_x_rc;
+        for (const auto &p : extensions) {
+            if (p.second != edge.getId() && p.second->getFinish() == x)
+                into_x.emplace_back(p.first, p.second->getStart().getId());
+            if (p.second != edge.rc().getId() && p.second->getStart() == x.rc())
+                from_x_rc.emplace_back(p.first, p.second->getFinish().getId());
+        }
+        Edge &suffix_edge = x != x.rc() ? extendVertexLockFree(edge).front() : edgeToSupreVertex(edge).front();
+        extensions.at(key.first) = suffix_edge.getId();
+        extensions.at(key.second) = suffix_edge.rc().getId();
+        if (!x.marked())
+            continue;
+        Vertex &v = suffix_edge.getStart();
+        for (const auto &p : into_x)
+            for (Edge &e : *p.second)
+                if (e.getFinish() == v)
+                    extensions.at(p.first) = e.getId();
+        for (const auto &p : from_x_rc)
+            for (Edge &e : v.rc())
+                if (e.getFinish() == *p.second)
+                    extensions.at(p.first) = e.getId();
     }
     return std::move(extensions);
 }
@@ -336,21 +360,40 @@ AssemblyGraph::resolveCoreVertex(Vertex &core, const VertexResolutionPlan &resol
     for(const InOutEdgePair &p : resolution.connectionsUnique()) {
         VERIFY(p.incoming().getFinish() == core);
         VERIFY(p.outgoing().getStart() == core);
-//        If one of the edges has a single partner, a new vertex would be equivalent to its neighbour on that side (and
-//        would get no sample segments), so the pair is resolved by a direct edge instead.
+//        If exactly one of the edges has a single partner, a new vertex would be equivalent to its neighbour on that side
+//        (and would get no sample segments), so the pair is resolved by a direct edge instead. A 1-to-1 pair gets a copy
+//        of core: u -> copy is a suffix edge, copy -> w a prefix edge. A copy of a self-rc core is self-rc, so it can only
+//        resolve a pair that is its own rc; any other 1-to-1 pair at a self-rc core gets a direct edge.
         const bool single_in = resolution.incEdgeConnections(p.incoming()) == 1;
         const bool single_out = resolution.outEdgeConnections(p.outgoing()) == 1;
-        if (single_in || single_out) {
+        const bool one_to_one = single_in && single_out;
+        if (single_in != single_out || (one_to_one && core == core.rc() && p.incoming() != p.outgoing().rc())) {
             Edge &direct = addEdgeLockFree(p.incoming().getStart(), p.outgoing().getFinish(), p.outgoing().truncSeq(),
                                            p.incoming().rc().truncSeq());
 //            u keeps a single outgoing edge (virtually suffix) if its edge has a single partner, w a single incoming one
 //            (virtually prefix) if its edge has; both: the edge is to be merged.
-            direct.setVirtualType(single_in && single_out ? VirtualType::merge :
+            direct.setVirtualType(one_to_one ? VirtualType::merge :
                                   single_in ? VirtualType::suffix : VirtualType::prefix);
             result.add(direct, p);
             new_edges.push_back(direct.getId());
             direct.setCorporeal(false);
             direct.rc().setCorporeal(false);
+        } else if (one_to_one) {
+            Vertex &copy = addVertex(core.getSeq());
+            result.add(copy, p);
+            Edge &inc = addEdgeLockFree(p.incoming().getStart(), copy, p.incoming().truncSeq(), p.incoming().rc().truncSeq());
+            inc.setVirtualType(VirtualType::suffix);
+            new_edges.push_back(inc.getId());
+            inc.setCorporeal(false);
+            inc.rc().setCorporeal(false);
+//            For a self-rc copy, copy -> w is the rc of u -> copy.
+            if (copy != copy.rc()) {
+                Edge &out = addEdgeLockFree(copy, p.outgoing().getFinish(), p.outgoing().truncSeq(), p.outgoing().rc().truncSeq());
+                out.setVirtualType(VirtualType::prefix);
+                new_edges.push_back(out.getId());
+                out.setCorporeal(false);
+                out.rc().setCorporeal(false);
+            }
         } else {
             Vertex &newv = addVertex(p.getSeq());
             result.add(newv, p);
@@ -782,7 +825,7 @@ Edge &AssemblyGraph::mergePathToEdgeLockFree(const GraphPath &path) {
         VERIFY(!v.marked());
     }
     VERIFY(!path.isSingleton());
-//    Only used in DBG now. All-suffix (and, via RC, all-prefix) paths are merged by mergePrefixPath.
+//    Only used in DBG now.
     VERIFY(path.truncLen() != 0 && path.RC().truncLen() != 0);
     // VERIFY(path.getStart() == path.getFinish() || path.getStart() == path.getFinish().rc() || (path.getStart().isJunction() && path.getFinish().isJunction()));
     SequenceBuilder sb;
@@ -805,32 +848,6 @@ Edge &AssemblyGraph::mergePathToEdgeLockFree(const GraphPath &path) {
     return new_edge;
 }
 
-Edge &AssemblyGraph::mergePrefixPath(const GraphPath &path) {
-    VERIFY(!path.empty());
-    VERIFY(path.startClosed() && path.endClosed());
-    VERIFY(!path.isSingleton());
-    if (!path.frontEdge().isPrefix()) {
-        VERIFY(path.frontEdge().isSuffix());
-        return mergePrefixPath(path.RC()).rc();
-    }
-    for (Edge &e : path.edges()) {
-        VERIFY(e.isPrefix());
-    }
-    for (Vertex &v : path.innerVertices()) {
-        VERIFY(!v.marked());
-    }
-//    The path climbs from start to finish, so it spells finish and the new edge is again a prefix edge.
-    Edge &new_edge = addEdgeLockFree(path.getStart(), path.getFinish(), path.Seq());
-    VERIFY(new_edge.isPrefix());
-    new_edge.setVirtualType(VirtualType::prefix);
-    new_edge.setCorporeal(false);
-    new_edge.rc().setCorporeal(false);
-    this->fireMergePrefixPath(path.asRAPath(), new_edge);
-    isolateAndMarkLockFree(path.innerVertices().begin(), path.innerVertices().end());
-    new_edge.setCorporeal(true);
-    new_edge.rc().setCorporeal(true);
-    return new_edge;
-}
 
 GraphPath AssemblyGraph::splitEdge(Edge &edge, const std::vector<EdgePosition> &split_positions) {
     VERIFY(!split_positions.empty());
@@ -959,11 +976,11 @@ void AssemblyGraph::resetEdgeCodes(logging::Logger &logger, size_t threads) {
     logger.info() << "Resetting edge codes" << std::endl;
     this->fireResetEdgeCodes(logger, threads, *this);
     size_t code_size = 0;
-//    Virtually suffix edges get empty codes too (their start has no other outgoing edge to tell them from), as
+//    Virtually suffix and merge edges get empty codes too (their start has no other outgoing edge to tell them from), as
 //    GraphPath::resetEdgeCodes assumes.
     for(Edge &edge : edges()) {
         code_size += edge.edge_code.size();
-        if(edge.isSuffix() || edge.isVirtualSuffix())
+        if(edge.isSuffix() || edge.isVirtualSuffix() || edge.isMerge())
             edge.edge_code = Sequence();
         else
             edge.edge_code = edge.truncSeq().Subseq(0, 1);

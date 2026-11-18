@@ -128,6 +128,11 @@ namespace ag {
         void replace_front(Edge &edge);
         void replace_back(const GraphPath &old_suffix, const GraphPath &new_suffix);
         void replace_front(const GraphPath &old_prefix, const GraphPath &new_prefix);
+//        Replaces the prefix old_prefix by the single vertex new_start, which spells it (a merge): its codes are dropped,
+//        and so are its rc codes at the back of rsplits unless keep_rc_codes, when they now belong to the rc path's last
+//        edge (the merge moved them into the replacement of the edge into the old prefix's finish).
+        void absorb_front(const GraphPath &old_prefix, Vertex &new_start, bool keep_rc_codes);
+        void absorb_back(const GraphPath &old_suffix, Vertex &new_finish, bool keep_rc_codes);
 //        Deliberately a no-op (see definition): paths are no longer trimmed to the shortest-by-vertex-
 //        count form, since that trimming is exactly what used to make reads lose credit for anchors they
 //        genuinely cover. Kept only so any dormant/future caller doesn't silently reintroduce that rule.
@@ -310,6 +315,10 @@ namespace ag {
         void replace_back(const GraphPath &old_suffix, const GraphPath &new_suffix) const {
             if(rc) this->path->replace_front(old_suffix.RC(), new_suffix.RC());
             else this->path->replace_back(old_suffix, new_suffix);
+        }
+        void absorb_front(const GraphPath &old_prefix, Vertex &new_start, bool keep_rc_codes) const {
+            if(rc) this->path->absorb_back(old_prefix.RC(), new_start.rc(), keep_rc_codes);
+            else this->path->absorb_front(old_prefix, new_start, keep_rc_codes);
         }
         void operator+=(Edge &edge) const { push_back(edge);}
         void operator+=(Segment<Edge> seg) const { if(rc) path->push_front(seg.RC()); else *path += seg;}

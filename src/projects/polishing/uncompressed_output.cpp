@@ -146,16 +146,25 @@ AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left
 }
 
 void DecompressingManager::ReduceAndUncompress(logging::Logger &logger, size_t threads,
-        const io::Library &corrected_reads, const io::Library &reads) {
+        const io::Library &corrected_reads, const std::experimental::filesystem::path &read_alignments,
+        const io::Library &reads) {
     size_t dicompress = StringContig::max_dimer_size / 2;
-    dbg::SeqReader reader(corrected_reads, logger, threads);
     segs = ConstructReduction(graph(), min_overlap, max_repeat);
     std::function<Contig(Vertex &)> seg_to_contig = [this](Vertex &v) {
         return Contig(segs.at(v.getId()).fullSeq(), std::to_string(segs.at(v.getId()).contig().getInnerId()));
     };
     std::vector<Contig> compressed = oneline::map(graph().verticesUnique().begin(), graph().verticesUnique().end(), seg_to_contig);
-    auto res = PrintAlignments(logger, threads, compressed, reader.begin(), reader.end(), min_overlap, dir);
-    std::vector<Contig> uncompressed_contigs = Polish(logger, threads, compressed, res.first, reads, dicompress);
+    std::experimental::filesystem::path alignments = read_alignments;
+    if (alignments.empty()) {
+        dbg::SeqReader reader(corrected_reads, logger, threads);
+        alignments = PrintAlignments(logger, threads, compressed, reader.begin(), reader.end(), min_overlap, dir).first;
+    } else {
+        for (Vertex &v : graph().vertices()) {
+            VERIFY(segs.at(v.getId()) == Segment<Vertex>(v));
+        }
+        logger.info() << "Using read alignments from " << alignments << std::endl;
+    }
+    std::vector<Contig> uncompressed_contigs = Polish(logger, threads, compressed, alignments, reads, dicompress);
     IdIndex<Vertex> index(graph().vertices().begin(), graph().vertices().end());
     for(const Contig &contig : uncompressed_contigs) {
         VertexId vid = index.getById(Parse<Vertex::id_type>(contig.getInnerId())).getId();

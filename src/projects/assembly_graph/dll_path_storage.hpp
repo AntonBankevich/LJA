@@ -94,6 +94,9 @@ namespace ag {
         DLLPathPosition insertAfter(Edge &edge, DLLPathPosition pos, AlignmentFragment fragment);
         DLLPathPosition insertBefore(Vertex &vertex, DLLPathPosition pos, AlignmentFragment fragment);
         DLLPathPosition insertAfter(Vertex &vertex, DLLPathPosition pos, AlignmentFragment fragment);
+//        The cases of fireReplacePath: a path merged into a single vertex (mergePath, flip), and extendVertex.
+        void mergeIntoDominant(const PathReplacement &replacement);
+        void relocate(const PathReplacement &replacement);
 
 //        When the edge of the fragment at pos is deleted, its uncut start (finish) vertex stays in the path as an inner
 //        fragment, unless the neighbouring fragment already covers it.
@@ -148,17 +151,15 @@ namespace ag {
         void fireDeleteVertex(Vertex &v) override;
         void fireDeleteEdge(Edge &e) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
-        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
+//        Dispatched by the shape of the new path: a single vertex (mergePath, flip) or one edge (extendVertex).
+        void fireReplacePath(const PathReplacement &replacement) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) {VERIFY(false);}
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
-//        Same transformation as mergePathToEdge: the new prefix (suffix) edge spells its finish (start).
-        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override {fireMergePathToEdge(path, new_edge);}
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                  const AlignmentForm &left_al, const AlignmentForm &right_al) override;
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override {}
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
-        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
 //        Names (contig ids, still RC-oriented e.g. "-name") of all contigs with a fragment
 //        anchored at vertex as an inner fragment, deduplicated. Empty if vertex is untracked.
@@ -172,7 +173,9 @@ namespace ag {
 //        3. The rc contig's path mirrors the contig's path fragment by fragment.
 //        4. Every occurrence of a live vertex that is a proper infix of the contig is in the path: an inner fragment
 //           on it, or an edge segment starting/ending at it without a cut on that side. Since graphs are
-//           non-redundant, this holds for any correct path given; operations must not lose such vertices.
+//           non-redundant, this holds for any correct path given; operations must not lose such vertices. Only
+//           vertices with sample segments are checked: a segment-less vertex need not be unique by its label (e.g. the
+//           copies of core that resolveVertex makes for 1-to-1 pairs).
         bool checkConsistency(std::ostream &os) override;
 
         std::function<std::string(const Vertex &)> getVertexTooltipper() const;

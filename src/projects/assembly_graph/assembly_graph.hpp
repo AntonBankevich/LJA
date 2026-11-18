@@ -41,6 +41,14 @@ namespace ag {
 
         Vertex &innerAddVertex(typename Vertex::id_type id, Sequence seq, VertexData data);
 
+//        The core of mergePath, flipVertex and extendVertex: replaces old_path by new_path, which spells
+//        the same sequence and whose new edges (and the replacements in outer of the edges around a replaced start or
+//        finish) are already added. dominant_index is the index in new_path of the vertex that receives the information
+//        of the removed vertices. Keeps the new edges non-corporeal while the listeners react (fireReplacePath) and the
+//        vertices of old_path that are not in new_path are isolated and marked.
+        void replacePathLockFree(const RAGraphPath &old_path, const RAGraphPath &new_path, size_t dominant_index,
+                                 const std::unordered_map<EdgeId, EdgeId> &outer);
+
     protected:
         void setHash(ag::Vertex &v, hashing::htype hash) { v.hash = hash; }
     public:
@@ -84,13 +92,15 @@ namespace ag {
         //DBG specific
         Edge &mergePathToEdgeLockFree(const GraphPath &path);
         Edge &mergeTipsToEdge(Edge &leftEdge, Edge &rightEdge, AlignmentForm alignment);
+//        Merges a path p0 -> ... -> pn (at least one edge) into a single vertex D spelling it: the path's vertex with
+//        exactly that sequence if there is one, else a new vertex. Every other vertex of the path is removed (isolated
+//        and marked). A replaced p0 must have out-degree 1, and its incoming edges y -> p0 become y -> D; a replaced pn
+//        must have in-degree 1, and its outgoing edges pn -> z become D -> z; both inherit their types. Inner vertices
+//        must have no other edges. A cycle (p0 = pn) is merged without its last edge, which becomes the loop D -> D, as
+//        does an edge pn -> p0 when both ends are replaced. Returns D.
         Vertex &mergePathLockFree(const GraphPath &path, Vertex::id_type id = 0);
         GraphPath splitEdge(Edge &edge, const std::vector<EdgePosition> &split_positions);//        TODO: this should run in parallel
         //SPG specific
-//        Merges a path of only prefix edges into a single prefix edge start->finish. A path of only suffix edges is
-//        merged by running on its RC; the returned edge always goes in the direction of the given path. Inner
-//        vertices are isolated and marked.
-        Edge &mergePrefixPath(const GraphPath &path);
         Vertex &edgeToSupreVertex(Edge &edge, Vertex::id_type id = 0);
         Vertex &edgeToSupreVertexLockFree(Edge &edge, Vertex::id_type id = 0);
 //        Requires suffix edges into core, prefix edges out of it, and sample segments on every neighbour of core. A pair
@@ -99,8 +109,15 @@ namespace ag {
         ag::VertexResolutionResult resolveCoreVertex(Vertex &core, const VertexResolutionPlan &resolution); //TODO:: this should run in parallel
         Vertex &mergeLoop(const GraphPath &path); //TOOD: implement
 //        Flips core = inc.getFinish() into u = inc.getStart() along the suffix edge inc, the only edge into core:
-//        every core -> w becomes u -> w and core is isolated and marked. core may have any out-degree. Returns u.
+//        every core -> w becomes u -> w and core is isolated and marked (the merge of inc). core may have any
+//        out-degree. Returns u.
         Vertex &flipVertexLockFree(Edge &inc);
+//        suffix_edge = x -> w is virtually suffix (x's only outgoing edge) and neither a prefix nor a suffix edge. x is
+//        replaced by a new vertex v spelling suffix_edge (x extended to the end of w): every y -> x becomes y -> v and
+//        x -> w the suffix edge v -> w; x is isolated and marked. Same result as edgeToSupreVertex followed by a flip of
+//        x.rc() into the supre-vertex, without the intermediate edges. Requires x != x.rc() and no edge between x and
+//        x.rc() or w. Returns v.
+        Vertex &extendVertexLockFree(Edge &suffix_edge, Vertex::id_type id = 0);
 
 //-------------------Derived graph operations. These call core graph operations.-------------------------
         Vertex &addVertex(const Sequence &seq, typename Vertex::id_type id = Vertex::id_type()) {return addVertex(seq, {}, id);}
@@ -109,6 +126,8 @@ namespace ag {
         Edge &addEdge(Vertex &start, Vertex &end, const Sequence &full_seq, EdgeData data, EdgeIdType eid = {}, EdgeIdType rcid = {});
         Edge &addEdge(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeData data, EdgeIdType eid = {}, EdgeIdType rcid = {});
         Edge &addSPEdgeLockFree(Vertex &start, Vertex &end, ag::Edge::id_type eid = {}, ag::Edge::id_type rcid = {});
+//        The same edge with the given virtual type instead of the one following from its real prefix/suffix nature.
+        Edge &addSPEdgeLockFree(Vertex &start, Vertex &end, VirtualType type);
         Edge &addSPEdge(Vertex &start, Vertex &end, ag::Edge::id_type eid = {}, ag::Edge::id_type rcid = {}); //Deprecated
         Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &full_sequence, EdgeIdType eid = {}, EdgeIdType rcid = {});
         Edge &addEdgeLockFree(Vertex &start, Vertex &end, const Sequence &tseq, const Sequence &rctseq, EdgeIdType eid = {}, EdgeIdType rcid = {});
@@ -125,9 +144,9 @@ namespace ag {
         Edge &mergePathToEdge(const GraphPath &path);
         Vertex &mergePath(const GraphPath &path, Vertex::id_type id = 0);
         Vertex &flipVertex(Edge &inc);
-//        Turns every edge into core (on both strands) that is not a suffix edge into a supre-vertex S, then flips the old
-//        neighbour so that S takes over its segments and edges. Returns old edge id -> the edge now adjacent to core.
-//        Flipped and replaced vertices are only marked.
+//        Makes every edge into core (on both strands) a suffix edge: its start is replaced by itself extended to the end
+//        of core (extendVertex; a self-rc start gets a supre-vertex instead). Returns old edge id -> the edge now
+//        adjacent to core. Replaced vertices are only marked.
         std::unordered_map<EdgeId, EdgeId> ExtendAdjacent(Vertex &core);
 
         IterableStorage<SkippingIterator<AssemblyGraph::vertex_iterator_type>> vertices(bool unique = false) &;
@@ -147,10 +166,6 @@ namespace ag {
         IterableStorage<ApplyingIterator<const_vertex_iterator_type, const Edge, 4>> edgesUnique() const &;
         IterableStorage<ApplyingIterator<const_vertex_iterator_type, const Edge, 4>> edgesUnique() const && = delete;
     };
-
-//    True if the path is a (possibly empty) run of prefix edges followed by a (possibly empty) run of suffix edges.
-//    The vertex between the two runs (the peak) then already spells the whole path.
-    bool IsPrefixSuffixPath(const GraphPath &path);
 
     inline std::string GetEdgeNameForSaving(const Edge &edge) {
         VERIFY((edge.getFinish().rc().getInnerId() > 0) == edge.getFinish().rc().isCanonical());

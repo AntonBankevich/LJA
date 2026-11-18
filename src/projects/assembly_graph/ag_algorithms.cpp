@@ -1,4 +1,5 @@
 #include "ag_algorithms.hpp"
+#include "common/graph_coloring.hpp"
 namespace ag {
 
     GraphPath PathHelper::WalkForward(Edge &start) {
@@ -85,6 +86,39 @@ namespace ag {
         return result.collect();
     }
 
+//    An unbranching path ends at junctions and its inner vertices belong to it alone (an isolated cycle touches no other
+//    path), so paths conflict only through their ends. Pairs (canonical end, path) are sorted in parallel; paths with the
+//    same end conflict. Once the paths are trimmed for merging, paths of one bucket are not even joined by an edge: an
+//    edge u -> v between ends of two others would need u's out-degree and v's in-degree above 1, which the supregraph
+//    invariant forbids. Buckets are the color classes of the conflict graph. With vertex degrees at most 8 a path
+//    conflicts with at most 30 others.
+    std::vector<std::vector<size_t>>
+    IndependentPathBuckets(logging::Logger &logger, size_t threads, const std::vector<GraphPath> &paths) {
+        logger.trace() << "Splitting " << paths.size() << " paths into independent buckets" << std::endl;
+        omp_set_num_threads(threads);
+        const size_t n = paths.size();
+        auto canonical = [](const Vertex &v) {return v.isCanonical() ? v.getId() : v.rc().getId();};
+        std::vector<std::pair<ConstVertexId, size_t>> ends(2 * n);
+#pragma omp parallel for schedule(static)
+        for (size_t i = 0; i < n; i++) {
+            ends[2 * i] = {canonical(paths[i].getStart()), i};
+            ends[2 * i + 1] = {canonical(paths[i].getFinish()), i};
+        }
+        __gnu_parallel::sort(ends.begin(), ends.end());
+        std::vector<std::vector<size_t>> conflicts(n);
+        for (size_t from = 0, to = 0; from < ends.size(); from = to) {
+            while (to < ends.size() && ends[to].first == ends[from].first)
+                to++;
+            for (size_t a = from; a < to; a++)
+                for (size_t b = from; b < to; b++)
+                    if (ends[a].second != ends[b].second)
+                        conflicts[ends[a].second].push_back(ends[b].second);
+        }
+        std::vector<std::vector<size_t>> buckets = ParallelColorClasses(threads, conflicts);
+        logger.trace() << "Split paths into " << buckets.size() << " buckets" << std::endl;
+        return buckets;
+    }
+
     void
     MergePathsToEdges(logging::Logger &logger, size_t threads, AssemblyGraph &graph, const std::vector<GraphPath> &paths) {
         logger.trace() << "Merging unbranching paths" << std::endl;
@@ -140,7 +174,6 @@ namespace ag {
                 Vertex &vfrom = *vmap[from];
                 Vertex &vto = *vmap[to];
                 VERIFY(overlap <= vfrom.size() && overlap <= vto.size());
-                VERIFY(overlap == std::min(vfrom.size(), vto.size()));
                 Edge &edge = res.addEdge(vfrom, vto, vto.getSeq().Subseq(overlap),vfrom.rc().getSeq().Subseq(overlap), eids.fId, eids.rcId);
             }
         }

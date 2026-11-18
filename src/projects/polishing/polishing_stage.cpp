@@ -53,7 +53,8 @@ bool ExtendLeft(Vertex &vertex, const std::unordered_map<VertexId, Segment<Verte
 std::unordered_map <std::string, std::experimental::filesystem::path>
 RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
              const std::experimental::filesystem::path &gfa_file,
-             const io::Library &corrected_reads, const io::Library &reads, size_t min_alignment, bool debug) {
+             const io::Library &corrected_reads, const std::experimental::filesystem::path &read_alignments,
+             const io::Library &reads, size_t min_alignment, bool debug) {
     logger.info() << "Performing polishing and homopolymer uncompression" << std::endl;
     ag::AssemblyGraph graph = LoadSupregraphFromGFA(logger, threads, gfa_file);
     // std::vector<Segment<Vertex>> extra;
@@ -70,7 +71,7 @@ RunPolishing(logging::Logger &logger, size_t threads, const std::experimental::f
     //     segs[seg.contig().rc().getId()] = seg.RC();
     // }
     DecompressingManager manager(graph, dir, min_alignment, 40000, debug);
-    manager.ReduceAndUncompress(logger, threads, corrected_reads, reads);
+    manager.ReduceAndUncompress(logger, threads, corrected_reads, read_alignments, reads);
     manager.printReduction(dir/"reduction.dot");
     manager.calculateOverlaps(logger, threads);
     manager.printUncompressedGraph(logger, threads, dir/"final_graph.gfa");
@@ -92,6 +93,9 @@ PolishingPhase::innerRun(logging::Logger &logger, size_t threads, const std::exp
                          const std::unordered_map<std::string, io::Library> &input) {
     logger.info() << "Started homopolymer uncompression and polishing phase\n";
     size_t min_alignment = std::stoull(parameterValues.getValue("min-alignment"));
-    return RunPolishing(logger, threads, dir, input.find("graph")->second.front(),
-                        input.find("corrected_reads")->second, input.find("reads")->second, min_alignment, debug);
+    if (realign)
+        return RunPolishing(logger, threads, dir, input.at("graph").front(), input.at("corrected_reads"), {},
+                            input.at("reads"), min_alignment, debug);
+    return RunPolishing(logger, threads, dir, input.at("graph").front(), {}, input.at("read_alignments").front(),
+                        input.at("reads"), min_alignment, debug);
 }

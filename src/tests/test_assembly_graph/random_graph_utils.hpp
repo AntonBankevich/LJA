@@ -279,7 +279,7 @@ namespace ag_test {
             for (ag::Edge *e : edges)
                 end += e->getCode().size();
             size_t last = edges.size();
-            while (last > 0 && (edges[last - 1]->isVirtualSuffix() || edges[last - 1]->getCode().empty())) {
+            while (last > 0 && edges[last - 1]->isCodeEmpty()) {
                 end -= edges[last - 1]->getCode().size();
                 last--;
             }

@@ -106,11 +106,21 @@ namespace ag {
             edge_data.find_fn(edge.getId(), [&res](const std::unique_ptr<SuffixRecord> &ptr) { res = ptr.get(); });
             return res;
         }
-//        If from has a record, gives it to `to`: whole or, with through, only the suffixes continuing through that edge,
-//        with its code cut off. moveRecord takes from's record, so it is only for a source deleted by the operation and
-//        not used again (also not by the mirrored call); copyRecord leaves it intact.
+//        Exactly the virtually suffix edges (and the untyped edges of a DBG) hold records. Operations move a record to
+//        each new edge that must hold one, from the edge it takes over from, which then holds one too; nothing is looked
+//        up to decide.
+        static bool holdsRecord(const Edge &edge) {
+            return edge.isVirtualSuffix() || edge.getVirtualType() == VirtualType::unset;
+        }
+//        Gives from's record, which must exist, to `to`: whole or, with through, only the suffixes continuing through that
+//        edge, with its code cut off. moveRecord takes the paths out of from's record, so it is only for a source
+//        deleted by the operation (which erases its record); copyRecord leaves it intact, for a source that feeds
+//        several edges.
         void moveRecord(const Edge &from, Edge &to, const Edge *through = nullptr);
         void copyRecord(const Edge &from, Edge &to, const Edge *through = nullptr);
+//        The general form: with a non-empty cut, only the suffixes starting with cut, without it; cut_len is subtracted
+//        from the maximal suffix length.
+        void transferRecord(const Edge &from, Edge &to, bool copy, const Sequence &cut, size_t cut_len);
 
     public:
         SuffixTracker(AlignedReadStorage &storage, AssemblyGraph &graph, size_t _min_len, size_t _max_len);
@@ -121,7 +131,7 @@ namespace ag {
         SuffixTracker &operator=(const SuffixTracker &other) = delete;
         SuffixTracker(const SuffixTracker &other) = delete;
 
-//        Records exist on every edge that is not virtually prefix.
+//        Records exist on every edge for which holdsRecord holds.
         bool hasSuffixRecord(const Edge &edge) const {return edge_data.contains(edge.getId());}
         SuffixRecord &getSuffixRecord(const Edge &edge) {
             SuffixRecord *res = findRecord(edge);
@@ -146,14 +156,12 @@ namespace ag {
         void fireInvalidateRead(AlignedRead &read) override;
 
         void fireDeleteEdge(Edge &edge) override;
-        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
-        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
-//        Every incoming edge of a vertex with several incoming edges has a record.
+        void fireReplacePath(const PathReplacement &replacement) override;
+//        Every edge that holdsRecord has a record.
         bool checkConsistency(std::ostream &os) override;
 //        Only for supregraph edges (e.g. from ExtendAdjacent): converting a DBG (untyped edges) with a tracker attached is
 //        not allowed, since its stored suffixes depend on the edges' virtual types.
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
-        void fireMergePath(const RAGraphPath &path, Vertex &vertex) override;
         void fireMergeLoop(const ag::GraphPath  &path, Vertex &vertex) override {}
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
         void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,

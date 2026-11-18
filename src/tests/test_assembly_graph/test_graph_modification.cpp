@@ -105,40 +105,6 @@ TEST(GraphModificationTest, FlipVertexEdgesAndCodes) {
     EXPECT_TRUE(graph.checkConsistency());
 }
 
-// mergePrefixPath on a chain of prefix edges AAC -> AACG -> AACGT -> AACGTA, given either as the prefix path
-// itself or as its RC (a suffix path). Either way the chain becomes one prefix edge AAC -> AACGTA (returned in
-// the direction of the given path) whose code is the concatenation of the chain's codes.
-TEST(GraphModificationTest, MergePrefixPath) {
-    for (bool suffix_path : {false, true}) {
-        ag::AssemblyGraph graph;
-        std::vector<ag::VertexId> vs;
-        for (const char *s : {"AAC", "AACG", "AACGT", "AACGTA"})
-            vs.push_back(graph.addVertex(Sequence(s)).getId());
-        ag::GraphPath path(graph.addSPEdge(*vs[0], *vs[1]));
-        path += graph.addSPEdge(*vs[1], *vs[2]);
-        path += graph.addSPEdge(*vs[2], *vs[3]);
-        ASSERT_TRUE(graph.checkConsistency());
-        if (suffix_path)
-            path = path.RC();
-        ag::VertexId start = path.getStart().getId();
-        ag::VertexId finish = path.getFinish().getId();
-
-        ag::Edge &merged = graph.mergePrefixPath(path);
-        graph.removeMarked();
-
-        EXPECT_EQ(merged.getStart(), *start);
-        EXPECT_EQ(merged.getFinish(), *finish);
-        ag::Edge &prefix = suffix_path ? merged.rc() : merged;
-        EXPECT_TRUE(prefix.isPrefix());
-        EXPECT_EQ(prefix.getStart(), *vs[0]);
-        EXPECT_EQ(prefix.getFinish(), *vs[3]);
-        EXPECT_EQ(prefix.getCode().str(), "GTA");
-        EXPECT_TRUE(prefix.rc().getCode().empty());
-        EXPECT_EQ(graph.size(), 4u); // AACG, AACGT and their rcs removed
-        EXPECT_TRUE(graph.checkConsistency());
-    }
-}
-
 namespace {
     // v0 -p-> v1 -p-> peak -s-> s1 -s-> s2 with sequences AAC, AACG, AACGTA, CGTA, GTA.
     struct PeakChain {
@@ -156,32 +122,30 @@ namespace {
 }
 
 // mergePath on a path of prefix edges followed by suffix edges: the peak already spells the path, so no vertex is
-// created; each run collapses into a single edge and the peak is returned. Covers prefix+suffix, all-prefix,
-// all-suffix, and the already-merged one-prefix-one-suffix path (nothing changes).
+// created; every other vertex of the path is removed and the path's outside neighbours connect to the peak. Covers
+// prefix+suffix, all-prefix, all-suffix and the one-prefix-one-suffix path.
 TEST(GraphModificationTest, MergePathIntoExistingPeak) {
-    struct Case { size_t from, to, vertices_left; };
-    for (Case c : std::vector<Case>{{0, 4, 3}, {0, 2, 4}, {2, 4, 4}, {1, 3, 5}}) {
+    for (std::pair<size_t, size_t> c : std::vector<std::pair<size_t, size_t>>{{0, 4}, {0, 2}, {2, 4}, {1, 3}}) {
         PeakChain f;
         ASSERT_TRUE(f.graph.checkConsistency());
-        ag::GraphPath path = MakePath(f.es, c.from, c.to);
-        ag::VertexId start = path.getStart().getId();
-        ag::VertexId finish = path.getFinish().getId();
+        ag::GraphPath path = MakePath(f.es, c.first, c.second);
 
         ag::Vertex &res = f.graph.mergePath(path);
         f.graph.removeMarked();
 
-        EXPECT_EQ(res, *f.vs[2]) << "case " << c.from << "-" << c.to;
-        EXPECT_EQ(f.graph.size(), 2 * c.vertices_left) << "case " << c.from << "-" << c.to;
-        if (res != *start) {
-            ASSERT_EQ(start->outDeg(), 1u);
-            EXPECT_EQ(start->front().getFinish(), res);
-            EXPECT_TRUE(start->front().isPrefix());
+        const std::string name = "case " + std::to_string(c.first) + "-" + std::to_string(c.second);
+        EXPECT_EQ(res, *f.vs[2]) << name;
+        EXPECT_EQ(f.graph.size(), 2 * (5 - (c.second - c.first))) << name;
+        EXPECT_EQ(res.inDeg(), c.first > 0 ? 1u : 0u) << name;
+        if (c.first > 0) {
+            EXPECT_EQ(res.incFront().getStart(), *f.vs[c.first - 1]) << name;
+            EXPECT_TRUE(res.incFront().isPrefix()) << name;
         }
-        if (res != *finish) {
-            ASSERT_EQ(res.outDeg(), 1u);
-            EXPECT_EQ(res.front().getFinish(), *finish);
-            EXPECT_TRUE(res.front().isSuffix());
+        EXPECT_EQ(res.outDeg(), c.second < 4 ? 1u : 0u) << name;
+        if (c.second < 4) {
+            EXPECT_EQ(res.front().getFinish(), *f.vs[c.second + 1]) << name;
+            EXPECT_TRUE(res.front().isSuffix()) << name;
         }
-        EXPECT_TRUE(f.graph.checkConsistency()) << "case " << c.from << "-" << c.to;
+        EXPECT_TRUE(f.graph.checkConsistency()) << name;
     }
 }

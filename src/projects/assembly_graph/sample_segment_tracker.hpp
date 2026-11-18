@@ -20,13 +20,11 @@ namespace ag {
 
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
         void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) override;
-        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
+        void fireReplacePath(const PathReplacement &replacement) override;
 //        Used on DBGs, whose vertices have no sample segments, so the inner vertices it removes have none to lose.
         void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) override;
 //        No vertex is removed and the new split vertices start without sample segments.
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override {}
-        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
-        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 //        Samples lie within their vertex (kpomer chunks at least k + 1 long), are strictly ordered (starts and finishes
 //        non-decreasing, never both equal), v.rc() holds exactly the mirror of v's samples, weight and raw_support are
 //        the sums over the samples, and k-mers have none.

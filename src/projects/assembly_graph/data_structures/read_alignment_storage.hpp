@@ -192,22 +192,6 @@ namespace ag {
         friend class AlignedReadStorage;
     private:
         AlignedReadStorage *storage;
-//        Moves the subreads of the vertex flipped along edge (its finish if edge is a suffix edge, its start if it is
-//        a prefix edge) to the other end of edge, which contains it: the path is extended by edge and then loses it on
-//        the other side, so its codes are only pushed and popped (their deck positions, and so the reads' suffix ends,
-//        stay valid).
-        void migrateSubstringReads(Edge &edge);
-//        Moves the reads of path's inner vertices to target, which spells the whole path (path position 0 is target's
-//        position 0). The new edge from_start leads from the path's start to target and to_finish from target to the
-//        path's finish (nullptr where target is that end); together they have exactly the path's codes. A read is
-//        extended edge by edge along the path to its start (and to its finish if it ends inside the path), and the new
-//        edges are popped: reads reaching the finish start at target, the others, like the inner vertices' subreads,
-//        become subreads of target. Codes are only pushed and popped, so their deck positions (and the reads' suffix
-//        ends) stay valid.
-        void absorbInnerVertices(const RAGraphPath &path, Vertex &target, Edge *from_start, Edge *to_finish);
-//        Files dir, whose path has just become empty, as a subread, together with its other direction (moved out of
-//        the starts of dir's start.rc()).
-        void fileAsSubread(const AlignedReadDirection &dir);
     public:
         AlignedReadStorageMaintenance(AssemblyGraph &graph, AlignedReadStorage &storage);
         AlignedReadStorageMaintenance(AlignedReadStorageMaintenance &&other) = default;
@@ -217,7 +201,8 @@ namespace ag {
 //        `starts` and `reads_inside_vertices` are keyed by vertex now (see fireAddVertex/fireDeleteVertex),
 //        so edge addition/removal needs no bookkeeping here; the base-class no-op handlers are used.
 
-        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override;
+//        Reads starting at, and subreads of, the removed vertices move to the dominant vertex.
+        void fireReplacePath(const PathReplacement &replacement) override;
 //        TODO: implement properly
         void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) override;
 //        Relies on merged edge codes being exact concatenations (see EdgeCodeListener): a read whose path
@@ -237,9 +222,6 @@ namespace ag {
         void fireSplitEdge(Edge &edge, const RAGraphPath &split) override;
         void fireResetEdgeCodes(logging::Logger &logger, size_t threads, AssemblyGraph &graph) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
-//        Reads starting at, and subreads of, the removed vertices move to the vertex that contains them.
-        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) override;
-        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) override;
 
         void fireAddRead(const AlignedRead &read) override;
         void fireRerouteRead(AlignedRead &read) override;

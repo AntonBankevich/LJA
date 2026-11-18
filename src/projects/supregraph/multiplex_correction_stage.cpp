@@ -1,6 +1,7 @@
 #include "multiplex_correction_stage.hpp"
 #include "assembly_graph/dll_path_storage.hpp"
 #include "path_tracker.hpp"
+#include "path_spy.hpp"
 #include "coverage_tracker.hpp"
 #include <limits>
 
@@ -20,6 +21,7 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     auto [spg, dbg_storage, path_storage] = ConstructSupregraphFromRawInput(logger, threads, dir, k, w, graph_gfa,
                                                                              reads_files, extra_reads_files, paths, debug);
     UniqueVertexStorage unique_storage(spg, unique_threshold);
+    OldVertexTracker vertex_tracker(spg, debug);
     spg::CoverageTracker spgVertexCoverage(spg, dbg_storage, logger, threads);
     ag::Printer printer(ag::VertexPrintStyles::spgLabeler() +
                          ag::VertexInfo::Labeler(spgVertexCoverage.getVertexLabeler()), ag::EdgePrintStyles::defaultDotInfo());
@@ -98,17 +100,18 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     logger.info() << "Printing final graph" << std::endl;
     printer.printDot(dir / "supregraph_final.dot", spg);
     dbg_storage.getReads().Save(dir/"reads.aln");
+    auto alignments = PrintStorageAlignments(logger, threads, dbg_storage.getReads(), vertex_tracker, dir / "alignments");
     ag::Printer(ag::VertexPrintStyles::defaultLabeler()).printDirectGFA(dir / "supregraph_final.gfa", spg);
     printer.DrawSplit(ag::Component(spg), dir/"split", 10000);
 //    path_storage detaches itself automatically before spg is destroyed (see SupregraphFromRawInput's
 //    doc comment on struct member ordering).
-    return {{"supregraph_final", dir / "supregraph_final.gfa"}};
+    return {{"supregraph_final", dir / "supregraph_final.gfa"}, {"read_alignments", alignments.first}};
 }
 
 spg::MultiplexAndCorrectionPhase::MultiplexAndCorrectionPhase() : Stage(AlgorithmParameters(
         {"k-mer-size=501", "window=2000", "initial-core-length=600", "max-core-length=5000", "core-length-step=300",
          "vertex-coverage-threshold=4"},
-        {}, ""), {"graph", "reads", "extra_reads", "paths"}, {"supregraph_final"}) {
+        {}, ""), {"graph", "reads", "extra_reads", "paths"}, {"supregraph_final", "read_alignments"}) {
 }
 
 std::unordered_map<std::string, std::experimental::filesystem::path>

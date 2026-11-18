@@ -46,10 +46,11 @@ bool spg::UniqueVertexStorage::isUnique(const Vertex &v) const {
     return unique.contains(v.getId());
 }
 
-void spg::UniqueVertexStorage::fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) {
-    for(Vertex &v : path.vertices()) {
+//    The dominant vertex contains every vertex of the old path.
+void spg::UniqueVertexStorage::fireReplacePath(const ag::PathReplacement &replacement) {
+    for(Vertex &v : replacement.oldPath().vertices()) {
         if(isUnique(v)) {
-            add(vertex);
+            add(replacement.getDominant());
             return;
         }
     }
@@ -62,14 +63,19 @@ void spg::UniqueVertexStorage::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
 }
 
 void spg::UniqueVertexStorage::fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) {
-//    Every new vertex is a + core + b.
+//    Every new vertex is a + core + b or a copy of core.
     if (isUnique(core))
         for (Vertex &newv : resolution.newVertices())
             add(newv);
 }
 
 void spg::UniqueVertexStorage::fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) {
-    fireMergePath(path.asRAPath(), vertex);
+    for(Vertex &v : path.vertices()) {
+        if(isUnique(v)) {
+            add(vertex);
+            return;
+        }
+    }
 }
 spg::UniqueVertexStorage::UniqueVertexStorage(ag::AssemblyGraph &spg, const std::function<bool(Vertex &)> &is_unique, size_t unique_threshold)
             : SPGListener(spg, "UniqueVertexStorage"), unique_threshold(unique_threshold){

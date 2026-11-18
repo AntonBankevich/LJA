@@ -46,7 +46,7 @@ namespace spg {
 //        Once a vertex is unique, every future superstring of it must be unique too.
         void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override;
-        void fireMergePath(const ag::RAGraphPath &path, Vertex &vertex) override;
+        void fireReplacePath(const ag::PathReplacement &replacement) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &vertex) override;
         void fireDeleteVertex(spg::Vertex &v) override {unique.erase(v.getId());}
     };

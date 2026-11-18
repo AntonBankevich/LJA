@@ -11,10 +11,8 @@ namespace dbg {
         using ag::ResolutionListener::ResolutionListener;
 
         void fireEdgeToSupreVertex(ag::Vertex &v, ag::Edge &e) final {VERIFY(false);}
-        void fireMergePath(const ag::RAGraphPath &path, ag::Vertex &new_vertex) final {VERIFY(false);}
+        void fireReplacePath(const ag::PathReplacement &replacement) final {VERIFY(false);}
         void fireMergeLoop(const ag::GraphPath &path, ag::Vertex &new_vertex) final {VERIFY(false);}
-        void fireMergePrefixPath(const ag::RAGraphPath &path, ag::Edge &new_edge) final {VERIFY(false);}
         void fireResolveVertex(ag::Vertex &core, const ag::VertexResolutionResult &resolution) final {VERIFY(false);}
-        void fireFlipVertex(ag::Edge &edge, const std::unordered_map<ag::EdgeId, ag::EdgeId> &extensions) final {VERIFY(false);}
     };
 }

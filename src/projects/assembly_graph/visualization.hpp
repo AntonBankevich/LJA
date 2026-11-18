@@ -417,7 +417,7 @@ namespace ag {
                 bool incsign = edge.getStart().isCanonical();
                 Vertex::id_type outid = std::abs(edge.getFinish().getInnerId());
                 Vertex::id_type incid = std::abs(edge.getStart().getInnerId());
-                size_t overlap_size = std::min(edge.getStart().size(), edge.getFinish().size());
+                size_t overlap_size = edge.overlapSize();
                 out << "L\t" << incid << "\t" << (incsign ? "+" : "-") << "\t" << outid << "\t"
                     << (outsign ? "+" : "-") << "\t" << overlap_size << "M\tID:Z:" << GetEdgeNameForSaving(edge);
                 std::string color = join(":", edgeInfo.get_color_info(edge));

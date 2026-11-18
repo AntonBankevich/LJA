@@ -26,39 +26,45 @@ namespace spg {
             bool operator==(const DirectEmbedding &other) const;
         };
     private:
+        typedef std::vector<DirectEmbedding> EmbeddingRecord;
+//        Merges and deletions fire in parallel, so the maps are concurrent. Records are unique_ptrs so that a reference
+//        returned by getRecord stays valid across rehashes (see AlignedReadStorage).
+        typedef libcuckoo::cuckoohash_map<ag::ConstVertexId, std::unique_ptr<EmbeddingRecord>> EmbeddingMap;
+//        Every vertex ever added. Sequences are stored only in debug mode (empty otherwise) and only serve the
+//        sequence checks of checkConsistency and getAllSubvertices.
+        libcuckoo::cuckoohash_map<ag::ConstVertexId, Sequence> vertex_seq;
         //A vertex has a recorded self-embedding iff it was already removed from the graph
-        std::unordered_map<ag::ConstVertexId, Sequence> vertex_seq;
-        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> direct_supervertices;
-        std::unordered_map<ag::ConstVertexId, std::vector<DirectEmbedding>> direct_subvertices;
-        std::unordered_map<ag::ConstVertexId, Segment<ag::Vertex>> vertex_embedding;
-        std::unordered_map<ag::ConstVertexId, std::vector<ag::VertexId>> subvertices;
+        EmbeddingMap direct_supervertices;
+        EmbeddingMap direct_subvertices;
         bool debug;
 
-        void addEmbedding(VertexId old, Segment<Vertex> embedding, std::vector<ag::VertexId> &subs);
-        void addEmbedding(VertexId old, Segment<Vertex> embedding);
+        static void append(EmbeddingMap &map, ag::ConstVertexId key, const DirectEmbedding &embedding);
+        static const EmbeddingRecord &getRecord(const EmbeddingMap &map, ag::ConstVertexId key);
         void addMultiEmbedding(Vertex & subvertex, Vertex & supervertex, size_t left, size_t right);
         size_t getVertexSize(VertexId vid) const;
 
     public:
         OldVertexTracker(ag::ResolutionFire &fire, bool debug);
 
-        Segment<Vertex> getPosition(VertexId vid) const;
-        bool checkExists(VertexId vid) const {return subvertices.find(vid) != subvertices.end();}
+//        Whether vid (live or deleted) was ever seen by the tracker. Vertices deleted before the tracker was attached
+//        were not.
+        bool checkExists(VertexId vid) const {return vertex_seq.contains(ag::ConstVertexId(vid));}
 
 
         void fireAddEdge(Edge &e) override;
         void fireAddVertex(Vertex &v) override;
         void fireDeleteVertex(Vertex &v) override;
         void fireEdgeToSupreVertex(Vertex &v, Edge &e) override {}
-        void fireMergePath(const ag::RAGraphPath &path, Vertex &new_vertex) override;
+        void fireReplacePath(const ag::PathReplacement &replacement) override;
         void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) override {VERIFY(false);}
         void fireResolveVertex(Vertex &core, const ag::VertexResolutionResult &resolution) override;
 
         std::vector<DirectEmbedding> getAllEmbeddings(VertexId v) const;
         std::vector<DirectEmbedding> getAllSubvertices(VertexId v) const;
 
-//        1. Every vertex ever added has records; a live vertex's recorded sequence is its sequence.
-//        2. Every embedding (inner, outer, from, to) holds: seq(inner) == seq(outer)[from, to).
+//        Sequence parts (marked "debug") are checked only in debug mode.
+//        1. Every vertex ever added has records; (debug) a live vertex's recorded sequence is its sequence.
+//        2. Every embedding (inner, outer, from, to) has from <= to; (debug) seq(inner) == seq(outer)[from, to).
 //        3. Every embedding is recorded both as a supervertex of inner and a subvertex of outer.
 //        4. A vertex carries the dead marker (a self-embedding) iff it is not live.
 //        5. Every live prefix (suffix) edge's start (finish) is recorded inside its finish (start).
@@ -73,6 +79,19 @@ namespace spg {
 //    one). Only meaningful for reads equivalent to a vertex (substring/legacy reads); a read spanning a
 //    real path corresponds to a compact path instead and is out of scope here.
     std::vector<ag::VertexId> readSubstringVertices(const ag::AlignedRead &read, const OldVertexTracker &tracker);
+
+//    Writes read alignments in the format polishing reads (that of PrintAlignments in polishing/perfect_alignment.hpp:
+//    "read_id read_from read_to contig_id contig_from contig_to" per line, half-open, reads in storage order) straight
+//    from the stored read paths instead of realigning reads. Contigs are the vertices: a canonical vertex is named by
+//    its id, a non-canonical one by its (negative) id with coordinates on its own sequence, i.e. on the reverse
+//    complement of the canonical contig. Read coordinates are on the read's path sequence (the corrected compressed
+//    read). A read spanning several vertices gets one record per vertex of its path. A read lying inside a single
+//    vertex V (possibly deleted) gets one record per living vertex containing V, found through tracker once per V.
+//    Records that reach neither a read end nor a contig end on some side go to the partial file.
+//    Returns {good alignments file, partial alignments file}.
+    std::pair<std::experimental::filesystem::path, std::experimental::filesystem::path>
+    PrintStorageAlignments(logging::Logger &logger, size_t threads, const ag::AlignedReadStorage &storage,
+                           const OldVertexTracker &tracker, const std::experimental::filesystem::path &dir);
 }
 
 

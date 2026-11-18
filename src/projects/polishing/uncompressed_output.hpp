@@ -21,7 +21,10 @@ public:
 
     ag::AssemblyGraph &graph() const {return *g;}
 
-    void ReduceAndUncompress(logging::Logger &logger, size_t threads, const io::Library &corrected_reads, const io::Library &reads);
+//    Read alignments are taken from read_alignments if it is non-empty (their contigs are whole vertices, so the
+//    reduction must keep every vertex whole) and computed by realigning corrected_reads otherwise.
+    void ReduceAndUncompress(logging::Logger &logger, size_t threads, const io::Library &corrected_reads,
+                             const std::experimental::filesystem::path &read_alignments, const io::Library &reads);
 
     void printReduction(std::experimental::filesystem::path path) const;
 

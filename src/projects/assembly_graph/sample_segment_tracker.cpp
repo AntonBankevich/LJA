@@ -14,7 +14,8 @@ void SampleSegmentTracker::fireResolveVertex(Vertex &core, const VertexResolutio
     VERIFY(core.inDeg() > 1);
     VERIFY(core.outDeg() > 1);
     for (const auto &rec : resolution) {
-//        With a single partner on either side, the strings one longer than core are already in the adjacent vertices.
+//        With a single partner on either side, the strings one longer than core are already in the adjacent vertices: a
+//        1-to-1 pair's new vertex gets no sample segment.
         if (resolution.connections(rec.second.incoming()) < 2 || resolution.connections(rec.second.outgoing()) < 2)
             continue;
         Vertex &new_vertex = *rec.first;
@@ -28,52 +29,34 @@ void SampleSegmentTracker::fireResolveVertex(Vertex &core, const VertexResolutio
     }
 }
 
-void SampleSegmentTracker::fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {
-    // Only inner vertices are absorbed into the merged vertex; move their coverage samples to the
-    // matching offset. The start and end of the path survive and keep their own coverage.
-    __int64_t shift = 0;
-    for (Edge &e : path.edges()) {
-        shift += e.rc().truncSize();
-        if (e.getFinish() == path.getFinish())
-            break;
-        e.getFinish().coverage_info.shift(shift);
-        new_vertex.coverage_info += std::move(e.getFinish().coverage_info);
+// Every removed vertex's segments go to the dominant vertex D at its offset in it. Samples are kept in path order: those
+// of removed vertices before D in P go in front of D's own, the others after them. As in fireEdgeToSupreVertex, a new D
+// spelling a single edge between two k-mers (only on a DBG) gets its (k+1)-mer window.
+void SampleSegmentTracker::fireReplacePath(const PathReplacement &rep) {
+    const RAGraphPath &old_path = rep.oldPath();
+    Vertex &dominant = rep.getDominant();
+    CoverageSamples before;
+    for (size_t i = 0; i <= old_path.size(); i++) {
+        if (rep.survives(i))
+            continue;
+        CoverageSamples &samples = old_path.getVertex(i).coverage_info;
+        VERIFY(rep.oldPosition(i) >= rep.dominantPosition());
+        samples.shift(__int64_t(rep.oldPosition(i) - rep.dominantPosition()));
+        if (rep.dominantOldIndex() != size_t(-1) && i < rep.dominantOldIndex())
+            before += std::move(samples);
+        else
+            dominant.coverage_info += std::move(samples);
     }
+    dominant.coverage_info.insertFront(std::move(before));
+    const size_t k = getGraph().getK();
+    if (rep.dominantOldIndex() == size_t(-1) && old_path.size() == 1 && old_path.getStart().size() == k &&
+            old_path.getFinish().size() == k)
+        dominant.coverage_info.addKpomerChunk(0, dominant.size(), 0, k, 0.0);
 }
 
 void SampleSegmentTracker::fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {
     for (Vertex &v : path.innerVertices())
         VERIFY(v.coverage_info.empty());
-}
-
-// Inner vertices of a prefix run are prefixes of its finish and their segments come before the finish's own; inner
-// vertices of a suffix run (the mirrored call) are suffixes of its start and their segments come after the start's.
-void SampleSegmentTracker::fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) {
-    if (path.frontEdge().isPrefix()) {
-        CoverageSamples inner;
-        for (Vertex &v : path.innerVertices())
-            inner += std::move(v.coverage_info);
-        path.getFinish().coverage_info.insertFront(std::move(inner));
-    } else {
-        Vertex &start = path.getStart();
-        for (Vertex &v : path.innerVertices()) {
-            v.coverage_info.shift(__int64_t(start.size()) - __int64_t(v.size()));
-            start.coverage_info += std::move(v.coverage_info);
-        }
-    }
-}
-
-// Forward call: core is a suffix of its single in-neighbour u, so its segments go after u's. Mirrored call: core is a
-// prefix of its single out-neighbour, so its segments go before that one's.
-void SampleSegmentTracker::fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {
-    if (edge.isSuffix()) {
-        Vertex &core = edge.getFinish();
-        Vertex &u = edge.getStart();
-        core.coverage_info.shift(__int64_t(u.size()) - __int64_t(core.size()));
-        u.coverage_info += std::move(core.coverage_info);
-    } else {
-        edge.getFinish().coverage_info.insertFront(std::move(edge.getStart().coverage_info));
-    }
 }
 
 bool SampleSegmentTracker::checkConsistency(std::ostream &os) {

@@ -7,6 +7,7 @@
 #include "common/fire_listeners.hpp"
 #include "common/logging.hpp"
 #include "alignment/alignment_form.hpp"
+#include "path_replacement.hpp"
 #include <memory>
 #include <unordered_map>
 
@@ -29,11 +30,15 @@ namespace ag {
         virtual void fireDeleteEdge(Edge &e) {}
         virtual void fireEdgeToSupreVertex(Vertex &v, Edge &e) {}
 
-        virtual void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {}
+//        A path P is replaced by a path Q spelling the same sequence (mergePath, flipVertex, extendVertex); see
+//        PathReplacement for the geometry. Information of P's vertices that are not in Q goes to Q's dominant vertex,
+//        information of P's edges to Q's edges, and that of the edges into P's start (out of P's finish), if Q starts
+//        (ends) elsewhere, to their replacements. Codes concatenate, so paths through P keep their codes. Fired forward
+//        and with both paths reverse-complemented (once if P is its own rc or contains a self-rc vertex that is removed).
+        virtual void fireReplacePath(const PathReplacement &replacement) {}
         virtual void fireMergeLoop(const ag::GraphPath &path, Vertex &new_vertex) {}
+//        DBG only.
         virtual void fireMergePathToEdge(const RAGraphPath &path, Edge &new_edge) {}
-//        path consists of prefix edges only, or (in the mirrored call) of suffix edges only; new_edge replaces it.
-        virtual void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) {}
         virtual void fireMergeTipsToEdge(Edge &new_edge, Edge &left, Edge &right,
                                          const AlignmentForm &left_al, const AlignmentForm &right_al) {}
         virtual void fireSplitEdge(Edge &edge, const RAGraphPath &split) {}
@@ -46,9 +51,6 @@ namespace ag {
         AssemblyGraph &getGraph();
 
         virtual void fireResolveVertex(Vertex &core, const VertexResolutionResult &resolution) {};
-//        Forward call: edge is the suffix edge u -> core along which core is flipped into u. Mirrored call: edge is its
-//        rc core.rc() -> u.rc(), a prefix edge. extensions maps every edge leaving core (and its rc) to its replacement.
-        virtual void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {};
     };
 
     class ResolutionFire : public AbstractFire {
@@ -71,24 +73,8 @@ namespace ag {
             }
         }
 
-        void fireFlipVertex(Edge &edge, const std::unordered_map<EdgeId, EdgeId> &extensions) {
-            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
-                listener->fireFlipVertex(edge, extensions);
-                if(edge.getFinish() != edge.getFinish().rc())
-                    listener->fireFlipVertex(edge.rc(), extensions);
-            }
-        }
-
-        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {
-            std::unique_ptr<RAGraphPath> rc;
-            if(new_vertex != new_vertex.rc())
-                rc = std::make_unique<RAGraphPath>(path.RC());
-            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
-                listener->fireMergePath(path, new_vertex);
-                if(rc)
-                    listener->fireMergePath(*rc, new_vertex.rc());
-            }
-        }
+        void fireReplacePath(const RAGraphPath &old_path, const RAGraphPath &new_path, size_t dominant_index,
+                             const std::unordered_map<EdgeId, EdgeId> &outer);
 
         void fireMergeLoop(const GraphPath &path, Vertex &new_vertex) {
             std::unique_ptr<GraphPath> rc;
@@ -109,15 +95,6 @@ namespace ag {
                 listener->fireMergePathToEdge(path, new_edge);
                 if(rc)
                     listener->fireMergePathToEdge(*rc, new_edge.rc());
-            }
-        }
-
-//        Forward call gets the all-prefix path, the mirrored call the all-suffix path. A prefix edge is never its own rc.
-        void fireMergePrefixPath(const RAGraphPath &path, Edge &new_edge) {
-            RAGraphPath rc = path.RC();
-            for (ResolutionListener *listener: getListeners<ResolutionListener>()) {
-                listener->fireMergePrefixPath(path, new_edge);
-                listener->fireMergePrefixPath(rc, new_edge.rc());
             }
         }
 
@@ -218,9 +195,9 @@ namespace ag {
             unlock();
         };
 
-        void fireMergePath(const RAGraphPath &path, Vertex &new_vertex) override {
+        void fireReplacePath(const PathReplacement &replacement) override {
             lock();
-            *outp << "FireMergePath " << new_vertex << " " << GraphPath(path).str() << std::endl;
+            *outp << "FireReplacePath " << replacement.oldPath() << " -> " << replacement.newPath() << std::endl;
             unlock();
         };
 

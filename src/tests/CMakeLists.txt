@@ -25,6 +25,7 @@ add_executable(tests test_repeat_resolution/test_mdbg.cpp test_repeat_resolution
         test_assembly_graph/test_dbg_aligner.cpp
         test_assembly_graph/test_common_utils.cpp
         test_assembly_graph/test_loop_resolution.cpp
-        test_assembly_graph/test_self_rc_core.cpp)
+        test_assembly_graph/test_self_rc_core.cpp
+        test_assembly_graph/test_path_buckets.cpp)
 target_include_directories(tests PRIVATE test_assembly_graph)
 target_link_libraries(tests gtest gtest_main lja_spg lja_dbg lja_alignment lja_ec)

@@ -269,66 +269,120 @@ void ag::DLLAlignmentStorage::fireEdgeToSupreVertex(Vertex &v, Edge &e) {
     }
 }
 
-void ag::DLLAlignmentStorage::fireMergePath(const RAGraphPath &path, Vertex &new_vertex) {
+void ag::DLLAlignmentStorage::fireReplacePath(const PathReplacement &rep) {
+    if (rep.newPath().size() == 0)
+        mergeIntoDominant(rep);
+    else
+        relocate(rep);
+}
+
+//    Q = [D]. A run of linked fragments over the edges into P's start, P's edges and the edges out of P's finish is
+//    rewritten run-wise, so that it stays linked: P's part joins the fragment on the edge entering D before it (that
+//    edge spells all of D), else the fragment on the edge leaving D after it (extended back to where the run entered D),
+//    else becomes an inner fragment of D. Positions in D are positions in P (D spells P); an edge out of P's finish
+//    starts at the finish's position in D.
+void ag::DLLAlignmentStorage::mergeIntoDominant(const PathReplacement &rep) {
     std::unordered_map<Contig *, std::unordered_set<VertexId>> touched;
-    size_t shift = 0;
-    for (Edge &edge: path.edges()) {
-        if (hasRecords(edge)) {
-            for (DLLPathPosition &pos : getRecords(edge.getId())) {
-                if (!pos.valid() || pos.extracted())
-                    continue;
-                recordTouch(touched, *pos);
-                size_t cut_left = shift + pos->cut_left;
-                DLLPathPosition next_pos = pos.next();
-                DLLPathPosition prev_pos = pos.prev();
-                size_t len = pos->edge->fullSize() - pos->cut_left - pos->cut_right;
-                Segment<Contig> seg = pos->seg;
-                for (; next_pos.prev()->isLinked(*next_pos) && next_pos->edge->getStart() != path.getFinish(); next_pos = next_pos.next()) {
-                    len += next_pos->edge->truncSize() - next_pos->cut_right;
-                    seg = seg.unite(next_pos->seg);
+    const RAGraphPath &old_path = rep.oldPath();
+    Vertex &dominant = rep.getDominant();
+    Vertex &start = old_path.getStart();
+    Vertex &finish = old_path.getFinish();
+    const size_t finish_position = rep.oldPosition(old_path.size());
+    std::unordered_map<ConstEdgeId, size_t> index;
+    for (size_t i = 0; i < old_path.size(); i++)
+        index[old_path.getEdge(i).getId()] = i;
+    auto on_path = [&](const Edge &e) {return index.find(e.getId()) != index.end();};
+    auto is_outer = [&](const Edge &e) {return !on_path(e) && (e.getFinish() == start || e.getStart() == finish);};
+    auto involved = [&](const AlignmentFragment &f) {return f.isEdgeSegment() && (on_path(*f.edge) || is_outer(*f.edge));};
+    auto target = [&](Edge &e) -> Edge & {
+        return (e.getFinish() == start && rep.startReplaced()) || (e.getStart() == finish && rep.endReplaced()) ?
+               rep.replacement(e) : e;
+    };
+    std::vector<DLLPathPosition> candidates;
+    auto collect = [&](const Edge &e) {
+        if (hasRecords(e))
+            for (DLLPathPosition &pos : getRecords(e.getId()))
+                candidates.push_back(pos);
+    };
+    for (Edge &e : old_path.edges())
+        collect(e);
+    for (Edge &e : start.incoming())
+        collect(e);
+    for (Edge &e : finish)
+        collect(e);
+    for (DLLPathPosition pos : candidates) {
+        if (!pos.valid() || pos.extracted() || !involved(*pos))
+            continue;
+//        Neighbouring fragments of the contig may be changed by threads merging other paths.
+        std::lock_guard<std::mutex> guard(pathLock(pos->seg.contig()));
+        DLLPathPosition head = pos;
+        while (head.prev()->isLinked(*head) && involved(*head.prev()))
+            head = head.prev();
+        std::vector<DLLPathPosition> run = {head};
+        while (run.back()->isLinked(*run.back().next()) && involved(*run.back().next()))
+            run.push_back(run.back().next());
+        std::vector<AlignmentFragment> result;
+//        A visit of D: absorbed into result.back() if the run entered D along an edge, else collected in visit_seg from
+//        visit_from in D.
+        bool in_dominant = false;
+        bool absorbed = false;
+        size_t visit_from = 0;
+        Segment<Contig> visit_seg;
+        for (DLLPathPosition &p : run) {
+            recordTouch(touched, *p);
+            const AlignmentFragment &f = *p;
+            Edge &e = *f.edge;
+            if (on_path(e)) {
+                if (!in_dominant) {
+                    in_dominant = true;
+                    absorbed = !result.empty();
+                    visit_from = rep.oldPosition(index[e.getId()]) + f.cut_left;
+                    visit_seg = f.seg;
                 }
-                while (prev_pos.next() != next_pos)
-                    prev_pos.next().extract();
-                VERIFY(len == seg.size());
-                size_t cut_right = new_vertex.size() - cut_left - len;
-//                The path's start and finish survive the merge: a fragment reaching one of them uncut stays an edge
-//                segment on the new vertex's edge to it (both edges spell new_vertex), linked to its neighbour or not,
-//                so that vertex stays in the path.
-                bool on_edge = false;
-                if (cut_left == 0) {
-                    VERIFY(shift == 0);
-                    insertAfter(new_vertex.incFront(), prev_pos, AlignmentFragment::EdgeSegment(seg, new_vertex.incFront(), 0));
-                    on_edge = true;
-                }
-                if (cut_right == 0) {
-                    insertBefore(new_vertex.front(), next_pos, AlignmentFragment::EdgeSegment(seg, new_vertex.front(), cut_left));
-                    on_edge = true;
-                }
-                if (!on_edge) {
-                    insertBefore(new_vertex, next_pos, AlignmentFragment::InnerFragment(seg, new_vertex, cut_left));
-                }
-                VERIFY(pos.extracted())
+                if (absorbed)
+                    result.back() = AlignmentFragment::EdgeSegment(result.back().seg.unite(f.seg), *result.back().edge,
+                                                                   result.back().cut_left);
+                else
+                    visit_seg = visit_seg.unite(f.seg);
+            } else if (in_dominant) {
+//                Leaving D along an edge out of the finish, which now starts at D's start.
+                in_dominant = false;
+                if (absorbed)
+                    result.push_back(AlignmentFragment::EdgeSegment(
+                            Segment<Contig>(f.seg.contig(), f.seg.left - finish_position, f.seg.right), target(e), 0));
+                else
+                    result.push_back(AlignmentFragment::EdgeSegment(visit_seg.unite(f.seg), target(e), visit_from));
+            } else {
+                const size_t shift = e.getStart() == finish ? finish_position : 0;
+                result.push_back(AlignmentFragment::EdgeSegment(f.seg, target(e), shift + f.cut_left));
             }
         }
-        shift += edge.rc().truncSize();
+        if (in_dominant && !absorbed)
+            result.push_back(AlignmentFragment::InnerFragment(visit_seg, dominant, visit_from));
+        for (const AlignmentFragment &f : result) {
+            if (f.isEdgeSegment())
+                insertBefore(*f.edge, head, f);
+            else
+                insertBefore(dominant, head, f);
+        }
+        for (DLLPathPosition &p : run)
+            p.extract();
     }
-
-    shift = 0;
-    for (Vertex &v : path.innerVertices()) {
-        shift += v.rc().front().truncSize();
-        if (hasRecords(v))
-            for (DLLPathPosition &pos : getRecords(v.getId())) {
-                if (!pos.valid())
-                    continue;
-                recordTouch(touched, *pos);
-                insertBefore(new_vertex, pos, AlignmentFragment::InnerFragment(pos->seg, new_vertex, shift + pos->cut_left));
-                pos.extract();
-            }
+    for (size_t i = 0; i <= old_path.size(); i++) {
+        Vertex &v = old_path.getVertex(i);
+        if (!rep.survives(i) && hasRecords(v))
+            for (DLLPathPosition &pos : getRecords(v.getId()))
+                if (pos.valid() && !pos.extracted()) {
+                    std::lock_guard<std::mutex> guard(pathLock(pos->seg.contig()));
+                    recordTouch(touched, *pos);
+                    insertBefore(dominant, pos, AlignmentFragment::InnerFragment(pos->seg, dominant, rep.oldPosition(i) + pos->cut_left));
+                    pos.extract();
+                }
     }
     for (auto &p : touched) {
-        logChange(*p.first, p.second, "fireMergePath");
+        logChange(*p.first, p.second, "fireReplacePath");
         if (drawer)
-            drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireMergePath");
+            drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireReplacePath");
     }
 }
 
@@ -483,23 +537,25 @@ void ag::DLLAlignmentStorage::fireResolveVertex(Vertex &core, const VertexResolu
                         touched[&contig].insert(edge.getStart().getId());
                         insertBefore(edge, left, AlignmentFragment::EdgeSegment(whole, edge, left->cut_left));
                     } else if (resolution.contains(inc, out)) {
-//                        newv = a + core + b at [c0 - 1, c1 + 1): u -> newv spells u + b, newv -> w spells a + w.
+//                        newv = a + core + b at [c0 - 1, c1 + 1): u -> newv spells u + b, newv -> w spells a + w. A copy
+//                        of core (d = 0) is at [c0, c1).
                         Vertex &newv = resolution.get(inc, out);
+                        const size_t d = newv.size() == core.size() ? 0 : 1;
                         touched[&contig].insert(newv.getId());
-                        size_t nl = std::max(L, c0 - 1), nr = std::min(R, c1 + 1);
+                        size_t nl = std::max(L, c0 - d), nr = std::min(R, c1 + d);
 //                        A side gets its edge if the contig reaches beyond newv there, or covers u from its start
 //                        (w to its end): that keeps u (w) in the path and linked to its neighbour.
-                        bool to_u = L + 1 < c0 || left->cut_left == 0;
-                        bool to_w = R > c1 + 1 || right->cut_right == 0;
+                        bool to_u = L + d < c0 || left->cut_left == 0;
+                        bool to_w = R > c1 + d || right->cut_right == 0;
                         if (to_u)
                             insertBefore(newv.incFront(), left, AlignmentFragment::EdgeSegment(
                                     Segment<Contig>(contig, L, nr), newv.incFront(), left->cut_left));
                         if (to_w)
                             insertBefore(newv.front(), left, AlignmentFragment::EdgeSegment(
-                                    Segment<Contig>(contig, nl, R), newv.front(), nl - (c0 - 1)));
+                                    Segment<Contig>(contig, nl, R), newv.front(), nl - (c0 - d)));
                         if (!to_u && !to_w)
                             insertBefore(newv, left, AlignmentFragment::InnerFragment(
-                                    Segment<Contig>(contig, nl, nr), newv, nl - (c0 - 1)));
+                                    Segment<Contig>(contig, nl, nr), newv, nl - (c0 - d)));
                     } else {
                         rerouted = false;
                     }
@@ -516,50 +572,61 @@ void ag::DLLAlignmentStorage::fireResolveVertex(Vertex &core, const VertexResolu
     }
 }
 
-void ag::DLLAlignmentStorage::fireFlipVertex(Edge &inc, const std::unordered_map<EdgeId, EdgeId> &extensions) {
+//    Fragments move by positions: a removed vertex's into D; an edge of P's onto the Q edge leaving its surviving start
+//    or entering its surviving finish (into D if neither end survives); an edge around a replaced end onto its
+//    replacement. A fragment's position is measured from its edge's (vertex's) start, so it shifts by the difference of
+//    the old and the new start positions.
+void ag::DLLAlignmentStorage::relocate(const PathReplacement &rep) {
     std::unordered_map<Contig *, std::unordered_set<VertexId>> touched;
-//    Forward: u -inc-> core -e-> w becomes u -> w, spelling u + e.truncSeq(); core is a suffix of u.
-//    Mirrored: w' -e-> core -inc-> u' becomes w' -> u'; core is a prefix of u'.
-    const bool forward = inc.isSuffix();
-    Vertex &core = forward ? inc.getFinish() : inc.getStart();
-    Vertex &u = forward ? inc.getStart() : inc.getFinish();
-    const size_t shift = forward ? u.size() - core.size() : 0;
-    std::vector<EdgeId> replaced;
-    if (forward)
-        for (Edge &e : core) replaced.push_back(e.getId());
-    else
-        for (Edge &e : core.incoming()) replaced.push_back(e.getId());
-    for (EdgeId eid : replaced)
-        if (hasRecords(*eid)) {
-            Edge &new_edge = *extensions.at(eid);
-            for (DLLPathPosition &pos : getRecords(eid))
+    const RAGraphPath &old_path = rep.oldPath();
+    const RAGraphPath &new_path = rep.newPath();
+    Vertex &dominant = rep.getDominant();
+    auto new_position = [&](const Vertex &v) {return v == dominant ? rep.dominantPosition() : 0;};
+    auto move_edge = [&](Edge &from, Edge &to, size_t shift) {
+        if (hasRecords(from))
+            for (DLLPathPosition &pos : getRecords(from.getId()))
                 if (pos.valid() && !pos.extracted()) {
                     recordTouch(touched, *pos);
-//                    A linked fragment on inc merges into the new fragment, which then stays linked to whatever was
-//                    linked to it.
-                    DLLPathPosition other = forward ? pos.prev() : pos.next();
-                    bool merge = forward ? other->isLinked(*pos) && other->edge == inc.getId()
-                                         : pos->isLinked(*other) && other->edge == inc.getId();
-                    AlignmentFragment new_fragment = merge ?
-                            AlignmentFragment::EdgeSegment(pos->seg.unite(other->seg), new_edge, forward ? other->cut_left : pos->cut_left) :
-                            AlignmentFragment::EdgeSegment(pos->seg, new_edge, shift + pos->cut_left);
-                    if (merge)
-                        other.extract();
-                    insertBefore(new_edge, pos, new_fragment);
+                    insertBefore(to, pos, AlignmentFragment::EdgeSegment(pos->seg, to, shift + pos->cut_left));
                     pos.extract();
                 }
-        }
-    if (hasRecords(core))
-        for (DLLPathPosition &pos : getRecords(core.getId()))
-            if (pos.valid() && !pos.extracted()) {
-                recordTouch(touched, *pos);
-                insertBefore(u, pos, AlignmentFragment::InnerFragment(pos->seg, u, shift + pos->cut_left));
-                pos.extract();
-            }
+    };
+//    id is a vertex or an edge id.
+    auto move_into_dominant = [&](auto id, size_t shift) {
+        if (hasRecords(*id))
+            for (DLLPathPosition &pos : getRecords(id))
+                if (pos.valid() && !pos.extracted()) {
+                    recordTouch(touched, *pos);
+                    insertBefore(dominant, pos, AlignmentFragment::InnerFragment(pos->seg, dominant, shift + pos->cut_left));
+                    pos.extract();
+                }
+    };
+    for (size_t i = 0; i <= old_path.size(); i++)
+        if (!rep.survives(i))
+            move_into_dominant(ConstVertexId(old_path.getVertex(i).getId()), rep.oldPosition(i) - rep.dominantPosition());
+    for (size_t i = 0; i < old_path.size(); i++) {
+        Edge &e = old_path.getEdge(i);
+        EdgeId target;
+        for (Edge &q : new_path.edges())
+            if ((rep.survives(i) && q.getStart() == e.getStart()) ||
+                    (!rep.survives(i) && rep.survives(i + 1) && q.getFinish() == e.getFinish()))
+                target = q.getId();
+        if (target.valid())
+            move_edge(e, *target, rep.oldPosition(i) - new_position(target->getStart()));
+        else if (!rep.survives(i))
+            move_into_dominant(ConstEdgeId(e.getId()), rep.oldPosition(i) - rep.dominantPosition());
+    }
+    if (rep.startReplaced())
+        for (Edge &in : old_path.getStart().incoming())
+            move_edge(in, rep.replacement(in), 0);
+    if (rep.endReplaced())
+        for (Edge &out : old_path.getFinish())
+            move_edge(out, rep.replacement(out),
+                      rep.oldPosition(old_path.size()) - new_position(new_path.getFinish()));
     for (auto &p : touched) {
-        logChange(*p.first, p.second, "fireFlipVertex");
+        logChange(*p.first, p.second, "fireReplacePath");
         if (drawer)
-            drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireFlipVertex");
+            drawer->draw(*p.first, {p.second.begin(), p.second.end()}, "fireReplacePath");
     }
 }
 
@@ -725,11 +792,11 @@ bool ag::DLLAlignmentStorage::checkConsistency(std::ostream &os) {
                     ok = false;
                 }
             }
-//    Vertex index for 4: each vertex under its first min_size nucleotides.
+//    Vertex index for 4: each vertex with sample segments under its first min_size nucleotides.
     std::unordered_map<std::string, std::vector<std::pair<Vertex *, std::string>>> by_prefix;
     if (min_size != size_t(-1))
         for (Vertex &v : graph.vertices())
-            if (!v.getSeq().empty()) {
+            if (!v.getSeq().empty() && !v.coverage_info.empty()) {
                 std::string s = v.getSeq().str();
                 by_prefix[s.substr(0, min_size)].emplace_back(&v, std::move(s));
             }

@@ -126,11 +126,11 @@ TEST(AlignedReadStorageTest, MergePathKeepsSubreadOfInnerVertex) {
     EXPECT_TRUE(graph.checkConsistency());
 }
 
-// Control: a subread of the path's start vertex is not touched by mergePath (start survives).
+// Control: a subread of a vertex next to the path is not touched by mergePath.
 TEST(AlignedReadStorageTest, ReadOnSurvivingVertexUnaffectedByMergePath) {
     GraphBuilder gb(8);
     std::vector<ag::EdgeId> chain = gb.buildChain(6);
-    ag::Vertex &start = chain[1]->getStart(); // v1, start of v1 -> v4
+    ag::Vertex &start = chain[0]->getStart(); // v0, just before v1 -> v4
     std::vector<ag::AlignedRead> reads;
     reads.emplace_back("sub", ag::GraphPath(start, 2, 3));
     ag::AlignedReadStorage storage(gb.graph, std::move(reads));
@@ -357,9 +357,10 @@ TEST(AlignedReadStorageTest, EdgeToSupreVertexDropsSegmentlessEnds) {
     EXPECT_TRUE(f.graph.checkConsistency());
 }
 
-// mergePrefixPath removes the inner vertices of a prefix run; a read starting at one of them (it is a prefix of the
-// finish) becomes a read starting at the finish, which receives the inner vertex's samples. Here it becomes a subread.
-TEST(AlignedReadStorageTest, MergePrefixPathMovesReadsFromInnerVertices) {
+// Merging a prefix run into its finish, which spells it, removes the other vertices; a read starting at one of them (it
+// is a prefix of the finish) becomes a read starting at the finish, which receives that vertex's samples. Here it
+// becomes a subread.
+TEST(AlignedReadStorageTest, MergePathIntoFinishMovesReadsFromInnerVertices) {
     ag::AssemblyGraph graph(3);
     ag::Vertex &v0 = graph.addVertex(Sequence("AAC"));
     ag::Vertex &v1 = graph.addVertex(Sequence("AACG"));
@@ -378,7 +379,7 @@ TEST(AlignedReadStorageTest, MergePrefixPathMovesReadsFromInnerVertices) {
     ag::GraphPath run(e0);
     run += e1;
 
-    graph.mergePrefixPath(run);
+    EXPECT_EQ(graph.mergePath(run), v2);
     graph.removeMarked();
 
     ASSERT_TRUE(storage.checkConsistency());
@@ -547,10 +548,9 @@ TEST(AlignedReadStorageTest, ConstructorsKeepUnalignedReads) {
     }
 }
 
-// mergePath of a loop path J -> a -> b -> J (start == finish; J has another in- and out-edge). Reads starting at the
-// inner vertices a and b, including ones that go around the loop again, must keep their sequences: the absorption
-// used to stop advancing along the path at its first vertex because that vertex is also the finish. Every vertex
-// carries a whole-vertex sample segment, so uncut reads are in normal form.
+// The loop J -> a -> b -> J (J has another in- and out-edge) is merged as the unbranching path between its junction
+// ends, a -> b, both ends replaced. Reads starting at a and b, including ones that go around the loop again, must keep
+// their sequences. Every vertex carries a whole-vertex sample segment, so uncut reads are in normal form.
 TEST(AlignedReadStorageTest, MergeLoopPathKeepsReadsStartingInside) {
     ag::AssemblyGraph graph(2);
     ag::Vertex &j = graph.addVertex(Sequence("ACG"));
@@ -584,8 +584,7 @@ TEST(AlignedReadStorageTest, MergeLoopPathKeepsReadsStartingInside) {
     ASSERT_TRUE(storage.checkConsistency(std::cerr));
     std::map<std::string, std::string> before = SeqsById(storage);
 
-    ag::GraphPath loop = make({&ja, &ab, &bj}, 0, 0);
-    graph.mergePath(loop);
+    graph.mergePath(make({&ab}, 0, 0));
     graph.removeMarked();
 
     EXPECT_EQ(SeqsById(storage), before);
@@ -640,4 +639,161 @@ TEST(AlignedReadStorageTest, ResolveCollapsesReadsOfBothOrientations) {
     }
     EXPECT_TRUE(storage.checkConsistency(std::cerr));
     EXPECT_TRUE(graph.checkConsistency());
+}
+
+namespace {
+    ag::GraphPath MakePath(std::initializer_list<ag::Edge *> edges, size_t cut_left = 0, size_t cut_right = 0) {
+        ag::GraphPath res(**edges.begin());
+        for (auto it = edges.begin() + 1; it != edges.end(); ++it)
+            res += **it;
+        res.setCutLeft(cut_left);
+        res.setCutRight(cut_right);
+        return res;
+    }
+}
+
+// extendVertex replaces x (two incoming edges, its only outgoing edge x -> w virtually suffix) by v = x extended to the
+// end of w: a read starting at x starts at v at the same position, x's subread becomes v's, a read ending at x ends at v
+// and a read through x keeps its codes. Samples, codes and suffix records follow (both consistency checks).
+TEST(AlignedReadStorageTest, ExtendVertexMovesReadsAndRecords) {
+    ag::AssemblyGraph graph(3);
+    ag::Vertex &y1 = graph.addVertex(Sequence("TTCGA"));
+    ag::Vertex &y2 = graph.addVertex(Sequence("GGCGA"));
+    ag::Vertex &x = graph.addVertex(Sequence("CGAAC"));
+    ag::Vertex &w = graph.addVertex(Sequence("AACTT"));
+    ag::Vertex &z = graph.addVertex(Sequence("GTAAC"));
+    ag::Edge &y1x = graph.addEdge(y1, x, Sequence("TTCGAAC"));
+    ag::Edge &y2x = graph.addEdge(y2, x, Sequence("GGCGAAC"));
+    ag::Edge &xw = graph.addEdge(x, w, Sequence("CGAACTT"));
+    ag::Edge &zw = graph.addEdge(z, w, Sequence("GTAACTT"));
+    for (ag::Edge *e : {&y1x, &y2x, &xw, &zw})
+        e->setVirtualType(ag::VirtualType::suffix);
+    AddSample(y1, 0, 2); // TT
+    AddSample(y2, 0, 2); // GG
+    AddSample(x, 1, 4);  // GAA
+    AddSample(w, 2, 5);  // CTT
+    AddSample(z, 0, 2);  // GG
+    std::vector<ag::AlignedRead> reads;
+    reads.emplace_back("through", MakePath({&y1x, &xw}));
+    reads.emplace_back("starts", MakePath({&xw}, 1, 0));
+    reads.emplace_back("ends", MakePath({&y1x}, 0, 1));
+    reads.emplace_back("sub", ag::GraphPath(x, 1, 1));
+    ag::AlignedReadStorage storage(graph, std::move(reads));
+    ag::SuffixTracker tracker(storage, graph, 0, 1000);
+    tracker.fillFromStorage(QuietLogger(), 1);
+    ASSERT_TRUE(storage.checkConsistency(std::cerr));
+    ASSERT_TRUE(graph.checkConsistency(std::cerr));
+    ASSERT_EQ(ReadById(storage, "starts").getPath().getStart(), x);
+    ASSERT_EQ(ReadById(storage, "ends").getPath().getFinish(), x);
+    std::map<std::string, std::string> before = SeqsById(storage);
+
+    ag::Vertex &v = graph.extendVertexLockFree(xw);
+    graph.removeMarked();
+
+    EXPECT_EQ(v.getSeq().str(), "CGAACTT");
+    EXPECT_TRUE(v.front().isSuffix());
+    EXPECT_EQ(SeqsById(storage), before);
+    EXPECT_EQ(ReadById(storage, "starts").getPath().getStart(), v);
+    EXPECT_EQ(ReadById(storage, "starts").getPath().leftCut(), 1u);
+    EXPECT_EQ(ReadById(storage, "ends").getPath().getFinish(), v);
+    EXPECT_TRUE(ReadById(storage, "sub").getPath().empty());
+    EXPECT_EQ(ReadById(storage, "sub").getPath().getStart(), v);
+    EXPECT_TRUE(storage.checkConsistency(std::cerr));
+    EXPECT_TRUE(graph.checkConsistency(std::cerr));
+}
+
+// A flip also handles core's subreads and a read ending at core: in the mirrored call the path's start core.rc() is
+// replaced, and the read's rc, which ends at the surviving u.rc() = D, becomes a subread of it together with the read.
+TEST(AlignedReadStorageTest, FlipMovesSubreadsAndReadsEndingAtCore) {
+    ag::AssemblyGraph graph(3);
+    ag::Vertex &u = graph.addVertex(Sequence("TTAACG"));
+    ag::Vertex &core = graph.addVertex(Sequence("AACG"));
+    ag::Vertex &w1 = graph.addVertex(Sequence("AACGA"));
+    ag::Vertex &w2 = graph.addVertex(Sequence("AACGT"));
+    ag::Edge &uc = graph.addSPEdge(u, core);
+    graph.addSPEdge(core, w1);
+    graph.addSPEdge(core, w2);
+    AddSample(u, 0, 2);    // TT
+    AddSample(core, 1, 3); // AC
+    AddSample(w1, 2, 5);   // CGA
+    AddSample(w2, 2, 5);   // CGT
+    std::vector<ag::AlignedRead> reads;
+    reads.emplace_back("sub", ag::GraphPath(core, 1, 1));
+    reads.emplace_back("ends", MakePath({&uc}));
+    ag::AlignedReadStorage storage(graph, std::move(reads));
+    ag::SuffixTracker tracker(storage, graph, 0, 1000);
+    tracker.fillFromStorage(QuietLogger(), 1);
+    ASSERT_TRUE(storage.checkConsistency(std::cerr));
+    ASSERT_EQ(ReadById(storage, "ends").getPath().getFinish(), core);
+    std::map<std::string, std::string> before = SeqsById(storage);
+
+    graph.flipVertexLockFree(uc);
+    graph.removeMarked();
+
+    EXPECT_EQ(SeqsById(storage), before);
+    for (const std::string id : {"sub", "ends"}) {
+        const ag::GraphPath &path = ReadById(storage, id).getPath();
+        EXPECT_TRUE(path.empty()) << id;
+        EXPECT_EQ(path.getStart(), u) << id;
+    }
+    EXPECT_TRUE(storage.checkConsistency(std::cerr));
+    EXPECT_TRUE(graph.checkConsistency(std::cerr));
+}
+
+// mergePath on a -> b, both ends replaced: D = "CGAACTG" is new, s -> a becomes s -> D and b's outgoing edges leave D,
+// with their types. Reads keep their sequences; reads starting at a, ending at b and a's subread move to D. Given as
+// the path's RC, the result is D.rc().
+TEST(AlignedReadStorageTest, MergePathReplacesBothEnds) {
+    for (bool given_rc : {false, true}) {
+        ag::AssemblyGraph graph(3);
+        ag::Vertex &s = graph.addVertex(Sequence("TTCGA"));
+        ag::Vertex &h = graph.addVertex(Sequence("CGATT"));
+        ag::Vertex &a = graph.addVertex(Sequence("CGAAC"));
+        ag::Vertex &b = graph.addVertex(Sequence("AACTG"));
+        ag::Vertex &z1 = graph.addVertex(Sequence("CTGAT"));
+        ag::Vertex &z2 = graph.addVertex(Sequence("CTGCA"));
+        ag::Edge &sa = graph.addEdge(s, a, Sequence("TTCGAAC"));
+        ag::Edge &sh = graph.addEdge(s, h, Sequence("TTCGATT"));
+        ag::Edge &ab = graph.addEdge(a, b, Sequence("CGAACTG"));
+        ag::Edge &bz1 = graph.addEdge(b, z1, Sequence("AACTGAT"));
+        ag::Edge &bz2 = graph.addEdge(b, z2, Sequence("AACTGCA"));
+        for (ag::Edge *e : {&sa, &sh, &ab, &bz1, &bz2})
+            e->setVirtualType(ag::VirtualType::prefix);
+        AddSample(s, 0, 2);  // TT
+        AddSample(h, 2, 5);  // ATT
+        AddSample(a, 1, 4);  // GAA
+        AddSample(b, 1, 4);  // ACT
+        AddSample(z1, 2, 5); // GAT
+        AddSample(z2, 2, 5); // GCA
+        std::vector<ag::AlignedRead> reads;
+        reads.emplace_back("through", MakePath({&sa, &ab, &bz1}));
+        reads.emplace_back("starts", MakePath({&ab, &bz2}, 1, 0));
+        reads.emplace_back("ends", MakePath({&sa, &ab}, 0, 1));
+        reads.emplace_back("sub", ag::GraphPath(a, 1, 1));
+        ag::AlignedReadStorage storage(graph, std::move(reads));
+        ag::SuffixTracker tracker(storage, graph, 0, 1000);
+        tracker.fillFromStorage(QuietLogger(), 1);
+        ASSERT_TRUE(storage.checkConsistency(std::cerr));
+        ASSERT_TRUE(graph.checkConsistency(std::cerr));
+        std::map<std::string, std::string> before = SeqsById(storage);
+
+        ag::GraphPath path(ab);
+        ag::Vertex &d = given_rc ? graph.mergePath(path.RC()).rc() : graph.mergePath(path);
+        graph.removeMarked();
+
+        EXPECT_EQ(d.getSeq().str(), "CGAACTG");
+        ASSERT_EQ(d.inDeg(), 1u);
+        EXPECT_EQ(d.incFront().getStart(), s);
+        EXPECT_EQ(d.incFront().getVirtualType(), ag::VirtualType::prefix);
+        EXPECT_EQ(d.outDeg(), 2u);
+        for (ag::Edge &out : d)
+            EXPECT_EQ(out.getVirtualType(), ag::VirtualType::prefix);
+        EXPECT_EQ(SeqsById(storage), before);
+        EXPECT_EQ(ReadById(storage, "starts").getPath().getStart(), d);
+        EXPECT_EQ(ReadById(storage, "ends").getPath().getFinish(), d);
+        EXPECT_TRUE(ReadById(storage, "sub").getPath().empty());
+        EXPECT_EQ(ReadById(storage, "sub").getPath().getStart(), d);
+        EXPECT_TRUE(storage.checkConsistency(std::cerr));
+        EXPECT_TRUE(graph.checkConsistency(std::cerr));
+    }
 }

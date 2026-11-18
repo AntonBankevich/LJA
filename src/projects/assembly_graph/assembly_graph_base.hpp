@@ -156,10 +156,10 @@ namespace ag {
     typedef ObjectId<Edge, EdgeIdType> EdgeId;
     typedef ConstObjectId<Edge, EdgeIdType> ConstEdgeId;
 
-//    Supregraph edge u -> v as two bits: virtually suffix (MES(v) is a suffix of MES(u): u's only outgoing edge, or a real
-//    suffix edge) and virtually prefix (MES(u) is a prefix of MES(v): v's only incoming edge, or a real prefix edge). Both
-//    bits (merge) mark an edge to be merged as soon as possible. Set once, by the operation creating the edge; DBG edges
-//    stay unset. The rc edge has the bits swapped.
+//    Supregraph edge u -> v, one of three exclusive kinds: virtually suffix (MES(v) is a suffix of MES(u): u's only
+//    outgoing edge, or a real suffix edge), virtually prefix (MES(u) is a prefix of MES(v): v's only incoming edge, or a
+//    real prefix edge), or merge (both; to be merged as soon as possible). Set once, by the operation creating the edge;
+//    DBG edges stay unset. The rc edge has suffix and prefix swapped.
     enum class VirtualType : unsigned char { unset = 0, suffix = 1, prefix = 2, merge = 3 };
 
     struct EdgeData {
@@ -250,8 +250,10 @@ namespace ag {
         Edge &getCanonical() {return isCanonical() ? *this : rc();}
 
         VirtualType getVirtualType() const {return virtual_type;}
-        bool isVirtualSuffix() const {return virtual_type == VirtualType::suffix || virtual_type == VirtualType::merge;}
-        bool isVirtualPrefix() const {return virtual_type == VirtualType::prefix || virtual_type == VirtualType::merge;}
+//        The three kinds are exclusive: a virtually suffix edge is not merge, and neither is a virtually prefix one.
+        bool isVirtualSuffix() const {return virtual_type == VirtualType::suffix;}
+        bool isVirtualPrefix() const {return virtual_type == VirtualType::prefix;}
+        bool isMerge() const {return virtual_type == VirtualType::merge;}
 //        Sets the type of this edge and the mirrored type of its rc; both must be unset. A self-rc edge is always merge.
         void setVirtualType(VirtualType type);
 
@@ -260,7 +262,7 @@ namespace ag {
 //        A code ends with the (untracked) code of the end vertex, which flips, merges and splits move around. A virtual
 //        suffix edge (also merge), its start's only outgoing edge, has no code of its own: all of it is the end vertex's.
 //        So it is chosen without looking at the next nucleotide, as is an edge with an empty code.
-        bool isCodeEmpty() const {return isVirtualSuffix() || edge_code.empty();}
+        bool isCodeEmpty() const {return isVirtualSuffix() || isMerge() || edge_code.empty();}
         Sequence kmerSeq(size_t pos) const {return fullSubseq(pos, pos + getStartSize());}
         Sequence getSeq() const;// = fullSeq
         Sequence fullSeq() const;

@@ -1,4 +1,5 @@
 #include "random_graph_utils.hpp"
+#include "supregraph/supregraph.hpp"
 
 namespace ag_test {
     std::string CollapsedGenome(size_t len, uint32_t seed) {
@@ -61,11 +62,11 @@ namespace ag_test {
     size_t FlipAll(ag::AssemblyGraph &graph) {
         std::vector<ag::VertexId> cores;
         for (ag::Vertex &v : graph.vertices())
-            if (v.inDeg() == 1 && v.incFront().isSuffix() && v.outDeg() != 1)
+            if (v.inDeg() == 1 && spg::CanFlip(v.incFront()) && v.outDeg() != 1)
                 cores.push_back(v.getId());
         size_t flipped = 0;
         for (ag::VertexId vid : cores)
-            if (!vid->marked() && vid->inDeg() == 1 && vid->incFront().isSuffix() && vid->outDeg() != 1) {
+            if (!vid->marked() && vid->inDeg() == 1 && spg::CanFlip(vid->incFront()) && vid->outDeg() != 1) {
                 graph.flipVertexLockFree(vid->incFront());
                 flipped++;
             }

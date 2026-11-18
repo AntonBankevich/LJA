@@ -99,6 +99,8 @@ namespace ag {
         bool contains(Edge &edge1, Edge &edge2) const;
         Vertex &getCore() const {return *core;}
         Vertex &get(Edge &edge1, Edge &edge2) const;
+//        A new vertex is either a + core + b (core at [1, size - 1)), for a pair of branching edges, or an exact copy of
+//        core (same size), for a 1-to-1 pair: then u -> copy is a suffix edge and copy -> w a prefix edge.
         const InOutEdgePair &get(Vertex &new_vertex) const;
         void add(Vertex &new_vertex, const InOutEdgePair &edgePair);
         void add(Edge &new_edge, const InOutEdgePair &edgePair);
