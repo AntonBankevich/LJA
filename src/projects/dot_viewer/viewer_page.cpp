@@ -37,6 +37,7 @@ namespace dot_viewer {
 <body>
 <div id="controls">
   <button id="top" title="Show the fully folded graph">Folded graph</button>
+  <label title="Vertices at least this long are cut when folding. Enter or Folded graph refolds.">long &ge; <input id="longThr" type="number" min="0" step="1000" style="width:90px"></label>
   <label title="Leave out top-level vertices that have no edges"><input id="hideIsolated" type="checkbox" checked> hide isolated</label>
   <span class="sep"></span>
   <select id="mode">
@@ -118,7 +119,7 @@ namespace dot_viewer {
         const b = document.createElement('b'); b.textContent = viewName(v); crumbs.append(b);
       } else {
         const a = document.createElement('a'); a.textContent = viewName(v);
-        a.onclick = () => openFold(v, trail.slice(0, i), null);
+        a.onclick = () => openFold(v, trail.slice(0, i), null, state.foldLong);
         crumbs.append(a);
       }
     });
@@ -178,11 +179,18 @@ namespace dot_viewer {
     if (resetView) { view.scrollLeft = 0; view.scrollTop = 0; }
   }
 
-  async function openFold(v, parentTrail, anchor) {
-    const res = await post('/api/fold', { view: v, engine: $('engine').value, hide_isolated: $('hideIsolated').checked ? '1' : '0' });
+  // Folded views, components and paths are numbered per threshold, so every state remembers the one it used.
+  async function openFold(v, parentTrail, anchor, thr) {
+    const params = { view: v, engine: $('engine').value, hide_isolated: $('hideIsolated').checked ? '1' : '0' };
+    if (thr !== undefined && thr !== null && thr !== '') params.long = thr;
+    const res = await post('/api/fold', params);
     if (!res.ok) { setStatus(res.message, true); return; }
+    res.foldLong = res.long;
+    if ($('longThr').value === '') $('longThr').value = res.long;
     push(res, parentTrail.concat([v]), anchor, !anchor);
   }
+
+  function openTop() { openFold('top', [], null, $('longThr').value); }
 
   async function draw() {
     const res = await post('/api/query', Object.assign(common(), {
@@ -196,13 +204,15 @@ namespace dot_viewer {
   async function openOriginal(idx) {
     const res = await post('/api/query', Object.assign(common(), { mode: 'index', query: String(idx) }));
     if (!res.ok) { setStatus(res.message, true); return; }
+    res.foldLong = state.foldLong;
     push(res, state.trail || [], null, true);
   }
 
   async function openComponent(idx) {
-    const res = await post('/api/query', Object.assign(common(), { mode: 'component', query: String(idx) }));
+    const res = await post('/api/query', Object.assign(common(), { mode: 'component', query: String(idx), long: state.foldLong }));
     if (!res.ok) { setStatus(res.message, true); return; }
     res.origLabel = 'C' + idx;
+    res.foldLong = state.foldLong;
     push(res, state.trail || [], null, true);
   }
 
@@ -212,12 +222,14 @@ namespace dot_viewer {
     }));
     if (!res.ok) { setStatus(res.message, true); return; }
     res.origLabel = state.origLabel;
+    res.foldLong = state.foldLong;
     push(res, state.trail, anchor, false);
   }
 
   $('draw').onclick = draw;
-  $('top').onclick = () => openFold('top', [], null);
-  $('hideIsolated').onchange = () => { if (state && state.kind === 'fold' && state.view === 'top') openFold('top', [], null); };
+  $('top').onclick = openTop;
+  $('longThr').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); openTop(); } });
+  $('hideIsolated').onchange = () => { if (state && state.kind === 'fold' && state.view === 'top') openFold('top', [], null, state.foldLong); };
   $('query').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); draw(); }
   });
@@ -269,7 +281,7 @@ namespace dot_viewer {
     e.preventDefault();
     const kind = g.id.charAt(0), idx = parseInt(g.id.substring(1));
     if (kind === 'p') {
-      openFold('P' + idx, state.trail || [], null);
+      openFold('P' + idx, state.trail || [], null, state.foldLong);
     } else if (kind === 'c') {
       openComponent(idx);
     } else if (kind === 'v' && state.kind === 'fold') {
@@ -290,7 +302,7 @@ namespace dot_viewer {
   $('dlSvg').onclick = () => state && download('subgraph.svg', state.svg, 'image/svg+xml');
   $('dlDot').onclick = () => state && download('subgraph.dot', state.dot, 'text/vnd.graphviz');
 
-  openFold('top', [], null);
+  openTop();
 })();
 </script>
 </body>

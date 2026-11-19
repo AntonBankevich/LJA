@@ -55,8 +55,12 @@ namespace dot_viewer {
         size_t pathCount() const { return paths.size(); }
         size_t longCount() const { return long_count; }
         size_t topSize() const { return groups.size(); }
+        double longThreshold() const { return long_threshold; }
+        /// Length of the longest original vertex (0 if no lengths could be parsed).
+        double maxVertexLength() const { return max_vertex_length; }
 
-        /// The fully folded graph. With `hide_isolated`, vertices without edges are left out and counted in `hidden`.
+        /// The fully folded graph. With `hide_isolated`, original vertices without edges are left out and counted
+        /// in `hidden`. Folded components and paths are always drawn, even without edges.
         std::string topDot(bool hide_isolated, size_t &hidden) const;
         /// Original vertices of component c: its short vertices followed by the attached long vertices.
         std::vector<size_t> componentVertices(size_t c) const;
@@ -105,6 +109,8 @@ namespace dot_viewer {
         std::vector<bool> has_trunc;
         std::vector<double> edge_trunc;
         size_t long_count = 0;
+        double long_threshold = 0;
+        double max_vertex_length = 0;
 
         std::vector<Component> components;
         std::vector<L1Elem> l1;

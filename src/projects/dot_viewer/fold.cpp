@@ -94,6 +94,7 @@ namespace dot_viewer {
 
     void FoldedGraph::computeMetrics(const FoldParams &params) {
         std::regex len_re(params.length_regex), cov_re(params.coverage_regex), trunc_re(params.trunc_regex);
+        long_threshold = params.long_threshold;
         vertex_stats.resize(graph.nodeCount());
         for (size_t v = 0; v < graph.nodeCount(); ++v) {
             const DotAttr *label = findAttr(graph.node(v).attrs, "label");
@@ -109,6 +110,7 @@ namespace dot_viewer {
             s.sum_len_cov = len * cov;
             s.sum_cov = cov;
             long_count += s.long_vertices;
+            max_vertex_length = std::max(max_vertex_length, len);
         }
         has_trunc.assign(graph.edgeCount(), false);
         edge_trunc.assign(graph.edgeCount(), 0);
@@ -421,7 +423,8 @@ namespace dot_viewer {
         std::ostringstream os;
         os << graph.dotHeader();
         for (size_t g = 0; g < groups.size(); ++g) {
-            if (hide_isolated && !has_edge[g]) {
+            bool original_vertex = !groups[g].is_path && !l1[groups[g].id].folded;
+            if (hide_isolated && !has_edge[g] && original_vertex) {
                 ++hidden;
                 continue;
             }

@@ -41,13 +41,15 @@ namespace ag {
 
         Vertex &innerAddVertex(typename Vertex::id_type id, Sequence seq, VertexData data);
 
-//        The core of mergePath, flipVertex and extendVertex: replaces old_path by new_path, which spells
-//        the same sequence and whose new edges (and the replacements in outer of the edges around a replaced start or
-//        finish) are already added. dominant_index is the index in new_path of the vertex that receives the information
-//        of the removed vertices. Keeps the new edges non-corporeal while the listeners react (fireReplacePath) and the
-//        vertices of old_path that are not in new_path are isolated and marked.
-        void replacePathLockFree(const RAGraphPath &old_path, const RAGraphPath &new_path, size_t dominant_index,
-                                 const std::unordered_map<EdgeId, EdgeId> &outer);
+//        The core of mergePath, flipVertex and extendVertex: replaces old_path P = p0 -> ... -> pn by new_path Q, which
+//        spells the same sequence and whose vertices and edges the caller has already added. dominant_index is the index
+//        in Q of the vertex that receives the information of the removed vertices. The edges around replaced ends are
+//        added here: if p0 is replaced by Q's start q0 (p0 a prefix of q0), every y -> p0 becomes y -> q0; if pn is
+//        replaced by Q's finish qe (pn a suffix of qe), every pn -> z becomes qe -> z; the loop pn -> p0 becomes qe -> q0
+//        once. Each new edge spells its old one extended to the end of q0 (the start of qe) and inherits its virtual
+//        type. Keeps the new edges non-corporeal while the listeners react (fireReplacePath) and the vertices of P that
+//        are not in Q are isolated and marked.
+        void replacePathLockFree(const RAGraphPath &old_path, const RAGraphPath &new_path, size_t dominant_index);
 
     protected:
         void setHash(ag::Vertex &v, hashing::htype hash) { v.hash = hash; }

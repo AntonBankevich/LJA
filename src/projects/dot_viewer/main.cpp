@@ -18,6 +18,7 @@
 #include <future>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <sstream>
@@ -168,6 +169,53 @@ namespace {
         return future.get();
     }
 
+    std::string fmtNumber(double x) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%.0f", x);
+        return buf;
+    }
+
+    /// Foldings of one graph for different long-vertex thresholds, built lazily and kept forever (component and
+    /// path indices in the page refer to a specific folding).
+    class FoldCache {
+    public:
+        FoldCache(const DotGraph &graph_, FoldParams defaults_) : graph(graph_), defaults(std::move(defaults_)) {}
+
+        double defaultThreshold() const { return defaults.long_threshold; }
+
+        std::shared_ptr<const FoldedGraph> get(double long_threshold) {
+            std::lock_guard<std::mutex> lock(mutex);
+            std::shared_ptr<const FoldedGraph> &res = cache[long_threshold];
+            if (!res) {
+                FoldParams params = defaults;
+                params.long_threshold = long_threshold;
+                auto start = std::chrono::steady_clock::now();
+                res = std::make_shared<const FoldedGraph>(graph, params);
+                double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+                std::cerr << "Folded with long threshold " << fmtNumber(long_threshold) << " into " << res->topSize()
+                          << " vertices: " << res->longCount() << " long, " << res->componentCount()
+                          << " folded components, " << res->pathCount() << " folded paths (" << secs << "s)"
+                          << std::endl;
+            }
+            return res;
+        }
+
+    private:
+        const DotGraph &graph;
+        FoldParams defaults;
+        std::mutex mutex;
+        std::map<double, std::shared_ptr<const FoldedGraph>> cache;
+    };
+
+    double getThreshold(const HttpRequest &req, const FoldCache &folds) {
+        std::string s = getString(req, "long");
+        if (s.empty())
+            return folds.defaultThreshold();
+        char *end = nullptr;
+        double v = std::strtod(s.c_str(), &end);
+        return end != s.c_str() && v >= 0 ? v : folds.defaultThreshold();
+    }
+
     HttpResponse renderFoldView(const FoldedGraph &folded, const std::string &view, const std::string &engine,
                                 bool hide_isolated) {
         std::string dot_text, title;
@@ -175,9 +223,13 @@ namespace {
         if (view == "top") {
             size_t hidden = 0;
             dot_text = folded.topDot(hide_isolated, hidden);
-            title = "Folded graph: " + std::to_string(folded.topSize()) + " vertices (" +
-                    std::to_string(folded.longCount()) + " long, " + std::to_string(folded.componentCount()) +
-                    " folded components, " + std::to_string(folded.pathCount()) + " folded paths).";
+            title = "Folded graph (long >= " + fmtNumber(folded.longThreshold()) + "): " +
+                    std::to_string(folded.topSize()) + " vertices (" + std::to_string(folded.longCount()) +
+                    " long, " + std::to_string(folded.componentCount()) + " folded components, " +
+                    std::to_string(folded.pathCount()) + " folded paths).";
+            if (folded.longCount() == 0)
+                title += " No vertex reaches the threshold (longest is " + fmtNumber(folded.maxVertexLength()) +
+                         "), so nothing is cut: lower it.";
             if (hidden > 0)
                 title += " " + std::to_string(hidden) + " isolated vertices hidden.";
         } else if (view[0] == 'P' && idx < folded.pathCount()) {
@@ -188,16 +240,18 @@ namespace {
         }
         std::string svg = cachedRender(dot_text, engine);
         std::ostringstream os;
-        os << "{\"ok\":true,\"kind\":\"fold\",\"view\":\"" << jsonEscape(view) << "\",\"svg\":\"" << jsonEscape(svg)
+        os << "{\"ok\":true,\"kind\":\"fold\",\"view\":\"" << jsonEscape(view) << "\",\"long\":"
+           << fmtNumber(folded.longThreshold()) << ",\"svg\":\"" << jsonEscape(svg)
            << "\",\"dot\":\"" << jsonEscape(dot_text) << "\",\"nodes\":[],\"frontier\":[],\"highlight\":[]"
            << ",\"truncated\":false,\"message\":\"" << jsonEscape(title) << "\"}";
         return jsonResponse(os.str());
     }
 
-    HttpResponse handle(const DotGraph &graph, const FoldedGraph &folded, const HttpRequest &req) {
+    HttpResponse handle(const DotGraph &graph, FoldCache &folds, const HttpRequest &req) {
         if (req.path == "/api/fold") {
             std::string view = getString(req, "view", "top");
-            return renderFoldView(folded, view.empty() ? "top" : view, getString(req, "engine", "dot"),
+            std::shared_ptr<const FoldedGraph> folded = folds.get(getThreshold(req, folds));
+            return renderFoldView(*folded, view.empty() ? "top" : view, getString(req, "engine", "dot"),
                                   getString(req, "hide_isolated", "1") != "0");
         }
         if (req.path == "/" || req.path == "/index.html") {
@@ -208,7 +262,8 @@ namespace {
         }
         if (req.path == "/api/info") {
             std::ostringstream os;
-            os << "{\"nodes\":" << graph.nodeCount() << ",\"edges\":" << graph.edgeCount() << "}";
+            os << "{\"nodes\":" << graph.nodeCount() << ",\"edges\":" << graph.edgeCount()
+               << ",\"long\":" << fmtNumber(folds.defaultThreshold()) << "}";
             return jsonResponse(os.str());
         }
         std::string engine = getString(req, "engine", "dot");
@@ -222,11 +277,12 @@ namespace {
                 size_t v = std::strtoull(query.c_str(), nullptr, 10);
                 sel = graph.expand({v}, v, limit);
             } else if (mode == "component") { // a folded component clicked: its vertices in the original graph
+                std::shared_ptr<const FoldedGraph> folded = folds.get(getThreshold(req, folds));
                 size_t c = std::strtoull(query.c_str(), nullptr, 10);
-                if (c >= folded.componentCount())
+                if (c >= folded->componentCount())
                     return errorResponse("Unknown component " + query);
-                sel.nodes = folded.componentVertices(c);
-                sel.message = folded.componentTitle(c) + ".";
+                sel.nodes = folded->componentVertices(c);
+                sel.message = folded->componentTitle(c) + ".";
             } else if (mode == "path") {
                 sel = graph.selectPath(query, radius, limit);
             } else {
@@ -298,27 +354,25 @@ int main(int argc, char **argv) {
         double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
         std::cerr << "Loaded " << graph.nodeCount() << " vertices and " << graph.edgeCount() << " edges in "
                   << secs << "s" << std::endl;
-        FoldedGraph folded(graph, fold_params);
-        std::cerr << "Folded into " << folded.topSize() << " vertices: " << folded.longCount() << " long, "
-                  << folded.componentCount() << " folded components, " << folded.pathCount() << " folded paths"
-                  << std::endl;
+        FoldCache folds(graph, fold_params);
+        std::shared_ptr<const FoldedGraph> folded = folds.get(fold_params.long_threshold);
         if (!dump_top.empty()) {
             size_t hidden = 0;
-            std::ofstream(dump_top) << folded.topDot(false, hidden);
+            std::ofstream(dump_top) << folded->topDot(false, hidden);
             std::cerr << "Wrote folded graph to " << dump_top << std::endl;
             return 0;
         }
         // Start rendering the default top view now: for big graphs graphviz takes a while.
-        std::thread([&folded]() {
+        std::thread([folded]() {
             try {
-                renderFoldView(folded, "top", "dot", true);
+                renderFoldView(*folded, "top", "dot", true);
                 std::cerr << "Folded graph rendered" << std::endl;
             } catch (const std::exception &e) {
                 std::cerr << "Rendering folded graph failed: " << e.what() << std::endl;
             }
         }).detach();
-        HttpServer server(host, port, [&graph, &folded](const HttpRequest &req) {
-            return handle(graph, folded, req);
+        HttpServer server(host, port, [&graph, &folds](const HttpRequest &req) {
+            return handle(graph, folds, req);
         });
         std::cerr << "Serving on http://" << host << ":" << port << "/" << std::endl;
         server.run();

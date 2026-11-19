@@ -52,7 +52,46 @@ Vertex &ag::AssemblyGraph::flipVertex(Edge &inc) {
 }
 
 void ag::AssemblyGraph::replacePathLockFree(const RAGraphPath &old_path, const RAGraphPath &new_path,
-                                            size_t dominant_index, const std::unordered_map<EdgeId, EdgeId> &outer) {
+                                            size_t dominant_index) {
+    Vertex &start = old_path.getStart();
+    Vertex &finish = old_path.getFinish();
+    Vertex &new_start = new_path.getStart();
+    Vertex &new_finish = new_path.getFinish();
+    const bool start_replaced = start != new_start;
+    const bool end_replaced = finish != new_finish;
+    VERIFY(!start_replaced || new_start.getSeq().startsWith(start.getSeq()));
+    VERIFY(!end_replaced || new_finish.getSeq().endsWith(finish.getSeq()));
+//    Collected before any edge is added.
+    std::vector<EdgeId> incoming;
+    std::vector<EdgeId> outgoing;
+    if (start_replaced)
+        for (Edge &in : start.incoming())
+            incoming.push_back(in.getId());
+    if (end_replaced)
+        for (Edge &out : finish)
+            outgoing.push_back(out.getId());
+//    y -> p0 becomes y -> q0 (qe -> q0 if y is the replaced pn): it spells y -> p0 continued to the end of q0, and its rc
+//    overlaps y.rc() as p0.rc() did. pn -> z becomes qe -> z: qe ends with pn, and the rc spells z.rc() -> pn.rc()
+//    continued to the end of qe.rc(). An edge already replaced (the loop pn -> p0, or the rc of an edge into p0 for a
+//    self-rc path) is not replaced again.
+    std::unordered_map<EdgeId, EdgeId> outer;
+    auto add_replacement = [&](Edge &old_edge, Vertex &from, Vertex &to, const Sequence &tseq, const Sequence &rctseq) {
+        Edge &new_edge = addEdgeLockFree(from, to, tseq, rctseq);
+        if (old_edge.getVirtualType() != VirtualType::unset)
+            new_edge.setVirtualType(old_edge.getVirtualType());
+        outer[old_edge.getId()] = new_edge.getId();
+        outer[old_edge.rc().getId()] = new_edge.rc().getId();
+    };
+    for (EdgeId eid : incoming) {
+        const bool from_finish = end_replaced && eid->getStart() == finish;
+        add_replacement(*eid, from_finish ? new_finish : eid->getStart(), new_start,
+                        eid->truncSeq() + new_start.getSeq().Subseq(start.size()),
+                        eid->rc().truncSeq() + (from_finish ? new_finish.rc().getSeq().Subseq(finish.size()) : Sequence()));
+    }
+    for (EdgeId eid : outgoing)
+        if (outer.find(eid) == outer.end())
+            add_replacement(*eid, new_finish, eid->getFinish(), eid->truncSeq(),
+                            eid->rc().truncSeq() + new_finish.rc().getSeq().Subseq(finish.size()));
     auto set_corporeal = [&](bool value) {
         for (Edge &e : new_path.edges()) {
             e.setCorporeal(value);
@@ -94,8 +133,6 @@ Vertex &ag::AssemblyGraph::mergePathLockFree(const GraphPath &path, Vertex::id_t
     for (Vertex &v : old_path.innerVertices()) {
         VERIFY(v.inDeg() == 1 && v.outDeg() == 1);
     }
-    Vertex &start = old_path.getStart();
-    Vertex &finish = old_path.getFinish();
     const Sequence seq = old_path.Seq();
 //    D is the vertex of the path spelling all of it, if there is one (non-redundancy: at most one), else a new vertex.
     VertexId dominant_id;
@@ -103,39 +140,8 @@ Vertex &ag::AssemblyGraph::mergePathLockFree(const GraphPath &path, Vertex::id_t
         if (!dominant_id.valid() && v.size() == seq.size() && v.getSeq() == seq)
             dominant_id = v.getId();
     Vertex &dominant = dominant_id.valid() ? *dominant_id : addVertex(seq, seq.isCanonical() ? id : -id);
-    const bool start_replaced = start != dominant;
-    const bool end_replaced = finish != dominant;
-    std::vector<EdgeId> incoming;
-    std::vector<EdgeId> outgoing;
-    if (start_replaced)
-        for (Edge &in : start.incoming())
-            incoming.push_back(in.getId());
-    if (end_replaced)
-        for (Edge &out : finish)
-            outgoing.push_back(out.getId());
-//    y -> start becomes y -> D (D -> D if y is the replaced finish): it spells y -> start continued to the end of D, and
-//    its rc overlaps y.rc() as start.rc() did. finish -> z becomes D -> z: D ends with finish, and the rc spells
-//    z.rc() -> finish.rc() continued to the end of D.rc(). Types are inherited. An edge already replaced (the loop
-//    finish -> start, or the rc of an edge into start for a self-rc path) is not replaced again.
-    std::unordered_map<EdgeId, EdgeId> outer;
-    auto add_replacement = [&](Edge &old_edge, Vertex &from, Vertex &to, const Sequence &tseq, const Sequence &rctseq) {
-        Edge &new_edge = addEdgeLockFree(from, to, tseq, rctseq);
-        if (old_edge.getVirtualType() != VirtualType::unset)
-            new_edge.setVirtualType(old_edge.getVirtualType());
-        outer[old_edge.getId()] = new_edge.getId();
-        outer[old_edge.rc().getId()] = new_edge.rc().getId();
-    };
-    for (EdgeId eid : incoming) {
-        const bool from_finish = end_replaced && eid->getStart() == finish;
-        add_replacement(*eid, from_finish ? dominant : eid->getStart(), dominant,
-                        eid->truncSeq() + seq.Subseq(start.size()),
-                        eid->rc().truncSeq() + (from_finish ? dominant.rc().getSeq().Subseq(finish.size()) : Sequence()));
-    }
-    for (EdgeId eid : outgoing)
-        if (outer.find(eid) == outer.end())
-            add_replacement(*eid, dominant, eid->getFinish(), eid->truncSeq(),
-                            eid->rc().truncSeq() + dominant.rc().getSeq().Subseq(finish.size()));
-    replacePathLockFree(old_path, RAGraphPath(dominant), 0, outer);
+//    Q = [D]: the edges into a replaced start and out of a replaced finish move to D.
+    replacePathLockFree(old_path, RAGraphPath(dominant), 0);
     return dominant;
 }
 
@@ -191,32 +197,20 @@ Vertex &AssemblyGraph::extendVertexLockFree(Edge &suffix_edge, Vertex::id_type i
 //        P = w.rc() -> x -> w becomes Q = w.rc() -> v -> w with D = v. Both are their own rc and P's ends survive.
         Vertex &u = w.rc();
         replacePathLockFree(RAGraphPath(u, {suffix_edge.rc().getId(), suffix_edge.getId()}, 0, 0),
-                            RAGraphPath(u, {new_suffix.rc().getId(), new_suffix.getId()}, 0, 0), 1, {});
+                            RAGraphPath(u, {new_suffix.rc().getId(), new_suffix.getId()}, 0, 0), 1);
         return v;
     }
-    std::vector<EdgeId> incoming;
     for (Edge &in : x.incoming()) {
         VERIFY(in.getStart() != x && in.getStart() != x.rc());
-        incoming.push_back(in.getId());
     }
     Sequence seq = suffix_edge.fullSeq();
     Vertex &v = addVertex(seq, seq.isCanonical() ? id : -id);
-    std::unordered_map<EdgeId, EdgeId> extensions;
-//    y -> v spells y -> x -> w; v.rc() -> y.rc() overlaps y.rc() exactly as x.rc() did.
-    for (EdgeId eid : incoming) {
-        Edge &new_edge = addEdgeLockFree(eid->getStart(), v, eid->truncSeq() + suffix_edge.truncSeq(),
-                                         eid->rc().truncSeq());
-        if (eid->getVirtualType() != VirtualType::unset)
-            new_edge.setVirtualType(eid->getVirtualType());
-        extensions[eid] = new_edge.getId();
-        extensions[eid->rc().getId()] = new_edge.rc().getId();
-    }
 //    w is a suffix of v; w.rc() -> v.rc() spells w.rc() -> x.rc().
     Edge &new_suffix = addEdgeLockFree(v, w, Sequence(), suffix_edge.rc().truncSeq());
     if (suffix_edge.getVirtualType() != VirtualType::unset)
         new_suffix.setVirtualType(suffix_edge.getVirtualType());
-//    P = x -> w becomes Q = v -> w; x's incoming edges are replaced.
-    replacePathLockFree(RAGraphPath(suffix_edge), RAGraphPath(new_suffix), 0, extensions);
+//    P = x -> w becomes Q = v -> w; x is a prefix of v, so its incoming edges y -> x become y -> v.
+    replacePathLockFree(RAGraphPath(suffix_edge), RAGraphPath(new_suffix), 0);
     return v;
 }
 
