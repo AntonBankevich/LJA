@@ -114,6 +114,8 @@ namespace llvm {
             if (NewRefCount == 0)
                 delete static_cast<const Derived*>(this);
         }
+
+        int UseCount() const { return RefCount.load(); }
     };
 
 //===----------------------------------------------------------------------===//

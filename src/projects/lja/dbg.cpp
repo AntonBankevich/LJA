@@ -32,7 +32,7 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
                    const std::experimental::filesystem::path &cov_dump,
                    const std::experimental::filesystem::path &mult_dump, logging::Logger &logger) {
     logger.info() << "Reading reference" << std::endl;
-    std::vector<StringContig> ref = io::SeqReader(ref_file).readAll();
+    std::vector<Contig> ref = dbg::ReadLoader(logger, 1).readAll({ref_file});
     logger.info() << "Finished reading reference. Starting alignment" << std::endl;
     std::vector<ag::GraphPath> paths;
     std::ofstream os;
@@ -40,9 +40,9 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
     size_t cur = 0;
     std::unordered_map<Edge *, size_t> mult;
     size_t num = 0;
-    for(StringContig & contig : ref) {
-        Sequence seq = contig.makeSequence();
-        os << "New chromosome " << contig.id << "(" << contig.size() << ")" << std::endl;
+    for(Contig & contig : ref) {
+        const Sequence &seq = contig.getSeq();
+        os << "New chromosome " << contig.getInnerId() << "(" << seq.size() << ")" << std::endl;
         if(seq.size() < index.minReadLen()) {
             continue;
         }
@@ -53,7 +53,7 @@ void analyseGenome(SparseDBG &dbg, KmerIndex &index, const std::string &ref_file
             os << "[" << cur << ", " << cur + seg.size() << "] -> " << seg.contig().getInnerId() << " [" << seg.left << ", " << seg.right << "]\n";
             cur += seg.size();
         }
-        logger.info() << "Aligned chromosome " << contig.id << " . Path length " << tmp.calculateSize() << std::endl;
+        logger.info() << "Aligned chromosome " << contig.getInnerId() << " . Path length " << tmp.calculateSize() << std::endl;
         num += tmp.calculateSize();
         paths.emplace_back(std::move(tmp));
     }
@@ -170,8 +170,8 @@ int main(int argc, char **argv) {
     }
 
     bool debug = params.getCheck("debug");
-    StringContig::homopolymer_compressing = params.getCheck("compress");
-    StringContig::SetDimerParameters(params.getValue("dimer-compress"));
+    CompressionParameters::global.homopolymer_compressing = params.getCheck("compress");
+    CompressionParameters::global.setDimers(params.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(params.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
@@ -242,11 +242,9 @@ int main(int argc, char **argv) {
     std::vector<ag::AlignedRead> ref_als;
     if(calculate_alignments) {
         logger.info() << "Collecting read alignments" << std::endl;
-        dbg::SeqReader reader(reads_lib, logger, threads);
-        read_als = AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w);
+        read_als = AlignReads(logger, threads, reads_lib, dbg, w);
         logger.info() << "Collecting reference alignments" << std::endl;
-        dbg::SeqReader refReader(genome_lib, logger, threads);
-        ref_als = AlignReads(logger, threads, refReader.begin(), refReader.end(), dbg, w);
+        ref_als = AlignReads(logger, threads, genome_lib, dbg, w);
     }
     dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg, std::move(read_als), true);
     dbg::DBGAlignedReadStorage refStorage(logger, threads, dbg, std::move(ref_als), false);
@@ -259,10 +257,6 @@ int main(int argc, char **argv) {
     if(params.getCheck("initial-correct")) {
         size_t threshold = std::stoull(params.getValue("cov-threshold"));
         size_t reliable = std::stoull(params.getValue("rel-threshold"));
-        std::vector<StringContig> ref_vector;
-        if (params.getValue("reference") != "none") {
-            ref_vector = io::SeqReader(params.getValue("reference")).readAll();
-        }
         initialCorrect(logger, threads, dbg, dir / "correction.txt", readStorage, refStorage,
                        threshold, 2 * threshold, reliable, false, 60000, params.getCheck("dump"));
         Component comp(dbg);
@@ -272,7 +266,7 @@ int main(int argc, char **argv) {
         logger << "Printing additional figures with paths" << std::endl;
         logger << "Aligning contigs from paths files" << std::endl;
         DLLAlignmentStorage storage(dbg);
-        dbg::AddContigs(storage, index, dbg::SeqReader(paths_lib, logger, threads).readAllAsContigs());
+        dbg::AddContigs(storage, index, dbg::ReadLoader(logger, threads).readAll(paths_lib));
         {
             logger.info() << "Printing graph with paths to dot file " << (dir / "paths.dot") << std::endl;
             std::ofstream coordinates_dot;
@@ -303,14 +297,13 @@ int main(int argc, char **argv) {
         logger.info() << "Printing segments of paths" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
         DLLAlignmentStorage storage(dbg);
-        dbg::AddContigs(storage, index, dbg::SeqReader(paths_lib, logger, threads).readAllAsContigs());
-        dbg::SeqReader reader(paths_lib, logger, threads);
+        std::vector<Contig> paths = dbg::ReadLoader(logger, threads).readAll(paths_lib);
+        dbg::AddContigs(storage, index, paths);
         size_t cnt = 0;
-        for(StringContig scontig : reader) {
+        for(Contig &contig : paths) {
             cnt += 1;
             if(cnt > 200)
                 break;
-            Contig contig = scontig.makeContig();
             std::string fname = "contig_" + std::to_string(cnt) + "_" + mask(contig.getInnerId()) + ".dot";
             const std::experimental::filesystem::path seg_file = dir / fname;
             logger.info() << "Printing contig " << contig.getInnerId() << " to dot file " << (seg_file) << std::endl;
@@ -332,35 +325,32 @@ int main(int argc, char **argv) {
         logger.info() << "Aligning paths" << std::endl;
         std::vector<Component> comps;
         std::vector<std::ofstream *> os;
-        dbg::SeqReader reader(paths_lib, logger, threads);
         size_t cnt = 0;
         size_t radius = std::stoull(params.getValue("subdataset-radius"));
-        for(StringContig scontig : reader) {
-            Contig contig = scontig.makeContig();
+        for(Contig &contig : dbg::ReadLoader(logger, threads).readAll(paths_lib)) {
             std::vector<ag::AlignmentChain<Contig, Edge>> contig_al = index.carefulAlign(contig);
             comps.emplace_back(Component::neighbourhood(dbg, contig_al, k + radius));
             os.emplace_back(new std::ofstream());
             os.back()->open(subdatasets_dir / (std::to_string(cnt) + ".fasta"));
             cnt += 1;
         }
-        dbg::SeqReader read_reader(reads_lib, logger, threads);
-        std::function<void(size_t, StringContig &)> task = [&dbg, &comps, &os, &hasher, w, &index](size_t pos, StringContig & scontig) {
-            string initial_seq = scontig.seq;
-            Contig contig = scontig.makeContig();
-            if(contig.truncSize() < hasher.getK() + w - 1)
+//        Reads are printed as they are and aligned compressed.
+        io::ReadLoader::Task task = [&dbg, &comps, &os, &hasher, w, &index](size_t, Contig &raw) {
+            Sequence seq = raw.getSeq().compressed(CompressionParameters::global);
+            if(seq.size() < hasher.getK() + w - 1)
                 return;
-            ag::GraphPath al = index.align(contig.getSeq());
+            ag::GraphPath al = index.align(seq);
             for(size_t j = 0; j < comps.size(); j++) {
                 for(Vertex &v : al.vertices()) {
                     if(comps[j].contains(v)) {
 #pragma omp critical
-                        *os[j] << ">" << contig.getInnerId() << "\n" << initial_seq << "\n";
+                        *os[j] << ">" << raw.getInnerId() << "\n" << raw.getSeq() << "\n";
                         break;
                     }
                 }
             }
         };
-        processRecords(read_reader.begin(), read_reader.end(), logger, threads, task);
+        dbg::ReadLoader(logger, threads, CompressionParameters::None()).process(reads_lib, task);
         for(size_t j = 0; j < comps.size(); j++) {
             os[j]->close();
             delete os[j];
@@ -378,11 +368,8 @@ int main(int argc, char **argv) {
             seg_recs.emplace_back(parsed[0], std::stoull(parsed[1]), std::stoull(parsed[2]), s);
         }
         std::vector<Contig> segs;
-        std::vector<Contig> contigs;
-        dbg::SeqReader reader(paths_lib, logger, threads);
-        for(StringContig scontig : reader) {
-            Contig contig = scontig.makeContig();
-            contigs.push_back(contig);
+        std::vector<Contig> contigs = dbg::ReadLoader(logger, threads).readAll(paths_lib);
+        for(Contig &contig : contigs) {
             for(auto & seg_rec : seg_recs) {
                 if(std::get<0>(seg_rec) == contig.getInnerId()) {
                     segs.emplace_back(contig.getSeq().Subseq(std::get<1>(seg_rec), std::min(contig.truncSize(), std::get<2>(seg_rec))), std::get<3>(seg_rec));
@@ -411,7 +398,7 @@ int main(int argc, char **argv) {
         logger.info() << "Printing additional figures with reference alignments" << std::endl;
         logger.info() << "Aligning genome" << std::endl;
         DLLAlignmentStorage storage(dbg);
-        dbg::AddContigs(storage, index, dbg::SeqReader(genome_lib, logger, threads).readAllAsContigs());
+        dbg::AddContigs(storage, index, dbg::ReadLoader(logger, threads).readAll(genome_lib));
         {
             logger.info() << "Printing graph to dot file " << (dir / "genome_path.dot") << std::endl;
             std::ofstream coordinates_dot;
@@ -449,8 +436,7 @@ int main(int argc, char **argv) {
         std::experimental::filesystem::path out = dir / "tip_correct.fasta";
         ParallelRecordCollector<Contig> alignment_results(threads);
 
-        std::function<void(size_t, StringContig &)> task = [&dbg, &alignment_results, &hasher, w, &index](size_t pos, StringContig & contig) {
-            Contig read = contig.makeContig();
+        io::ReadLoader::Task task = [&dbg, &alignment_results, &hasher, w, &index](size_t, Contig &read) {
             if(read.truncSize() < w + hasher.getK() - 1)
                 return;
             ag::GraphPath gal = index.align(read.getSeq());
@@ -469,8 +455,7 @@ int main(int argc, char **argv) {
             }
         };
         std::ofstream os(dir / "tip_correct.fasta");
-        dbg::SeqReader reader(reads_lib, logger, threads);
-        processRecords(reader.begin(), reader.end(), logger, threads, task);
+        dbg::ReadLoader(logger, threads).process(reads_lib, task);
         for(Contig & rec : alignment_results) {
             os << ">" << rec.getInnerId() << "\n" << rec.getSeq() << "\n";
         }
@@ -512,7 +497,7 @@ int main(int argc, char **argv) {
         for(Sequence &seq : vertices_again) {
             simp_dbg.addKmerVertex(seq);
         }
-        FillSparseDBGEdges(simp_dbg, edges.begin(), edges.end(), logger, threads, 0);
+        FillSparseDBGEdges(simp_dbg, edges, logger, threads, 0);
         for(auto & vert : simp_dbg.verticesUnique()) {
             Vertex &other = index.getVertex(hashing::MovingKWH(hasher, vert.getSeq(), 0).hash());
             for(Edge & edge : vert) {

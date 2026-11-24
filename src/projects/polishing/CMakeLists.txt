@@ -1,5 +1,6 @@
 project(polishing)
-add_library(lja_homopolish STATIC homopolish.cpp uncompressed_output.cpp polishing_stage.cpp vertex_reduction.cpp)
+add_library(lja_homopolish STATIC homopolish.cpp uncompressed_output.cpp polishing_stage.cpp vertex_reduction.cpp
+        perfect_alignment.cpp)
 target_link_libraries(lja_homopolish lja_common lja_sequence lja_dbg spoa lja_alignment ksw2)
 
 add_executable(run_polishing run_polishing.cpp)

@@ -13,8 +13,8 @@ constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size
     logger.info() << "Extracting minimizers" << std::endl;
     size_t min_read_size = hasher.getK() + w - 1;
     ParallelRecordCollector<htype> hashs(threads);
-    std::function<void(size_t, StringContig &)> task = [min_read_size, w, &hasher, &hashs](size_t pos, StringContig & contig) {
-        Sequence seq = contig.makeSequence();
+    io::ReadLoader::Task task = [min_read_size, w, &hasher, &hashs](size_t, Contig &contig) {
+        const Sequence &seq = contig.getSeq();
         if(seq.size() >= min_read_size) {
             size_t qsize = 0;
             std::vector<htype> minimizers;
@@ -39,8 +39,8 @@ constructMinimizers(logging::Logger &logger, const io::Library &reads_file, size
             hashs.addAll(minimizers.begin(), minimizers.end());
         }
     };
-    dbg::SeqReader reader(reads_file, logger, threads, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
-    processRecords(reader.begin(), reader.end(), logger, threads, task);
+    dbg::ReadLoader(logger, threads, CompressionParameters::global,
+                    io::Splitter((hasher.getK() + w) * 20, (hasher.getK() + w) * 4)).process(reads_file, task);
 
     logger.info() << "Finished read processing" << std::endl;
     logger.info() << hashs.size() << " hashs collected. Starting sorting." << std::endl;

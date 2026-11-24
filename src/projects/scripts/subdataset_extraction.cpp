@@ -31,8 +31,8 @@ int main(int argc, char **argv) {
     }
 
     bool debug = parameterValues.getCheck("debug");
-    StringContig::homopolymer_compressing = parameterValues.getCheck("compress");
-    StringContig::SetDimerParameters(parameterValues.getValue("dimer-compress"));
+    CompressionParameters::global.homopolymer_compressing = parameterValues.getCheck("compress");
+    CompressionParameters::global.setDimers(parameterValues.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir")); //initialization of dir
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
@@ -65,9 +65,7 @@ int main(int argc, char **argv) {
                     DBGPipeline(logger, hasher, w, construction_lib, dir, threads) :
                          dbg::LoadDBGFromEdgeSequences(logger, threads, {std::experimental::filesystem::path(dbg_file)}, hasher); //Create dbg
     size_t extension_size = 100000;
-    io::SeqReader reader(reads_lib);//Reader that can read reads from file
-    dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
-                                           AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w),
+    dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg, AlignReads(logger, threads, reads_lib, dbg, w),
                                            false);
     dbg::KmerIndex index(dbg);
     index.fillAnchors(logger, threads, dbg, w);
@@ -75,7 +73,7 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path subdir = dir / "subdatasets";
     recreate_dir(subdir);
     std::vector<Subdataset> subdatasets;
-    std::vector<Contig> stored = dbg::SeqReader(ref_lib, logger, threads).readAllAsContigs();
+    std::vector<Contig> stored = dbg::ReadLoader(logger, threads).readAll(ref_lib);
     if(paths_lib.empty()) {
         logger.info() << "No paths provided. Splitting the whole graph." << std::endl;
 //        std::function<bool(const ag::Component&)> f = [bad_cov](const ag::Component &component) {
@@ -94,8 +92,7 @@ int main(int argc, char **argv) {
         logger.info() << "Extracting subdatasets around contigs" << std::endl;
         logger.info() << "Aligning paths" << std::endl;
         size_t radius = std::stoull(parameterValues.getValue("radius"));
-        for(StringContig scontig : io::SeqReader(paths_lib)) {
-            Contig contig = scontig.makeContig();
+        for(Contig &contig : dbg::ReadLoader(logger, threads).readAll(paths_lib)) {
             std::cout << contig.getInnerId() << " " << contig.truncSize() << " " << index.carefulAlign(contig).size() << std::endl;
             stored.push_back(contig);
             std::vector<ag::AlignmentChain<Contig, dbg::Edge>> contig_al = index.carefulAlign(contig);
@@ -103,9 +100,8 @@ int main(int argc, char **argv) {
             subdatasets.back().id = contig.getInnerId();
         }
     }
-    for(StringContig stringContig: io::SeqReader(contig_lib)) {
-        stored.push_back(stringContig.makeContig());
-    }
+    for(Contig &contig : dbg::ReadLoader(logger, threads).readAll(contig_lib))
+        stored.push_back(contig);
     logger.info() << "Filling path storage" << std::endl;
     ag::DLLAlignmentStorage storage(dbg);
     dbg::AddContigs(storage, index, stored);

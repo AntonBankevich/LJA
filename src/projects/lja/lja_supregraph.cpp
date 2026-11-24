@@ -11,8 +11,8 @@ ComplexStage ConstructLJASupregraphPipeline(const std::vector<std::string> &comm
     std::vector<std::string> input_types = {"reads", "paths", "pseudo_reads"};
     CLParser input_parser({{"dimer-compress=32,32,1"}, input_types, ""}, {}, {});
     AlgorithmParameterValues input_values = input_parser.parseCL(command_line, false);
-    StringContig::homopolymer_compressing = true;
-    StringContig::SetDimerParameters(input_values.getValue("dimer-compress"));
+    CompressionParameters::global.homopolymer_compressing = true;
+    CompressionParameters::global.setDimers(input_values.getValue("dimer-compress"));
     ComplexStage lja(input_types, {"dimer-compress=32,32,1"});
 
     SubstageRun &constructionStage = lja.addStage(dbg::DBGConstructionStage(500, 2000), "Construction");

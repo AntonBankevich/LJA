@@ -171,25 +171,6 @@ public:
 };
 
 template<class T>
-class OrderedRecordCollector : public ParallelRecordCollector<std::pair<size_t, T>> {
-private:
-public:
-    OrderedRecordCollector(size_t threads) : ParallelRecordCollector<std::pair<size_t, T>>(threads) {}
-    std::vector<T> collectOrdered(logging::Logger &logger, size_t threads) {
-        std::vector<T> result;
-        result.resize(this->size());
-        omp_set_num_threads(threads);
-#pragma omp parallel for default(none) shared(result)
-        for(size_t t = 0; t < this->recs.size(); t++) {
-            for (std::pair<size_t, T> &p: this->recs[t]) {
-                result[p.first] = std::move(p.second);
-            }
-        }
-        return std::move(result);
-    }
-};
-
-template<class T>
 std::ostream& operator<<(std::ostream& out, const ParallelRecordCollector<T>& tree) {
     if(tree.size() == 0) {
         return out << "[]" << std::endl;

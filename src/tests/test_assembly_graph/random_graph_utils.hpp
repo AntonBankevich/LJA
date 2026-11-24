@@ -64,9 +64,7 @@ namespace ag_test {
             hashes.erase(std::unique(hashes.begin(), hashes.end()), hashes.end());
             for (hashing::htype h : hashes)
                 dbg.addKmerVertex(h);
-            std::vector<StringContig> contigs;
-            contigs.emplace_back(genome, "genome");
-            dbg::FillSparseDBGEdges(dbg, contigs.begin(), contigs.end(), QuietLogger(), 1, k);
+            dbg::FillSparseDBGEdges(dbg, {Sequence(genome)}, QuietLogger(), 1, k);
         }
     };
 
@@ -90,10 +88,10 @@ namespace ag_test {
             hashes.erase(std::unique(hashes.begin(), hashes.end()), hashes.end());
             for (hashing::htype h : hashes)
                 dbg.addKmerVertex(h);
-            std::vector<StringContig> contigs;
-            for (size_t i = 0; i < seqs.size(); i++)
-                contigs.emplace_back(seqs[i], "s" + std::to_string(i));
-            dbg::FillSparseDBGEdges(dbg, contigs.begin(), contigs.end(), QuietLogger(), 1, k);
+            std::vector<Sequence> contigs;
+            for (const std::string &seq : seqs)
+                contigs.emplace_back(seq);
+            dbg::FillSparseDBGEdges(dbg, contigs, QuietLogger(), 1, k);
         }
 
         ag::GraphPath align(const std::string &s, size_t w = 1) {

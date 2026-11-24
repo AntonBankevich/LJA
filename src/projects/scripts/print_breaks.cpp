@@ -2,7 +2,7 @@
 #include <sequences/contigs.hpp>
 #include <experimental/filesystem>
 #include <common/logging.hpp>
-#include <sequences/seqio.hpp>
+#include <dbg/aln_reads_reader.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
 #include <assembly_graph/data_structures/component.hpp>
@@ -25,8 +25,8 @@ int main(int argc, char **argv) {
     }
 
     bool debug = parameterValues.getCheck("debug");
-    StringContig::homopolymer_compressing = parameterValues.getCheck("compress");
-    StringContig::SetDimerParameters(parameterValues.getValue("dimer-compress"));
+    CompressionParameters::global.homopolymer_compressing = parameterValues.getCheck("compress");
+    CompressionParameters::global.setDimers(parameterValues.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
@@ -57,8 +57,7 @@ int main(int argc, char **argv) {
     os.open(dir / "breaks.fasta");
     dbg::KmerIndex aligner(dbg);
     aligner.fillAnchors(logger, threads, dbg, 100);
-    for(StringContig sc : io::SeqReader(paths_lib)) {
-        Contig contig = sc.makeContig();
+    for(Contig &contig : dbg::ReadLoader(logger, threads).readAll(paths_lib)) {
         std::vector<ag::AlignmentChain<Contig, dbg::Edge>> al = aligner.carefulAlign(contig);
         for(size_t i = 0; i + 1 < al.size(); i++) {
             if(al[i].seg_to.contig() == al[i - 1].seg_to.contig() || al[i].seg_from.right + k + 5000 < al[i + 1].seg_from.left)

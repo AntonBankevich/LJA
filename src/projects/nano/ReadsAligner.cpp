@@ -4,7 +4,7 @@
 
 #include <string>
 #include <map>
-#include <sequences/seqio.hpp>
+#include <sequences/read_loader.hpp>
 
 #include "ReadsAligner.h"
 
@@ -32,15 +32,10 @@ std::unordered_map<std::string, std::vector<GraphContig>> ReadsAlignerGA::Extrac
             output_dir / ("batch_" + std::to_string(batch_num) + ".gaf");
     const std::experimental::filesystem::path &batch_fasta =
             output_dir / ("batch_" + std::to_string(batch_num) + ".fasta");
-    io::SeqReader reader(batch_fasta);
-    StringContig::homopolymer_compressing = true;
-    StringContig::min_dimer_to_compress = 32;
-    StringContig::max_dimer_size = 32;
     std::unordered_map<std::string, Contig> sequences;
-    for(StringContig scontig : reader) {
-        Contig contig = scontig.makeContig();
+    logging::Logger logger(false);
+    for(Contig &contig : io::ReadLoader(logger, 1, {true, 32, 32, 1}).readAll({batch_fasta}))
         sequences[contig.getInnerId()] = contig;
-    }
     std::unordered_map<std::string, std::vector<GraphContig>> read_paths = ExtractBestPaths(batch_gaf, sequences);
     return read_paths;
 }

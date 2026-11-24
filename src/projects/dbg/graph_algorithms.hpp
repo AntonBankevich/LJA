@@ -2,6 +2,7 @@
 #include "dbg_graph_aligner.hpp"
 #include "assembly_graph/random_access_paths.hpp"
 #include "sparse_dbg.hpp"
+#include "sequences/read_source.hpp"
 namespace dbg {
 
     class DbgConstructionHelper {
@@ -27,22 +28,12 @@ namespace dbg {
         void checkIndexConsistency(logging::Logger &logger, size_t threads, SparseDBG &dbg, KmerIndex& index) const;
     };
 
-    template<class Iterator>
-    void FillSparseDBGEdges(SparseDBG &sdbg, Iterator begin, Iterator end, logging::Logger &logger, size_t threads,
-                            const size_t min_read_size) {
-        typedef typename Iterator::value_type ContigType;
-        logger.trace() << "Starting to fill edges" << std::endl;
-        KmerIndex index(sdbg);
-        DbgConstructionHelper helper(sdbg.hasher());
-        std::function<void(size_t, ContigType &)> task = [&sdbg, &helper, min_read_size, &index](size_t pos, ContigType &contig) {
-            Sequence seq = contig.makeSequence();
-            if (seq.size() >= min_read_size) {
-                helper.processRead(sdbg, index, seq);
-            }
-        };
-        processRecords(begin, end, logger, threads, task);
-        logger.trace() << "Sparse graph edges filled." << std::endl;
-    }
+//    Fills the edges of sdbg from the sequences of at least min_size nucleotides.
+    void FillSparseDBGEdges(SparseDBG &sdbg, const std::vector<Sequence> &seqs, logging::Logger &logger,
+                            size_t threads, size_t min_size);
+//    Fills the edges of sdbg from the reads of lib, cut into pieces by splitter, of at least min_size nucleotides.
+    void FillSparseDBGEdges(SparseDBG &sdbg, const io::Library &lib, logging::Logger &logger, size_t threads,
+                            size_t min_size, const io::Splitter &splitter);
 
     template<class Iterator>
     void RefillSparseDBGEdges(logging::Logger &logger, size_t threads, SparseDBG &sdbg, Iterator begin, Iterator end, KmerIndex &index) {
@@ -58,10 +49,6 @@ namespace dbg {
 
     SparseDBG
     LoadDBGFromEdgeSequences(logging::Logger &logger, size_t threads, const io::Library &lib, hashing::RollingHash &hasher);
-
-    template<class Iterator>
-    void fillCoverage(SparseDBG &sdbg, logging::Logger &logger, Iterator begin, Iterator end, size_t threads,
-                      const hashing::RollingHash &hasher, size_t min_read_size);
 
     SparseDBG constructSparseDBGFromReads(logging::Logger &logger, const io::Library &reads_file, size_t threads,
                                           const hashing::RollingHash &hasher,

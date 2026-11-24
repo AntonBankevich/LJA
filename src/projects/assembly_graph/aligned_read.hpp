@@ -38,7 +38,7 @@ namespace ag {
         AlignedRead(AlignedRead &&other) noexcept = default;
         AlignedRead &operator=(AlignedRead &&other) noexcept = default;
         explicit AlignedRead(std::string readId) : id(std::move(readId)), path(), corrected(false) {}
-        AlignedRead(std::string readId, const ag::GraphPath &_path) : id(std::move(readId)), path(_path),
+        AlignedRead(std::string readId, ag::GraphPath _path) : id(std::move(readId)), path(std::move(_path)),
                                                                               corrected(false) {resetSuffixEnds(path);}
 
         void lock() { omp_set_lock(&writelock); }

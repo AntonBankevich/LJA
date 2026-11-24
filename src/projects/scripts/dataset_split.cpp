@@ -4,6 +4,7 @@
 #include "assembly_graph/visualization.hpp"
 #include "assembly_graph/data_structures/splitters.hpp"
 #include "dbg/aln_reads_reader.hpp"
+#include <mutex>
 #include "dbg/dbg_read_alignment_storage.hpp"
 #include "dbg/graph_algorithms.hpp"
 #include "supregraph/decision_rules.hpp"
@@ -36,11 +37,11 @@ namespace dbg {
         }
     }
 
-    void DumpReads(const std::vector<StringContig> & reads, const std::experimental::filesystem::path & path) {
+    void DumpReads(const std::vector<Contig> & reads, const std::experimental::filesystem::path & path) {
         std::ofstream os;
         os.open(path, std::ios_base::app);
-        for(const StringContig & read : reads) {
-            os << ">" << read.id << "\n" << read.seq << "\n";
+        for(const Contig & read : reads) {
+            os << ">" << read.getInnerId() << "\n" << read.getSeq() << "\n";
         }
         os.close();
     }
@@ -56,7 +57,7 @@ namespace dbg {
         size_t cnt = 0;
         size_t sum = 0;
         std::vector<std::experimental::filesystem::path> paths;
-        std::vector<std::vector<StringContig>> reads_to_print;
+        std::vector<std::vector<Contig>> reads_to_print;
         ag::Printer printer(ag::VertexPrintStyles::defaultDotInfo(), ag::EdgePrintStyles::defaultDotInfo( ));
         for(const ag::Component & component : components) {
             if (component.size() <= 10) {
@@ -74,29 +75,27 @@ namespace dbg {
         }
         logger.info() << "Removed " << (components.size() - cnt) << " components with less than 10 vertices that contain "
                 << sum << " vertices in total" << std::endl;
-        auto it = dbg_storage.begin();
-        SeqReader reader(reads, logger, threads);
         logger.info() << "Printing reads" << std::endl;
-        size_t cnt1 = 0;
-        for(StringContig read : reader) {
-            VERIFY(it != dbg_storage.end());
-            VERIFY(it->getId()==read.id);
-            const ag::AlignedRead &aligned_read = *it;
-            if (aligned_read.valid()) {
-                size_t subdataset = determine_subdataset(cmap, aligned_read);
-                if (subdataset != size_t(-1)) {
-                    reads_to_print[subdataset].emplace_back(read);
-                    if (reads_to_print[subdataset].size() >= 1000) {
-                        logger.trace() << "Printing " << reads_to_print[subdataset].size() << " to dataset file " << subdataset << std::endl;
-                        DumpReads(reads_to_print[subdataset], paths[subdataset]);
-                        reads_to_print[subdataset].clear();
-                    }
-                }
+        std::mutex print_lock;
+//        Read i, printed as it is, is aligned as dbg_storage[i].
+        size_t read_count = ReadLoader(logger, threads, CompressionParameters::None()).process(reads,
+                [&](size_t pos, Contig &read) {
+            const ag::AlignedRead &aligned_read = dbg_storage[pos];
+            VERIFY(aligned_read.getId() == read.getInnerId());
+            if (!aligned_read.valid())
+                return;
+            size_t subdataset = determine_subdataset(cmap, aligned_read);
+            if (subdataset == size_t(-1))
+                return;
+            std::lock_guard<std::mutex> guard(print_lock);
+            reads_to_print[subdataset].emplace_back(read.getSeq().copy(), read.getInnerId());
+            if (reads_to_print[subdataset].size() >= 1000) {
+                logger.trace() << "Printing " << reads_to_print[subdataset].size() << " to dataset file " << subdataset << std::endl;
+                DumpReads(reads_to_print[subdataset], paths[subdataset]);
+                reads_to_print[subdataset].clear();
             }
-            ++cnt1;
-            if(cnt %10000==0) logger.trace() << "Processed " << cnt << " reads" << std::endl;
-            ++it;
-        }
+        });
+        VERIFY(read_count == dbg_storage.size());
         for (size_t i = 0; i < paths.size(); i++) {
             DumpReads(reads_to_print[i], paths[i]);
         }

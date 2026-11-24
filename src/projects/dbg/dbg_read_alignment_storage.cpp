@@ -1,8 +1,24 @@
 #include <common/logging.hpp>
 #include <sequences/sequence.hpp>
 #include "dbg_read_alignment_storage.hpp"
+#include "aln_reads_reader.hpp"
 
 using namespace dbg;
+
+std::vector<ag::AlignedRead> dbg::AlignReads(logging::Logger &logger, size_t threads, const io::Library &lib,
+                                             SparseDBG &dbg, size_t w) {
+    logger.info() << "Loading and aligning reads." << std::endl;
+    KmerIndex index(dbg);
+    index.fillAnchors(logger, threads, dbg, w);
+    std::vector<ag::AlignedRead> res;
+    ReadLoader(logger, threads).process(lib, [&index, &res](size_t pos, Contig &contig) {
+        const std::string &id = contig.getInnerId();
+        res[pos] = contig.truncSize() < index.minReadLen() ? ag::AlignedRead(id, GraphPath()) :
+                   ag::AlignedRead(id, index.align(contig.getSeq(), id));
+    }, [&res](size_t total) {res.resize(total);});
+    logger.info() << "Read alignment completed." << std::endl;
+    return res;
+}
 
 bool CoverageTracker::addReadsStartingWith(Edge &e) {
     bool leaves = false;

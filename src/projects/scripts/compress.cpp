@@ -8,15 +8,14 @@ int main(int argc, char **argv) {
     AlgorithmParameters params({"dimer-compress=1000000000,1000000000,1", "threads=16"}, {"reads"}, "");
     CLParser parser(params, {}, {});
     AlgorithmParameterValues param_values = parser.parseCL(argc, argv);
-    StringContig::homopolymer_compressing = true;
-    StringContig::SetDimerParameters(param_values.getValue("dimer-compress"));
+    CompressionParameters compression;
+    compression.homopolymer_compressing = true;
+    compression.setDimers(param_values.getValue("dimer-compress"));
 
     io::Library reads_lib = oneline::initialize<std::experimental::filesystem::path>(param_values.getListValue("reads"));
     size_t threads = std::stoull(param_values.getValue("threads"));
     logging::Logger logger(false);
-    dbg::SeqReader reader(reads_lib, logger, threads);
-    for(StringContig s : reader) {
-        Contig c = s.makeContig();
+    dbg::ReadLoader(logger, 1, compression).process(reads_lib, [](size_t, Contig &c) {
         std::cout << ">" << c.getInnerId() << "\n" << c.getSeq() << "\n";
-    }
+    });
 }

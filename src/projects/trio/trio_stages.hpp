@@ -9,17 +9,13 @@
 
 std::experimental::filesystem::path CompressIlluminaLib(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
                          const std::string &name, const io::Library &lib) {
-    dbg::SeqReader reader(lib, logger, threads);
-    StringContig cur;
     std::ofstream out_stream;
     auto out_fasta = (dir / (name + "_compressed.fasta"));
     auto out_yak = (dir / (name + "_compressed.yak"));
     out_stream.open(out_fasta);
-    while (!reader.eof()) {
-        cur = reader.read();
-        cur.compress();
-        out_stream << ">" << cur.id << std::endl << cur.seq << std::endl;
-    }
+    dbg::ReadLoader(logger, 1).process(lib, [&out_stream](size_t, Contig &read) {
+        out_stream << ">" << read.getInnerId() << "\n" << read.getSeq() << "\n";
+    });
     out_stream.close();
     logger.info() << name << " compressed" << std::endl;
     int res = lib_count(37, threads, out_yak.string().c_str(), out_fasta.string().c_str());

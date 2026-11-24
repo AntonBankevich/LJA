@@ -1,5 +1,5 @@
 #include <common/verify.hpp>
-#include <sequences/seqio.hpp>
+#include <sequences/read_loader.hpp>
 #include <common/cl_parser.hpp>
 #include <common/pipeline_tools.hpp>
 #include <common/rolling_hash.hpp>
@@ -8,11 +8,10 @@
 
 std::unordered_map<std::string, Contig> ReadCollection(const std::experimental::filesystem::path &file) {
     std::unordered_map<std::string, Contig> res;
-    io::SeqReader ref_reader(file);
-    for(StringContig stringContig : ref_reader) {
-        res.emplace(stringContig.id, stringContig.makeContig());
-    }
-    return std::move(res);
+    logging::Logger logger(false);
+    for(Contig &contig : io::ReadLoader(logger, 1).readAll({file}))
+        res.emplace(contig.getInnerId(), contig);
+    return res;
 }
 
 struct LocalAlignment {

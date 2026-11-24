@@ -660,12 +660,11 @@ struct AssemblyInfo {
         }
     }
 
-    vector<Contig> process(logging::Logger &logger, size_t threads, const io::Library &lib,
+    vector<Contig> process(logging::Logger &logger, [[maybe_unused]] size_t threads, const io::Library &lib,
                            const std::experimental::filesystem::path &alignmens_file) {
         std::ifstream compressed_reads;
         std::ofstream corrected_contigs;
         compressed_reads.open(alignmens_file);
-        dbg::SeqReader reader(lib, logger, threads);
         logger.trace() << "Initialized\n";
         if (compressed_reads.eof()) {
             logger.info() << "NO ALIGNMENTS AVAILABLE!";
@@ -673,35 +672,24 @@ struct AssemblyInfo {
         }
         AlignmentInfo cur_align = readAlignment(compressed_reads);
         string cur_compressed = cur_align.read_id;
-        string cur_read;
-        string cur_seq;
-        StringContig cur;
         logger.info() << "Reading and processing initial reads from " << lib << "\n";
         size_t reads_count = 0;
         size_t aln_count = 1;
         vector<AlignmentInfo> align_batch;
         vector<string> contig_batch;
-        while (!compressed_reads.eof()) {
-            bool reads_over = false;
-            while (cur.id != cur_compressed) {
-                if (reader.eof()) {
-                    logger.info() << "Reads are over\n";
-                    reads_over = true;
-                    break;
-                }
-                cur = reader.read();
+        bool alignments_over = compressed_reads.eof();
+//        The alignments follow the order of the reads, so the reads, as they are, go in their order on one thread.
+        io::ReadLoader::Task task = [&](size_t, Contig &read) {
+            reads_count ++;
+            if (reads_count % 1000 == 0) {
+                logger.trace() << "Processed " << reads_count << " original reads " <<std::endl;
+            }
 //Some tools clip read names after whitespaces
-                cur.id = split(cur.id)[0];
-                reads_count ++;
-                if (reads_count % 1000 == 0) {
-                    logger.trace() << "Processed " << reads_count << " original reads " <<std::endl;
-                }
-            }
-            if (reads_over) {
-                break;
-            }
+            if (alignments_over || split(read.getInnerId())[0] != cur_compressed)
+                return;
+            const string seq = read.getSeq().str();
             align_batch.push_back(cur_align);
-            contig_batch.push_back(cur.seq);
+            contig_batch.push_back(seq);
 //TODO:: appropriate logic for multiple alignment
             do {
                 cur_align = readAlignment(compressed_reads);
@@ -718,11 +706,15 @@ struct AssemblyInfo {
 
                 if (cur_compressed == cur_align.read_id) {
                     align_batch.push_back(cur_align);
-                    contig_batch.push_back(cur.seq);
+                    contig_batch.push_back(seq);
                 }
             } while (cur_compressed == cur_align.read_id);
             cur_compressed = cur_align.read_id;
-        }
+            alignments_over = compressed_reads.eof();
+        };
+        dbg::ReadLoader(logger, 1, CompressionParameters::None()).process(lib, task);
+        if (!alignments_over)
+            logger.info() << "Reads are over\n";
         processBatch(logger, contig_batch, align_batch);
         logger.trace() << "Processed final batch of " << align_batch.size() << " compressed reads " <<std::endl;
         vector<Contig> res;

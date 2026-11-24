@@ -49,7 +49,7 @@ namespace dbg {
             for (ag::GraphPath &cand: read_alternatives_filtered) {
                 candidates.push_back(cand.truncSeq());
             }
-            size_t winner = ag::tournament(old, candidates);
+            size_t winner = ag::Tournament(0).tournament(old, candidates);
             if (winner != size_t(-1)) {
                 read_alternatives_filtered = {read_alternatives_filtered[winner]};
             }
@@ -87,7 +87,7 @@ namespace dbg {
                 Sequence candSeq = cand.truncSeq();
                 candidates.push_back(candSeq);
             }
-            size_t winner = ag::tournament(old, candidates);
+            size_t winner = ag::Tournament(0).tournament(old, candidates);
             if (winner != size_t(-1)) {
                 trunc_alignments = {trunc_alignments[winner]};
             }
@@ -283,7 +283,7 @@ namespace dbg {
                         dbg::DBGAlignedReadStorage &ref_storage,
                         double threshold, double bulge_threshold, double reliable_coverage, bool diploid,
                         size_t unique_threshold, bool dump) {
-        DimerCorrector dimerCorrector(logger, dbg, reads_storage, StringContig::max_dimer_size);
+        DimerCorrector dimerCorrector(logger, dbg, reads_storage, CompressionParameters::global.max_dimer_size);
         TournamentPathCorrector tournamentPathCorrector(dbg, reads_storage, threshold, reliable_coverage, diploid,
                                                         unique_threshold);
         PrimitiveBulgeCorrector primitiveBulgeCorrector(bulge_threshold);

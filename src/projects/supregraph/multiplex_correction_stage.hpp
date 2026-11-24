@@ -23,12 +23,17 @@ namespace spg {
 //    graph topology and the coverage estimates keep changing as multiplexing proceeds.
 //    Threshold schedule: initial_core_length, +step, +step, ... up to (and including) max_core_length,
 //    followed by one final unrestricted pass.
+//    Divergence schedule: correction pass i of n accepts alternatives within divergence_base + rate_i * L
+//    of a read part of length L, rate_i going geometrically from initial_divergence_rate (first pass) to
+//    final_divergence_rate (last pass): reads of low quality are only corrected late, when the graph
+//    offers fewer branches to choose from.
     std::unordered_map<std::string, std::experimental::filesystem::path>
     RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir,
                     size_t k, size_t w, const io::Library &graph_gfa, const io::Library &reads_files,
                     const io::Library &extra_reads_files, const io::Library &paths,
                     size_t initial_core_length, size_t max_core_length, size_t core_length_step,
-                    double vertex_coverage_threshold, bool debug);
+                    double vertex_coverage_threshold, size_t divergence_base, double initial_divergence_rate,
+                    double final_divergence_rate, bool debug);
 
     class MultiplexAndCorrectionPhase : public Stage {
     public:

@@ -29,8 +29,8 @@ ComplexStage ConstructLJApipeline(const std::vector<std::string> &command_line) 
     std::vector<std::string> input_types = {"reads", "paths", "references", "parental", "maternal", "pseudo_reads"};
     CLParser input_parser({{"noec", "dimer-compress=32,32,1"}, input_types, ""}, {}, {});
     AlgorithmParameterValues input_values = input_parser.parseCL(command_line, false);
-    StringContig::homopolymer_compressing = true;
-    StringContig::SetDimerParameters(input_values.getValue("dimer-compress"));
+    CompressionParameters::global.homopolymer_compressing = true;
+    CompressionParameters::global.setDimers(input_values.getValue("dimer-compress"));
     bool noec = input_values.getCheck("noec");
     bool trio = !input_values.getListValue("parental").empty();
     ComplexStage lja(input_types, {"noec", "dimer-compress=32,32,1"});

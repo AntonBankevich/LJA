@@ -1,5 +1,5 @@
 #include <common/verify.hpp>
-#include <sequences/seqio.hpp>
+#include <sequences/read_loader.hpp>
 #include <common/cl_parser.hpp>
 #include <common/pipeline_tools.hpp>
 #include <common/rolling_hash.hpp>
@@ -21,8 +21,8 @@ protected:
         size_t k = std::stoi(parameterValues.getValue("kmer-size"));
         size_t w = std::stoi(parameterValues.getValue("window"));
         if(parameterValues.getCheck("compress")) {
-            StringContig::homopolymer_compressing = true;
-            StringContig::SetDimerParameters(parameterValues.getValue("dimer-compress"));
+            CompressionParameters::global.homopolymer_compressing = true;
+            CompressionParameters::global.setDimers(parameterValues.getValue("dimer-compress"));
         }
         std::experimental::filesystem::path input_dir = input.at("dir").front();
         VERIFY_MSG(std::experimental::filesystem::is_directory(input_dir), dir.string() + " is not a directory");
@@ -53,16 +53,17 @@ int main(int argc, char **argv) {
     std::experimental::filesystem::path ref_path = argv[1];
     size_t len = std::stoull(argv[2]);
     size_t overlap = std::stoull(argv[3]);
-    io::SeqReader reader(ref_path);
+    logging::Logger logger(false);
     size_t cnt = 0;
-    for(StringContig contig : reader) {
-        for(size_t pos = 0; pos + len < contig.size(); pos += len - overlap) {
+    io::ReadLoader(logger, 1, CompressionParameters::None()).process({ref_path}, [&](size_t, Contig &contig) {
+        const Sequence &seq = contig.getSeq();
+        for(size_t pos = 0; pos + len < seq.size(); pos += len - overlap) {
             size_t right = pos + len;
-            if(pos + len - overlap + len >= contig.size())
-                right = contig.size();
+            if(pos + len - overlap + len >= seq.size())
+                right = seq.size();
             std::cout << ">Read_" << cnt << "\n";
-            std::cout << contig.seq.substr(pos, right - pos) << "\n";
+            std::cout << seq.Subseq(pos, right) << "\n";
             cnt++;
         }
-    }
+    });
 }

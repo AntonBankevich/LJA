@@ -47,7 +47,7 @@ namespace dbg {
         Precorrector precorrector_late(
                 [](const ag::Edge &e) { return e.getCoverage() >= 1.01 || e.is_reliable; },
                 [](const ag::Edge &e) { return e.getCoverage() == 1; });
-        DimerCorrector dimerCorrector(logger, dbg, readStorage, StringContig::max_dimer_size);
+        DimerCorrector dimerCorrector(logger, dbg, readStorage, CompressionParameters::global.max_dimer_size);
         TournamentPathCorrector tournamentPathCorrector(dbg, readStorage, threshold, reliable_coverage, diploid, 60000);
         BulgePathCorrector bpCorrector(dbg, readStorage, 80000, 1);
         ag::ErrorCorrectionEngine(precorrector_early).run(logger, threads, dbg, readStorage);

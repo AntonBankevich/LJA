@@ -107,23 +107,7 @@ namespace dbg {
         ~DBGAlignedReadStorage() override;
     };
 
-    template<class I>
-    std::vector<ag::AlignedRead> AlignReads(logging::Logger &logger, size_t threads, I begin, I end, SparseDBG &dbg, size_t w) {
-        logger.info() << "Loading and aligning reads."  << std::endl;
-        KmerIndex index(dbg);
-        index.fillAnchors(logger, threads, dbg, w);
-        OrderedRecordCollector<ag::AlignedRead> tmpReads(threads);
-        std::function<void(size_t, StringContig &)> read_task = [&index, &tmpReads](size_t pos, StringContig &scontig) {
-            Contig contig = scontig.makeContig();
-            if (contig.truncSize() < index.minReadLen()) {
-                tmpReads.emplace_back(pos, ag::AlignedRead(contig.getInnerId(), GraphPath()));
-            } else {
-                tmpReads.emplace_back(pos, ag::AlignedRead(contig.getInnerId(), index.align(contig.getSeq(), contig.getInnerId())));
-            }
-        };
-        processRecords(begin, end, logger, threads, read_task);
-        std::vector<ag::AlignedRead> res = tmpReads.collectOrdered(logger, threads);
-        logger.info() << "Read alignment completed."  << std::endl;
-        return std::move(res);
-    }
+//    Aligns the reads of lib, read by dbg::ReadLoader, in their order.
+    std::vector<ag::AlignedRead> AlignReads(logging::Logger &logger, size_t threads, const io::Library &lib,
+                                            SparseDBG &dbg, size_t w);
 }

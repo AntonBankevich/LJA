@@ -20,7 +20,6 @@ std::unordered_map<std::string, std::vector<nano::GraphContig>>
 AlignOnt(logging::Logger &logger, const size_t threads, const std::experimental::filesystem::path &dir,
          MultiGraph &mg, const io::Library &ont_reads, bool reuse_alignment) {
     const unsigned int BATCH_SIZE = 10000;
-    dbg::SeqReader reader(ont_reads, logger, threads);
     const std::experimental::filesystem::path &input_gfa = dir / "input.gfa";
     ag::Printer().printGFA(input_gfa, mg);
     logger.info() << "Data loaded" << std::endl;
@@ -29,19 +28,15 @@ AlignOnt(logging::Logger &logger, const size_t threads, const std::experimental:
     nano::ReadsAlignerGA reads_aligner(mg);
 
     int batch_num = 0;
-    StringContig::homopolymer_compressing = true;
-    StringContig::min_dimer_to_compress = 32;
-    StringContig::max_dimer_size = 32;
-    for(StringContig scontig : reader) {
-        Contig contig = scontig.makeContig();
-        batch[contig.getInnerId()] = contig;
+    dbg::ReadLoader(logger, 1, {true, 32, 32, 1}).process(ont_reads, [&](size_t, Contig &contig) {
+        batch[contig.getInnerId()] = Contig(contig.getSeq().copy(), contig.getInnerId());
         if (batch.size() > BATCH_SIZE) {
             if(!reuse_alignment)
                 reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
             batch_num++;
             batch.clear();
         }
-    }
+    });
     if(!reuse_alignment)
         reads_aligner.Align(batch, input_gfa, dir, threads, batch_num);
     batch_num++;

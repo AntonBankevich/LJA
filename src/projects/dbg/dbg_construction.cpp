@@ -153,9 +153,8 @@ SparseDBG DBGPipeline(logging::Logger &logger, const RollingHash &hasher, size_t
         malloc_trim(0);
     } else {
         logger.info() << "Loading disjointigs from file " << disjointigs_file << std::endl;
-        dbg::SeqReader reader(disjointigs_file, logger, threads);
-        for(StringContig stringContig: io::SeqReader(disjointigs_file))
-            disjointigs.push_back(stringContig.makeSequence());
+        for(Contig &contig : dbg::ReadLoader(logger, threads).readAll({disjointigs_file}))
+            disjointigs.push_back(contig.getSeq());
     }
     std::vector<std::pair<hashing::htype, bool>> vertices;
     if (vertices_file == "none") {

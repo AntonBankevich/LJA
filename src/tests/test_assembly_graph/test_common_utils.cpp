@@ -2,7 +2,7 @@
 
 #include "gtest/gtest.h"
 #include "common/hash_utils.hpp"
-#include "sequences/seqio.hpp"
+#include "sequences/read_loader.hpp"
 #include "sequences/sequence.hpp"
 #include "alignment/ksw_aligner.hpp"
 #include <fstream>
@@ -29,14 +29,15 @@ TEST(HashUtils, HashesRoundTripThroughStreams) {
 }
 
 namespace {
-    std::vector<StringContig> ReadAll(const std::string &content, const std::string &extension) {
+    std::vector<Contig> ReadAll(const std::string &content, const std::string &extension) {
         std::experimental::filesystem::path file = std::experimental::filesystem::temp_directory_path() /
                 ("lja_seqio_test" + extension);
         {
             std::ofstream os(file);
             os << content;
         }
-        std::vector<StringContig> res = io::SeqReader(file).readAll();
+        logging::Logger logger(false);
+        std::vector<Contig> res = io::ReadLoader(logger, 1).readAll({file});
         std::experimental::filesystem::remove(file);
         return res;
     }
@@ -45,15 +46,15 @@ namespace {
 // Windows line endings and blank lines at the end of the file (an empty line used to be read with back()).
 TEST(SeqIO, ReadsFilesWithCarriageReturnsAndTrailingBlankLines) {
     for (const std::string &tail : {std::string(""), std::string("\n"), std::string("\n\n"), std::string("\r\n")}) {
-        std::vector<StringContig> fasta = ReadAll(">a\r\nACGT\r\nTT\r\n>b\r\nGGG\r\n" + tail, ".fasta");
+        std::vector<Contig> fasta = ReadAll(">a\r\nACGT\r\nTT\r\n>b\r\nGGG\r\n" + tail, ".fasta");
         ASSERT_EQ(fasta.size(), 2u) << "tail=" << tail.size();
-        EXPECT_EQ(fasta[0].id, "a");
-        EXPECT_EQ(fasta[0].seq, "ACGTTT");
-        EXPECT_EQ(fasta[1].seq, "GGG");
-        std::vector<StringContig> fastq = ReadAll("@a\r\nACGT\r\n+\r\nIIII\r\n@b\r\nGG\r\n+\r\nII\r\n" + tail, ".fastq");
+        EXPECT_EQ(fasta[0].getInnerId(), "a");
+        EXPECT_EQ(fasta[0].getSeq().str(), "ACGTTT");
+        EXPECT_EQ(fasta[1].getSeq().str(), "GGG");
+        std::vector<Contig> fastq = ReadAll("@a\r\nACGT\r\n+\r\nIIII\r\n@b\r\nGG\r\n+\r\nII\r\n" + tail, ".fastq");
         ASSERT_EQ(fastq.size(), 2u) << "tail=" << tail.size();
-        EXPECT_EQ(fastq[0].seq, "ACGT");
-        EXPECT_EQ(fastq[1].seq, "GG");
+        EXPECT_EQ(fastq[0].getSeq().str(), "ACGT");
+        EXPECT_EQ(fastq[1].getSeq().str(), "GG");
     }
 }
 

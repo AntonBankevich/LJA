@@ -3,6 +3,37 @@
 //
 
 #include "sequence.hpp"
+
+ManagedNuclBuffer *ManagedNuclBuffer::Preallocated(ST *words, size_t nucls) {
+    auto *res = new ManagedNuclBuffer();
+    res->usePreallocated(words, nucls);
+    return res;
+}
+
+void ManagedNuclBuffer::usePreallocated(ST *words, size_t nucls) {
+    const int users = UseCount();
+    VERIFY(users <= 1);
+    if (owns)
+        freeWords();
+    setWords(words, nucls);
+    owns = false;
+}
+
+ManagedNuclBuffer::~ManagedNuclBuffer() {
+    if (!owns)
+        setWords(nullptr, 0);
+}
+
+Sequence Sequence::compressed(const CompressionParameters &parameters) const {
+    Sequence res = copy();
+    struct Nucls {
+        ManagedNuclBuffer &buffer;
+        unsigned char get(size_t i) const {return buffer.getNucl(i);}
+        void set(size_t i, unsigned char c) {buffer.setNucl(i, c);}
+    } nucls{*res.data_};
+    return res.Subseq(0, CompressInPlace(nucls, res.size(), parameters));
+}
+
 /**
  * @todo optimize sequence copy
  */

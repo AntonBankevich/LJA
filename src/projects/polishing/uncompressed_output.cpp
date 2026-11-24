@@ -82,8 +82,7 @@ struct OverlapRecord {
 };
 
 size_t compressedPrefixSize(const Sequence &hpcPrefix, const Sequence &seq) {
-    StringContig sc(seq.str(), "tmp");
-    Sequence hpcSeq = sc.makeSequence();
+    Sequence hpcSeq = seq.compressed(CompressionParameters::global);
     auto projection = bestPrefix(hpcPrefix, hpcSeq);
     size_t hpc_size = projection.first;
     size_t pos = 0;
@@ -129,7 +128,6 @@ size_t rightHomoSize(const Sequence &s) {
 }
 
 AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left, const Sequence & right) {
-    StringContig sc(left.str(), "left");
     size_t left_len = compressedPrefixSize(!hpcOverlap, !left);
     size_t right_len = compressedPrefixSize(hpcOverlap, right);
     Sequence left_seq = left.Subseq(left.size() - left_len);
@@ -148,7 +146,7 @@ AlignmentForm UncompressOverlap(const Sequence &hpcOverlap, const Sequence &left
 void DecompressingManager::ReduceAndUncompress(logging::Logger &logger, size_t threads,
         const io::Library &corrected_reads, const std::experimental::filesystem::path &read_alignments,
         const io::Library &reads) {
-    size_t dicompress = StringContig::max_dimer_size / 2;
+    size_t dicompress = CompressionParameters::global.max_dimer_size / 2;
     segs = ConstructReduction(graph(), min_overlap, max_repeat);
     std::function<Contig(Vertex &)> seg_to_contig = [this](Vertex &v) {
         return Contig(segs.at(v.getId()).fullSeq(), std::to_string(segs.at(v.getId()).contig().getInnerId()));
@@ -156,8 +154,7 @@ void DecompressingManager::ReduceAndUncompress(logging::Logger &logger, size_t t
     std::vector<Contig> compressed = oneline::map(graph().verticesUnique().begin(), graph().verticesUnique().end(), seg_to_contig);
     std::experimental::filesystem::path alignments = read_alignments;
     if (alignments.empty()) {
-        dbg::SeqReader reader(corrected_reads, logger, threads);
-        alignments = PrintAlignments(logger, threads, compressed, reader.begin(), reader.end(), min_overlap, dir).first;
+        alignments = PrintAlignments(logger, threads, compressed, corrected_reads, min_overlap, dir).first;
     } else {
         for (Vertex &v : graph().vertices()) {
             VERIFY(segs.at(v.getId()) == Segment<Vertex>(v));

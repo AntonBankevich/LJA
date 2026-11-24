@@ -24,8 +24,8 @@ int main(int argc, char **argv) {
     }
 
     bool debug = parameterValues.getCheck("debug");
-    StringContig::homopolymer_compressing = parameterValues.getCheck("compress");
-    StringContig::SetDimerParameters(parameterValues.getValue("dimer-compress"));
+    CompressionParameters::global.homopolymer_compressing = parameterValues.getCheck("compress");
+    CompressionParameters::global.setDimers(parameterValues.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");

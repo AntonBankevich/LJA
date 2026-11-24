@@ -5,7 +5,7 @@
 #include <sequences/contigs.hpp>
 #include <common/cl_parser.hpp>
 #include <common/logging.hpp>
-#include <sequences/seqio.hpp>
+#include <sequences/read_loader.hpp>
 #include <common/omp_utils.hpp>
 #include <common/zip_utils.hpp>
 #include <unordered_set>
@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
         std::cout << parameterValues.helpMessage() << std::endl;
         return 1;
     }
-    StringContig::homopolymer_compressing = true;
+    CompressionParameters::global.homopolymer_compressing = true;
     const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
@@ -42,22 +42,21 @@ int main(int argc, char **argv) {
     io::Library ref_lib = oneline::initialize<std::experimental::filesystem::path>(parameterValues.getListValue("ref"));
     SparseDBG dbg = DBGPipeline(logger, hasher, w, ref_lib, dir, threads, (dir/"disjointigs.fasta").string(), (dir/"vertices.save").string());
 //    sdbg.printStats(logger);
-    io::SeqReader reader1(ref_lib);
+    std::vector<Contig> refs = io::ReadLoader(logger, threads).readAll(ref_lib);
     KmerIndex aligner(dbg);
     aligner.fillAnchors(logger, threads, dbg, w);
     std::unordered_map<Edge *, size_t> mults;
-    for(StringContig scontig : reader1) {
-        Sequence seq = scontig.makeSequence();
+    for(Contig &ref : refs) {
+        const Sequence &seq = ref.getSeq();
         if(seq.size() < k + w) continue;
         for(Segment<Edge> seg : aligner.align(seq)) {
             mults[&seg.contig()] += 1;
             mults[&seg.contig().rc()] += 1;
         }
     }
-    io::SeqReader reader(ref_lib);
     size_t cnt = 0;
-    for(StringContig scontig : reader) {
-        Sequence seq = scontig.makeSequence();
+    for(Contig &ref : refs) {
+        const Sequence &seq = ref.getSeq();
         if(seq.size() < k + w) continue;
         size_t len = 0;
         for(Segment<Edge> seg : aligner.align(seq)) {

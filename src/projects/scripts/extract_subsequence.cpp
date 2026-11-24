@@ -1,5 +1,5 @@
 #include <common/cl_parser.hpp>
-#include <sequences/seqio.hpp>
+#include <sequences/read_loader.hpp>
 
 int main(int argc, char **argv) {
     AlgorithmParameters params({"file=", "radius=50000", "compressed"}, {"contig", "from", "to", "point"}, "");
@@ -11,9 +11,7 @@ int main(int argc, char **argv) {
         std::cout << parameterValues.helpMessage() << std::endl;
         return 1;
     }
-    StringContig::homopolymer_compressing = false;
     bool compressed = parameterValues.getCheck("compressed");
-    io::SeqReader reader(parameterValues.getValue("file"));
     std::vector<std::string> names = parameterValues.getListValue("contig");
     std::vector<std::string> from_str = parameterValues.getListValue("from");
     std::vector<std::string> to_str = parameterValues.getListValue("to");
@@ -30,9 +28,10 @@ int main(int argc, char **argv) {
         to.emplace_back(p + radius);
     }
     std::unordered_map<std::string, Contig> contigs;
-    for(StringContig contig : reader) {
-        contigs[contig.id] = contig.makeContig();
-    }
+    logging::Logger logger(false);
+    io::ReadLoader loader(logger, 1, CompressionParameters::None());
+    for(Contig &contig : loader.readAll({parameterValues.getValue("file")}))
+        contigs[contig.getInnerId()] = contig;
     for(size_t i = 0; i < names.size(); i++) {
         Contig &contig = contigs[names[i]];
         std::cerr << "Processing request " << names[i] << "(" << contig.fullSize() << ") " << from[i] << " " << to[i] << std::endl;

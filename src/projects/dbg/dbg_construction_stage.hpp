@@ -28,9 +28,8 @@ namespace dbg {
         logger.info() << "Finished printing graph" << std::endl;
         dot_printer.printDot(dir / "initial_dbg.dot", dbg);
         std::experimental::filesystem::path al_file = dir / "initial_alignments.aln";
-        dbg::SeqReader reader(reads_lib, logger, threads);
-        dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg,
-                AlignReads(logger, threads, reader.begin(), reader.end(), dbg, w), true);
+        dbg::DBGAlignedReadStorage readStorage(logger, threads, dbg, AlignReads(logger, threads, reads_lib, dbg, w),
+                                               true);
         logger.info() << "Printing read alignments to " << al_file << std::endl;
         readStorage.Save(al_file);
         logger.info() << "Finished printing read alignments to " << al_file << std::endl;
@@ -41,9 +40,8 @@ namespace dbg {
 //        Pseudo-reads (e.g. draft contigs used only to help build the graph) are aligned separately from real
 //        reads and never contribute to edge coverage, since they aren't sequencing observations.
         std::experimental::filesystem::path pseudo_al_file = dir / "initial_pseudo_alignments.aln";
-        dbg::SeqReader pseudo_reader(pseudo_reads_lib, logger, threads);
         dbg::DBGAlignedReadStorage pseudoReadStorage(logger, threads, dbg,
-                AlignReads(logger, threads, pseudo_reader.begin(), pseudo_reader.end(), dbg, w), false);
+                AlignReads(logger, threads, pseudo_reads_lib, dbg, w), false);
         logger.info() << "Printing pseudo-read alignments to " << pseudo_al_file << std::endl;
         pseudoReadStorage.Save(pseudo_al_file);
         logger.info() << "Finished printing pseudo-read alignments to " << pseudo_al_file << std::endl;

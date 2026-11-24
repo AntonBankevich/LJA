@@ -3,6 +3,7 @@
 #include "path_tracker.hpp"
 #include "path_spy.hpp"
 #include "coverage_tracker.hpp"
+#include <cmath>
 #include <limits>
 
 using namespace spg;
@@ -12,7 +13,8 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
                      size_t k, size_t w, const io::Library &graph_gfa, const io::Library &reads_files,
                      const io::Library &extra_reads_files, const io::Library &paths,
                      size_t initial_core_length, size_t max_core_length, size_t core_length_step,
-                     double vertex_coverage_threshold, bool debug) {
+                     double vertex_coverage_threshold, size_t divergence_base, double initial_divergence_rate,
+                     double final_divergence_rate, bool debug) {
     size_t unique_threshold = 40000;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -38,7 +40,6 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     dbg_storage.trackSuffixes(logger, threads, spg, 0, 10000000);
 
     ag::VertexCoverageReliableFiller vertexReliableFiller(vertex_coverage_threshold);
-    ag::ReliablePathCorrector reliablePathCorrector;
 
     logger.info() << "Multiplexing and correcting" << std::endl;
     AndreyRule rule(dbg_storage.getSuffixes(), unique_storage);
@@ -61,7 +62,8 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     size_t cnt = 1;
     if (debug)
         dbg_storage.logReads(threads, dir/"read_log.txt");
-    for (size_t threshold : thresholds) {
+    for (size_t pass = 0; pass < thresholds.size(); pass++) {
+        const size_t threshold = thresholds[pass];
         logger.info() << "Multiplexing with core-length threshold "
                        << (threshold == std::numeric_limits<size_t>::max() ? std::string("inf") : itos(threshold)) << std::endl;
         multiplexer.setMaxCoreLength(threshold);
@@ -82,7 +84,13 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
         spg.removeMarked();
         logger.info() << "Filling reliable vertices" << std::endl;
         vertexReliableFiller.loggedRefill(logger, spg);
-        logger.info() << "Correcting read paths" << std::endl;
+        const double progress = thresholds.size() == 1 ? 1.0 : double(pass) / double(thresholds.size() - 1);
+        const double rate = initial_divergence_rate * std::pow(final_divergence_rate / initial_divergence_rate, progress);
+        ag::AlignedSearchParams search_params;
+        search_params.divergence = {divergence_base, rate};
+        ag::ReliablePathCorrector reliablePathCorrector(search_params);
+        logger.info() << "Correcting read paths, allowed divergence " << divergence_base << " + " << rate << " * length"
+                      << std::endl;
         ag::ErrorCorrectionEngine(reliablePathCorrector).run(logger, threads, spg, dbg_storage);
         logger.info() << "Removing uncovered vertices" << std::endl;
         size_t removed_vertices = spg::SimpleRemoveUncovered(logger, threads, spg);
@@ -110,7 +118,8 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
 
 spg::MultiplexAndCorrectionPhase::MultiplexAndCorrectionPhase() : Stage(AlgorithmParameters(
         {"k-mer-size=501", "window=2000", "initial-core-length=600", "max-core-length=5000", "core-length-step=300",
-         "vertex-coverage-threshold=4"},
+         "vertex-coverage-threshold=4", "divergence-base=30", "initial-divergence-rate=0.001",
+         "final-divergence-rate=0.05"},
         {}, ""), {"graph", "reads", "extra_reads", "paths"}, {"supregraph_final", "read_alignments"}) {
 }
 
@@ -124,7 +133,10 @@ spg::MultiplexAndCorrectionPhase::innerRun(logging::Logger &logger, size_t threa
     size_t max_core_length = std::stoull(parameterValues.getValue("max-core-length"));
     size_t core_length_step = std::stoull(parameterValues.getValue("core-length-step"));
     double vertex_coverage_threshold = std::stod(parameterValues.getValue("vertex-coverage-threshold"));
+    size_t divergence_base = std::stoull(parameterValues.getValue("divergence-base"));
+    double initial_divergence_rate = std::stod(parameterValues.getValue("initial-divergence-rate"));
+    double final_divergence_rate = std::stod(parameterValues.getValue("final-divergence-rate"));
     return RunMultiplexingAndCorrection(logger, threads, dir, k, w, input.at("graph"), input.at("reads"),
         input.at("extra_reads"), input.at("paths"), initial_core_length, max_core_length, core_length_step,
-        vertex_coverage_threshold, debug);
+        vertex_coverage_threshold, divergence_base, initial_divergence_rate, final_divergence_rate, debug);
 }

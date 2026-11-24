@@ -6,7 +6,7 @@
 #include <sequences/contigs.hpp>
 #include <experimental/filesystem>
 #include <common/logging.hpp>
-#include <sequences/seqio.hpp>
+#include <dbg/aln_reads_reader.hpp>
 #include <common/rolling_hash.hpp>
 #include <dbg/dbg_construction.hpp>
 #include <assembly_graph/data_structures/component.hpp>
@@ -29,8 +29,8 @@ int main(int argc, char **argv) {
     }
 
     bool debug = values.getCheck("debug");
-    StringContig::homopolymer_compressing = true;
-    StringContig::SetDimerParameters(values.getValue("dimer-compress"));
+    CompressionParameters::global.homopolymer_compressing = true;
+    CompressionParameters::global.setDimers(values.getValue("dimer-compress"));
     const std::experimental::filesystem::path dir(values.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
@@ -59,10 +59,8 @@ int main(int argc, char **argv) {
     std::ofstream os;
     logger.info() << "Performing alignments" << std::endl;
     os.open(dir / "alignments.txt");
-    io::SeqReader reader(paths_lib);
-    for(StringContig read : reader) {
-        Contig rseq = read.makeContig();
-        os << ">" << read.id << "\n";
+    for(Contig &rseq : dbg::ReadLoader(logger, threads).readAll(paths_lib)) {
+        os << ">" << rseq.getInnerId() << "\n";
         std::vector<ag::AlignmentChain<Contig, dbg::Edge>> al = aligner.carefulAlign(rseq);
         for(ag::AlignmentChain<Contig, dbg::Edge> &piece : al) {
             os << piece.seg_to.contig().getId() << " ";

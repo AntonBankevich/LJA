@@ -213,21 +213,43 @@ namespace dbg {
         }
     }
 
-    template<class Iterator>
-    void fillCoverage(logging::Logger &logger, size_t threads, Iterator begin, Iterator end, KmerIndex &index) {
-        typedef typename Iterator::value_type ContigType;
+    void FillSparseDBGEdges(SparseDBG &sdbg, const std::vector<Sequence> &seqs, logging::Logger &logger,
+                            size_t threads, size_t min_size) {
+        logger.trace() << "Starting to fill edges" << std::endl;
+        KmerIndex index(sdbg);
+        DbgConstructionHelper helper(sdbg.hasher());
+        omp_set_num_threads(threads);
+#pragma omp parallel for default(none) schedule(dynamic, 100) shared(seqs, sdbg, index, helper, min_size)
+        for (size_t i = 0; i < seqs.size(); i++) {
+            if (seqs[i].size() >= min_size)
+                helper.processRead(sdbg, index, seqs[i]);
+        }
+        logger.trace() << "Sparse graph edges filled." << std::endl;
+    }
+
+    void FillSparseDBGEdges(SparseDBG &sdbg, const io::Library &lib, logging::Logger &logger, size_t threads,
+                            size_t min_size, const io::Splitter &splitter) {
+        logger.trace() << "Starting to fill edges" << std::endl;
+        KmerIndex index(sdbg);
+        DbgConstructionHelper helper(sdbg.hasher());
+//        The graph keeps parts of the reads as vertex and edge sequences, so it gets copies.
+        ReadLoader(logger, threads, CompressionParameters::global, splitter).process(lib, [&](size_t, Contig &contig) {
+            if (contig.getSeq().size() >= min_size)
+                helper.processRead(sdbg, index, contig.getSeq().copy());
+        });
+        logger.trace() << "Sparse graph edges filled." << std::endl;
+    }
+
+    void fillCoverage(logging::Logger &logger, size_t threads, const io::Library &lib, KmerIndex &index) {
         logger.info() << "Starting to fill edge coverages" << std::endl;
-        std::function<void(size_t, ContigType &)> task = [&index](size_t pos, ContigType &contig) {
-            Sequence seq = std::move(contig.makeSequence());
-            if (seq.size() >= index.minReadLen()) {
-                ag::GraphPath path = index.align(seq);
-                for (Segment<Edge> seg: path) {
-                    seg.contig().incCov(seg.size());
-                    seg.contig().rc().incCov(seg.size());
-                }
+        ReadLoader(logger, threads).process(lib, [&index](size_t, Contig &contig) {
+            if (contig.getSeq().size() < index.minReadLen())
+                return;
+            for (Segment<Edge> seg: index.align(contig.getSeq())) {
+                seg.contig().incCov(seg.size());
+                seg.contig().rc().incCov(seg.size());
             }
-        };
-        processRecords(begin, end, logger, threads, task);
+        });
         logger.info() << "Edge coverage calculated." << std::endl;
     }
 
@@ -238,9 +260,9 @@ namespace dbg {
         SparseDBG sdbg(hash_list.begin(), hash_list.end(), hasher);
 //        ag::LoggingListener operationLog(sdbg, logger.getLoggerStream(logging::LogLevel::trace));
         logger.info() << "Vertex map constructed." << std::endl;
-        dbg::SeqReader reader(reads_file, logger, threads, (hasher.getK() + w) * 20, (hasher.getK() + w) * 4);
         logger.info() << "Filling edge sequences." << std::endl;
-        FillSparseDBGEdges(sdbg, reader.begin(), reader.end(), logger, threads, w + hasher.getK() - 1);
+        FillSparseDBGEdges(sdbg, reads_file, logger, threads, w + hasher.getK() - 1,
+                           io::Splitter((hasher.getK() + w) * 20, (hasher.getK() + w) * 4));
         logger.info() << "Finished sparse de Bruijn graph construction." << std::endl;
         return std::move(sdbg);
     }
@@ -248,8 +270,7 @@ namespace dbg {
     void CalculateCoverage(logging::Logger &logger, size_t threads, SparseDBG &dbg, KmerIndex &index,
                            const std::experimental::filesystem::path &dir, const io::Library &lib) {
         logger.info() << "Calculating edge coverage." << std::endl;
-        dbg::SeqReader reader(lib, logger, threads);
-        fillCoverage(logger, threads, reader.begin(), reader.end(), index);
+        fillCoverage(logger, threads, lib, index);
         std::ofstream os;
         os.open(dir / "coverages.save");
 //        Read back by LoadCoverage (lja/dbg.cpp): one record per canonical vertex, each edge identified by its first
@@ -277,9 +298,7 @@ namespace dbg {
         logger.info() << "Aligning reads" << std::endl;
         ParallelRecordCollector<std::string> alignment_results(threads);
         std::string acgt = "ACGT";
-        std::function<void(size_t, StringContig &)> task = [&index, &alignment_results, acgt](size_t pos,
-                                                                                                        StringContig &contig) {
-            Contig read = contig.makeContig();
+        io::ReadLoader::Task task = [&index, &alignment_results, acgt](size_t, Contig &read) {
             if (read.truncSize() < index.minReadLen())
                 return;
             ag::GraphPath path = index.align(read.getSeq());
@@ -300,8 +319,7 @@ namespace dbg {
         };
         std::experimental::filesystem::path alignments_file = dir / "alignments.txt";
         std::ofstream os(alignments_file);
-        dbg::SeqReader reader(align_lib, logger, threads);
-        processRecords(reader.begin(), reader.end(), logger, threads, task);
+        ReadLoader(logger, threads).process(align_lib, task);
         for (std::string &rec: alignment_results) {
             os << rec << "\n";
         }
@@ -312,19 +330,19 @@ namespace dbg {
 
     SparseDBG LoadDBGFromEdgeSequences(logging::Logger &logger, size_t threads, const io::Library &lib, RollingHash &hasher) {
         logger.info() << "Loading graph from " << lib << std::endl;
-        dbg::SeqReader reader(lib, logger, threads);
         ParallelRecordCollector<std::tuple<Sequence, Edge::id_type, Edge::id_type, KWH, KWH>> edges(threads);
         ParallelRecordCollector<std::tuple<Vertex::id_type, KWH>> vertices(threads);
         UniversalParallelCounter<size_t> bad_ids(threads);
-        std::function<void(size_t, StringContig &)> collect_task = [&edges, &vertices, &bad_ids, hasher](size_t pos,
-                                                                                               StringContig &contig) {
-            Sequence seq = contig.makeSequence();
+//        The edge sequences are kept, so they are copied.
+        io::ReadLoader::Task collect_task = [&edges, &vertices, &bad_ids, hasher](size_t, Contig &contig) {
+            Sequence seq = contig.getSeq().copy();
+            const std::string &id = contig.getInnerId();
             Sequence start = seq.Prefix(hasher.getK());
             Sequence end = (!seq).Prefix(hasher.getK());
             ag::EdgeSaveLabel eids = {{}, {}};
             bool parsed = true;
             try {
-                eids = Parse<ag::EdgeSaveLabel>(contig.id, 0, contig.id.size());
+                eids = Parse<ag::EdgeSaveLabel>(id, 0, id.size());
             } catch (std::invalid_argument &e) {
                 eids = {{}, {}};
                 parsed = false;
@@ -347,7 +365,7 @@ namespace dbg {
                 vertices.emplace_back(rceid.vid, end_kwh);
             edges.emplace_back(seq, eid, rceid, start_kwh, end_kwh);
         };
-        processRecords(reader.begin(), reader.end(), logger, threads, collect_task);
+        ReadLoader(logger, threads).process(lib, collect_task);
         bool discard_ids = bad_ids.get() > 0;
         if(discard_ids > 0) {
             logger.info() << "Found " << bad_ids.get() << " edge ids that do not match standard notation. Edge id preservation disabled." << std::endl;

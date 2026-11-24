@@ -15,21 +15,10 @@ int main(int argc, char* argv[]){
     for (int i = 1; i < argc; ++i) {
         lib.push_back(argv[i]);
     }
-    //std::experimental::filesystem::path aln_reads_file = argv[argc-1];
-    /*io::SeqReader reader1("test.fasta.gz", 6, 2);
-    for (StringContig ctg : reader1) {
-        std::cout << '>' << ctg.id << '\n';
-        std::cout << ctg.seq << '\n';
-    }
-    std::cout << std::endl;
-    //std::cout << "reading file: " << filename << std::endl;
-    */
-    dbg::SeqReader reader(lib, logger, 12, 4, 1);
-    //io::SeqReader reader(lib, 4, 1);
     std::ofstream outfile("out.fasta");
-    for (StringContig ctg : reader) {
-        outfile << ">" << ctg.id << "\n" << ctg.seq << "\n";
-    }
+    dbg::ReadLoader(logger, 1, CompressionParameters::None()).process(lib, [&outfile](size_t, Contig &read) {
+        outfile << ">" << read.getInnerId() << "\n" << read.getSeq() << "\n";
+    });
     outfile.close();
     return 0;
 }

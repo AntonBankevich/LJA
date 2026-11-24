@@ -4,6 +4,7 @@
 #include "common/output_utils.hpp"
 #include "common/string_utils.hpp"
 #include "nucl_buffer.hpp"
+#include "compression.hpp"
 #include "nucl.hpp"
 #include "IntrusiveRefCntPtr.h"
 #include "common/verify.hpp"
@@ -13,10 +14,25 @@
 #include <cstring>
 #include <sstream>
 //TODO: rewrite everything with bitset to improve binary operations
+//    Either owns its words or uses preallocated ones, which their allocator keeps alive while the buffer is in use and
+//    frees itself. The usage counter works the same in both modes: a preallocated buffer may be pointed at other words
+//    once UseCount() shows that nothing but its holder uses it.
 class ManagedNuclBuffer final : public NuclBuffer, public llvm::ThreadSafeRefCountedBase<ManagedNuclBuffer> {
+private:
+    bool owns = true;
+    ManagedNuclBuffer() = default;
 public:
     explicit ManagedNuclBuffer(size_t nucls) : NuclBuffer(nucls) {}
     ManagedNuclBuffer(size_t nucls, ST *buf) : NuclBuffer(nucls, buf) {}
+    ManagedNuclBuffer(const ManagedNuclBuffer &) = delete;
+    ManagedNuclBuffer &operator=(const ManagedNuclBuffer &) = delete;
+//    A buffer using the preallocated words of nucls nucleotides.
+    static ManagedNuclBuffer *Preallocated(ST *words, size_t nucls);
+    bool ownsWords() const {return owns;}
+//    Switches to the preallocated words of nucls nucleotides, freeing owned ones. Only while at most one holder uses
+//    the buffer.
+    void usePreallocated(ST *words, size_t nucls);
+    ~ManagedNuclBuffer() override;
 };
 
 class Sequence {
@@ -94,6 +110,10 @@ public:
         data_->InitZero();
     }
 
+//    The whole buffer, without copying it.
+    explicit Sequence(llvm::IntrusiveRefCntPtr<ManagedNuclBuffer> data)
+            : from_(0), size_(data->size()), rtl_(false), data_(std::move(data)) {}
+
     Sequence(const Sequence &s)
             : Sequence(s, s.from_, s.size_, s.rtl_) {}
 
@@ -128,6 +148,9 @@ public:
         res.data_->InitFromNucls(*this, false);
         return std::move(res);
 ;    }
+
+//    A compressed copy.
+    Sequence compressed(const CompressionParameters &parameters) const;
 
     unsigned char operator[](const size_t index) const {
         VERIFY_MSG(index < size_, itos(index) + " " + itos(size_));

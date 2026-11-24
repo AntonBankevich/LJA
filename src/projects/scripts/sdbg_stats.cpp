@@ -5,7 +5,7 @@
 #include <sequences/contigs.hpp>
 #include <common/cl_parser.hpp>
 #include <common/logging.hpp>
-#include <sequences/seqio.hpp>
+#include <sequences/read_loader.hpp>
 #include <common/omp_utils.hpp>
 #include <common/zip_utils.hpp>
 #include <unordered_set>
@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
         std::cout << parameterValues.helpMessage() << std::endl;
         return 1;
     }
-    StringContig::homopolymer_compressing = true;
+    CompressionParameters::global.homopolymer_compressing = true;
     const std::experimental::filesystem::path dir(parameterValues.getValue("output-dir"));
     ensure_dir_existance(dir);
     logging::LoggerStorage ls(dir, "dbg");
@@ -43,12 +43,10 @@ int main(int argc, char **argv) {
 //    sdbg.printStats(logger);
     DbgConstructionHelper(hasher).checkSeqFilled(threads, logger, sdbg);
     simpleStats(logger, sdbg);
-    io::SeqReader reader(ref);
     KmerIndex aligner(sdbg);
     size_t cnt = 0;
-    for(StringContig scontig : reader) {
+    for(Contig &contig : io::ReadLoader(logger, threads).readAll({ref})) {
         cnt += 1;
-        Contig contig = scontig.makeContig();
         std::vector<ag::AlignmentChain<Contig, Edge>> al = aligner.sparseAlign(contig);
         for(size_t i = 0; i + 1 < al.size(); i++) {
             if(al[i].seg_from.right != al[i + 1].seg_from.left)

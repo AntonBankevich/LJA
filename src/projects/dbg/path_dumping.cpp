@@ -1,5 +1,6 @@
 #include "path_dumping.hpp"
 #include "dbg_read_alignment_storage.hpp"
+#include "aln_reads_reader.hpp"
 #include "graph_printing.hpp"
 using namespace ag;
 size_t stage_num = 0;
@@ -30,8 +31,7 @@ void dbg::PrintPaths(logging::Logger &logger, size_t threads, const std::experim
     if(!small)
         readStorage.getReads().printFullAlignments(logger, dir / (stage_name + ".als"));
     std::vector<Contig> paths;
-    for(StringContig sc : io::SeqReader(paths_lib)) {
-        Contig contig = sc.makeContig();
+    for(Contig &contig : dbg::ReadLoader(logger, threads).readAll(paths_lib)) {
         if(contig.truncSize() > 100000) {
             paths.emplace_back(contig.getSeq().Subseq(0, 50000), contig.getInnerId() + "_start");
             paths.emplace_back(contig.getSeq().Subseq(contig.truncSize() - 50000), contig.getInnerId() + "_end");
@@ -39,7 +39,7 @@ void dbg::PrintPaths(logging::Logger &logger, size_t threads, const std::experim
             paths.emplace_back(std::move(contig));
         }
     }
-    std::vector<Contig> references = io::SeqReader(references_lib).readAllAsContigs();
+    std::vector<Contig> references = dbg::ReadLoader(logger, threads).readAll(references_lib);
     if(paths.empty() && references.empty()) {
         printer.printDot(dir / (stage_name + ".dot"), dbg);
         return;

@@ -60,6 +60,10 @@ public:
 private:
     ST *_data;
     size_t _size;
+protected:
+//    Takes words of nucls nucleotides without freeing the current ones; the destructor frees whatever words are set.
+    void setWords(ST *words, size_t nucls) {_data = words; _size = nucls;}
+    void freeWords() {delete[] _data; setWords(nullptr, 0);}
 public:
     unsigned char getNucl(size_t pos) const {return (_data[pos >> STNBits] >> ((pos & (STN - 1u)) << 1u)) & 3u;}
     void setNucl(size_t pos, unsigned char value);

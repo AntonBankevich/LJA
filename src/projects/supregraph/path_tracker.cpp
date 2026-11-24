@@ -1,10 +1,11 @@
 #include "path_tracker.hpp"
+#include "sequences/read_loader.hpp"
 
 using namespace spg;
 
 void spg::PrepareDLLPathTracker(logging::Logger &logger, size_t threads, dbg::SparseDBG &spg, size_t w,
             const io::Library &paths, ag::DLLAlignmentStorage &path_tracker) {
-    std::vector<Contig> contigs = io::SeqReader(paths).readAllAsContigs();
+    std::vector<Contig> contigs = io::ReadLoader(logger, threads).readAll(paths);
     dbg::KmerIndex index(spg);
     index.fillAnchors(logger, threads, spg, w);
     for (Contig &contig : contigs) {

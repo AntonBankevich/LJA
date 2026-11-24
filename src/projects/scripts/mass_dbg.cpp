@@ -21,8 +21,8 @@ protected:
         size_t k = std::stoi(parameterValues.getValue("kmer-size"));
         size_t w = std::stoi(parameterValues.getValue("window"));
         if(parameterValues.getCheck("compress")) {
-            StringContig::homopolymer_compressing = true;
-            StringContig::SetDimerParameters(parameterValues.getValue("dimer-compress"));
+            CompressionParameters::global.homopolymer_compressing = true;
+            CompressionParameters::global.setDimers(parameterValues.getValue("dimer-compress"));
         }
         std::experimental::filesystem::path input_dir = input.at("dir").front();
         VERIFY_MSG(std::experimental::filesystem::is_directory(input_dir), dir.string() + " is not a directory");
