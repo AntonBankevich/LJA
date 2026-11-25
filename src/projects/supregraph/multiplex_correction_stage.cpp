@@ -14,7 +14,7 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
                      const io::Library &extra_reads_files, const io::Library &paths,
                      size_t initial_core_length, size_t max_core_length, size_t core_length_step,
                      double vertex_coverage_threshold, size_t divergence_base, double initial_divergence_rate,
-                     double final_divergence_rate, bool debug) {
+                     double final_divergence_rate, const ag::MultiplicityParams &multiplicity_params, bool debug) {
     size_t unique_threshold = 40000;
     if (k % 2 == 0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1) << " to make it odd" << std::endl;
@@ -105,6 +105,18 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
     CleanSupregraph(spg);
     dbg_storage.stopTrackSuffixes();
     spg.resetEdgeCodes(logger, threads);
+    logger.info() << "Estimating multiplicities of long vertices" << std::endl;
+    ag::LongVertexMultiplicities multiplicities =
+            ag::LongVertexMultiplicities::Estimate(logger, threads, spg, multiplicity_params);
+//    Paths are tracked only in debug mode (see ConstructSupregraphFromRawInput).
+    ag::LongVertexMultiplicities::ReferenceCounter reference;
+    if (debug && !paths.empty()) {
+        reference = ag::LongVertexMultiplicities::FromPaths(path_storage);
+        multiplicities.compareWithReference(logger, reference);
+    }
+    multiplicities.printReport(dir / "multiplicities.tsv", reference);
+    multiplicities.printDeadEnds(dir / "dead_ends.tsv", reference);
+    printer += multiplicities.vertexInfo();
     logger.info() << "Printing final graph" << std::endl;
     printer.printDot(dir / "supregraph_final.dot", spg);
     dbg_storage.getReads().Save(dir/"reads.aln");
@@ -119,7 +131,8 @@ spg::RunMultiplexingAndCorrection(logging::Logger &logger, size_t threads, const
 spg::MultiplexAndCorrectionPhase::MultiplexAndCorrectionPhase() : Stage(AlgorithmParameters(
         {"k-mer-size=501", "window=2000", "initial-core-length=600", "max-core-length=5000", "core-length-step=300",
          "vertex-coverage-threshold=4", "divergence-base=30", "initial-divergence-rate=0.001",
-         "final-divergence-rate=0.05"},
+         "final-divergence-rate=0.05", "multiplicity-min-long=40000", "multiplicity-max-long=2000",
+         "unit-coverage=0"},
         {}, ""), {"graph", "reads", "extra_reads", "paths"}, {"supregraph_final", "read_alignments"}) {
 }
 
@@ -136,7 +149,12 @@ spg::MultiplexAndCorrectionPhase::innerRun(logging::Logger &logger, size_t threa
     size_t divergence_base = std::stoull(parameterValues.getValue("divergence-base"));
     double initial_divergence_rate = std::stod(parameterValues.getValue("initial-divergence-rate"));
     double final_divergence_rate = std::stod(parameterValues.getValue("final-divergence-rate"));
+    ag::MultiplicityParams multiplicity_params;
+    multiplicity_params.min_long = std::stoull(parameterValues.getValue("multiplicity-min-long"));
+    multiplicity_params.max_long_per_problem = std::stoull(parameterValues.getValue("multiplicity-max-long"));
+    multiplicity_params.unit_coverage = std::stod(parameterValues.getValue("unit-coverage"));
     return RunMultiplexingAndCorrection(logger, threads, dir, k, w, input.at("graph"), input.at("reads"),
         input.at("extra_reads"), input.at("paths"), initial_core_length, max_core_length, core_length_step,
-        vertex_coverage_threshold, divergence_base, initial_divergence_rate, final_divergence_rate, debug);
+        vertex_coverage_threshold, divergence_base, initial_divergence_rate, final_divergence_rate,
+        multiplicity_params, debug);
 }

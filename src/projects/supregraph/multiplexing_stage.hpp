@@ -7,6 +7,7 @@
 #include "decision_rules.hpp"
 #include "path_tracker.hpp"
 #include "assembly_graph/dll_path_storage.hpp"
+#include "assembly_graph/long_vertex_multiplicity.hpp"
 #include <dbg/dbg_construction.hpp>
 #include <dbg/graph_algorithms.hpp>
 #include <common/pipeline_tools.hpp>
@@ -58,10 +59,13 @@ UniqueClassificator ConstructUnique(logging::Logger &logger, size_t threads, con
                                     size_t k, size_t w, const io::Library &graph_gfa, const io::Library &reads_files,
                                     const io::Library &extra_reads_files, const io::Library &paths, bool debug);
 
+//    Ends with multiplicity estimation of long vertices of the final graph (see ag::LongVertexMultiplicities):
+//    dir/multiplicities.tsv and Mult labels in supregraph_final.dot.
 std::unordered_map<std::string, std::experimental::filesystem::path>
 RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, size_t k,
                 size_t w, const io::Library &graph_gfa, const io::Library &reads_files,
-                const io::Library &extra_reads_files, const io::Library &paths, bool debug);
+                const io::Library &extra_reads_files, const io::Library &paths,
+                const ag::MultiplicityParams &multiplicity_params, bool debug);
 
 class SupreGraphPhase : public Stage {
 public:

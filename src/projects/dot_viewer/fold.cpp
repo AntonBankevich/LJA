@@ -88,6 +88,7 @@ namespace dot_viewer {
 
     FoldedGraph::FoldedGraph(const DotGraph &graph_, const FoldParams &params) : graph(graph_) {
         computeMetrics(params);
+        markTips(params);
         buildLevel1();
         buildLevel2();
     }
@@ -124,9 +125,44 @@ namespace dot_viewer {
         }
     }
 
+    void FoldedGraph::markTips(const FoldParams &params) {
+        const size_t n = graph.nodeCount();
+        std::vector<std::vector<size_t>> out(n), in(n);
+        for (size_t e = 0; e < graph.edgeCount(); ++e) {
+            out[graph.edge(e).from].push_back(e);
+            in[graph.edge(e).to].push_back(e);
+        }
+        auto isShort = [this](size_t v) { return vertex_stats[v].long_vertices == 0; };
+        kept_tip.assign(n, false);
+        for (size_t v = 0; v < n; ++v) {
+            if (!isShort(v) || vertex_stats[v].sum_cov < params.tip_min_coverage)
+                continue;
+            for (bool forward: {true, false}) {
+                // forward: v has no outgoing edges, the stretch runs backwards from it; and vice versa
+                if (!(forward ? out[v] : in[v]).empty())
+                    continue;
+                for (size_t cur = v;;) {
+                    if (!kept_tip[cur]) {
+                        kept_tip[cur] = true;
+                        ++kept_tip_count;
+                    }
+                    const std::vector<size_t> &back = forward ? in[cur] : out[cur];
+                    if (back.size() != 1)
+                        break;
+                    size_t next = forward ? graph.edge(back[0]).from : graph.edge(back[0]).to;
+                    bool unbranching = (forward ? out[next] : in[next]).size() == 1;
+                    if (!isShort(next) || !unbranching || kept_tip[next])
+                        break;
+                    cur = next;
+                }
+            }
+        }
+    }
+
     void FoldedGraph::buildLevel1() {
         const size_t n = graph.nodeCount();
-        auto isLong = [this](size_t v) { return vertex_stats[v].long_vertices > 0; };
+        // Long vertices and kept tips are cut out of the short part and stay level-1 elements of their own.
+        auto isLong = [this](size_t v) { return vertex_stats[v].long_vertices > 0 || kept_tip[v]; };
         // Cut-graph node ids: v is the vertex itself (or the start half of a long vertex), n + v is the end half.
         auto fromSide = [&](size_t e) { size_t a = graph.edge(e).from; return isLong(a) ? n + a : a; };
 
@@ -364,7 +400,12 @@ namespace dot_viewer {
 
     void FoldedGraph::writeL1Node(std::ostream &os, size_t x, bool context) const {
         if (!l1[x].folded) {
-            graph.writeNode(os, l1[x].id, context ? CONTEXT_STYLE : std::vector<DotAttr>{});
+            std::vector<DotAttr> overrides = context ? CONTEXT_STYLE : std::vector<DotAttr>{};
+            if (kept_tip[l1[x].id]) {
+                overrides.push_back(makeAttr("color", "#7030a0"));
+                overrides.push_back(makeAttr("penwidth", "3"));
+            }
+            graph.writeNode(os, l1[x].id, overrides);
             return;
         }
         size_t c = l1[x].id;

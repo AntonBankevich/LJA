@@ -175,6 +175,25 @@ namespace ag {
         std::vector<std::string> passingContigs(const Vertex &vertex) const;
         std::vector<std::string> passingForwardContigs(const Vertex &vertex) const;
 
+//        One pass of a contig strand ("name" or "-name") through a vertex. covered is how much of the vertex the path
+//        spells there; at_end is set if the pass includes the first or last fragment of the path.
+        struct VertexTraversal {
+            const Contig *contig;
+            size_t covered;
+            bool at_end;
+        };
+//        All traversals of all vertices by all contig strands. Every fragment gives pieces of vertices in vertex
+//        coordinates: an inner fragment one of its vertex; an edge segment u -> v the part of u (the prefix of the
+//        edge's full sequence) and then the part of v (the suffix) that it spells. Going along a path, the pieces of a
+//        vertex form one traversal while they reach further into the vertex (or overlap the previous piece at the same
+//        contig position); any other piece starts a new traversal (e.g. a loop through the vertex). Graph and
+//        reference may differ, so a traversal may consist of
+//        pieces with gaps between them and need not cover the vertex. Each genome copy of a vertex is traversed once
+//        over both strands (by the vertex in one strand or by its rc in the other), so the number of traversals is the
+//        true multiplicity.
+//        Not const only because paths can not be iterated through a const reference.
+        std::unordered_map<ConstVertexId, std::vector<VertexTraversal>> vertexTraversals();
+
 //        Invariants (the path may be fragmented where edges were deleted):
 //        1. Every fragment spells its contig segment, is on a live edge/vertex and is indexed under it; every live
 //           index entry is such a fragment.

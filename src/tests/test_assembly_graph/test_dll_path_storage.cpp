@@ -212,3 +212,76 @@ TEST(DLLPathStorage, ParallelSimpleRemoveUncovered) {
     }
     EXPECT_GT(removed, 0u);
 }
+
+namespace {
+//    Positions of all (possibly overlapping) occurrences of pattern in text.
+    std::vector<size_t> FindAll(const std::string &text, const std::string &pattern) {
+        std::vector<size_t> res;
+        for (size_t pos = text.find(pattern); pos != std::string::npos; pos = text.find(pattern, pos + 1))
+            res.push_back(pos);
+        return res;
+    }
+
+//    When the graph spells the genome exactly, every vertex with sample segments is traversed once per occurrence of
+//    its label in the genome or its rc (besides partial traversals where the genome starts or ends inside it), and
+//    every traversal away from the path ends spells the whole vertex. Vertices occurring at a genome end are skipped:
+//    only proper-infix occurrences are guaranteed to stay in the path.
+    void CheckTraversals(ag::AssemblyGraph &graph, ag::DLLAlignmentStorage &dll, const std::string &genome,
+                         const std::string &stage) {
+        const std::string rc_genome = Sequence(genome).rc().str();
+        auto traversals = dll.vertexTraversals();
+        size_t checked = 0;
+        for (ag::Vertex &v : graph.vertices()) {
+            if (v.coverage_info.empty())
+                continue;
+            const std::string label = v.getSeq().str();
+            std::vector<size_t> occurrences = FindAll(genome, label);
+            for (size_t pos : FindAll(rc_genome, label))
+                occurrences.push_back(pos);
+            bool at_genome_end = std::any_of(occurrences.begin(), occurrences.end(), [&](size_t pos) {
+                return pos == 0 || pos + label.size() == genome.size();
+            });
+            if (at_genome_end)
+                continue;
+            checked++;
+            auto it = traversals.find(v.getId());
+//            A traversal cut by a path end may be a partial copy of the vertex at a genome end, which FindAll does not see.
+            size_t found = it == traversals.end() ? 0 : std::count_if(it->second.begin(), it->second.end(),
+                    [&](const ag::DLLAlignmentStorage::VertexTraversal &t) {return !t.at_end || t.covered == label.size();});
+            std::stringstream details;
+            if (it != traversals.end())
+                for (const ag::DLLAlignmentStorage::VertexTraversal &t : it->second)
+                    details << " (" << t.contig->getInnerId() << ", covered " << t.covered << ", at end " << t.at_end
+                            << ")";
+            EXPECT_EQ(found, occurrences.size()) << stage << " vertex " << v.getId() << " of length " << label.size()
+                                                 << ":" << details.str();
+            if (it == traversals.end())
+                continue;
+            for (const ag::DLLAlignmentStorage::VertexTraversal &t : it->second)
+                if (!t.at_end)
+                    EXPECT_EQ(t.covered, label.size()) << stage << " vertex " << v.getId();
+        }
+        EXPECT_GT(checked, 0u) << stage;
+    }
+}
+
+// Traversals of the tracked genome path give the true multiplicity of every vertex: right after conversion to a
+// supregraph and after resolution by the genome's pairs, merges and flips.
+TEST(DLLPathStorage, TraversalsAreTrueMultiplicity) {
+    for (uint32_t seed = 1; seed <= 5; seed++) {
+        RandomDBG rdbg(RandomGenome(300, seed), 5);
+        const std::string genome = rdbg.genome;
+        std::unique_ptr<spg::Supregraph> spg_holder;
+        ag::DLLAlignmentStorage dll(rdbg.dbg);
+        AddGenome(dll, rdbg);
+        ag::MergeAllToEdges(QuietLogger(), 1, rdbg.dbg);
+        rdbg.dbg.disableHashing();
+        spg_holder.reset(new spg::Supregraph(spg::Supregraph::FromDBG(QuietLogger(), 1, std::move(rdbg.dbg))));
+        spg::Supregraph &spg = *spg_holder;
+        CheckTraversals(spg, dll, genome, "seed=" + std::to_string(seed) + " after conversion");
+        ResolveByGenome(spg, dll.getPath("genome"), 5);
+        spg::MergeAllSPG(QuietLogger(), 1, spg);
+        FlipAll(spg);
+        CheckTraversals(spg, dll, genome, "seed=" + std::to_string(seed) + " after resolution, merges and flips");
+    }
+}

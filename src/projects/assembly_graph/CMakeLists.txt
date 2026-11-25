@@ -4,5 +4,7 @@ add_library(lja_ag STATIC assembly_graph_base.cpp assembly_graph.cpp graph_paths
         data_structures/coverage_samples.cpp
         dll_path.cpp
         dll_path_storage.cpp
-        path_replacement.cpp)
+        path_replacement.cpp
+        multiplicity_network.cpp
+        long_vertex_multiplicity.cpp)
 target_link_libraries (lja_ag m ${OpenMP_CXX_FLAGS} lja_sequence lja_common lja_alignment stdc++fs Threads::Threads)

@@ -14,6 +14,10 @@ namespace dot_viewer {
         std::string coverage_regex = R"(Cov:\s*([0-9.eE+-]+))";
         /// Applied to edge labels: sequence an edge adds beyond its start vertex (truncSize in ag::Printer dumps).
         std::string trunc_regex = R"(^\S+\s+(\d+))";
+        /// Short dead ends with at least this coverage (and the unbranching stretch leading to them) are kept as
+        /// separate vertices instead of being folded: they may be real sequence ending in a coverage break (see
+        /// ag::DeadEndEstimate). Same default as ag::MultiplicityParams::min_dead_end_coverage.
+        double tip_min_coverage = 2;
     };
 
     /// Aggregated length/coverage of a set of original vertices.
@@ -35,6 +39,10 @@ namespace dot_viewer {
 
     /// Two-level folding of a DotGraph.
     ///
+    /// Kept tips: a short dead end (no outgoing or no incoming edges) with coverage >= tip_min_coverage, together with
+    /// the unbranching stretch of short vertices leading to it, is cut out like a long vertex below, so it stays visible
+    /// instead of disappearing in a component. It is drawn with a purple border.
+    ///
     /// Level 1: every long vertex (length >= threshold) is cut into a start half (keeps in-edges) and an end half
     /// (keeps out-edges). Each connected component of the cut graph with >= 2 short vertices becomes a component
     /// vertex C; components with <= 1 short vertex stay unfolded (their original vertices/edges are kept).
@@ -54,6 +62,8 @@ namespace dot_viewer {
         size_t componentCount() const { return components.size(); }
         size_t pathCount() const { return paths.size(); }
         size_t longCount() const { return long_count; }
+        /// Vertices of kept tips (dead ends and their stretches).
+        size_t keptTipCount() const { return kept_tip_count; }
         size_t topSize() const { return groups.size(); }
         double longThreshold() const { return long_threshold; }
         /// Length of the longest original vertex (0 if no lengths could be parsed).
@@ -109,6 +119,8 @@ namespace dot_viewer {
         std::vector<bool> has_trunc;
         std::vector<double> edge_trunc;
         size_t long_count = 0;
+        std::vector<bool> kept_tip;
+        size_t kept_tip_count = 0;
         double long_threshold = 0;
         double max_vertex_length = 0;
 
@@ -121,6 +133,8 @@ namespace dot_viewer {
         std::vector<size_t> group_of_l1;
 
         void computeMetrics(const FoldParams &params);
+        /// Fills kept_tip (see the class comment).
+        void markTips(const FoldParams &params);
         void buildLevel1();
         void buildLevel2();
 

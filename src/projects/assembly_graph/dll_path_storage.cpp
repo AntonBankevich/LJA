@@ -3,6 +3,7 @@
 #include "dll_path.hpp"
 #include "sequences/contigs.hpp"
 #include <omp.h>
+#include <map>
 #include <sstream>
 #include <unordered_set>
 #include <set>
@@ -681,6 +682,74 @@ std::vector<std::string> ag::DLLAlignmentStorage::passingForwardContigs(const Ve
         const std::string &name = pos->seg.contig().getInnerId();
         if (!startsWith(name, "-") && seen.insert(name).second)
             res.push_back(name);
+    }
+    return res;
+}
+
+std::unordered_map<ag::ConstVertexId, std::vector<ag::DLLAlignmentStorage::VertexTraversal>>
+ag::DLLAlignmentStorage::vertexTraversals() {
+    std::unordered_map<ConstVertexId, std::vector<VertexTraversal>> res;
+//    The traversal of a vertex the path is currently in: its index in res, how far its pieces reach in the vertex, and
+//    the contig position where the vertex starts according to its last piece.
+    struct Open {
+        size_t index;
+        size_t reach;
+        int64_t start_in_contig;
+    };
+    for (auto &[name, path] : alignments) {
+        std::vector<const AlignmentFragment *> fragments;
+        for (const AlignmentFragment &f : path)
+            fragments.push_back(&f);
+        std::unordered_map<ConstVertexId, Open> open;
+        for (size_t i = 0; i < fragments.size(); i++) {
+            const AlignmentFragment &f = *fragments[i];
+            const bool at_end = i == 0 || i + 1 == fragments.size();
+//            Pieces in path order: vertex, [from, to) in vertex coordinates, and the contig position where the vertex
+//            starts according to the piece. In the full sequence of an edge u -> v, u is the prefix and v the suffix.
+            struct Piece {
+                const Vertex *vertex;
+                size_t from;
+                size_t to;
+                int64_t start_in_contig;
+            };
+            std::vector<Piece> pieces;
+            const int64_t fragment_start = int64_t(f.seg.left) - int64_t(f.cut_left);  // contig position of offset 0
+            if (f.isInnerFragment()) {
+                pieces.push_back({&*f.vertex, f.cut_left, f.vertex->size() - f.cut_right, fragment_start});
+            } else {
+                const Edge &e = *f.edge;
+                const size_t from = f.cut_left;
+                const size_t to = e.fullSize() - f.cut_right;
+                const Vertex &u = e.getStart();
+                const Vertex &v = e.getFinish();
+                if (from < u.size())
+                    pieces.push_back({&u, from, std::min(to, u.size()), fragment_start});
+                const size_t v_start = e.fullSize() - v.size();
+                if (to > v_start)
+                    pieces.push_back({&v, std::max(from, v_start) - v_start, to - v_start,
+                                      fragment_start + int64_t(v_start)});
+            }
+//            A piece continues the open traversal if it reaches further into the vertex, or if it places the vertex at
+//            the same contig position (an overlapping piece of the same copy). Otherwise the path entered the vertex
+//            again: a new traversal.
+            for (const Piece &piece : pieces) {
+                std::vector<VertexTraversal> &traversals = res[piece.vertex->getId()];
+                auto it = open.find(piece.vertex->getId());
+                if (it == open.end() ||
+                        (piece.to <= it->second.reach && piece.start_in_contig != it->second.start_in_contig)) {
+                    traversals.push_back({&f.seg.contig(), 0, false});
+                    it = open.insert_or_assign(piece.vertex->getId(),
+                                               Open{traversals.size() - 1, piece.from, piece.start_in_contig}).first;
+                }
+                Open &o = it->second;
+                VertexTraversal &t = traversals[o.index];
+                if (piece.to > std::max(piece.from, o.reach))
+                    t.covered += piece.to - std::max(piece.from, o.reach);
+                o.reach = std::max(o.reach, piece.to);
+                o.start_in_contig = piece.start_in_contig;
+                t.at_end = t.at_end || at_end;
+            }
+        }
     }
     return res;
 }

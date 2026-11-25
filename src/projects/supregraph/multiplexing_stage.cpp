@@ -82,7 +82,8 @@ spg::ConstructSupregraphFromRawInput(logging::Logger &logger, size_t threads, co
 std::unordered_map<std::string, std::experimental::filesystem::path>
 spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experimental::filesystem::path &dir, size_t k,
                      size_t w, const io::Library &graph_gfa, const io::Library &reads_files,
-                     const io::Library &extra_reads_files, const io::Library &paths, bool debug) {
+                     const io::Library &extra_reads_files, const io::Library &paths,
+                     const ag::MultiplicityParams &multiplicity_params, bool debug) {
     if (k%2==0) {
         logger.info() << "Adjusted k from " << k << " to " << (k + 1)
                       << " to make it odd" << std::endl;
@@ -155,6 +156,18 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
         }
     }
     spg.resetEdgeCodes(logger, threads);
+    logger.info() << "Estimating multiplicities of long vertices" << std::endl;
+    ag::LongVertexMultiplicities multiplicities =
+            ag::LongVertexMultiplicities::Estimate(logger, threads, spg, multiplicity_params);
+//    Paths are tracked only in debug mode (see ConstructSupregraphFromRawInput).
+    ag::LongVertexMultiplicities::ReferenceCounter reference;
+    if (debug && !paths.empty()) {
+        reference = ag::LongVertexMultiplicities::FromPaths(dll_tracker);
+        multiplicities.compareWithReference(logger, reference);
+    }
+    multiplicities.printReport(dir / "multiplicities.tsv", reference);
+    multiplicities.printDeadEnds(dir / "dead_ends.tsv", reference);
+    printer += multiplicities.vertexInfo();
     logger.info() << "Printing final graph" << std::endl;
     printer.printDot(dir / "supregraph_final.dot", spg);
     if(debug) PrintConnectedComponents(printer, dir / "split", spg);
@@ -168,7 +181,8 @@ spg::RunMultiplexing(logging::Logger &logger, size_t threads, const std::experim
 }
 
 spg::SupreGraphPhase::SupreGraphPhase() : Stage(AlgorithmParameters(
-        {"k-mer-size=5001", "window=500"},
+        {"k-mer-size=5001", "window=500", "multiplicity-min-long=40000", "multiplicity-max-long=2000",
+         "unit-coverage=0"},
         {}, ""), {"graph", "reads", "extra_reads", "paths"}, {"supregraph_final"}) {
 }
 
@@ -178,6 +192,10 @@ spg::SupreGraphPhase::innerRun(logging::Logger &logger, size_t threads, const st
                                const std::unordered_map<std::string, io::Library> &input) {
     size_t k = std::stoull(parameterValues.getValue("k-mer-size"));
     size_t w = std::stoull(parameterValues.getValue("window"));
+    ag::MultiplicityParams multiplicity_params;
+    multiplicity_params.min_long = std::stoull(parameterValues.getValue("multiplicity-min-long"));
+    multiplicity_params.max_long_per_problem = std::stoull(parameterValues.getValue("multiplicity-max-long"));
+    multiplicity_params.unit_coverage = std::stod(parameterValues.getValue("unit-coverage"));
     return RunMultiplexing(logger, threads, dir, k, w, input.at("graph"), input.at("reads"),
-        input.at("extra_reads"), input.at("paths"), debug);
+        input.at("extra_reads"), input.at("paths"), multiplicity_params, debug);
 }

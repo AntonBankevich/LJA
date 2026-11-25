@@ -193,7 +193,8 @@ namespace {
                 res = std::make_shared<const FoldedGraph>(graph, params);
                 double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
                 std::cerr << "Folded with long threshold " << fmtNumber(long_threshold) << " into " << res->topSize()
-                          << " vertices: " << res->longCount() << " long, " << res->componentCount()
+                          << " vertices: " << res->longCount() << " long, " << res->keptTipCount()
+                          << " in kept tips, " << res->componentCount()
                           << " folded components, " << res->pathCount() << " folded paths (" << secs << "s)"
                           << std::endl;
             }
@@ -327,6 +328,8 @@ int main(int argc, char **argv) {
             fold_params.coverage_regex = argv[++i];
         } else if (arg == "--trunc-regex" && has_value) {
             fold_params.trunc_regex = argv[++i];
+        } else if (arg == "--tip-coverage" && has_value) {
+            fold_params.tip_min_coverage = std::atof(argv[++i]);
         } else if (arg == "--dump-top" && has_value) {
             dump_top = argv[++i];
         } else if (arg == "-h" || arg == "--help") {
@@ -344,7 +347,9 @@ int main(int argc, char **argv) {
                   << "  --length-regex RE     vertex length from its label, group 1 (default " << fold_params.length_regex << ")\n"
                   << "  --coverage-regex RE   vertex coverage from its label (default " << fold_params.coverage_regex << ")\n"
                   << "  --trunc-regex RE      sequence an edge adds beyond its start vertex, from its label (default "
-                  << fold_params.trunc_regex << ")\n";
+                  << fold_params.trunc_regex << ")\n"
+                  << "  --tip-coverage COV    dead ends with at least this coverage stay unfolded (default "
+                  << fold_params.tip_min_coverage << ")\n";
         return 1;
     }
     try {
